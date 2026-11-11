@@ -35,6 +35,7 @@ import { azioniMenuWorkspace, gruppiMenuWorkspace } from '@shared/menu-workspace
 import { FRASE_SVUOTA, motivoNonChiude, TESTI_AZIONI_CHAT } from '@shared/gestione-chat'
 import { confermaArchiviaChat, confermaChiediSvuota, confermaChiudiChat, confermaEliminaChat, ORDINI_SPAZIO, SPIEGA_ELIMINA_DRIVE, SPIEGA_SVUOTA_DRIVE } from '@shared/gestione-chat-vista'
 import { testoEsito } from '@shared/quaderno-personale'
+import { MODI_AVVISO, NOMI_MODI, NOMI_TIPI, TIPI_AVVISO } from '@shared/avvisi-telefono'
 import { FRASE_GROSSO_FUORI, drivePienoDa, eseguiPasso, grossoFuoriDaSierraDeck, passiDa, percentualeDrive, ripartizioneDrive, righeDa, riepilogoFinale } from '@shared/libera-spazio'
 import { RECUPERO_DRIVE_PIENO_DEFAULT } from '@shared/spazio-drive'
 import { ATTIVITA, ATTIVITA_ORDINE, COLORI, TITOLO_LEGENDA } from '@shared/colori-attivita'
@@ -2768,6 +2769,7 @@ function pannello(s) {
     <div class="piastrella" data-sezione="notifiche">
       \${intestaImp('notifiche')}
       \${vociImp('notifiche')}
+      \${avvisiPaginaHtml()}
     </div>
     <div class="piastrella" data-sezione="info">
       \${intestaImp('info')}
@@ -4035,7 +4037,7 @@ window.apriPannello = async (quale) => {
   if (pannelloAperto === 'pc') { pcAperto = null; postaVoci = null; await leggiPc() }
   if (pannelloAperto === 'drive') { driveRiavviato = false; await leggiDrive() }
   if (pannelloAperto === 'pannellodrive') { pdDati = null; pdErrore = ''; pdDaConfermare = ''; await leggiPannelloDrive() }
-  if (pannelloAperto === 'impostazioni') { await leggiPreferenze(); await leggiAggiornamento(); await leggiQuadernoPersonale(); await leggiAccount() }
+  if (pannelloAperto === 'impostazioni') { await leggiPreferenze(); await leggiAggiornamento(); await leggiQuadernoPersonale(); await leggiAccount(); await leggiAvvisiPagina() }
   if (pannelloAperto === 'quaderno') {
     schedaAperta = null
     quadernoTag = ''
@@ -5227,6 +5229,11 @@ var qpErrore = ''
 var qpVisti = {}
 var qpBozza = { id: '', nome: '', valore: '', nota: '' }
 var qpDaTogliere = ''
+// Le notifiche (11/11): i nomi dei tipi e dei modi, gli stessi del PC (src/shared/avvisi-telefono.ts).
+var NOMI_TIPI_AVVISO = ${JSON.stringify(NOMI_TIPI)}
+var NOMI_MODI_AVVISO = ${JSON.stringify(NOMI_MODI)}
+var TIPI_AVVISO_PAGINA = ${JSON.stringify(TIPI_AVVISO)}
+var MODI_AVVISO_PAGINA = ${JSON.stringify(MODI_AVVISO)}
 var QP_ESITI = ${JSON.stringify(Object.fromEntries((['una-volta', 'sempre', 'gia-consentita', 'negato', 'nessuna-risposta', 'voce-assente'] as const).map((e) => [e, testoEsito(e)])))}
 window.leggiQuadernoPersonale = async () => {
   try {
@@ -6097,7 +6104,7 @@ function vaiAlPosto(nuovo) {
   entra(() => { postaVoci = null; leggiPc().then(ridisegna) }, aperto('pc'))
   entra(() => { leggiConsumi().then(ridisegna) }, aperto('consumi'))
   entra(() => { attesaConferma = ''; attesaNota = ''; leggiAttesa().then(ridisegna) }, aperto('specialisti'))
-  entra(() => { Promise.all([leggiPreferenze(), leggiAggiornamento(), leggiQuadernoPersonale(), leggiAccount()]).then(ridisegna) }, inVista('impostazioni') || (nuovo.voce === 'altro' && prima.voce !== 'altro'))
+  entra(() => { Promise.all([leggiPreferenze(), leggiAggiornamento(), leggiQuadernoPersonale(), leggiAccount(), leggiAvvisiPagina()]).then(ridisegna) }, inVista('impostazioni') || (nuovo.voce === 'altro' && prima.voce !== 'altro'))
   pannello(ultimoStato)
   window.scrollTo(0, 0)
 }
@@ -6284,115 +6291,132 @@ async function vestiti() {
  */
 function chiediDiAvvisare() { }
 
-/** Gli avvisi gia' dati: la stessa domanda non si annuncia due volte. */
-var avvisati = {}
-/** Al primo stato non si annuncia niente: e' il passato, non una novita'. */
-var primoAvviso = true
-/** Quando si è mostrato l'ultimo avviso (0.80.0): quelli vicini si raggruppano. */
-var ultimoAvvisoIl = undefined
-
 /**
- * Avvisa quando l'autopilota ha bisogno di te.
- *
- * Le stesse due cose che annuncia l'app Android: una domanda che aspetta, e un
- * lavoro che si e' fermato. Non «sta lavorando», che non richiede niente a
- * nessuno - un avviso che non chiede niente insegna a ignorare quelli che
- * chiedono.
+ * Le notifiche del browser (11/11): dal registro degli avvisi del computer,
+ * gli stessi dell'app e di Telegram, con le stesse impostazioni. La pagina
+ * chiede ogni giro «cosa è cambiato dopo il numero N» (/api/eventi) e dice fin
+ * dove ha ricevuto (/api/avvisi/visto): ritardi e consegne finiscono nel
+ * registro del PC. All'apertura si legge solo il numero: le domande già lì si
+ * vedono nella pagina. Con la pagina davanti agli occhi non si notifica niente
+ * (si vede già), tranne «Prova notifica». Un avviso chiuso toglie la sua
+ * notifica; «ho scelto io» la sostituisce, muta.
  */
-/** Una chat che ha finito il turno avvisa solo se aspetta te da almeno tanto (0.74.0). */
-var ATTESA_CHAT_MS = 3 * 60000
+var avvisiUltimo = -1
+var avvisiInCorso = false
+var notificheAperte = {}
+var avvisiLettiIl = 0
 function avvisaSeServe(stato) {
+  if (avvisiInCorso) return
+  avvisiInCorso = true
+  const da = avvisiUltimo < 0 ? 0 : avvisiUltimo
+  chiedi('/api/eventi?avvisi=' + da + '&attesa=0').then(function (r) {
+    if (!r || typeof r.ultimo !== 'number' || !Array.isArray(r.avvisi)) return
+    const primo = avvisiUltimo < 0
+    avvisiUltimo = r.ultimo
+    if (primo || r.avvisi.length === 0) return
+    mostraAvvisi(r.avvisi)
+    chiedi('/api/avvisi/visto', { fino: r.ultimo }).catch(function () { })
+  }).catch(function () { }).then(function () { avvisiInCorso = false })
+  // La schermata Notifiche aperta: la riga di chi ascolta e le ultime si rileggono ogni 10 s.
+  if (inVista('impostazioni') && Date.now() - avvisiLettiIl > 10000) {
+    const prima = JSON.stringify(avvisiVisti)
+    leggiAvvisiPagina().then(function () { if (JSON.stringify(avvisiVisti) !== prima) pannello(ultimoStato) })
+  }
+}
+function mostraAvvisi(avvisi) {
+  if (typeof Notification === 'undefined') return
+  for (const a of avvisi) {
+    if (a.chiuso) {
+      const vecchia = notificheAperte[a.id]
+      if (vecchia) { try { vecchia.close() } catch (e) { } delete notificheAperte[a.id] }
+      if (a.chiuso.come === 'programma' && Notification.permission === 'granted' && document.visibilityState !== 'visible') {
+        mostraNotifica(a, a.testo + ' · Ho scelto io' + (a.chiuso.testo ? ': ' + a.chiuso.testo : ' la strada più prudente') + '.', true)
+      }
+      continue
+    }
+    // Il permesso si chiede alla prima domanda vera, non all'apertura: prima non c'è un motivo per dire sì.
+    if (Notification.permission === 'default' && a.tipo === 'domanda') { try { Notification.requestPermission() } catch (e) { } continue }
+    if (Notification.permission !== 'granted') continue
+    if (document.visibilityState === 'visible' && a.id.indexOf('prova:') !== 0) continue
+    mostraNotifica(a, a.testo + (a.sotto ? ' · ' + a.sotto : ''), !a.suona)
+  }
+}
+function mostraNotifica(a, corpo, muta) {
   try {
-    if (typeof Notification === 'undefined') return
-    // Il permesso si chiede alla **prima domanda vera**, non al primo disegno.
-    // Chiederlo appena aperta la pagina significa chiederlo prima che esista un
-    // motivo per dire di si' - e chi dice di no, dice di no per sempre.
-    if (Notification.permission === 'default' && (stato.domande || []).length > 0) {
-      Notification.requestPermission()
-      return
+    const n = new Notification(a.titolo, { body: corpo, tag: a.id, silent: muta === true })
+    notificheAperte[a.id] = n
+    n.onclick = function () {
+      try { window.focus() } catch (e) { }
+      const b = a.bersaglio || {}
+      if (b.cosa === 'file') vaiScheda('file')
+      else if (b.cosa === 'aggiornamenti') apriSezione('aggiornamenti')
+      else if (b.cosa === 'chat' && a.tipo !== 'domanda') vaiScheda('chat')
+      else vaiScheda('domande')
+      n.close()
     }
-    if (Notification.permission !== 'granted') return
-    const nuovo = !primoAvviso
-    const ora = Date.now()
-    // 0.80.0: si raccoglie, poi avvisiDaMostrare raggruppa quelli vicini e
-    // ognuno mostrato va nel registro del computer.
-    const nuovi = []
-    // Una domanda già aperta quando si apre la pagina si vede nella pagina:
-    // non si riannuncia a ogni ricarica (0.80.0).
-    for (const d of (stato.domande || [])) {
-      if (avvisati['d-' + d.id]) continue
-      avvisati['d-' + d.id] = true
-      if (nuovo) nuovi.push({ tipo: 'domanda', titolo: 'SierraDeck ti sta chiedendo una cosa', corpo: d.testo, tag: d.id, causa: 'domanda ' + (d.autopilotaId || d.id) + ': ' + String(d.testo || '').slice(0, 60) })
-    }
-    for (const c of (stato.chat || [])) {
-      // Una chat ferma su una scelta (un permesso): e' una domanda a tutti gli
-      // effetti, e fino alla 0.34 non si annunciava. Anche per le governate,
-      // come nell'app: l'autopilota non concede permessi al posto tuo. Una
-      // scelta che va e viene in meno di un minuto si annuncia una volta
-      // (0.80.0, sceltaDaAnnunciare): ogni ritorno era una notifica nuova.
-      const r = sceltaDaAnnunciare(c.chiede === true, avvisati['k-' + c.id], ora)
-      if (r.visto === undefined) delete avvisati['k-' + c.id]
-      else avvisati['k-' + c.id] = r.visto
-      // Una per chat (0.74.0): la stessa etichetta della sua attesa, così si sostituiscono.
-      if (r.annuncia && nuovo) nuovi.push({ tipo: 'scelta', titolo: (c.titolo || 'Una chat') + ' aspetta che tu scelga', corpo: 'Sullo schermo c’è un elenco di scelte: rispondi da Adesso.', tag: 'chat-' + c.id, causa: 'la chat ' + c.id + ' è ferma su una scelta' + (c.governata === true ? ' (governata da un autopilota)' : '') })
-    }
-    // Il servizio degli autopiloti non ha risposto: l'elenco vuoto non vuol
-    // dire «nessuno», e non si deve ne' dimenticare ne' riannunciare niente.
-    for (const a of (stato.autopilotiLetti === false ? [] : (stato.autopiloti || []))) {
-      // Un annuncio del programma (0.81.0, il riepilogo di «Errori arrivati»): una volta per id.
-      if (a.annuncio && a.annuncio.id && !avvisati['n-' + a.annuncio.id]) {
-        avvisati['n-' + a.annuncio.id] = true
-        if (nuovo && a.archiviato !== true) nuovi.push({ tipo: 'annuncio', titolo: a.annuncio.titolo || a.nome, corpo: 'Il riepilogo è nella conversazione di «' + a.nome + '».', tag: 'n-' + a.id, causa: 'annuncio ' + a.annuncio.id + ' di «' + a.nome + '»: un riepilogo che aspetta te' })
-      }
-      if (a.stato === 'pronto') {
-        if (avvisati['p-' + a.id]) continue
-        avvisati['p-' + a.id] = true
-        if (nuovo) nuovi.push({ tipo: 'pronto', titolo: a.nome + ' aspetta il tuo via', corpo: 'Ha letto il progetto e capito l’obiettivo: apri Lavori e premi «Vai».', tag: a.id, causa: 'autopilota ' + a.id + ' pronto, aspetta il via' })
-        continue
-      }
-      // Chi riparte torna annunciabile: se si ferma di nuovo e' una notizia.
-      if (a.stato !== 'sospeso' && a.stato !== 'fallito' && a.stato !== 'finito') { delete avvisati['f-' + a.id + 'finito']; continue }
-      // Un fermo si annuncia **una volta**, con la sua chiave (id, momento,
-      // motivo: 0.37.0); uno nuovo ha una chiave nuova. Un archiviato tace.
-      const chiaveF = a.stato === 'finito' ? 'f-' + a.id + 'finito' : 'f-' + (a.fermo || (a.id + a.stato))
-      // Un fermo che riparte da solo (limiti del piano, aggiornamento) non chiede niente a te (0.81.0).
-      // Non si segna come visto: se poi resta fermo davvero, con la stessa chiave, si annuncia.
-      if (a.stato !== 'finito' && a.riparteDaSolo === true) continue
-      if (avvisati[chiaveF]) continue
-      avvisati[chiaveF] = true
-      if (!nuovo || a.archiviato === true) continue
-      if (a.stato === 'finito') nuovi.push({ tipo: 'finito', titolo: a.nome + ' ha finito', corpo: 'Il lavoro è concluso: puoi guardare il risultato.', tag: a.id, causa: 'autopilota ' + a.id + ' finito' })
-      else nuovi.push({ tipo: 'fermo', titolo: a.nome + ' si è fermato', corpo: a.motivo || 'Serve una tua occhiata.', tag: a.id, causa: 'autopilota ' + a.id + ' ' + a.stato + ': ' + (a.motivo || 'senza motivo') })
-    }
-    // Una chat tua che aspetta te: solo dopo ATTESA_CHAT_MS (0.74.0, come
-    // l'app). Le pause brevi fra un turno e l'altro erano la maggior parte
-    // degli avvisi, e non chiedevano niente. Finché resta ferma non si ripete.
-    for (const c of (stato.chat || [])) {
-      const chiaveChat = 'a-' + c.id
-      if (c.aspetta === true && c.governata !== true && !c.chiede) {
-        if (avvisati[chiaveChat]) continue
-        if (!avvisati['t-' + c.id]) avvisati['t-' + c.id] = ora
-        if (ora - avvisati['t-' + c.id] < ATTESA_CHAT_MS) continue
-        avvisati[chiaveChat] = true
-        if (nuovo) nuovi.push({ tipo: 'aspetta', titolo: (c.titolo || 'Una chat') + ' ha finito il turno', corpo: 'Ferma da ' + Math.round((ora - avvisati['t-' + c.id]) / 60000) + ' min. ' + (c.ultimaRiga || 'Ha finito di scrivere.'), tag: 'chat-' + c.id, causa: 'la chat ' + c.id + ' ha finito il turno e aspetta da ' + Math.round((ora - avvisati['t-' + c.id]) / 60000) + ' min' })
-      } else {
-        delete avvisati[chiaveChat]
-        delete avvisati['t-' + c.id]
-      }
-    }
-    // La versione pronta non è più una notifica (0.81.0): solo domande che
-    // aspettano te, lavori finiti ed errori che bloccano. La banda nella pagina resta.
-    // Vicini = uno solo (0.80.0); ognuno mostrato nel registro del computer.
-    // Nel registro va ogni avviso, anche dentro un gruppo, con la sua causa (0.81.0).
-    for (const m of avvisiDaMostrare(nuovi, ultimoAvvisoIl, ora)) {
-      new Notification(m.titolo, { body: m.corpo, tag: m.tag })
-      ultimoAvvisoIl = ora
-    }
-    for (const n of nuovi) {
-      chiedi('/api/avviso-mostrato', { da: 'pagina', tipo: n.tipo, titolo: n.titolo, causa: n.causa, gruppo: nuovi.length > 1 ? nuovi.length : undefined }).catch(function () { })
-    }
-    primoAvviso = false
+    n.onclose = function () { if (notificheAperte[a.id] === n) delete notificheAperte[a.id] }
   } catch (e) { }
+}
+
+// La schermata «Notifiche» (11/11): le stesse scelte del PC e dell'app, tenute dal computer.
+var avvisiVisti = null
+var avvisiErrore = ''
+var avvisiNota = ''
+window.leggiAvvisiPagina = async () => {
+  avvisiLettiIl = Date.now()
+  try { avvisiVisti = await chiedi('/api/avvisi/stato'); avvisiErrore = '' }
+  catch (e) { avvisiVisti = null; avvisiErrore = (e && e.message) || String(e) }
+}
+window.impostaAvvisi = async (x) => {
+  try { const imp = await chiedi('/api/avvisi/impostazioni', x); if (avvisiVisti && imp && imp.tipi) avvisiVisti.impostazioni = imp; avvisiNota = '' }
+  catch (e) { avvisiNota = 'Non cambiata: ' + ((e && e.message) || e) }
+  pannello(ultimoStato)
+}
+window.modoAvviso = (tipo, modo) => {
+  if (!avvisiVisti) return
+  const tipi = Object.assign({}, avvisiVisti.impostazioni.tipi)
+  tipi[tipo] = modo
+  impostaAvvisi({ tipi: tipi })
+}
+window.silenzioAvvisi = (acceso) => impostaAvvisi({ silenzio: acceso ? { da: '23:00', a: '07:00' } : null })
+window.oraSilenzio = (quale, valore) => {
+  const s = avvisiVisti && avvisiVisti.impostazioni.silenzio
+  if (!s || !valore) return
+  const n = { da: s.da, a: s.a }
+  n[quale] = valore
+  impostaAvvisi({ silenzio: n })
+}
+window.provaAvviso = async () => {
+  // Un tocco: il momento giusto per chiedere il permesso, così la prova arriva anche qui.
+  if (typeof Notification !== 'undefined' && Notification.permission === 'default') { try { await Notification.requestPermission() } catch (e) { } }
+  try { await chiedi('/api/avvisi/prova', {}); avvisiNota = 'Partita: deve arrivare sul telefono, qui e su Telegram.'; await leggiAvvisiPagina() }
+  catch (e) { avvisiNota = 'La prova non è partita: ' + ((e && e.message) || e) }
+  pannello(ultimoStato)
+}
+function avvisiPaginaHtml() {
+  if (avvisiErrore) return '<div class="sotto" style="color:var(--ambra)">' + esc(avvisiErrore) + '</div>'
+  if (!avvisiVisti) return '<div class="sotto">Leggo le notifiche…</div>'
+  const v = avvisiVisti
+  const imp = v.impostazioni
+  let h = '<div class="sotto" style="margin-top:10px">' + esc(v.riga) + aiuto('avvisi-chi', 'Le notifiche nascono sul computer e partono per l’app, per questa pagina (se è aperta) e per Telegram. Se il telefono è spento, le domande ancora aperte gli arrivano appena si ricollega. Ogni passaggio resta nel registro del PC, alla riga «[avviso]».') + '</div>'
+  h += '<div class="riga"><button onclick="provaAvviso()">Prova notifica</button></div>'
+  if (avvisiNota) h += '<div class="sotto">' + esc(avvisiNota) + '</div>'
+  for (const t of TIPI_AVVISO_PAGINA) {
+    h += '<div class="sotto" style="margin-top:10px">' + esc(NOMI_TIPI_AVVISO[t].titolo) + aiuto('avvisi-' + t, NOMI_TIPI_AVVISO[t].spiega + ' Suona: con il suono (uno ogni venti secondi al massimo, mai nelle ore di silenzio). Silenziosa: senza suono. Spenta: non arriva da nessuna parte.') + '</div>' +
+      '<div class="ws" style="margin-top:6px">' + MODI_AVVISO_PAGINA.map((m) => '<button class="' + (imp.tipi[t] === m ? 'attivo' : '') + '" onclick="modoAvviso(\\'' + t + '\\', \\'' + m + '\\')">' + esc(NOMI_MODI_AVVISO[m]) + '</button>').join('') + '</div>'
+  }
+  h += '<div class="sotto" style="margin-top:12px"><label><input type="checkbox"' + (imp.chatFerma ? ' checked' : '') + ' onchange="impostaAvvisi({ chatFerma: this.checked })"> Anche una chat mia ferma da tre minuti</label>' + aiuto('avvisi-chat-ferma', 'Una chat aperta da te (non quelle degli autopiloti) che ha finito il turno o chiede una scelta e resta ferma tre minuti manda una notifica: Domanda se chiede, Fatto se ha solo finito.') + '</div>'
+  h += '<div class="sotto" style="margin-top:8px"><label><input type="checkbox"' + (imp.silenzio ? ' checked' : '') + ' onchange="silenzioAvvisi(this.checked)"> Ore di silenzio</label>' +
+    (imp.silenzio ? ' dalle <input type="time" value="' + esc(imp.silenzio.da) + '" onchange="oraSilenzio(\\'da\\', this.value)"> alle <input type="time" value="' + esc(imp.silenzio.a) + '" onchange="oraSilenzio(\\'a\\', this.value)">' : '') +
+    aiuto('avvisi-silenzio', 'Nelle ore di silenzio le notifiche arrivano lo stesso, senza suono. L’ora è quella del computer. «Prova notifica» suona sempre.') + '</div>'
+  h += '<div class="sotto" style="margin-top:12px"><b>Ultime notifiche</b>' + aiuto('avvisi-ultime', 'Le ultime venti partite dal computer, la più recente in cima, con com’è finita ognuna. Se qui c’è e sul telefono no, il problema è fra il computer e il telefono.') + '</div>'
+  if (v.ultimi.length === 0) h += '<div class="sotto">Ancora nessuna.</div>'
+  for (const a of v.ultimi) h += '<div class="sotto"><b>' + esc(a.ora) + '</b> · ' + esc((NOMI_TIPI_AVVISO[a.tipo] || {}).titolo || a.tipo) + ' · ' + esc(a.titolo) + ': ' + esc(a.testo) + ' <i>(' + esc(a.esito) + ')</i></div>'
+  const permesso = typeof Notification === 'undefined' ? 'Questo browser non sa mostrare notifiche.'
+    : Notification.permission === 'granted' ? 'Questo browser mostra le notifiche mentre la pagina è aperta in un’altra scheda o nascosta.'
+    : Notification.permission === 'denied' ? 'Questo browser ha le notifiche spente per la pagina: si riaccendono dalle sue impostazioni.'
+    : 'Questo browser chiederà il permesso alla prima domanda, o con «Prova notifica».'
+  return h + '<div class="sotto" style="margin-top:8px">' + esc(permesso) + '</div>'
 }
 
 /*

@@ -38,101 +38,81 @@ describe('0.73.1: pagina, controlli dal giro con i clic', () => {
   })
 })
 
-describe('0.74.0: pagina, solo notifiche utili', () => {
-  function banco() {
-    const mandate: { titolo: string; tag: string }[] = []
-    class N { static permission = 'granted'; static requestPermission(): void {} constructor(titolo: string, o: { tag: string }) { mandate.push({ titolo, tag: o.tag }) } }
-    let ora = Date.parse('2026-10-15T20:00:00Z')
-    const registro: string[] = []
-    const fn = new Function('Notification', 'Date', 'registro', `var avvisati = {}; var primoAvviso = false; var ultimoAvvisoIl = undefined; var ATTESA_CHAT_MS = 3 * 60000;
-      function chiedi(percorso, corpo) { registro.push(percorso + ' ' + corpo.tipo + ' ' + corpo.titolo); return Promise.resolve() }
-      ${funzione('avvisiDaMostrare')}; ${funzione('sceltaDaAnnunciare')}; ${funzione('avvisaSeServe')}; return avvisaSeServe`)(
-      N, { now: () => ora }, registro
-    ) as (s: unknown) => void
-    return { mandate, registro, giro: (s: unknown, piu = 0): void => { ora += piu; fn(s) } }
-  }
-  it('una chat che finisce un turno e riparte subito non avvisa; dopo tre minuti di attesa sì, una volta', () => {
-    const b = banco()
-    const ferma = { chat: [{ id: 'c1', titolo: 'Trading', aspetta: true }] }
-    const lavora = { chat: [{ id: 'c1', titolo: 'Trading', aspetta: false }] }
-    b.giro(ferma); b.giro(ferma, 2 * 60000); b.giro(lavora, 30000)
-    expect(b.mandate).toEqual([])
-    b.giro(ferma, 60000); b.giro(ferma, 3 * 60000); b.giro(ferma, 60000)
-    expect(b.mandate).toEqual([{ titolo: 'Trading ha finito il turno', tag: 'chat-c1' }])
-  })
-  it('scelta e attesa della stessa chat hanno la stessa etichetta (una notifica per chat); la versione pronta non è una notifica (0.81.0)', () => {
-    const b = banco()
-    b.giro({ chat: [{ id: 'c1', titolo: 'Trading', chiede: true }] })
-    // La versione pronta non aspetta te, non è un lavoro finito né un errore: resta la banda nella pagina.
-    b.giro({ chat: [], aggiornamento: { fase: 'pronto', versione: '0.74.0' } }, 30_000)
-    b.giro({ chat: [], aggiornamento: { fase: 'pronto', versione: '0.74.0' } }, 30_000)
-    expect(b.mandate).toEqual([{ titolo: 'Trading aspetta che tu scelga', tag: 'chat-c1' }])
-  })
-})
-
-describe('0.80.0: pagina, notifiche raggruppate e nel registro', () => {
-  function banco() {
-    const mandate: { titolo: string; tag: string }[] = []
-    class N { static permission = 'granted'; static requestPermission(): void {} constructor(titolo: string, o: { tag: string }) { mandate.push({ titolo, tag: o.tag }) } }
-    let ora = Date.parse('2026-10-19T12:00:00Z')
-    const registro: string[] = []
-    const fn = new Function('Notification', 'Date', 'registro', `var avvisati = {}; var primoAvviso = false; var ultimoAvvisoIl = undefined; var ATTESA_CHAT_MS = 3 * 60000;
-      function chiedi(percorso, corpo) { registro.push(percorso + ' ' + corpo.da + ' ' + corpo.tipo + ' ' + corpo.titolo + ' | ' + corpo.causa + (corpo.gruppo ? ' | ' + corpo.gruppo : '')); return Promise.resolve() }
-      ${funzione('avvisiDaMostrare')}; ${funzione('sceltaDaAnnunciare')}; ${funzione('avvisaSeServe')}; return avvisaSeServe`)(
-      N, { now: () => ora }, registro
-    ) as (s: unknown) => void
-    return { mandate, registro, giro: (s: unknown, piu = 0): void => { ora += piu; fn(s) } }
-  }
-
-  it('tre domande insieme: una notifica sola, e nel registro del computer ognuna con la sua causa (0.81.0)', () => {
-    const b = banco()
-    b.giro({ domande: [{ id: 'd1', autopilotaId: 'ap-1', testo: 'a' }, { id: 'd2', testo: 'b' }, { id: 'd3', testo: 'c' }] })
-    expect(b.mandate).toEqual([{ titolo: '3 cose aspettano te', tag: 'sierradeck-gruppo' }])
-    expect(b.registro).toEqual([
-      '/api/avviso-mostrato pagina domanda SierraDeck ti sta chiedendo una cosa | domanda ap-1: a | 3',
-      '/api/avviso-mostrato pagina domanda SierraDeck ti sta chiedendo una cosa | domanda d2: b | 3',
-      '/api/avviso-mostrato pagina domanda SierraDeck ti sta chiedendo una cosa | domanda d3: c | 3'
-    ])
-  })
-
-  it('fermo e finito hanno la causa nel registro; un fermo che riparte da solo non avvisa (0.81.0)', () => {
-    const b = banco()
-    b.giro({ autopiloti: [{ id: 'ap-1', nome: 'Sito', stato: 'lavoro' }, { id: 'ap-2', nome: 'App', stato: 'lavoro' }] })
-    b.giro({ autopiloti: [{ id: 'ap-1', nome: 'Sito', stato: 'sospeso', motivo: 'la chat non parte', fermo: 'k1' }, { id: 'ap-2', nome: 'App', stato: 'sospeso', motivo: 'limiti', fermo: 'k2', riparteDaSolo: true }] }, 30_000)
-    b.giro({ autopiloti: [{ id: 'ap-1', nome: 'Sito', stato: 'finito' }] }, 60_000)
-    expect(b.mandate.map((m) => m.titolo)).toEqual(['Sito si è fermato', 'Sito ha finito'])
-    expect(b.registro).toEqual([
-      '/api/avviso-mostrato pagina fermo Sito si è fermato | autopilota ap-1 sospeso: la chat non parte',
-      '/api/avviso-mostrato pagina finito Sito ha finito | autopilota ap-1 finito'
-    ])
-  })
-
-  it('il riepilogo di «Errori arrivati» ha la sua causa nel registro, come gli altri (c-241)', () => {
-    const b = banco()
-    b.giro({ autopiloti: [{ id: 'ap-e', nome: 'Errori arrivati', stato: 'lavoro', annuncio: { id: 'n-1', titolo: 'Errori arrivati: il riepilogo' } }] })
-    expect(b.mandate.map((m) => m.titolo)).toEqual(['Errori arrivati: il riepilogo'])
-    expect(b.registro).toEqual([
-      '/api/avviso-mostrato pagina annuncio Errori arrivati: il riepilogo | annuncio n-1 di «Errori arrivati»: un riepilogo che aspetta te'
-    ])
-  })
-
-  it('una scelta che va e viene ogni 3 s si annuncia una volta, anche per una chat governata (il permesso lo dai tu)', () => {
-    const b = banco()
-    for (let i = 0; i < 10; i++) {
-      b.giro({ chat: [{ id: 'g', titolo: 'Governata', chiede: i % 2 === 0, governata: true }] }, 3000)
+describe('11/11: le notifiche della pagina vengono dal registro degli avvisi del PC', () => {
+  type Chiamata = { percorso: string; corpo?: unknown }
+  function banco(risposte: unknown[], o: { permesso?: string; visibile?: boolean } = {}) {
+    const mandate: { titolo: string; corpo: string; tag: string; muta: boolean; chiusa: boolean }[] = []
+    const chiamate: Chiamata[] = []
+    const permessi: string[] = []
+    class N {
+      static permission = o.permesso ?? 'granted'
+      static requestPermission(): void { permessi.push('chiesto') }
+      voce: { titolo: string; corpo: string; tag: string; muta: boolean; chiusa: boolean }
+      onclick: (() => void) | null = null
+      onclose: (() => void) | null = null
+      constructor(titolo: string, x: { body: string; tag: string; silent: boolean }) { this.voce = { titolo, corpo: x.body, tag: x.tag, muta: x.silent, chiusa: false }; mandate.push(this.voce) }
+      close(): void { this.voce.chiusa = true }
     }
-    expect(b.mandate.map((m) => m.titolo)).toEqual(['Governata aspetta che tu scelga'])
+    const coda = [...risposte]
+    const fn = new Function('Notification', 'document', 'chiamate', 'coda', `
+      var avvisiUltimo = -1; var avvisiInCorso = false; var notificheAperte = {}; var avvisiLettiIl = 0; var avvisiVisti = null
+      function inVista() { return false }
+      function chiedi(percorso, corpo) { chiamate.push({ percorso: percorso, corpo: corpo }); return Promise.resolve(percorso.indexOf('/api/eventi') === 0 ? coda.shift() : {}) }
+      ${funzione('mostraNotifica')}; ${funzione('mostraAvvisi')}; ${funzione('avvisaSeServe')}; return avvisaSeServe`)(
+      N, { visibilityState: o.visibile === true ? 'visible' : 'hidden' }, chiamate, coda
+    ) as (s?: unknown) => void
+    const giro = async (): Promise<void> => { fn({}); await new Promise((r) => setTimeout(r, 0)) }
+    return { mandate, chiamate, permessi, giro }
+  }
+  const domanda = (n: number, x: Record<string, unknown> = {}) => ({ n, id: 'domanda:d-' + n, tipo: 'domanda', titolo: 'Negozio chiede', testo: 'Tengo?', sotto: 'Consigliata: sì', quando: '', suona: true, bersaglio: { cosa: 'domanda', id: 'd-' + n }, ...x })
+
+  it('all’apertura legge solo il numero; poi ogni avviso nuovo è una notifica con l’id come etichetta, e dice fin dove ha ricevuto', async () => {
+    const b = banco([{ ultimo: 7, avvisi: [domanda(7)] }, { ultimo: 8, avvisi: [domanda(8)] }, { ultimo: 8, avvisi: [] }])
+    await b.giro()
+    expect(b.mandate).toEqual([])
+    await b.giro()
+    await b.giro()
+    expect(b.mandate).toEqual([{ titolo: 'Negozio chiede', corpo: 'Tengo? · Consigliata: sì', tag: 'domanda:d-8', muta: false, chiusa: false }])
+    expect(b.chiamate.map((c) => c.percorso)).toEqual(['/api/eventi?avvisi=0&attesa=0', '/api/eventi?avvisi=7&attesa=0', '/api/avvisi/visto', '/api/eventi?avvisi=8&attesa=0'])
+    expect(b.chiamate[2]!.corpo).toEqual({ fino: 8 })
   })
 
-  it('aperta la pagina, le domande già lì non si annunciano (si vedono nella pagina)', () => {
-    const mandate: string[] = []
-    class N { static permission = 'granted'; static requestPermission(): void {} constructor(titolo: string) { mandate.push(titolo) } }
-    const fn = new Function('Notification', `var avvisati = {}; var primoAvviso = true; var ultimoAvvisoIl = undefined; var ATTESA_CHAT_MS = 3 * 60000;
-      function chiedi() { return Promise.resolve() }
-      ${funzione('avvisiDaMostrare')}; ${funzione('sceltaDaAnnunciare')}; ${funzione('avvisaSeServe')}; return avvisaSeServe`)(N) as (s: unknown) => void
-    fn({ domande: [{ id: 'd1', testo: 'già aperta' }] })
-    fn({ domande: [{ id: 'd1', testo: 'già aperta' }, { id: 'd2', testo: 'nuova' }] })
-    expect(mandate).toEqual(['SierraDeck ti sta chiedendo una cosa'])
+  it('una chiusura toglie la sua notifica; «ho scelto io» arriva muta', async () => {
+    const b = banco([{ ultimo: 1, avvisi: [] }, { ultimo: 2, avvisi: [domanda(2)] }, { ultimo: 3, avvisi: [domanda(2, { n: 3, suona: false, chiuso: { quando: '', come: 'programma', testo: 'Sì' } })] }])
+    await b.giro(); await b.giro(); await b.giro()
+    expect(b.mandate.map((m) => [m.tag, m.chiusa, m.muta, m.corpo])).toEqual([
+      ['domanda:d-2', true, false, 'Tengo? · Consigliata: sì'],
+      ['domanda:d-2', false, true, 'Tengo? · Ho scelto io: Sì.']
+    ])
+  })
+
+  it('un avviso silenzioso è muto; con la pagina davanti non si notifica (tranne la prova)', async () => {
+    const b = banco([{ ultimo: 1, avvisi: [] }, { ultimo: 3, avvisi: [domanda(2, { suona: false }), { ...domanda(3), id: 'prova:1', tipo: 'sapere' }] }], { visibile: true })
+    await b.giro(); await b.giro()
+    expect(b.mandate.map((m) => m.tag)).toEqual(['prova:1'])
+    const c = banco([{ ultimo: 1, avvisi: [] }, { ultimo: 2, avvisi: [domanda(2, { suona: false })] }])
+    await c.giro(); await c.giro()
+    expect(c.mandate.map((m) => m.muta)).toEqual([true])
+  })
+
+  it('il permesso si chiede alla prima domanda vera, non all’apertura', async () => {
+    const b = banco([{ ultimo: 1, avvisi: [domanda(1)] }, { ultimo: 2, avvisi: [{ ...domanda(2), tipo: 'fatto' }] }, { ultimo: 3, avvisi: [domanda(3)] }], { permesso: 'default' })
+    await b.giro(); await b.giro()
+    expect(b.permessi).toEqual([])
+    await b.giro()
+    expect(b.permessi).toEqual(['chiesto'])
+    expect(b.mandate).toEqual([])
+    const c = script.slice(script.indexOf('function chiediDiAvvisare('))
+    expect(c.slice(0, 120)).not.toContain('requestPermission')
+  })
+
+  it('la schermata Notifiche della pagina: le stesse scelte del PC, dal computer', () => {
+    expect(script).toContain("chiedi('/api/avvisi/stato')")
+    expect(script).toContain("chiedi('/api/avvisi/impostazioni', x)")
+    expect(script).toContain("chiedi('/api/avvisi/prova', {})")
+    expect(funzione('avvisiPaginaHtml')).toContain('Prova notifica')
+    expect(script).toContain('var NOMI_TIPI_AVVISO = {"domanda":{"titolo":"Domande"')
+    expect(script).toContain('avvisiPaginaHtml()')
   })
 })
 
