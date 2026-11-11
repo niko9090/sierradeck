@@ -29,6 +29,7 @@ function voceValida(v: unknown): VoceAttesa | undefined {
     ordine: num(o.ordine) ? o.ordine : 0,
     ...(testo(o.prenotataFino) ? { prenotataFino: o.prenotataFino } : {}),
     sveglie: num(o.sveglie) ? o.sveglie : 0,
+    ...(testo(o.riposaFino) ? { riposaFino: o.riposaFino } : {}),
     ...(o.parcheggiata === true ? { parcheggiata: true as const } : {}),
     ...(testo(o.ramo) ? { ramo: o.ramo } : {}),
     ...(testo(o.prompt) ? { prompt: o.prompt } : {}),

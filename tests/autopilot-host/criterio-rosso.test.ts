@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { CompitoPiano } from '@shared/piano-orchestratore'
-import { promemoriaRosso, ROSSO_PRIMO_MS, ROSSO_SECONDO_MS, type RossoVisto } from '../../src/autopilot-host/criterio-rosso'
+import { promemoriaRosso, ROSSO_POI_MS, ROSSO_PRIMO_MS, ROSSO_SECONDO_MS, type RossoVisto } from '../../src/autopilot-host/criterio-rosso'
 
 /** 06/11: criterio rosso dopo l'unione e nessuna correzione affidata: promemoria all'autopilota, una volta e poi un'altra. */
 
@@ -11,7 +11,8 @@ const compito = (over: Partial<CompitoPiano> = {}): CompitoPiano => ({
 const base = { richiesteAperte: new Set(['r-1']), compitiConSpecialista: new Set<string>(), occupato: false }
 
 describe('promemoria del criterio rosso', () => {
-  it('prima volta dopo la quiete, seconda dopo un tempo, poi basta', () => {
+  // 11/11: prima «poi basta»: dopo due promemoria il compito rosso restava lì in silenzio, per sempre.
+  it('prima volta dopo la quiete, seconda dopo un tempo, poi ogni mezz’ora finché resta rosso', () => {
     const visti = new Map<string, RossoVisto>()
     const giro = (ora: number): string | undefined => promemoriaRosso(visti, { ...base, compiti: [compito()], ora })
     expect(giro(0)).toBeUndefined()
@@ -21,8 +22,13 @@ describe('promemoria del criterio rosso', () => {
     expect(primo).toMatch(/k1/)
     expect(primo).toMatch(/Non scrivere a Nicholas/)
     expect(giro(ROSSO_PRIMO_MS + 60_000)).toBeUndefined()
-    expect(giro(ROSSO_PRIMO_MS + ROSSO_SECONDO_MS)).toMatch(/criterio è rosso/)
-    expect(giro(ROSSO_PRIMO_MS + 3 * ROSSO_SECONDO_MS)).toBeUndefined()
+    const secondo = ROSSO_PRIMO_MS + ROSSO_SECONDO_MS
+    expect(giro(secondo)).toMatch(/criterio è rosso/)
+    // Dopo il secondo: non prima di mezz'ora, poi ancora, senza un tetto.
+    expect(giro(secondo + ROSSO_POI_MS - 1)).toBeUndefined()
+    expect(giro(secondo + ROSSO_POI_MS)).toMatch(/criterio è rosso/)
+    expect(giro(secondo + ROSSO_POI_MS + 60_000)).toBeUndefined()
+    for (let n = 2; n <= 12; n += 1) expect(giro(secondo + n * ROSSO_POI_MS)).toMatch(/criterio è rosso/)
   })
 
   it('niente promemoria se uno specialista lavora a quel compito, se è verde o se la richiesta è chiusa', () => {

@@ -47,7 +47,7 @@ import { giudicaGuardiaOrchestratore } from './guardia-orchestratore'
 import type { Giudizio } from './divieti'
 import { doppioniDaArchiviare, rigaDoppione, type Doppione, type RichiestaDoppioni } from '@shared/autopiloti-doppioni'
 import type { ArchivioDoppioni } from './doppioni-store'
-import { lavoroFermo, testoLavoroFermo } from './lavoro-fermo'
+import { intervalloSpinta, lavoroFermo, rigaFermoPerNicholas, SPINTE_PRIMA_DI_DIRLO, testoLavoroFermo } from './lavoro-fermo'
 import { aspettaDipendenze, righeDopoUnione, rigaUnioneEPoi } from './dipendenze'
 import { promemoriaRosso, type RossoVisto } from './criterio-rosso'
 import { permessoDaSolo } from './permessi-automatici'
@@ -62,9 +62,8 @@ import type { ArchivioAttesa } from './attesa-store'
 import { creaCambi, type Cambi } from '@shared/spinta-specialisti'
 import { attesaDopoScadenza, UNIONE_MAX_MS } from './tempi-unione'
 
-/** 0.89.4: dopo quanto il lavoro fermo sveglia l'autopilota, e quante volte al più per lo stesso stato. */
+/** 0.89.4: dopo quanto il lavoro fermo sveglia l'autopilota. 11/11: senza un tetto di spinte (`lavoro-fermo.ts`). */
 export const FERMO_DOPO_MS = 3 * 60_000
-export const SPINTE_MAX = 2
 /** 0.89.4: dopo quanto una domanda dell'autopilota senza risposta si chiude. */
 export const DOMANDA_VECCHIA_MS = 24 * 60 * 60_000
 /** 06/11, fila delle unioni: un'unione (prova, unione, criterio) che supera questo tempo si chiude e si rimette in fila. 11/11: 60 minuti, in `tempi-unione.ts`. */
@@ -459,7 +458,8 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
   /** 0.89.4: il lavoro fermo visto per workspace (firma, da quando, spinte date per quella firma). */
   /** 06/11: i compiti con il criterio rosso dopo l'unione, per workspace, e i promemoria già mandati. */
   const rossiVisti = new Map<string, Map<string, RossoVisto>>()
-  const fermiVisti = new Map<string, { firma: string; dal: number; spinte: number }>()
+  /** `dal`: da quando è quieto; `ultima`: l'ultima spinta (o l'ultimo momento in cui lavorava); `detto`: Nicholas lo sa già (11/11). */
+  const fermiVisti = new Map<string, { firma: string; dal: number; ultima: number; spinte: number; detto?: boolean }>()
   /** I permessi che aspettano Nicholas, per workspace: intanto il cane da guardia del turno non morde. */
   const permessiInAttesa = new Map<string, number>()
   const memoriaCriteri: MemoriaCriteri = x.memoriaCriteri ?? new Map()
@@ -568,8 +568,9 @@ Il posto è tuo per 5 minuti.` })
       }
       evento(v.workspace, { tipo: 'posto', quando, testo: `si è liberato un posto: rilancia ora ${cosa}${v.compito !== undefined ? ` («${cosaDel(v.descrizione)}»)` : ''}. Il posto è tuo per 5 minuti; se non rilanci passa al successivo.` })
     }
+    // 11/11: non cade più dalla lista. Resta in fila e riposa: lo si dice una volta.
     for (const v of m.cadute) {
-      evento(v.workspace, { tipo: 'posto', quando, testo: `ti ho tolto dalla lista d’attesa per ${v.compito ?? cosaDel(v.descrizione)}: il posto era tuo ma non hai rilanciato. Se serve ancora, rilancia lo specialista: ti rimetto in fila.` })
+      evento(v.workspace, { tipo: 'posto', quando, testo: `${v.compito ?? cosaDel(v.descrizione)} resta in lista d’attesa: il posto era tuo più volte e non hai rilanciato. Rilancialo appena puoi: se c’è un posto libero parte subito, senza aspettare un mio avviso. Io te lo ricordo ancora, più di rado.` })
     }
   }
   /** Il giro di controllo: prenotazioni scadute, posti liberi ai primi in fila. */
@@ -735,7 +736,7 @@ ${NOTA_SENZA_GIT}`,
         const prima = archivioAttesa.leggi()
         archivioAttesa.scrivi(rifiutataDalTetto(prima, { workspace: ws, ...(unicoDi(ws) !== undefined ? { autopilota: unicoDi(ws)!.id } : {}), descrizione: s.descrizione, tipo: s.ruolo, ...(e.prompt !== undefined ? { prompt: e.prompt } : {}) }, { adesso: oraMs(), id: randomUUID }))
         const k = s.compito !== undefined ? x.orchestratori.piano(ws).compiti.find((c) => c.id === s.compito) : undefined
-        if (k !== undefined && k.stato !== 'unito') cambiaCompito(ws, k.id, (c) => ({ ...senzaRamo(c), stato: 'da-fare', esito: 'aspetta un posto fra gli specialisti: il programma lo rilancia' }))
+        if (k !== undefined && k.stato !== 'unito') cambiaCompito(ws, k.id, (c) => ({ ...senzaRamo(c), stato: 'da-fare', esito: 'aspetta un posto fra gli specialisti: il programma avvisa l’autopilota quando c’è posto' }))
         console.info(`[attesa] ${ws} — tetto di specialisti pieno: ${s.compito ?? cosaDel(s.descrizione)} in fila, prompt salvato`)
         queueMicrotask(() => { try { rivediFila() } catch (err) { console.error('[attesa] giro della lista d’attesa non riuscito:', err) } })
         continue
@@ -1472,8 +1473,14 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
   /**
    * Ogni minuto (0.89.4): il lavoro fermo. Nessun turno in corso, nessuno
    * specialista né unione al lavoro, e nel piano qualcosa che potrebbe muoversi
-   * da `FERMO_DOPO_MS`: l'autopilota riceve un evento che dice cosa. Al più
-   * `SPINTE_MAX` volte per lo stesso stato: se non cambia niente, smette.
+   * da `FERMO_DOPO_MS`: l'autopilota riceve un evento che dice cosa.
+   *
+   * 11/11: senza tetto. Prima erano due spinte (a 3 e 6 minuti) e poi il lavoro
+   * restava fermo in silenzio. Adesso la quiete richiesta raddoppia a ogni spinta
+   * (`intervalloSpinta`: fino a un'ora, quattro con domande aperte) e dalla terza
+   * lo sa anche Nicholas, con una riga sola per quello stato. Mentre l'autopilota
+   * lavora il conto delle spinte resta e la quiete riparte: prima un turno che
+   * cadeva sul giro del minuto azzerava tutto.
    */
   const spingiFermi = (ora: number): void => {
     for (const a of unici()) {
@@ -1482,15 +1489,27 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       const occupato = orchestratore.inVolo(ws) || attesa.messaggi > 0 || attesa.eventi > 0
         || alLavoroNel(ws) > 0 || specialistiVivi(a).some((c) => c.stato === 'lavoro') || unioniIn(ws) > 0 || (permessiInAttesa.get(ws) ?? 0) > 0
       const vivi = new Set(subagenti(ws).filter((y) => y.stato === 'avviato' || y.stato === 'lavoro').map((y) => y.id))
-      const f = occupato ? undefined : lavoroFermo({ coda: coda(ws), piano: x.orchestratori.piano(ws), alLavoro: vivi, inUnione: new Set(compitiInUnione(ws)) })
+      const f = lavoroFermo({ coda: coda(ws), piano: x.orchestratori.piano(ws), alLavoro: vivi, inUnione: new Set(compitiInUnione(ws)) })
       if (f === undefined) { fermiVisti.delete(ws); continue }
       const visto = fermiVisti.get(ws)
-      if (visto === undefined || visto.firma !== f.firma) { fermiVisti.set(ws, { firma: f.firma, dal: ora, spinte: 0 }); continue }
-      if (ora - visto.dal < FERMO_DOPO_MS * (visto.spinte + 1) || visto.spinte >= SPINTE_MAX) continue
+      if (visto === undefined || visto.firma !== f.firma) { fermiVisti.set(ws, { firma: f.firma, dal: ora, ultima: ora, spinte: 0 }); continue }
+      if (occupato) { visto.dal = ora; visto.ultima = ora; continue }
+      const aperte = x.domande.aperte(a.id).length
+      if (ora - visto.ultima < intervalloSpinta(visto.spinte, FERMO_DOPO_MS, aperte > 0)) continue
       visto.spinte += 1
+      visto.ultima = ora
       const minuti = Math.round((ora - visto.dal) / 60_000)
-      console.info(`[orchestratore] ${ws} — lavoro fermo da ${minuti} minuti: lo sveglio (${visto.spinte}/${SPINTE_MAX})`)
-      evento(ws, { tipo: 'fermo', quando: x.adesso(), testo: testoLavoroFermo(f, minuti, x.domande.aperte(a.id).length) })
+      console.info(`[orchestratore] ${ws} — lavoro fermo da ${minuti} minuti: lo sveglio (spinta ${visto.spinte})`)
+      evento(ws, { tipo: 'fermo', quando: x.adesso(), testo: testoLavoroFermo(f, minuti, aperte) })
+      if (visto.spinte >= SPINTE_PRIMA_DI_DIRLO && visto.detto !== true) {
+        // Una riga sola per questo stato, mai una domanda: Nicholas sa che è fermo e che il programma insiste.
+        visto.detto = true
+        const riga = rigaFermoPerNicholas(f, minuti, visto.spinte)
+        const dopo: Autopilota = { ...a, annuncio: { id: randomUUID(), titolo: 'Lavoro fermo', quando: x.adesso() } }
+        x.annota(dopo, `lavoro fermo da ${minuti} minuti dopo ${visto.spinte} spinte: avvisato Nicholas`, avanzamento(a.id, riga))
+        x.salva(dopo)
+        void x.avvisa('avviso', dopo, riga).catch(() => { /* resta la riga nella conversazione */ })
+      }
     }
   }
 
@@ -1678,7 +1697,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
         const r = ripresaDopoRiavvio({ coda: coda(ws), piano: x.orchestratori.piano(ws), dialogo: x.orchestratori.ultimeDialogo(ws, 20), adesso: ora, inUnione: new Set(compitiInUnione(ws)) })
         if (r === undefined) continue
         // Conta come la prima spinta del lavoro fermo: la seconda arriva più tardi, non subito.
-        if (r.firma !== undefined) fermiVisti.set(ws, { firma: r.firma, dal: ora, spinte: 1 })
+        if (r.firma !== undefined) fermiVisti.set(ws, { firma: r.firma, dal: ora, ultima: ora, spinte: 1 })
         console.info(`[orchestratore] ${ws} — ripreso dopo il riavvio: ${r.interrotti} compiti interrotti${r.messaggioPerso ? ', un messaggio di Nicholas senza risposta' : ''}`)
         evento(ws, { tipo: 'fermo', quando: x.adesso(), testo: r.testo }, true)
         n += 1

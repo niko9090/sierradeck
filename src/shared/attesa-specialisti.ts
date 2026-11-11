@@ -9,12 +9,20 @@
  * - quando un posto si libera il primo in fila ha il posto **prenotato** per
  *   {@link PRENOTAZIONE_MS}: il servizio sveglia il suo autopilota, che rilancia;
  * - una prenotazione non usata passa al successivo, e chi l'ha persa va in
- *   fondo alla sua priorità; dopo {@link SVEGLIE_MAX} sveglie a vuoto la voce cade;
+ *   fondo alla sua priorità;
+ * - 11/11: la voce non cade più. Dopo {@link SVEGLIE_MAX} sveglie a vuoto
+ *   resta in fila e **riposa** (5, 10, 20, 40 minuti, poi un'ora): intanto non
+ *   tiene nessun posto prenotato, e se il suo autopilota rilancia e c'è un
+ *   posto libero passa subito. Prima cadeva dalla lista e il compito restava
+ *   «da fare» per sempre;
  * - la voce esce dalla lista quando lo Agent passa davvero la guardia.
  */
 
 export const PRENOTAZIONE_MS = 5 * 60_000
+/** Dopo così tante sveglie a vuoto la voce va a riposo (non cade più, 11/11). */
 export const SVEGLIE_MAX = 3
+/** Il riposo più lungo fra una sveglia a vuoto e la prossima. */
+export const RIPOSO_MASSIMO_MS = 60 * 60_000
 export const PRIORITA_MAX = 99
 
 export type VoceAttesa = {
@@ -38,6 +46,8 @@ export type VoceAttesa = {
   prenotataFino?: string
   /** Quante volte è stato svegliato per questo turno. */
   sveglie: number
+  /** 11/11: a riposo fino a quest'ora (ISO) dopo troppe sveglie a vuoto: resta in fila, ma non le si prenota un posto. */
+  riposaFino?: string
   /** Fermato da Nicholas con «Ferma e metti in cima» (k-53): il suo lavoro resta sul ramo, riparte per primo. */
   parcheggiata?: true
   /** Il ramo dove il lavoro fermato resta salvato. */
@@ -71,7 +81,11 @@ export type RichiestaSpecialista = {
   prompt?: string
 }
 
-/** Cosa è cambiato in una mossa: chi va svegliato, chi è caduto. */
+/**
+ * Cosa è cambiato in una mossa: chi va svegliato, e `cadute`. 11/11: le
+ * «cadute» non escono più dalla lista: sono le voci appena messe a riposo
+ * dopo {@link SVEGLIE_MAX} sveglie a vuoto (lo si dice una volta sola).
+ */
 export type Mossa = { stato: StatoAttesa; svegli: VoceAttesa[]; cadute: VoceAttesa[] }
 
 const norma = (t: string): string => t.toLowerCase().replace(/\s+/gu, ' ').trim()
@@ -92,6 +106,12 @@ export function chiaveRichiesta(r: RichiestaSpecialista): string {
 const chiaveVoce = (v: VoceAttesa): string => chiaveRichiesta({ workspace: v.workspace, descrizione: v.descrizione, tipo: v.tipo })
 
 const prenotata = (v: VoceAttesa, adesso: number): boolean => v.prenotataFino !== undefined && Date.parse(v.prenotataFino) > adesso
+/** A riposo dopo troppe sveglie a vuoto (11/11): in fila, ma senza posto prenotato finché il riposo non finisce. */
+export const aRiposo = (v: VoceAttesa, adesso: number): boolean => v.riposaFino !== undefined && Date.parse(v.riposaFino) > adesso
+/** Quanto riposa una voce svegliata a vuoto `sveglie` volte: 5, 10, 20, 40 minuti, poi un'ora. */
+export function riposoDopo(sveglie: number): number {
+  return Math.min(RIPOSO_MASSIMO_MS, PRENOTAZIONE_MS * 2 ** Math.min(10, Math.max(0, sveglie - SVEGLIE_MAX)))
+}
 
 /** In fila: priorità più alta prima, poi l'arrivo. */
 export function ordinate(voci: VoceAttesa[]): VoceAttesa[] {
@@ -113,18 +133,24 @@ export function trovaVoce(stato: StatoAttesa, r: RichiestaSpecialista): VoceAtte
   return stato.voci.find((v) => chiaveVoce(v) === k)
 }
 
-/** Le prenotazioni scadute: chi le aveva torna in fondo alla sua priorità, o cade dopo troppe sveglie a vuoto. */
+/**
+ * Le prenotazioni scadute: chi le aveva torna in fondo alla sua priorità.
+ * 11/11: dopo troppe sveglie a vuoto la voce non cade, va a riposo e resta in
+ * fila; in `cadute` c'è solo la prima volta, per dirlo al suo autopilota.
+ */
 export function scadute(stato: StatoAttesa, adesso: number): Mossa {
   const cadute: VoceAttesa[] = []
   let prossimo = stato.prossimo
   const voci: VoceAttesa[] = []
   for (const v of stato.voci) {
     if (v.prenotataFino === undefined || prenotata(v, adesso)) { voci.push(v); continue }
-    if (v.sveglie >= SVEGLIE_MAX) { cadute.push(v); continue }
     const { prenotataFino: _p, ...resto } = v
     // Chi era stato parcheggiato (k-53) e non ha rilanciato torna in fondo come gli altri: la precedenza è esaurita.
     const { parcheggiata: _q, ...normale } = resto
-    voci.push({ ...normale, ordine: prossimo })
+    if (v.sveglie >= SVEGLIE_MAX) {
+      voci.push({ ...normale, ordine: prossimo, riposaFino: iso(adesso + riposoDopo(v.sveglie)) })
+      if (v.sveglie === SVEGLIE_MAX) cadute.push(v)
+    } else voci.push({ ...normale, ordine: prossimo })
     prossimo += 1
   }
   return { stato: { ...stato, voci, prossimo }, svegli: [], cadute }
@@ -135,9 +161,11 @@ export function assegna(stato: StatoAttesa, liberi: number, adesso: number): Mos
   let presi = stato.voci.filter((v) => prenotata(v, adesso)).length
   const svegli: VoceAttesa[] = []
   const nuove = new Map<string, VoceAttesa>()
-  for (const v of ordinate(stato.voci.filter((x) => !prenotata(x, adesso)))) {
+  // 11/11: chi riposa non prende il posto: resta libero per chi arriva, o per lui se rilancia.
+  for (const v of ordinate(stato.voci.filter((x) => !prenotata(x, adesso) && !aRiposo(x, adesso)))) {
     if (presi >= liberi) break
-    const n: VoceAttesa = { ...v, prenotataFino: iso(adesso + PRENOTAZIONE_MS), sveglie: v.sveglie + 1 }
+    const { riposaFino: _r, ...sveglio } = v
+    const n: VoceAttesa = { ...sveglio, prenotataFino: iso(adesso + PRENOTAZIONE_MS), sveglie: v.sveglie + 1 }
     nuove.set(v.id, n)
     svegli.push(n)
     presi += 1
@@ -172,7 +200,8 @@ export function passo(stato: StatoAttesa, r: RichiestaSpecialista, p: { liberi: 
   const prenotati = s.voci.filter((v) => prenotata(v, p.adesso)).length
 
   if (esistente !== undefined) {
-    if (p.liberi > 0 && prenotata(esistente, p.adesso)) {
+    // 11/11: anche chi riposa (senza prenotazione): se rilancia e c'è un posto che nessuno ha prenotato, passa.
+    if (p.liberi > 0 && (prenotata(esistente, p.adesso) || p.liberi - prenotati > 0)) {
       s = { ...s, voci: s.voci.filter((v) => v.id !== esistente.id) }
       return { passa: true, mossa: mossa(), voce: esistente }
     }
@@ -181,7 +210,8 @@ export function passo(stato: StatoAttesa, r: RichiestaSpecialista, p: { liberi: 
     return { passa: false, mossa: mossa(), voce: esistente, posizione: mia.posizione, davanti: mia.posizione - 1, nuova: false }
   }
 
-  // Dopo `rivedi` ogni posto libero con qualcuno in fila è già prenotato: se ne resta uno non prenotato, la fila è vuota.
+  // Dopo `rivedi` ogni posto libero con qualcuno in fila è già prenotato: se ne resta uno non prenotato, la fila è vuota
+  // (o chi c'è sta riposando, 11/11: non tiene il posto).
   if (p.liberi - prenotati > 0) return { passa: true, mossa: mossa() }
 
   const voce: VoceAttesa = {

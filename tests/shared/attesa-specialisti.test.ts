@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  PRENOTAZIONE_MS, SVEGLIE_MAX, assegna, attesaVuota, cambiaPriorita, chiaveRichiesta, compitoDi, inFila, ordinate, passo, rivedi, scadute, togliVoce,
+  PRENOTAZIONE_MS, RIPOSO_MASSIMO_MS, SVEGLIE_MAX, aRiposo, assegna, attesaVuota, cambiaPriorita, chiaveRichiesta, compitoDi, inFila, ordinate, passo, riposoDopo, rivedi, scadute, togliVoce,
   type RichiestaSpecialista, type StatoAttesa
 } from '@shared/attesa-specialisti'
 
@@ -129,7 +129,8 @@ describe('lista d’attesa degli specialisti (k-48)', () => {
     expect(m.stato.voci.find((v) => v.compito === 'k-1')!.prenotataFino).toBeUndefined()
   })
 
-  it('dopo troppe sveglie a vuoto la voce cade e se ne dà notizia', () => {
+  // 11/11: prima «la voce cade»: usciva dalla lista e il compito restava «da fare» per sempre.
+  it('dopo troppe sveglie a vuoto la voce non cade: resta in fila, va a riposo e se ne dà notizia una volta', () => {
     let s = arriva(attesaVuota(), rich('k-1: a'), 0, T0).s
     let t = 1
     for (let i = 0; i < SVEGLIE_MAX; i += 1) {
@@ -139,7 +140,44 @@ describe('lista d’attesa degli specialisti (k-48)', () => {
     expect(s.voci[0]!.sveglie).toBe(SVEGLIE_MAX)
     const m = scadute(s, min(t))
     expect(m.cadute.map((v) => v.compito)).toEqual(['k-1'])
-    expect(m.stato.voci).toEqual([])
+    expect(m.stato.voci.map((v) => v.compito)).toEqual(['k-1'])
+    expect(m.stato.voci[0]!.prenotataFino).toBeUndefined()
+    expect(aRiposo(m.stato.voci[0]!, min(t))).toBe(true)
+    expect(Date.parse(m.stato.voci[0]!.riposaFino!)).toBe(min(t) + PRENOTAZIONE_MS)
+    // A riposo non le si prenota il posto: nessuna sveglia, e il posto resta libero.
+    const fermo = rivedi(m.stato, 1, min(t + 1))
+    expect(fermo.svegli).toEqual([])
+    expect(fermo.cadute).toEqual([])
+    // Finito il riposo torna a essere svegliata; se va ancora a vuoto riposa il doppio, senza altre notizie.
+    const sveglia = rivedi(m.stato, 1, min(t + 5))
+    expect(sveglia.svegli.map((v) => v.compito)).toEqual(['k-1'])
+    expect(sveglia.stato.voci[0]!.riposaFino).toBeUndefined()
+    const ancora = scadute(sveglia.stato, min(t + 11))
+    expect(ancora.cadute).toEqual([])
+    expect(ancora.stato.voci.map((v) => v.compito)).toEqual(['k-1'])
+    expect(Date.parse(ancora.stato.voci[0]!.riposaFino!)).toBe(min(t + 11) + 2 * PRENOTAZIONE_MS)
+  })
+
+  it('11/11: il riposo raddoppia fino a un’ora, e chi riposa non tiene il posto a nessuno', () => {
+    expect([SVEGLIE_MAX, SVEGLIE_MAX + 1, SVEGLIE_MAX + 2, SVEGLIE_MAX + 3, SVEGLIE_MAX + 4, SVEGLIE_MAX + 30].map(riposoDopo))
+      .toEqual([5, 10, 20, 40, 60, 60].map((m) => m * 60_000))
+    expect(RIPOSO_MASSIMO_MS).toBe(60 * 60_000)
+    let s = arriva(attesaVuota(), rich('k-1: a'), 0, T0).s
+    let t = 1
+    for (let i = 0; i < SVEGLIE_MAX; i += 1) { s = rivedi(s, 1, min(t)).stato; t += 6 }
+    s = scadute(s, min(t)).stato
+    // Un altro compito arriva con un posto libero: passa subito, k-1 che riposa non lo ferma.
+    const altro = arriva(s, rich('k-9: altro', { workspace: 'Altro', autopilota: 'ap-2' }), 1, min(t + 1))
+    expect(altro.p.passa).toBe(true)
+    expect(fila(altro.s, min(t + 1))).toEqual(['k-1'])
+    // E se il suo autopilota rilancia k-1 mentre riposa, con un posto libero: passa ed esce dalla lista.
+    const rilancio = arriva(s, rich('k-1: a'), 1, min(t + 1))
+    expect(rilancio.p.passa).toBe(true)
+    expect(rilancio.s.voci).toEqual([])
+    // Coi posti pieni resta in fila, com'era.
+    const pieno = arriva(s, rich('k-1: a'), 0, min(t + 1))
+    expect(pieno.p).toMatchObject({ passa: false, nuova: false })
+    expect(fila(pieno.s, min(t + 1))).toEqual(['k-1'])
   })
 
   it('cambio di priorità: su e giù di un posto, in cima', () => {
