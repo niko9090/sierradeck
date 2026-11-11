@@ -20,7 +20,8 @@ import type { Dispositivi } from './dispositivi'
 import { pcPerApp } from './rete-telefono'
 import { leggiRichiestaStoria, rispostaStoria, RIGHE_STORIA_MAX } from '@shared/storia-chat'
 import { chiaveFermo, eFermo, riparteDaSolo, type Autopilota } from '@shared/autopilota'
-import { autopilotaLeggero, codaConversazione } from '@shared/autopilota-leggero'
+import { codaConversazione } from '@shared/autopilota-leggero'
+import { autopilotaPerTelefono, battuteLeggere, specialistiLeggeri } from '@shared/autopilota-telefono'
 import { paginaClient, ICONA_SVG, MANIFESTO } from './client-pagina'
 import { ledDi } from '@shared/autopilota-vista'
 import { conversazione, haDomandaAperta, staPensando } from '@shared/chat-autopilota'
@@ -1557,15 +1558,16 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       // tempi, Punto e messaggi in coda (erano del sistema di prima, con il
       // «Vai» e il supervisore). L'avanzamento sta in `/api/autopilota/avanzamento`.
       return OK({
-        ...(leggera ? autopilotaLeggero(a) : a),
+        // Leggera con i campi scelti a mano e i tetti (m-collegamento, `@shared/autopilota-telefono`).
+        ...(leggera ? autopilotaPerTelefono(a) : a),
         // La chat con lui (0.29.0): la stessa che sta in cima alla sezione sul
         // PC, composta una volta sola per tutti e tre.
-        chat: coda.chat,
+        chat: leggera ? battuteLeggere(coda.chat) : coda.chat,
         ...(coda.chatIntera !== undefined ? { chatIntera: coda.chatIntera } : {}),
         domanda: haDomandaAperta(a),
         pensa: staPensando(a),
         // Gli specialisti (0.73.0): ruolo, stato, ultima azione, e la sessione per «Guarda».
-        specialisti: specialistiDi(a, Date.now()),
+        specialisti: leggera ? specialistiLeggeri(specialistiDi(a, Date.now())) : specialistiDi(a, Date.now()),
         // La linguetta «Domande» (0.38.0): le sue domande una per volta.
         domandeScheda: domandeScheda(a, tutteLeDomande),
         ...(mia !== undefined ? { domandaId: mia.id } : {}),
