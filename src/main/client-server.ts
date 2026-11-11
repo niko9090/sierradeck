@@ -8,7 +8,7 @@ import { createHash, timingSafeEqual } from 'node:crypto'
 import { gzip as comprimi, gzipSync } from 'node:zlib'
 import { creaControlloFirme, INTESTAZIONE_FIRMA, provaCasa, visoreDaFirma } from './casa-firma'
 import type { Dispositivi } from './dispositivi'
-import { conProva, rigaProvaMancata } from './client-prova'
+import { conProva, rigaAccoppiamentoRespinto, rigaProvaMancata } from './client-prova'
 import { creaMemoriaRichieste, idRichiestaDa, type MemoriaRichieste } from './client-richieste'
 import { annotaRotta, conAtteseLunghe, iniziaMisura, misuraRisposta } from './client-misure'
 
@@ -357,6 +357,8 @@ async function gestisci(
 
   if (autorizzata(percorso)) {
     const libera = await (deps.rottaLibera ?? deps.rotta)({ metodo, percorso, corpo, cerca })
+    // m-collegamento: un accoppiamento respinto si racconta, senza il codice.
+    if (percorso === '/api/accoppia' && libera.stato === 403) racconta(`accoppia:${indirizzo}`, rigaAccoppiamentoRespinto(indirizzo))
     // La prova per il telefono, solo su `/api/ciao` (vedi `client-prova.ts`).
     rispondi(res, percorso === '/api/ciao' ? conProva(libera, cerca, deps.dispositivi, (perche) => racconta(`prova:${indirizzo}`, rigaProvaMancata(indirizzo, perche))) : libera, req)
     return

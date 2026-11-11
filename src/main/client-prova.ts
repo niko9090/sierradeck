@@ -46,6 +46,11 @@ export function conProva(
   return { ...esito, corpo: { ...base, prova } }
 }
 
+/** La riga per un accoppiamento respinto: mai il codice provato. */
+export function rigaAccoppiamentoRespinto(indirizzo: string): string {
+  return `${indirizzo} prova ad accoppiarsi con un codice sbagliato o scaduto (o con l'accoppiamento chiuso): respinto. Per accoppiare: il codice nuovo è in Impostazioni → Client.`
+}
+
 /** La riga per il registro, senza chiavi, segni né sfide. */
 export function rigaProvaMancata(indirizzo: string, perche: ProvaMancata): string {
   return perche === 'chi'

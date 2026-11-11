@@ -163,3 +163,24 @@ describe('i casi condivisi con l’app', () => {
     expect(dispositivi.prova('0'.repeat(16), file.casi[0]!.sfida)).toBeUndefined()
   })
 })
+
+describe('i rifiuti nel registro (m-collegamento)', () => {
+  it('chiave sbagliata e codice sbagliato: una riga [client] ciascuno, senza chiave né codice', async () => {
+    const a = ambiente()
+    server = a.server
+    await ascolta(server)
+    const porta = (server.address() as AddressInfo).port
+    const CHIAVE_FINTA = 'f'.repeat(64)
+    const r = await fetch(`http://127.0.0.1:${porta}/api/stato`, { method: 'POST', headers: { 'x-sierradeck-chiave': CHIAVE_FINTA }, body: '{}' })
+    expect(r.status).toBe(401)
+    const CODICE_FINTO = '987654'
+    expect((await chiedi(server, '/api/accoppia', { metodo: 'POST', corpo: { codice: CODICE_FINTO, nome: 'Telefono di prova' } })).stato).toBe(403)
+    const righe = a.registro.filter((x) => x.startsWith('[client] '))
+    expect(righe.some((x) => x.includes('chiave sbagliata o revocata'))).toBe(true)
+    expect(righe.some((x) => x.includes('codice sbagliato o scaduto'))).toBe(true)
+    for (const x of a.registro) {
+      expect(x).not.toContain(CHIAVE_FINTA)
+      expect(x).not.toContain(CODICE_FINTO)
+    }
+  })
+})
