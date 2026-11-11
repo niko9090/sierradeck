@@ -22,6 +22,8 @@
  * griglia finta, senza un DOM e senza un terminale vero.
  */
 
+import { RIGHE_STORIA_MAX } from '@shared/storia-chat'
+
 /** Il carattere che apre ogni sequenza di controllo. */
 const ESC = String.fromCharCode(27)
 
@@ -376,7 +378,7 @@ export function finestraDiPty(
   try {
     const schermo = voce.schermo()
     const totale = schermo.length
-    const passo = Math.max(1, Math.min(quante, 500))
+    const passo = Math.max(1, Math.min(quante, RIGHE_STORIA_MAX))
     const inizio = da < 0 ? Math.max(0, totale - passo) : Math.max(0, Math.min(da, totale))
     const fine = Math.min(totale, inizio + passo)
     const pulite: string[] = []

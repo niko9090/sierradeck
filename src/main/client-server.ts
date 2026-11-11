@@ -403,7 +403,8 @@ async function gestisci(
   const esito = idRichiesta === undefined ? await fai() : await memoria.unaVolta(percorso, idRichiesta, fai, {
     ripetuta: () => racconta(`ripetuta:${indirizzo}`, `${indirizzo}: ${percorso} chiesta di nuovo con lo stesso id (la rete è caduta a metà?): ridata la risposta di prima, l'azione non è stata rifatta`)
   })
-  rispondi(res, esito, req, ROTTE_CON_ETAG.has(percorso))
+  // `/api/storia` (m-collegamento) ha l'ETag anche lei: la chat aperta che non cambia è un 304.
+  rispondi(res, esito, req, ROTTE_CON_ETAG.has(percorso) || percorso === '/api/storia')
 }
 
 /**

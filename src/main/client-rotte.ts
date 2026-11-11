@@ -18,6 +18,7 @@ import { nomeDaMostrare } from '@shared/nome-pc'
 import type { Esito } from './client-server'
 import type { Dispositivi } from './dispositivi'
 import { pcPerApp } from './rete-telefono'
+import { leggiRichiestaStoria, rispostaStoria, RIGHE_STORIA_MAX } from '@shared/storia-chat'
 import { chiaveFermo, eFermo, riparteDaSolo, type Autopilota } from '@shared/autopilota'
 import { autopilotaLeggero, codaConversazione } from '@shared/autopilota-leggero'
 import { paginaClient, ICONA_SVG, MANIFESTO } from './client-pagina'
@@ -1804,10 +1805,16 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       // e' meglio di un errore per una cosa che si guarda scorrendo.
       const pulite = trovata?.coda ?? []
       const vestite = trovata?.codaGrezza ?? []
-      const da = numero(r.corpo, 'da', -1)
-      const quante = Math.max(1, Math.min(numero(r.corpo, 'quante', 120), 400))
-      const finestra = (await deps.righeDi?.(id, da, quante)) as FinestraRighe | undefined
+      // m-collegamento (`@shared/storia-chat`): fino a 600 righe come chiede l'app (erano 400:
+      // «Risalgo…» per sempre), e la forma nuova con `dopo`, `grezze` e `tetto`.
+      const rs = leggiRichiestaStoria(r.corpo, r.cerca)
+      const finestra = (await deps.righeDi?.(id, rs.da, rs.quante)) as FinestraRighe | undefined
+      if (rs.nuova) {
+        const { continua: _c, colonne: _k, ...base } = finestra ?? { totale: vestite.length, da: 0, pulite, grezze: vestite }
+        return OK({ ...rispostaStoria(id, { ...base, ...conLarghezza(finestra) }, rs), scelte: scelteVive(id, vestite) })
+      }
       return OK({
+        tetto: RIGHE_STORIA_MAX,
         chat: id,
         totale: finestra?.totale ?? vestite.length,
         da: finestra?.da ?? 0,
