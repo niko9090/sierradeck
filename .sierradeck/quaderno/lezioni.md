@@ -4,17 +4,6 @@
 
 ## test
 
-- la guardia del PC può rifiutare per molti minuti ogni vitest (anche per cartella); i file singoli passano. Il commit va in una chiamata separata dal comando pesante. _(2026-11-08)_
-- tests/main/finestre-pannello-separate.test.ts vieta BrowserWindow.getAllWindows() in index.ts: le finestre pannello sono escluse da finestreDiChat(); un broadcast che le deve raggiungere va in finest… _(2026-11-08)_
-- Con il PC sopra il 75% la guardia del carico blocca anche la suite intera: i lotti da 40 file passano; la guardia si ripete col messaggio uguale anche quando il carico è calato. _(2026-11-08)_
-- Il messaggio «non passano le prove dei compiti già uniti» non dice quali: prima di correggere, far girare a un verificatore l'intera vitest (a lotti da 40 se la guardia rifiuta) su main e sul ramo. _(2026-11-08)_
-- La guardia del carico rifiuta anche i lotti piccoli se un comando pesante è appena partito; i lotti per cartella (tests/renderer, tests/autopilot-host) sono passati, quelli grossi no. _(2026-11-08)_
-- In un worktree isolato `npx vitest run $(cat elenco)` viene rifiutato come comando troppo complesso; si usano cartelle o prefissi espliciti. _(2026-11-08)_
-- La guardia del carico può rifiutare `vitest run tests/renderer` all'infinito, anche dividendo per prefisso. Passano solo i comandi con pochi file nominati, quindi conviene elencarli per nome. _(2026-11-08)_
-- La guardia del carico può rifiutare `npm run typecheck` per molti minuti se Defender tiene la CPU alta: lanciare prima i test per file, il typecheck a PC libero. _(2026-11-08)_
-- La guardia del carico blocca anche typecheck e suite intera per molti minuti: `npx vitest run tests/shared/<lettera>` passa e copre tutti i file senza nominarli uno a uno. _(2026-11-08)_
-- I test dei tipi opzionali (es. `cancellaId?` di creaArchivioDrive) passano in vitest ma rompono `tsc`: usare `!` nei test, che vitest non controlla. _(2026-11-08)_
-- per provare `cerca()` di aggiornamenti.ts basta mockare electron-updater con `checkForUpdates` che restituisce `{downloadPromise}` e usare fake timers (setTimeout da 10 s). _(2026-11-08)_
 - Il comando mklink via Bash è rifiutato nei worktree; la junction si crea con PowerShell New-Item -ItemType Junction. _(2026-11-09)_
 - In `criticitaDi` la voce `risorse` non ha il pcId: la chiave per PC si costruisce da `s.pcId`, e il titolo senza numeri va nella firma. I numeri restano solo nel dettaglio. _(2026-11-09)_
 - Per provare il Drive pieno serve un archivio con capacità vera e un freno attivo: un flag «pieno» fisso non mostra che la DELETE libera spazio e riabilita le scritture. _(2026-11-09)_
@@ -36,19 +25,15 @@
 - giudicaStrumento accetta {ambiente} per le prove: con percorsi finti Windows (C:\Users\mario) non serve toccare le variabili d'ambiente _(2026-11-10)_
 - I test del servizio con raccolta eventi lunga provano il «subito»: per far arrivare un evento va chiuso il turno finto con un result, altrimenti resta in attesa. _(2026-11-10)_
 - In `tests/autopilot-host` una `blocca` che non si risolve mai tiene il lucchetto di prova globale (per cwd) e fa fallire per timeout i test dopo: risolvere sempre la promessa. _(2026-11-10)_
+- in copia nessuna prova fallisce né sotto la suite intera ripetuta né in tests/autopilot-host (5389 + 740 verdi). Se il cancello rifiuta, cercare il motivo nel suo log, non nei test. _(2026-11-10)_
+- Nei test sul repo di prova `ls-files` restituisce per primo `.sierradeck/...` se esiste: per scegliere un file di codice escludere quel prefisso. _(2026-11-10)_
+- il cane da guardia (20 min) e il backoff si sommano: nei test con fake timer il secondo riavvio parte 30 s dopo lo scatto del cane, non subito. _(2026-11-11)_
+- per la regola del quaderno usare un repository git vero (repositoryDiPartenza): i mock non vedono il comportamento di `git status`/`add`/`commit` sui file riscritti. _(2026-11-11)_
 
 ## worktree
 
-- nei worktree senza node_modules il typecheck va lanciato dopo aver creato la junction verso la cartella principale; la junction si toglie con rmdir solo dopo l'unione del ramo. _(2026-11-08)_
-- il ramo di un agente può divergere da main: prima di dire «allineata» confrontare con git rev-list --left-right --count HEAD...main _(2026-11-08)_
-- la junction node_modules si crea con PowerShell dalla cartella del worktree; da Bash con percorso Windows il comando viene rifiutato. _(2026-11-08)_
 - Il ramo di lavoro può essere indietro a main (manca spazio-drive-pieno): prima di correggere, rebase su main. _(2026-11-10)_
 - con l'harness, ogni comando git che nomina la cartella principale viene rifiutato anche con `git -C` o in una pipe: per leggerla usare percorsi assoluti e comandi non-git. _(2026-11-10)_
-
-## errori
-
-- «cosa si stava facendo» prende l'ultima riga info di qualunque sottosistema entro 2 minuti: va filtrato per tag, o mostra contesti non correlati. _(2026-11-08)_
-- un comando Bash che fallisce a metà (es. cmd mklink rifiutato nel worktree) salta anche i passi dopo: ricontrollare git diff --stat prima del commit. _(2026-11-08)_
 
 ## android
 
@@ -60,15 +45,6 @@
 
 ## release
 
-- 08/11: main è 0.96.2 (tag v0.96.1 e v0.96.2 fatti da una chat di Nicholas: unioni snelle + pulizia copie). I lavori rimasti fuori si riportano su main (k-175, k-176); la release dopo è 0.97.0. _(2026-11-08)_
-- Ordine release: tag → npm run pubblica (crea bozza) → npm run allega-apk → gh release edit --draft=false. Un gh release create prima di pubblica fa saltare latest.yml. _(2026-11-08)_
-- Un addon usato solo dal renderer (es. @xterm/addon-webgl) va in devDependencies: fra le dependencies il controllo del pacchetto ferma l'installer. _(2026-11-08)_
-- main locale è 5 commit avanti a origin/main (0.97.0): fare git push origin main prima di taggare o pubblicare. _(2026-11-08)_
-- Con l'autopilota il bump di versione non si committa in main (hook): va fatto su un ramo dello specialista e unito; poi push, tag, gh release, pubblica e allega-apk dal principale. _(2026-11-08)_
-- Il compito di pubblicare dalla copia con junction collide con la guardia di `npm run pubblica`: `controlla-pacchetto --prima` rifiuta node_modules come collegamento. Costruire dalla cartella principa… _(2026-11-08)_
-- Il compito di pubblicare va affidato dalla cartella principale (pubblica rifiuta la junction e serve google-oauth.json); APK invariato: allega-apk --senza-build o asset della release prima. _(2026-11-08)_
-- gh release create va fatto con --draft: con la release già pubblicata npm run pubblica rifiuta (existingType=release) e exe/blockmap/latest.yml vanno caricati a mano. _(2026-11-08)_
-- 0.97.1: npm run pubblica rifiuta di compilare da una copia (worktree); pubblicare dalla cartella principale. Se la release GitHub è già pubblica, pubblica non carica l'installer: controllare i 5 file. _(2026-11-08)_
 - una release a metà (latest.yml su GitHub prima dell'exe) dà 404 per ore: i raggruppamenti degli errori uniscono righe di giorni diversi e la «versione» è quella del PC che invia, non di chi ha l'erro… _(2026-11-08)_
 - Un agente lanciato in un worktree isolato non può eseguire git nella cartella principale (né cd né git -C): per pubblicare dal main serve un agente con la cartella principale come directory di lavoro. _(2026-11-08)_
 - Prima di pubblicare, `package.json` di origin/main può essere ancora alla versione precedente: il bump unito sta solo nel main locale e va pushato con main prima del tag. _(2026-11-08)_
@@ -84,6 +60,9 @@
 - In una copia di lavoro `npm run pubblica` rifiuta la junction di node_modules (serve `npm ci`) e vuole `google-oauth.json` (gitignorato) copiato dalla cartella principale. _(2026-11-10)_
 - Se la release è creata prima con `gh release create`, electron-builder salta il caricamento (draft vs release): caricare installer, blockmap e latest.yml con `gh release upload`. _(2026-11-10)_
 - il bump di versione richiede anche la voce in `src/shared/novita.ts`: senza, `tests/shared/novita.test.ts` si rompe (successo con la 0.99.1). _(2026-11-10)_
+- `gh release upload` con `file#etichetta` non cambia il nome dell'asset: GitHub mette i punti al posto degli spazi. Rinominare il file in `SierraDeck-Setup-X.exe` prima di caricarlo, come in `latest.y… _(2026-11-11)_
+- `npm run pubblica` vuole GH_TOKEN nell'ambiente: `export GH_TOKEN=$(gh auth token)`. Crea una bozza col solo blockmap: carica a mano exe e latest.yml, poi `gh release edit --draft=false`. _(2026-11-11)_
+- in `src/shared/novita.ts` il file ha fine riga CRLF: un replace con `\n` non trova nulla, quindi rileggere il fine riga prima di inserire la voce. _(2026-11-11)_
 
 ## git
 
@@ -95,18 +74,26 @@
 - un agente lanciato in un worktree isolato non può usare `git -C <cartella principale>`: il sistema lo rifiuta. Le operazioni sulla cartella principale vanno affidate a chi non è isolato. _(2026-11-09)_
 - main locale può avere commit non ancora su origin/main (merge e note del quaderno): prima di un push di release controllare `git log origin/main..main`. _(2026-11-10)_
 - Il git del programma (gitAsincronoReale) mescola stderr e stdout e fa trim: gli avvisi CRLF finiscono nello status e la prima riga perde lo spazio di testa. Filtrare le voci «XY percorso». _(2026-11-10)_
+- Gli specialisti sono chiusi nel loro worktree: non possono leggere né salvare file nella cartella principale. Un'unione ferma per file non salvati in main la ritenta il programma ogni 30s. _(2026-11-10)_
+- un agente isolato nel worktree non può usare `git -C` sulla cartella principale: il compito di salvare lì le note va dato a chi non è isolato. _(2026-11-10)_
+- Note del quaderno non salvate in main = fila unioni ferma, e nessuno specialista può salvarle (isolati nella copia; general-purpose rifiutato). Serve la correzione del programma (k-133). _(2026-11-11)_
+- Note del quaderno non salvate in main: anche il tipo «claude» è rifiutato (nessuno senza copia propria). Solo una chat di Nicholas aperta in main o un SierraDeck installato con k-133 le salva. _(2026-11-11)_
+- `main` locale può essere più avanti di `origin/main` con le unioni non pubblicate: guardare `git log origin/main..main` prima di partire da `origin/main`. _(2026-11-11)_
 
 ## autopilota
 
 - La guardia del PC rimanda typecheck e vitest completi anche per minuti di fila: lanciare le misure pesanti presto e tenere pronto il commit prima di misurare. _(2026-11-08)_
 - Non lanciare uno specialista su un compito il cui «dopo» è ancora in unione: non può aspettare (sleep bloccato) e torna a vuoto. Lanciarlo all'evento «unione». _(2026-11-10)_
 - Un revisore lanciato con «k-N:» in testa alla descrizione si lega a quel compito e il programma unisce lui (niente) al posto dello sviluppatore: per le revisioni usare una descrizione senza id. _(2026-11-10)_
+- Il modello dell'autopilota passa da 5 file (ipc, servizio, store, orchestratore, tipo); ora tutti usano `modelloAutopilotaAmmesso` di `shared/modelli`. _(2026-11-10)_
+- lo stato `fermo` era tolto: un guasto non di rete non aspetta più Nicholas, riprova da solo con attesa crescente (tetto 5 min). _(2026-11-11)_
 
 ## controllo
 
 - una criticità con i numeri nel titolo cambia firma a ogni giro: il rapporto all'autopilota si riscrive ogni 6 ore (controllo-pc.ts:133). _(2026-11-09)_
 - Le versioni dei PC nel controllo vengono dall'ultimo battito sul Drive: con il Drive pieno restano vecchie. Prima di dire «PC vecchio» si controlla sul PC. _(2026-11-09)_
 - Un rapporto controllo-*.md scritto da un PC con versione vecchia ripete criticità già corrette: guardare «questo PC la 0.x» nel rapporto prima di aprire lavoro nuovo. _(2026-11-09)_
+- La gravità «guasto» di `pc:<id>` si decide nel singolo PC senza vedere gli altri; il declassamento sta in `criticitaDi`, che vede se il PC ha risposto a chi controlla. _(2026-11-10)_
 
 ## strumenti
 
@@ -166,6 +153,8 @@
 - UNIONE_TURNO_MAX_MS (12 min) copre solo i passi git, non le misure; se scade prima di PROVA_MAX_MS l'esito è lo stesso 'scaduta'. Ordine voluto: turno < prova < fila. _(2026-11-08)_
 - dopo un riavvio i subagenti in memoria sono vuoti: cancelloOra trova ramo e cartella solo se il piano li ha salvati, quindi va salvato anche il worktree, non solo il ramo _(2026-11-10)_
 - Ripresa dopo il riavvio: le unioni partono solo dopo la pulizia della prova (`provaRipulita`) e una volta per avvio. Senza aggiornamento solo compiti con `ramo` e senza esito «unione non fatta». _(2026-11-10)_
+- Il quaderno riscrive righe esistenti («(×2)», riordino): il controllo «solo righe aggiunte» sul numstat non basta. Dentro .sierradeck/quaderno/ si salva sempre. _(2026-11-10)_
+- la prova di unione salva con un commit solo `.sierradeck/quaderno/` (anche riscritto); le altre note di `.sierradeck/` restano «solo aggiunte» (numstat): un test deve coprire entrambi i rami. _(2026-11-11)_
 
 ## gpu
 
@@ -180,6 +169,7 @@
 - la versione di un altro PC va chiesta dal vivo (`/api/pc`): col Drive pieno i battiti si fermano e «Aggiorna» diventa falso; `frenoDrive.pieno()` dice se il Drive rifiuta scritture. _(2026-11-08)_
 - `IngressiSalute.io` può mancare nei test e in alcuni punti di `index.ts`: per il nome di «questo PC» serve un ripiego («Questo PC»). _(2026-11-09)_
 - «Quanto lavora SierraDeck»: il tono dipende solo dai consumi di questo PC; i dati degli altri PC arrivano dal battito sul Drive e, se vecchio (PC_SPENTO_DOPO_MS), non vanno mostrati come attuali. _(2026-11-10)_
+- Le voci create da `risorse` di un altro PC (consumi, `gpu:`) vanno filtrate col battito recente in `componiSalute`; ogni nuova voce per PC ha lo stesso rischio di dato vecchio. _(2026-11-10)_
 
 ## dipendenze
 
@@ -311,6 +301,8 @@
 ## rete
 
 - nel client dell'autopilota ogni POST che fa scrivere il servizio su disco deve passare `attesaScrittura`: senza, valgono i 3 s di lettura e sotto carico scade. _(2026-11-10)_
+- gli errori di rete dell'API nei turni (ENOTFOUND, Can't reach the API server) vanno trattati come passeggeri, come quelli dell'aggiornamento: avviso, non ERRORE. _(2026-11-10)_
+- `eErroreDiRete` in src/shared/errori-rete.ts è l'unico elenco degli errori di rete, condiviso da aggiornamenti e autopilota: aggiungere i codici lì. _(2026-11-10)_
 
 ## cancello
 
@@ -331,3 +323,17 @@
 ## piano
 
 - `compito.ramo` va tolto (`senzaRamo`) quando il compito torna da-fare o in-corso, altrimenti la ripresa riunisce il ramo vecchio. _(2026-11-10)_
+
+## orchestratore
+
+- il ramo risposta con errore del result scarta s.inviati senza rimettere i messaggi in coda, a differenza dell'uscita del processo: un messaggio nel turno fallito si perde. _(2026-11-10)_
+- s.tentativi si azzera a ogni risposta, anche con errore: il limite di un riprovo non vale per gli errori del result, e ogni risveglio lancia un turno nuovo. _(2026-11-10)_
+- su un `result` con `is_error` il turno non riprova da solo con rete assente: `pronto()` ora è falso durante `riprova` e `fermo`, altrimenti `suEffetti` rilancia il turno a raffica. _(2026-11-10)_
+
+## modelli
+
+- Il telefono (pagina e app Android) legge `/api/modelli` dal servizio: basta cambiare `src/shared/modelli.ts` o la scoperta, senza ricompilare l'APK. _(2026-11-10)_
+
+## pubblica
+
+- `npm run pubblica` da una copia: serve `google-oauth.json` (ignorato da git) e una `node_modules` vera, non una junction. Con la release già creata non carica nulla: caricare a mano. _(2026-11-11)_
