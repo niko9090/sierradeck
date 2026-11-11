@@ -45,7 +45,6 @@
 
 ## release
 
-- Prima di pubblicare, `package.json` di origin/main può essere ancora alla versione precedente: il bump unito sta solo nel main locale e va pushato con main prima del tag. _(2026-11-08)_
 - Le pubblicazioni dalla cartella principale vanno affidate a general-purpose: lo sviluppatore è chiuso nel suo worktree e non può usare git nel principale (0.97.1 e 0.97.2). _(2026-11-08)_
 - il rapporto controllo-*.md sta nella cartella principale (.sierradeck/errori-arrivati/), non nei worktree: leggerlo da lì, non copiarlo. _(2026-11-09)_
 - un bump patch tocca solo package.json, package-lock.json (2 punti), src/shared/novita.ts e, se serve, il quaderno errori-arrivati. _(2026-11-09)_
@@ -322,6 +321,7 @@
 ## piano
 
 - `compito.ramo` va tolto (`senzaRamo`) quando il compito torna da-fare o in-corso, altrimenti la ripresa riunisce il ramo vecchio. _(2026-11-10)_
+- Un criterio con comando che legge solo file sotto .sierradeck/ (es. grep sul quaderno) è rifiutato: per le note scrivere il criterio a parole, lo giudica il supervisore. _(2026-11-11)_
 
 ## orchestratore
 
