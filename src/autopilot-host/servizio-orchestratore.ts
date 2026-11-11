@@ -1144,6 +1144,8 @@ ${NOTA_SENZA_GIT}`,
     /** 06/11: gli altri rami con lavoro dello stesso compito (da unire prima) e gli specialisti che finiscono uniti con questo. */
     let altriRami: RamoConLavoro[] = []
     let assorbiti: RamoConLavoro[] = []
+    /** 11/11: il ramo da unire non c'è più (già unito e tolto, o perso): niente da unire, decide il criterio. */
+    let ramoMancante: string | undefined
     if (!senzaGit && !soloLettura && g !== undefined && a.ramoBase !== undefined) {
       // Il ramo: dato, della chat adottata, o del worktree del subagente.
       const nato = (c: string): number | undefined => { try { return statSync(c).birthtimeMs } catch { return undefined } }
@@ -1206,7 +1208,8 @@ ${NOTA_SENZA_GIT}`,
       for (const altro of altriRami) {
         if (altro.cartella !== undefined) await salvaLavoroAsincrono(g, altro.cartella, `specialista ${altro.sub.id}: ${(compito?.titolo ?? altro.sub.descrizione).slice(0, 60)}`)
         const chiusoAltro = await ramoGiaChiusoAsincrono(g, { cwd: a.cwd, ramo: altro.ramo, base: a.ramoBase })
-        if (chiusoAltro === 'mancante') { motivo = `il ramo ${altro.ramo} non c’è`; break }
+        // 11/11: sparito fra l'elenco e l'unione: da lì non c'è niente da unire, si va avanti con gli altri.
+        if (chiusoAltro === 'mancante') { console.info(`[orchestratore] ${ws} — il ramo ${altro.ramo} di ${altro.sub.id} non c’è più: saltato`); continue }
         if (chiusoAltro === 'unito') continue
         if (scambio.scaduto) return `${nome}: unione scaduta`
         const r = await x.provaNelPrincipale(unicoDi(ws) ?? a, altro.ramo)
@@ -1218,8 +1221,17 @@ ${NOTA_SENZA_GIT}`,
       }
       const chiuso = motivo !== undefined ? 'unito' : ramo === undefined ? 'unito' : await ramoGiaChiusoAsincrono(g, { cwd: a.cwd, ramo, base: a.ramoBase })
       if (motivo !== undefined) { /* un altro ramo non è entrato: ci si ferma */ }
-      else if (chiuso === 'mancante') motivo = `il ramo ${ramo} non c’è`
-      else if (chiuso === undefined && ramo !== undefined) {
+      else if (chiuso === 'mancante') {
+        // 11/11: prima «unione NON fatta», e il compito restava «in revisione» per sempre (nessuno corregge
+        // un ramo che non c'è). Niente da unire: decide il criterio, misurato più sotto sul principale.
+        // Un ramo detto a mano che non c'è, con gli specialisti del compito ancora noti: vale il loro ramo.
+        if (p.ramo !== undefined && p.compito !== undefined && delCompito.length > 0) return cancelloOra(ws, { compito: p.compito }, scambio)
+        // Senza un compito non c'è un criterio da misurare: si dice com'è, senza scrivere «unito».
+        if (compito === undefined) return `${nome}: il ramo ${ramo} non c’è (già unito e tolto, o mai creato): niente da unire.`
+        ramoMancante = ramo
+        ramo = undefined
+        cartella = undefined
+      } else if (chiuso === undefined && ramo !== undefined) {
         if (scambio.scaduto) return `${nome}: unione scaduta`
         const r = await x.provaNelPrincipale(unicoDi(ws) ?? a, ramo)
         if (!r.unito) {
@@ -1238,6 +1250,8 @@ ${NOTA_SENZA_GIT}`,
     const grezzo = compito !== undefined ? comandoDelCriterio(compito.criterio) : undefined
     const comando = grezzo !== undefined ? criteriPerLaProva([{ descrizione: '', comando: grezzo, soddisfatto: false }])[0]?.comando ?? grezzo : undefined
     let verde = true
+    /** Il criterio è stato misurato ed è rosso davvero (non «non misurato»). */
+    let fallito = false
     let dettaglio = compito === undefined ? 'nessun compito del piano: vale l’unione senza regressioni' : 'il criterio non ha un comando: vale l’unione senza regressioni'
     // 08/11: dopo un'unione il codice è un altro, un rosso ricordato non vale più.
     dimenticaIRossi(memoriaCriteri)
@@ -1263,6 +1277,7 @@ ${NOTA_SENZA_GIT}`,
         const m = await misuraCriteri([{ descrizione: compito!.criterio, comando, soddisfatto: false }], a.cwd, x.esegui, { memoria: memoriaCriteri, adesso: Date.now, tutti: true, ...(impronta !== undefined ? { impronta } : {}) })
         const falliti = fallitiDavvero(m.esiti)
         const ignoti = nonMisurati(m.esiti)
+        fallito = falliti.length > 0
         verde = m.esiti.length > 0 && falliti.length === 0 && ignoti.length === 0
         const uscita = m.esiti[0]?.uscita.trim().split(/\r?\n/u).slice(-6).join(' | ').slice(0, 400) ?? ''
         dettaglio = verde ? `\`${comando}\` passa` : ignoti.length > 0 ? `\`${comando}\` non si è potuto misurare: ${uscita}` : `\`${comando}\` non passa: ${uscita}`
@@ -1276,6 +1291,20 @@ ${NOTA_SENZA_GIT}`,
     }
     // Scaduta mentre misurava: l'esito non vale più, l'unione è già stata rimessa in fila.
     if (scambio.scaduto) return `${nome}: unione scaduta`
+    // 11/11: il ramo non c'è più e il criterio è rosso: il lavoro non è nel principale. Il compito torna
+    // da fare senza il ramo, così l'autopilota lo rilancia. Verde (o senza comando) vale come unito, sotto.
+    if (ramoMancante !== undefined && fallito && compito !== undefined && compito.stato !== 'unito') {
+      const manca = ramoMancante
+      cambiaCompito(ws, compito.id, (k) => ({ ...senzaRamo(k), stato: 'da-fare', esito: `il ramo ${manca} non c’è più e il criterio non passa sul principale: da rifare (${dettaglio.slice(0, 300)})` }))
+      // Lo specialista di quel ramo non ha più niente da unire: non resta «finito, da unire».
+      if (sub !== undefined) {
+        const s = uniti.get(ws) ?? new Set<string>()
+        s.add(sub.id)
+        uniti.set(ws, s)
+      }
+      ricalcola(ws, `${compito.id} da rifare: il ramo non c’è più`)
+      return `${nome}: il ramo ${manca} non c’è più (niente da unire) e il criterio di ${compito.id} non passa sul principale: ${dettaglio}. ${compito.id} torna da fare: affidalo di nuovo a uno specialista.`
+    }
     if (compito !== undefined) {
       cambiaCompito(ws, compito.id, (k) => ({ ...k, stato: 'unito', criterioVerde: verde, unitoIl: il, esito: dettaglio }))
     }
@@ -1315,7 +1344,7 @@ ${NOTA_SENZA_GIT}`,
       if (chat !== undefined) x.avanzaFinite()
     }
     ricalcola(ws, `${compito?.id ?? nome} unito${verde ? '' : ' con il criterio rosso'}`)
-    const dove = ramo !== undefined ? `ramo ${ramo} unito nel principale` : fuoriDaiRami ? 'lavoro fuori dai rami (scritto in un’altra cartella): niente da unire, vale il criterio' : soloLettura ? (sub?.ruolo === 'rilascio' ? 'rilascio fatto dalla cartella principale, niente da unire' : 'analisi in sola lettura, niente da unire') : 'lavoro già nella cartella del progetto'
+    const dove = ramo !== undefined ? `ramo ${ramo} unito nel principale` : ramoMancante !== undefined ? `il ramo ${ramoMancante} non c’è più: niente da unire, vale il criterio` : fuoriDaiRami ? 'lavoro fuori dai rami (scritto in un’altra cartella): niente da unire, vale il criterio' : soloLettura ? (sub?.ruolo === 'rilascio' ? 'rilascio fatto dalla cartella principale, niente da unire' : 'analisi in sola lettura, niente da unire') : 'lavoro già nella cartella del progetto'
     const chi = compito?.id !== undefined && compito.id !== nome ? `${compito.id} (${nome})` : nome
     return `${chi}: ${dove}. Criterio ${verde ? 'VERDE' : 'ROSSO'}: ${dettaglio}.${verde ? '' : ' Il compito resta da correggere: affidalo a uno specialista, dicendo cosa non va.'}`
   }
@@ -1809,7 +1838,8 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
         if (k.stato !== 'in-revisione') continue
         // Senza aggiornamento (accensione, crash) si riprende solo quello di cui si è certi: col ramo noto e
         // senza un'unione già fallita apposta (conflitto stabile). Il resto lo decide l'autopilota.
-        if (opzioni.soloCerte === true && (k.ramo === undefined || /unione non fatta/iu.test(k.esito ?? ''))) continue
+        // 11/11: «il ramo … non c’è» non è più un'unione fallita (decide il criterio): quelle rimaste così da prima si riprendono.
+        if (opzioni.soloCerte === true && (k.ramo === undefined || (/unione non fatta/iu.test(k.esito ?? '') && !/unione non fatta: il ramo \S+ non c’è$/u.test(k.esito ?? '')))) continue
         const chiave = `${ws}|${k.id}`
         if (unioniRiprese.has(chiave)) continue
         unioniRiprese.add(chiave)
