@@ -129,6 +129,33 @@ describe('la guardia con il rilascio nella cartella principale', () => {
     expect(giudicaGuardiaOrchestratore(shell('git push origin main', 'PowerShell'), ctx).ok).toBe(true)
   })
 
+  // 11/11: il push normale e i tag nuovi sì; riscrivere o cancellare quello che è già pubblicato no, per nessuno specialista.
+  it('riscrivere o cancellare quello che è già pubblicato no: push forzato, ramo o tag tolti dal remoto', () => {
+    for (const c of [
+      'git push --force origin main',
+      'git push -f origin main',
+      'git push --force-with-lease origin main',
+      'git push origin +main',
+      'git push --mirror origin',
+      'git push origin --delete v1.2.3',
+      'git push origin :v1.2.3',
+      'git -C . push --force origin main',
+      'git tag v1.2.3 && git push --force origin v1.2.3'
+    ]) {
+      const g = giudicaGuardiaOrchestratore(shell(c), ctx)
+      expect(g.ok, c).toBe(false)
+      expect((g as { motivo: string }).motivo, c).toMatch(/già pubblicato/)
+      expect((g as { motivo: string }).motivo, c).toContain('Nicholas')
+    }
+    // Vale anche per chi lavora nella sua copia, non solo per il rilascio.
+    const dallaCopia = { ...delRilascio('Bash', { command: 'git push --force origin worktree-agent-x' }), cwd: join(RADICE, '.claude', 'worktrees', 'agent-a9f1'), agent_type: 'sviluppatore' }
+    expect(giudicaGuardiaOrchestratore(dallaCopia, ctx).ok).toBe(false)
+    // Il push normale, il primo push di un ramo e un tag nuovo passano come prima.
+    for (const c of ['git push origin main', 'git push -u origin main', 'git push origin main:main', 'git push origin v1.2.3', 'git push --tags origin', 'echo "git push --force" > nota.txt']) {
+      expect(giudicaGuardiaOrchestratore(shell(c), ctx).ok, c).toBe(true)
+    }
+  })
+
   it('cambiare la storia o i file della cartella principale no', () => {
     for (const c of [
       'git commit -am "versione"',

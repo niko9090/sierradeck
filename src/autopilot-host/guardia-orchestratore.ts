@@ -165,6 +165,23 @@ export function comandiGit(comando: string): { verbo: string; indice: number }[]
   return fuori
 }
 
+/**
+ * 11/11: riscrivere o cancellare quello che è già pubblicato (un push forzato,
+ * un ramo o un tag tolti dal remoto) non si rimette a posto, e i PC che hanno
+ * già scaricato quella versione restano con un'altra storia. Il push normale e
+ * i tag nuovi passano (Nicholas, 04/11); questi no, per nessuno specialista:
+ * li decide Nicholas. Torna cosa non va, o `undefined`.
+ */
+export function gitCheRiscriveIlPubblicato(comando: string): string | undefined {
+  for (const g of comandiGit(comando)) {
+    if (g.verbo !== 'push') continue
+    const resto = comando.slice(g.indice).split(/[;&|\n]/u, 1)[0] ?? ''
+    if (/\s(?:--force(?:-with-lease|-if-includes)?(?:=\S*)?|-f|--mirror)(?=\s|$)|\s\+\S/u.test(resto)) return 'un push forzato riscrive quello che è già pubblicato'
+    if (/\s(?:--delete|-d|--prune)(?=\s|$)|\s:\S/u.test(resto)) return 'questo push cancella un ramo o un tag già pubblicato'
+  }
+  return undefined
+}
+
 const GIT_LETTURA = /^(status|log|diff|show|rev-parse|ls-files|describe|shortlog|blame)$/u
 
 /**
@@ -208,7 +225,7 @@ export function giudicaGuardiaOrchestratore(corpo: Record<string, unknown>, c: C
       if (doppio !== undefined) return { ok: false, motivo: doppio }
       const finito = c.inUnione?.({ descrizione: s(input.description) ?? s(input.prompt)?.slice(0, 120) ?? 'specialista', tipo })
       if (finito !== undefined) return { ok: false, motivo: finito }
-      const aspetta =c.dipendenze?.({ descrizione: s(input.description) ?? s(input.prompt)?.slice(0, 120) ?? 'specialista', tipo })
+      const aspetta = c.dipendenze?.({ descrizione: s(input.description) ?? s(input.prompt)?.slice(0, 120) ?? 'specialista', tipo })
       if (aspetta !== undefined) return { ok: false, motivo: aspetta }
       if (c.fila !== undefined) {
         const r = c.fila({ descrizione: s(input.description) ?? s(input.prompt)?.slice(0, 120) ?? 'specialista', tipo: s(input.subagent_type) ?? 'general-purpose' })
@@ -225,6 +242,9 @@ export function giudicaGuardiaOrchestratore(corpo: Record<string, unknown>, c: C
   if ((STRUMENTI_SHELL as readonly string[]).includes(nome)) {
     const comando = s(input.command) ?? ''
     if (input.run_in_background === true || attesaAManoLunga(comando)) return { ok: false, motivo: MOTIVO_SOTTOFONDO }
+    // 11/11: mai riscrivere o cancellare quello che è già pubblicato, in nessuna cartella.
+    const riscrive = gitCheRiscriveIlPubblicato(comando)
+    if (riscrive !== undefined) return { ok: false, motivo: `${riscrive}: non si fa senza il sì di Nicholas. Pubblica con un push normale e con tag nuovi; se un tag pubblicato è sbagliato, dillo all’autopilota e fermati lì.` }
   }
 
   // Senza git non c'è una copia: lo specialista lavora proprio nella cartella principale.
