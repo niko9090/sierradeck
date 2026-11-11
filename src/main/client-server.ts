@@ -10,6 +10,7 @@ import { creaControlloFirme, INTESTAZIONE_FIRMA, provaCasa, visoreDaFirma } from
 import type { Dispositivi } from './dispositivi'
 import { conProva, rigaProvaMancata } from './client-prova'
 import { creaMemoriaRichieste, idRichiestaDa, type MemoriaRichieste } from './client-richieste'
+import { annotaRotta, iniziaMisura, misuraRisposta } from './client-misure'
 
 /**
  * Il server che serve il Client sulla rete di casa.
@@ -179,6 +180,7 @@ export function creaServerClient(deps: DipendenzeClient): Server {
   const controlloFirme = creaControlloFirme()
   const memoria = creaMemoriaRichieste()
   return createServer((req, res) => {
+    iniziaMisura(req, racconta)
     void gestisci(req, res, deps, racconta, controlloFirme, memoria).catch((err: unknown) => {
       console.error('[client] richiesta non gestita:', err)
       if (!res.headersSent) rispondi(res, { stato: 500, corpo: { errore: 'guasto interno' } })
@@ -209,8 +211,11 @@ function testoPronto(corpo: string): { gz: Buffer; etag: string } {
  * l'ETag: alla riapertura il browser riceve 304 e niente corpo.
  */
 function rispondi(res: ServerResponse, esito: Esito, req?: IncomingMessage, conEtag = false): void {
-  const tipo = esito.tipo ?? 'application/json; charset=utf-8'
-  const corpo = tipo.startsWith('application/json') ? JSON.stringify(esito.corpo) : String(esito.corpo)
+  let tipo = esito.tipo ?? 'application/json; charset=utf-8'
+  let corpo = tipo.startsWith('application/json') ? JSON.stringify(esito.corpo) : String(esito.corpo)
+  // Peso e tempo (`client-misure.ts`): una riga se lenta o pesante, 413 oltre 8 MB.
+  const troppo = misuraRisposta(req, corpo, esito.stato)
+  if (troppo !== undefined) { esito = troppo; tipo = 'application/json; charset=utf-8'; corpo = JSON.stringify(troppo.corpo) }
   const intestazioni: Record<string, string> = {
     'Content-Type': tipo,
     // Nessuna origine esterna può interrogare questo server dal browser: senza,
@@ -282,6 +287,7 @@ async function gestisci(
   const cerca = new URL(req.url ?? '/', 'http://x').searchParams
   const metodo = req.method ?? 'GET'
   const corpo = metodo === 'GET' ? undefined : await leggiCorpoJson(req)
+  annotaRotta(req, percorso, corpo)
 
   // Il polso delle chat: nasce da un comando lanciato da Claude Code su questa
   // macchina, quindi vale solo dal loopback e non ha una chiave. Da fuori e'
