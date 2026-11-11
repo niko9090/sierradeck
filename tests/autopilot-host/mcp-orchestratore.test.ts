@@ -3,7 +3,7 @@ import { aggiungi, codaVuota, type Coda, type Modifica } from '@shared/coda-rich
 import { pianoVuoto, type Piano } from '@shared/piano-orchestratore'
 import type { Specialista } from '@shared/flusso-orchestratore'
 import {
-  chiamaStrumento, creaGettoniOrchestratore, configMcpOrchestratore, rispondiMcpOrchestratore, DOMANDE_ORA_ORCHESTRATORE, STRUMENTI_ORCHESTRATORE, motivoDomandaInutile,
+  chiamaStrumento, creaGettoniOrchestratore, configMcpOrchestratore, rispondiMcpOrchestratore, DOMANDE_ORA_ORCHESTRATORE, STRUMENTI_ORCHESTRATORE, motivoDomandaInutile, MOTIVO_UNIONI_FERME,
   type AmbienteOrchestratore
 } from '../../src/autopilot-host/mcp-orchestratore'
 
@@ -153,6 +153,32 @@ describe('strumenti dell’orchestratore', () => {
     expect(a.stato.domande).toHaveLength(0)
     expect(motivoDomandaInutile('Pubblico la 1.2.0 o aspetto?')).toBeUndefined()
     expect(motivoDomandaInutile('Tengo il tema scuro o chiaro per le nuove schermate?')).toBeUndefined()
+  })
+
+  // 11/11: le domande vere del 31/10, 07/11, 10/11 e 11/11 («fai tu tu», «risolvi tutti questi problemi!!!!»).
+  it('chiedi_utente (11/11): file non salvati, cartella principale e fila delle unioni non si chiedono a Nicholas', async () => {
+    const a = ambiente()
+    const rifiutate = [
+      { domanda: 'Nella cartella principale di SierraDeck c’è una modifica non salvata, forse fatta da una tua chat. Da 5 ore tiene ferma l’unione della correzione per la rete. Come faccio?', scelte: ['È roba di una mia chat, la faccio salvare a lei', 'Lasciala com’è, aspetto io'] },
+      { domanda: 'La fila delle unioni è ferma da 7 ore per due note del quaderno non salvate. Come vuoi fare?' },
+      { domanda: 'Le unioni continuano a scadere e nessun lavoro entra. Faccio unire tutto da uno specialista, saltando la fila del programma?' },
+      { domanda: 'L’unione della correzione è rifiutata due volte: ci sono file non salvati. Li salvo io?' },
+      { domanda: 'Come procediamo con il lavoro pronto?', scelte: ['Salto la fila e unisco subito', 'Aspetto'] }
+    ]
+    for (const r of rifiutate) {
+      const e = await chiamaStrumento(a, 'Lavoro', 'chiedi_utente', r)
+      expect(e?.errore, r.domanda).toBe(true)
+      expect(e?.testo, r.domanda).toMatch(/gliel’ha già chiesto il programma, tu vai avanti con il resto/)
+    }
+    expect(a.stato.domande).toHaveLength(0)
+    expect(motivoDomandaInutile('La fila delle unioni è ferma: come faccio?')).toBe(MOTIVO_UNIONI_FERME)
+    // Le domande che restano sue passano.
+    for (const buona of [
+      'Con il Drive pieno, le chat vecchie che hanno già una copia sul PC le cancello subito dal Drive, oppure le tengo nel recupero di 30 giorni?',
+      'La macchina virtuale di Linux occupa 15 GB di memoria e lascia libero solo il 5%. Posso spegnerla?',
+      'Unisco in una sola le due richieste sulla barra delle chat?',
+      'Le note del quaderno le tengo anche sul Drive?'
+    ]) expect(motivoDomandaInutile(buona), buona).toBeUndefined()
   })
 
   it('permesso: la risposta è il JSON che la CLI si aspetta', async () => {

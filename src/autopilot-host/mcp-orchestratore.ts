@@ -443,8 +443,15 @@ export function motivoDomandaInutile(testo: string): string | undefined {
   if (/\b(lanci\w*|esegu\w*|digit\w*|scrivi)\b[^.?!]{0,40}\b(comando|terminale|prompt|powershell|bash|cmd)\b|\b(da terminale|a mano)\b[^.?!]{0,60}\b(lanci\w*|esegu\w*|fai\w*|sistem\w*|copi\w*|cancell\w*)\b|\b(lanci\w*|esegu\w*|fai\w*)\b[^.?!]{0,30}\ba mano\b/iu.test(t)) {
     return 'non chiedere a Nicholas di fare a mano lavoro tecnico o di lanciare comandi: affidalo a uno specialista, o al programma, e chiedigli solo una decisione sua'
   }
+  // 11/11: cinque volte in due settimane («Nella cartella principale c'è una modifica non salvata… Come faccio?»,
+  // «La fila delle unioni è ferma da 7 ore… Come vuoi fare?», «…saltando la fila?»). Di questo si occupa il programma.
+  if (UNIONI_FERME.test(t)) return MOTIVO_UNIONI_FERME
   return undefined
 }
+
+/** File non salvati, cartella principale, fila delle unioni ferma o da saltare: non sono domande dell'autopilota. */
+const UNIONI_FERME = /\b(?:modific\w*|file|note|righe)\b[^.?!]{0,60}\bnon\s+salvat\w*|\bnon\s+salvat\w*[^.?!]{0,60}\b(?:cartella|union\w*|fila)\b|\bcartella\s+principale\b|\bfila\s+(?:delle\s+|di\s+)?union\w*|\bunion\w*\b[^.?!]{0,50}\b(?:ferm\w*|scad\w*|bloccat\w*|rifiutat\w*|in\s+fila|in\s+attesa)\b|\b(?:ferm\w*|scad\w*|bloccat\w*|rifiutat\w*)\b[^.?!]{0,50}\bunion\w*|\bsalt\w*\s+la\s+fila\b/iu
+export const MOTIVO_UNIONI_FERME = 'non chiedere a Nicholas di file non salvati, della cartella principale o della fila delle unioni: gliel’ha già chiesto il programma, tu vai avanti con il resto'
 
 export const ISTRUZIONI_MCP_ORCHESTRATORE = 'SierraDeck, l’autopilota unico del workspace: coda delle richieste, piano dei compiti, specialisti, cancello di unione, domande a Nicholas, quaderno. Ogni chiamata la valida il programma: se rifiuta, leggi il motivo e cambia strada.'
 
