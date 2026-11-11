@@ -71,10 +71,14 @@ describe('/api/autopilota leggera (0.86.0)', () => {
     expect(r.corpo.chatIntera).toBeDefined()
   })
 
-  it('un autopilota corto leggero è uguale a quello intero', async () => {
+  // m-collegamento: la leggera ha i campi scelti a mano (`@shared/autopilota-telefono`).
+  // Quelli che l'app 2.99.0 e la pagina leggono sono uguali a quelli della intera.
+  it('un autopilota corto: nei campi che app e pagina leggono, leggera e intera dicono lo stesso', async () => {
     const intera = await chiedi(lungo(3), { autopilota: 'ap-1' })
     const r = await chiedi(lungo(3), { autopilota: 'ap-1' }, 'leggero=1')
-    expect(r.corpo).toEqual(intera.corpo)
+    const letti = ['id', 'nome', 'obiettivo', 'cwd', 'workspace', 'stato', 'cicli', 'ultimoEvento', 'motivoSospensione', 'decisioni', 'dialogo', 'chat', 'chatIntera',
+      'troncati', 'domanda', 'domandaId', 'pensa', 'specialisti', 'ramoBase', 'pubblicazione', 'domandeScheda', 'dalVivo']
+    for (const k of letti) expect(r.corpo[k], k).toEqual(intera.corpo[k])
   })
 })
 

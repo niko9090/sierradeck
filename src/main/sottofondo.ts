@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import type { HostToCore } from '@shared/protocol'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 import { righeDaSchermo, testoDiRiga, rigaVestita, type Schermo } from '../renderer/schermo-terminale'
+import { RIGHE_STORIA_MAX } from '@shared/storia-chat'
 import {
   SEGNI_DI_PROMPT, chatAspetta, sceltaSulloSchermo, consegnaPartita, contaMandati, ultimaRigaDalloSchermo,
   lavoraSulloSchermo, testoNelCampo, testoPerso, type AttivitaTerminale
@@ -444,7 +445,7 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
         return { totale: schermo.length, da: Math.max(0, schermo.length - r.pulite.length), pulite: r.pulite, grezze: r.grezze, continua: r.continua, colonne: v.term.cols }
       }
       const totale = schermo.length
-      const passo = Math.max(1, Math.min(quante, 500))
+      const passo = Math.max(1, Math.min(quante, RIGHE_STORIA_MAX))
       const inizio = da < 0 ? Math.max(0, totale - passo) : Math.max(0, Math.min(da, totale))
       const fine = Math.min(totale, inizio + passo)
       const pulite: string[] = []; const grezze: string[] = []; const continua: boolean[] = []

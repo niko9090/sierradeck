@@ -2,6 +2,7 @@ import { randomBytes, timingSafeEqual, createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
+import { CHI_VALIDO, chiDelSegno, provaCiao } from '@shared/prova-telefono'
 
 /**
  * I dispositivi che possono comandare SierraDeck da fuori.
@@ -48,6 +49,13 @@ export type Dispositivi = {
   accoppia: (codice: string, nome: string) => { id: string; chiave: string } | undefined
   /** Riconosce una chiave. Aggiorna l'ultimo accesso quando la trova. */
   riconosci: (chiave: string) => Omit<Dispositivo, 'segno'> | undefined
+  /**
+   * La prova per il telefono che chiede `chi` (vedi `@shared/prova-telefono`):
+   * la sa dare solo chi tiene il segno della sua chiave. `undefined` se nessun
+   * dispositivo dell'elenco ha quel `chi`, o la sfida non ha la forma giusta.
+   * Il segno non esce da qui.
+   */
+  prova: (chi: string, sfida: string) => string | undefined
   revoca: (id: string) => void
 }
 
@@ -208,6 +216,18 @@ export function apriDispositivi(
     }
   }
 
+  /** Il `chi` di ogni segno, contato una volta: i dispositivi sono pochi e non cambiano. */
+  const chiNoti = new Map<string, string>()
+  const chiDi = (segno: string): string => {
+    let chi = chiNoti.get(segno)
+    if (chi === undefined) {
+      if (chiNoti.size > 200) chiNoti.clear()
+      chi = chiDelSegno(segno)
+      chiNoti.set(segno, chi)
+    }
+    return chi
+  }
+
   const senzaSegno = (d: Dispositivo): Omit<Dispositivo, 'segno'> => {
     const { segno: _, ...resto } = d
     return resto
@@ -280,6 +300,12 @@ export function apriDispositivi(
         ))
       }
       return senzaSegno(trovato)
+    },
+
+    prova(chi, sfida) {
+      if (!CHI_VALIDO.test(chi)) return undefined
+      const trovato = leggi().find((d) => chiDi(d.segno) === chi)
+      return trovato === undefined ? undefined : provaCiao(trovato.segno, sfida)
     },
 
     revoca(id) {

@@ -17,8 +17,12 @@ import type { ChatSalvata } from '@shared/workspace'
 import { nomeDaMostrare } from '@shared/nome-pc'
 import type { Esito } from './client-server'
 import type { Dispositivi } from './dispositivi'
+import { pcPerApp } from './rete-telefono'
+import { leggiRichiestaStoria, rispostaStoria, RIGHE_STORIA_MAX } from '@shared/storia-chat'
+import { filtraSessioni, leggiRichiestaSessioni, paginaDi } from '@shared/sessioni-pagine'
 import { chiaveFermo, eFermo, riparteDaSolo, type Autopilota } from '@shared/autopilota'
-import { autopilotaLeggero, codaConversazione } from '@shared/autopilota-leggero'
+import { codaConversazione } from '@shared/autopilota-leggero'
+import { autopilotaPerTelefono, battuteLeggere, specialistiLeggeri } from '@shared/autopilota-telefono'
 import { paginaClient, ICONA_SVG, MANIFESTO } from './client-pagina'
 import { ledDi } from '@shared/autopilota-vista'
 import { conversazione, haDomandaAperta, staPensando } from '@shared/chat-autopilota'
@@ -299,7 +303,7 @@ export type DipendenzeRotte = {
    * con le strade fra PC e la chiave di casa. Lo stato e il corpo di quel PC,
    * o l'errore con il motivo per esteso.
    */
-  ponte?: (pc: string, percorso: string, corpo?: Record<string, unknown>, dispositivo?: string) => Promise<{ stato: number; corpo: unknown; strada?: Strada }>
+  ponte?: (pc: string, percorso: string, corpo?: Record<string, unknown>, dispositivo?: string, /** `x-sierradeck-richiesta`, da inoltrare. */ richiesta?: string) => Promise<{ stato: number; corpo: unknown; strada?: Strada }>
   /**
    * Il PIN delle chat (0.49.0). Ogni rotta che mostra o scrive dentro una
    * chat passa da qui: una chat protetta e non sbloccata da **chi guarda**
@@ -715,7 +719,7 @@ export function rotteLibere(deps: DipendenzeRotte) {
       return OK({
         programma: 'SierraDeck',
         versione: deps.versione,
-        ...(impronta !== undefined ? { impronta } : {})
+        ...(impronta !== undefined && impronta !== '' ? { impronta } : {})
       })
     }
 
@@ -735,7 +739,8 @@ export function rotteLibere(deps: DipendenzeRotte) {
         return { stato: 403, corpo: { errore: 'codice non valido o scaduto' } }
       }
       console.log(`[client] dispositivo accoppiato: ${nome}`)
-      return OK(esito)
+      // Chi è questo PC e dove risponde, subito: l'app nuova non deve fare un secondo giro per impararlo.
+      return OK({ ...esito, ...(pcPerApp(deps.reteApp?.()) ?? {}) })
     }
 
     return { stato: 404, corpo: { errore: 'non trovato' } }
@@ -934,6 +939,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     dispositivo?: string
     /** I parametri dell'indirizzo (0.86.0): `?leggero=1`. */
     cerca?: URLSearchParams
+    /** L'id della scrittura (`x-sierradeck-richiesta`): il ponte lo inoltra al PC di là. */
+    richiesta?: string
   }): Promise<Esito> => {
     const visore = visoreDi(r.dispositivo)
     if (r.metodo === 'POST') conversazioniLette.clear()
@@ -1348,6 +1355,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         aggiornamento: deps.aggiornamento(),
         // Il Drive del computer scollegato (0.39.3): la stessa banda del PC.
         ...(deps.avvisoDrive?.() !== undefined ? { driveScollegato: deps.avvisoDrive?.() } : {}),
+        // Chi è questo PC (impronta) e dove risponde adesso: l'app segue i cambi di indirizzo senza rifare l'accoppiamento.
+        ...(pcPerApp(deps.reteApp?.()) !== undefined ? { pc: pcPerApp(deps.reteApp?.()) } : {}),
         // Come si chiama questo computer.
         //
         // Serve a chi ne ha piu' di uno: un elenco di indirizzi IP non si legge,
@@ -1513,7 +1522,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       const l = leggiRichiestaPonte(r.corpo)
       if (!l.ok) return { stato: l.stato, corpo: { errore: l.errore } }
       const partito = Date.now()
-      const e = await deps.ponte(l.r.pc, l.r.percorso, l.r.corpo, r.dispositivo)
+      const e = await deps.ponte(l.r.pc, l.r.percorso, l.r.corpo, r.dispositivo, r.richiesta)
       // La strada fra questo PC e quello, e quanto ci ha messo (0.51.0): il
       // telefono la mostra accanto a «SU <PC>». Un campo in più: le app
       // vecchie lo ignorano.
@@ -1561,15 +1570,16 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       // tempi, Punto e messaggi in coda (erano del sistema di prima, con il
       // «Vai» e il supervisore). L'avanzamento sta in `/api/autopilota/avanzamento`.
       return OK({
-        ...(leggera ? autopilotaLeggero(a) : a),
+        // Leggera con i campi scelti a mano e i tetti (m-collegamento, `@shared/autopilota-telefono`).
+        ...(leggera ? autopilotaPerTelefono(a) : a),
         // La chat con lui (0.29.0): la stessa che sta in cima alla sezione sul
         // PC, composta una volta sola per tutti e tre.
-        chat: coda.chat,
+        chat: leggera ? battuteLeggere(coda.chat) : coda.chat,
         ...(coda.chatIntera !== undefined ? { chatIntera: coda.chatIntera } : {}),
         domanda: haDomandaAperta(a),
         pensa: staPensando(a),
         // Gli specialisti (0.73.0): ruolo, stato, ultima azione, e la sessione per «Guarda».
-        specialisti: specialistiDi(a, Date.now()),
+        specialisti: leggera ? specialistiLeggeri(specialistiDi(a, Date.now())) : specialistiDi(a, Date.now()),
         // La linguetta «Domande» (0.38.0): le sue domande una per volta.
         domandeScheda: domandeScheda(a, tutteLeDomande),
         ...(mia !== undefined ? { domandaId: mia.id } : {}),
@@ -1815,10 +1825,16 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       // e' meglio di un errore per una cosa che si guarda scorrendo.
       const pulite = trovata?.coda ?? []
       const vestite = trovata?.codaGrezza ?? []
-      const da = numero(r.corpo, 'da', -1)
-      const quante = Math.max(1, Math.min(numero(r.corpo, 'quante', 120), 400))
-      const finestra = (await deps.righeDi?.(id, da, quante)) as FinestraRighe | undefined
+      // m-collegamento (`@shared/storia-chat`): fino a 600 righe come chiede l'app (erano 400:
+      // «Risalgo…» per sempre), e la forma nuova con `dopo`, `grezze` e `tetto`.
+      const rs = leggiRichiestaStoria(r.corpo, r.cerca)
+      const finestra = (await deps.righeDi?.(id, rs.da, rs.quante)) as FinestraRighe | undefined
+      if (rs.nuova) {
+        const { continua: _c, colonne: _k, ...base } = finestra ?? { totale: vestite.length, da: 0, pulite, grezze: vestite }
+        return OK({ ...rispostaStoria(id, { ...base, ...conLarghezza(finestra) }, rs), scelte: scelteVive(id, vestite) })
+      }
       return OK({
+        tetto: RIGHE_STORIA_MAX,
         chat: id,
         totale: finestra?.totale ?? vestite.length,
         da: finestra?.da ?? 0,
@@ -2156,7 +2172,10 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       const tutte = conArchiviate || deps.gestioneChat === undefined ? tutteConArchiviate : tutteConArchiviate.filter((s) => !(deps.gestioneChat as { eArchiviata: (x: string) => boolean }).eArchiviata(s.id))
       const archiviate = tutteConArchiviate.length - tutte.length
       const conAnonime = typeof r.corpo === 'object' && r.corpo !== null && (r.corpo as { senzaNome?: unknown }).senzaNome === true
-      const elenco = (conAnonime ? tutte : tutte.filter((s) => s.senzaNome !== true)).slice(0, 30)
+      // A pagine e con la ricerca (m-collegamento, `@shared/sessioni-pagine`): prima solo le prime 30.
+      const rsess = leggiRichiestaSessioni(r.corpo, r.cerca)
+      const pag = paginaDi(filtraSessioni(conAnonime ? tutte : tutte.filter((s) => s.senzaNome !== true), rsess.cerca), rsess.pagina)
+      const elenco = pag.voci
       const nascoste = conAnonime ? 0 : tutte.filter((s) => s.senzaNome === true).length
       const conAltrove = elenco.map((s) => ({ s, su: deps.chatAltrove?.(s.cwd) }))
       // «su X · acceso / spento», come l'elenco «Riprendi» sul computer
@@ -2177,7 +2196,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
           ...(idDi.has(su) ? { altrovePc: idDi.get(su) } : {})
         }),
         nascoste,
-        ...(archiviate > 0 ? { archiviate } : {})
+        ...(archiviate > 0 ? { archiviate } : {}),
+        ...pag.conto
       })
     }
 
