@@ -41,6 +41,19 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.100.0',
+    righe: [
+      '**Meno domande:** l’autopilota non ti chiede più i permessi degli strumenti, «li correggo?», «pubblico adesso?» o «quando la installi?». Chiede solo per le cose tue (cancellazioni, account, dati, soldi). Una domanda che non rischia niente si decide da sola dopo un’ora, e te lo scrive.',
+      '**Unioni che non si fermano:** un file non salvato nella cartella principale ferma un’unione solo se quel lavoro lo tocca. Una prova non scade più a metà, e un’unione scaduta riprova da sola senza uscire dalla fila.',
+      '**Cartella principale sempre in pari:** dopo una release pubblicata da un ramo il programma si riallinea da solo e chiude i compiti che sono già dentro.',
+      '**Niente compiti appesi:** i compiti superati si chiudono, un lavoro finito non torna «da fare» per un rilancio rifiutato, e la percentuale non scende più quando un lavoro finisce.',
+      '**Meno blocchi per gli specialisti:** la copia di lavoro nasce già pronta, il PC carico fa aspettare al più 90 secondi, e uno specialista «rilascio» pubblica dalla cartella principale.',
+      '**Limite del piano:** quando finisce la quota l’autopilota aspetta l’ora in cui si sblocca e riparte da solo, con una riga sola.',
+      '**Pulizia:** le copie degli specialisti che non si cancellavano ora si tolgono senza fermare il servizio, e i rami già uniti spariscono.',
+      '**Sveglia:** l’autopilota può riprendere a un’ora precisa, anche dopo un riavvio.',
+    ],
+  },
+  {
     versione: '0.99.4',
     righe: [
       '**Controllo dei PC più paziente:** la salute di un PC lento si aspetta più a lungo e si riprova una volta. Un PC lento non risulta più «non risponde».',
