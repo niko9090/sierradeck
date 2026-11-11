@@ -47,6 +47,7 @@ import { creaStatoTelefono, criteriInPercento } from './stato-telefono-rotta'
 import { attesaInParole, avanzamentoInParole } from '@shared/parole-telefono'
 import { leggiAttesa } from '@shared/stato-telefono'
 import { scollegaTelefono } from './scollega-telefono'
+import { riceviDiario } from './diario-telefono'
 import {
   bozzaDaCorpo, controllaBozzaAutopilota, controllaNomeWorkspace, ULTIMO_WORKSPACE,
   type AzioneFinestra, type EsitoAzioneFinestra, type RichiestaAutopilota
@@ -1644,6 +1645,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
 
     // 11/11: il telefono si toglie da solo dall'elenco del PC (`scollega-telefono.ts`).
     if (r.metodo === 'POST' && r.percorso === '/api/scollega') return scollegaTelefono(r.dispositivo, daAltroPc(r.dispositivo), deps.dispositivi)
+    // 11/11: i tentativi di collegamento del telefono, nel registro del PC (`diario-telefono.ts`).
+    if (r.metodo === 'POST' && r.percorso === '/api/telefono/diario') return riceviDiario(r.corpo)
 
     if (r.metodo === 'POST' && r.percorso === '/api/rispondi') {
       const id = stringa(r.corpo, 'domanda')
