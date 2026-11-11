@@ -53,8 +53,27 @@ export function nonMisurati(esiti: EsitoVerifica[]): EsitoVerifica[] {
   return esiti.filter((e) => e.misurato === false)
 }
 
-/** `timeoutMs`, quando c'è, prende il posto del tetto dell'esecutore per quel solo comando. */
-export type Esecutore = (comando: string, cwd: string, timeoutMs?: number) => Promise<{ codice: number; uscita: string }>
+/**
+ * `timeoutMs`, quando c'è, prende il posto del tetto dell'esecutore per quel solo comando.
+ * `segnale` (11/11), quando c'è: se scatta, il comando e il suo albero si fermano subito.
+ * Una prova di unione scaduta non lascia un comando fantasma a tenere il turno dei pesanti.
+ */
+export type Esecutore = (comando: string, cwd: string, timeoutMs?: number, segnale?: AbortSignal) => Promise<{ codice: number; uscita: string }>
+
+/** La riga in fondo all'uscita di un comando fermato dal segnale (la prova è scaduta). */
+export const RIGA_ANNULLATO = '[comando annullato: prova scaduta]'
+/** Mai partito: il segnale era già scattato. */
+export const RIGA_ANNULLATO_PRIMA = '[comando annullato prima di partire]'
+
+/** Il comando è stato fermato dal segnale: non dice niente sul codice, non è un esito. */
+export function annullato(uscita: string): boolean {
+  return /\[comando annullato[^\]]*\]\s*$/.test(uscita)
+}
+
+/** Il comando è stato interrotto perché il suo tempo è scaduto (anche dopo la rimisura). */
+export function interrottoPerTempo(uscita: string): boolean {
+  return /\[comando interrotto dopo \d+s\]/.test(uscita)
+}
 
 /** Oltre questo, l'uscita di un comando non aggiunge informazione utile. */
 const USCITA_MAX = 4000
@@ -389,9 +408,11 @@ export function esecutoreReale(predefinitoMs: number = TIMEOUT_PREDEFINITO_MS): 
       ? `[autopilota] i criteri girano in ${bash}`
       : '[autopilota] nessuna bash trovata: i criteri girano in cmd.exe'
   )
-  return (comando, cwd, perQuesto) =>
+  return (comando, cwd, perQuesto, segnale) =>
     new Promise((risolvi) => {
       const timeoutMs = perQuesto ?? predefinitoMs
+      // 11/11: la prova è già scaduta: il comando non parte nemmeno.
+      if (segnale?.aborted === true) { risolvi({ codice: 1, uscita: RIGA_ANNULLATO_PRIMA }); return }
       const temp = tmpdir()
       const cartella = mkdtempSync(join(temp, 'sierradeck-criterio-'))
       const script = join(cartella, nomeScript(bash))
@@ -436,8 +457,8 @@ export function esecutoreReale(predefinitoMs: number = TIMEOUT_PREDEFINITO_MS): 
 
       let risposto = false
       let interrotto = false
-      const orologio = setTimeout(() => {
-        interrotto = true
+      let fermatoDalSegnale = false
+      const interrompi = (): void => {
         const ferma = (gruppo: number[]): void => {
           // Uscita da sola mentre si aspettava `ps`: il suo PID può già essere di
           // un altro processo, quindi solo i discendenti che `ps` ha visto vivi.
@@ -453,12 +474,18 @@ export function esecutoreReale(predefinitoMs: number = TIMEOUT_PREDEFINITO_MS): 
         if (bash !== undefined && process.platform === 'win32' && figlio.pid !== undefined) {
           void gruppoMsys(bash, figlio.pid).then(ferma, () => { ferma([]) })
         } else ferma([])
-      }, timeoutMs)
+      }
+      const orologio = setTimeout(() => { interrotto = true; interrompi() }, timeoutMs)
+      // 11/11: la prova scaduta ferma davvero il comando, con tutto il suo albero.
+      const alloStop = (): void => { fermatoDalSegnale = true; interrompi() }
+      segnale?.addEventListener('abort', alloStop, { once: true })
+      const rigaFine = (): string => (fermatoDalSegnale ? `\n${RIGA_ANNULLATO}` : interrotto ? `\n[comando interrotto dopo ${Math.round(timeoutMs / 1000)}s]` : '')
 
       const rispondi = (codice: number, fine = ''): void => {
         if (risposto) return
         risposto = true
         clearTimeout(orologio)
+        segnale?.removeEventListener('abort', alloStop)
         console.info(`[criterio] finito con ${codice} in ${Math.round((Date.now() - partito) / 1000)} s: ${comando.slice(0, 120)}`)
         // Le pipe si lasciano andare: se un processo in background le tiene
         // aperte, restare in ascolto significherebbe tenere vivo un pezzo di
@@ -486,17 +513,11 @@ export function esecutoreReale(predefinitoMs: number = TIMEOUT_PREDEFINITO_MS): 
         // svuotarsi. Se qualcuno le tiene aperte, dopo la grazia si risponde
         // lo stesso — è il caso del comando che lascia un server acceso.
         const grazia = setTimeout(() => {
-          rispondi(
-            esito,
-            interrotto ? `\n[comando interrotto dopo ${Math.round(timeoutMs / 1000)}s]` : ''
-          )
+          rispondi(esito, rigaFine())
         }, GRAZIA_CHIUSURA_MS)
         figlio.on('close', () => {
           clearTimeout(grazia)
-          rispondi(
-            esito,
-            interrotto ? `\n[comando interrotto dopo ${Math.round(timeoutMs / 1000)}s]` : ''
-          )
+          rispondi(esito, rigaFine())
         })
       })
     })
@@ -511,13 +532,13 @@ export function esecutoreReale(predefinitoMs: number = TIMEOUT_PREDEFINITO_MS): 
  * suo esito è «non misurato», con il motivo.
  */
 export function conDivieti(esegui: Esecutore): Esecutore {
-  return async (comando, cwd, timeoutMs) => {
+  return async (comando, cwd, timeoutMs, segnale) => {
     const g = giudicaCancellazioni(comando, cwd, [cwd], false)
     if (!g.ok) {
       console.warn(`[autopilota] criterio non eseguito — ${g.motivo}`)
       return { codice: CODICE_RIFIUTATO, uscita: `SierraDeck non esegue questo criterio. ${g.motivo}` }
     }
-    return esegui(comando, cwd, timeoutMs)
+    return segnale !== undefined ? esegui(comando, cwd, timeoutMs, segnale) : esegui(comando, cwd, timeoutMs)
   }
 }
 
@@ -543,7 +564,9 @@ export function scadutoPerTempo(codice: number, uscita: string): boolean {
 export async function eseguiCriteri(
   criteri: Criterio[],
   cwd: string,
-  esegui: Esecutore
+  esegui: Esecutore,
+  /** 11/11: scatta quando la prova di unione scade: il comando in corso si ferma, gli altri non partono. */
+  segnale?: AbortSignal
 ): Promise<EsitoVerifica[]> {
   const esiti: EsitoVerifica[] = []
   for (const criterio of criteri) {
@@ -551,7 +574,7 @@ export async function eseguiCriteri(
     if (comando === undefined) continue
     const tempo = tempoDelCriterio(comando)
     // Senza un tempo suo il comando si chiama come prima: l'esecutore usa il proprio tetto.
-    const lancia = (): ReturnType<Esecutore> => tempo !== undefined ? esegui(comando, cwd, tempo) : esegui(comando, cwd)
+    const lancia = (): ReturnType<Esecutore> => segnale !== undefined ? esegui(comando, cwd, tempo, segnale) : tempo !== undefined ? esegui(comando, cwd, tempo) : esegui(comando, cwd)
     try {
       let { codice, uscita } = await lancia()
       // 0.80.1: un rosso per tempo scaduto non si conta subito. Si rimisura una
@@ -567,7 +590,8 @@ export async function eseguiCriteri(
       esiti.push({
         descrizione: criterio.descrizione,
         comando,
-        ...(codice !== 0 && nonMisurabile(codice, uscita) ? { misurato: false } : {}),
+        // 11/11: un comando fermato dal segnale non è un esito: non misurato.
+        ...(codice !== 0 && (nonMisurabile(codice, uscita) || annullato(uscita)) ? { misurato: false } : {}),
         passato: codice === 0,
         uscita: testaECoda(uscita, USCITA_MAX)
       })

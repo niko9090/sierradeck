@@ -3,7 +3,7 @@ import { readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Criterio } from '@shared/autopilota'
 import type { EsitoVerifica } from './verifiche'
-import { eseguiCriteri, type Esecutore } from './verifiche'
+import { annullato, eseguiCriteri, type Esecutore } from './verifiche'
 import type { EsitoGit, Git, GitAsincrono } from './worktree'
 import { problemaDiAmbiente } from './ambiente-copia'
 
@@ -191,7 +191,8 @@ const inVolo = new Map<string, Promise<EsitoVerifica | undefined>>()
 export function daRicordare(e: EsitoVerifica): boolean {
   // Né un fallimento per l'ambiente della copia (0.84.4): rimesso node_modules,
   // lo stesso commit va rimisurato, non ricordato rosso.
-  return e.misurato !== false && !/\[comando interrotto dopo \d+s\]/.test(e.uscita) && problemaDiAmbiente(e) === undefined
+  // 11/11: né un comando fermato dal segnale (prova scaduta): non dice niente sul codice.
+  return e.misurato !== false && !/\[comando interrotto dopo \d+s\]/.test(e.uscita) && !annullato(e.uscita) && problemaDiAmbiente(e) === undefined
 }
 
 /**
@@ -243,6 +244,8 @@ export async function misuraCriteri(criteri: Criterio[], cwd: string, esegui: Es
   /** `true` per misurare anche i pesanti (turno multiplo di OGNI_TURNI, o prima di «finito»). */
   tutti: boolean
   paralleli?: number
+  /** 11/11: scatta quando la prova di unione scade: i comandi in corso si fermano. */
+  segnale?: AbortSignal
 }): Promise<Misura> {
   const daCache: string[] = []
   const rimandati: string[] = []
@@ -265,7 +268,7 @@ export async function misuraCriteri(criteri: Criterio[], cwd: string, esegui: Es
   const durate: { descrizione: string; ms: number }[] = []
   const misuraUno = async (c: Criterio, comando: string): Promise<EsitoVerifica | undefined> => {
     const t0 = opz.adesso()
-    const [e] = await eseguiCriteri([c], cwd, esegui)
+    const [e] = opz.segnale !== undefined ? await eseguiCriteri([c], cwd, esegui, opz.segnale) : await eseguiCriteri([c], cwd, esegui)
     durate.push({ descrizione: c.descrizione, ms: opz.adesso() - t0 })
     if (e === undefined) return undefined
     const quando = opz.adesso()

@@ -32,9 +32,9 @@ export { rigaPcCarico }
  *   una misura bassa da sola non libera niente, una alta rimette il conto a zero;
  * - appena liberato parte **un** comando pesante solo, per `QUIETE_DOPO_MS`:
  *   se il PC torna pieno, gli altri non si accodano sopra;
- * - un passo che aspetta parte comunque dopo `ATTESA_MASSIMA_MS` (mezz'ora;
- *   dentro un hook `ATTESA_IN_UN_HOOK_MS`, cinque minuti): il tetto c'è
- *   perché un programma esterno sempre acceso non fermi l'autopilota per sempre.
+ * - un passo che aspetta parte comunque dopo `ATTESA_MASSIMA_MS` (11/11: due
+ *   minuti; era mezz'ora): il tetto c'è perché un programma esterno sempre
+ *   acceso non fermi l'autopilota per sempre.
  *
  * 0.86.1: carico per più di `CARICO_MASSIMO_MS` (10 minuti) di fila, il PC si
  * libera già sotto il 75% (un minuto intero): fra il 60 e il 75% la guardia
@@ -64,8 +64,11 @@ export const RIPROVA_MS = 15_000
  * stesso, detto nel registro. Era 15 minuti, poi un'ora (0.85.2); 0.86.1:
  * mezz'ora. Un'ora era il tetto dell'hook (`TIMEOUT_HOOK_S`): un criterio che
  * aspettava tanto faceva scadere la fermata della chat.
+ * 11/11: due minuti. I criteri sono quelli delle unioni, e mezz'ora di attesa
+ * era più della prova che li contiene: il 07/11 ogni unione è scaduta per ore.
+ * Il turno dei pesanti (uno alla volta) e i due processi di test restano.
  */
-export const ATTESA_MASSIMA_MS = 30 * 60_000
+export const ATTESA_MASSIMA_MS = 2 * 60_000
 /**
  * Il tetto dell'attesa dentro un hook (0.86.1), ben sotto `TIMEOUT_HOOK_S`:
  * dopo l'attesa vengono ancora i criteri e il supervisore. 30/10: da 15 a 5

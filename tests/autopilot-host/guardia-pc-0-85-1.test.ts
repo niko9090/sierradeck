@@ -117,13 +117,15 @@ describe('la guardia', () => {
 
   it('un passo aspetta finché il PC si libera', async () => {
     let n = 0
-    // Pieno per due minuti e mezzo, poi libero.
-    const f = guardiaFinta(() => { n += 1; return pc(n <= 10 ? 98 : 40) })
+    // Pieno per quasi un minuto, poi libero. (11/11: prima erano due minuti e mezzo,
+    // ma l'attesa massima è scesa a due minuti: oltre, il passo parte comunque.)
+    const f = guardiaFinta(() => { n += 1; return pc(n <= 4 ? 98 : 40) })
     f.g.valuta()
     f.avanza(PROCESSORE_PER_MS)
     const inizio = f.ora()
     await f.g.attendi('la suite')
-    expect(f.ora() - inizio).toBeGreaterThanOrEqual(2 * 60_000)
+    expect(f.ora() - inizio).toBeGreaterThanOrEqual(60_000)
+    expect(f.ora() - inizio).toBeLessThan(ATTESA_MASSIMA_MS)
     expect(f.g.stato()).toBeUndefined()
   })
 

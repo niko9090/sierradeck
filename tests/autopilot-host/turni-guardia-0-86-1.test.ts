@@ -147,13 +147,15 @@ describe('la guardia: niente «carico» per sempre, niente attese oltre l\'hook'
     expect(g.valuta()).toBeUndefined()
   })
 
-  it('dentro un hook un passo aspetta al più cinque minuti (30/10), ben sotto il tetto dell\'hook; fuori al più mezz\'ora', async () => {
+  // 11/11: fuori da un hook l'attesa massima è scesa da mezz'ora a due minuti (le unioni scadevano):
+  // dentro un hook vale il più corto dei due tetti.
+  it('dentro un hook un passo aspetta al più il tetto dell\'hook, ben sotto il suo timeout; fuori al più due minuti', async () => {
     expect(ATTESA_IN_UN_HOOK_MS).toBeLessThan(TIMEOUT_HOOK_S * 1000 / 2)
-    expect(ATTESA_MASSIMA_MS).toBeLessThanOrEqual(30 * 60_000)
+    expect(ATTESA_MASSIMA_MS).toBeLessThanOrEqual(2 * 60_000)
     let t = ORA
     const g = creaGuardiaPc({ misura: () => pc(10, 1_000, 16_384), ora: () => t, dormi: (ms) => { t += ms; return Promise.resolve() }, riprovaMs: 5_000 })
     await dentroUnHook(() => g.attendi('la suite'))
-    expect(t - ORA).toBe(ATTESA_IN_UN_HOOK_MS)
+    expect(t - ORA).toBe(Math.min(ATTESA_IN_UN_HOOK_MS, ATTESA_MASSIMA_MS))
     const fuori = t
     await g.attendi('la suite')
     expect(t - fuori).toBe(ATTESA_MASSIMA_MS)

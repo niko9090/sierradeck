@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { conDivieti, eseguiCriteri, esecutoreReale, tempoDelCriterio, TIMEOUT_SUITE_TEST_MS, type Esecutore } from '../../src/autopilot-host/verifiche'
+import { annullato, conDivieti, eseguiCriteri, esecutoreReale, interrottoPerTempo, tempoDelCriterio, TIMEOUT_SUITE_TEST_MS, type Esecutore } from '../../src/autopilot-host/verifiche'
+import { daRicordare } from '../../src/autopilot-host/criteri-veloci'
 import type { Criterio } from '@shared/autopilota'
 
 const CON_COMANDO: Criterio = { descrizione: 'i test passano', comando: 'npm test', soddisfatto: false }
@@ -179,5 +180,50 @@ describe('esecutoreReale', () => {
     const esito = await esecutoreReale(1000)('node -e "setTimeout(() => {}, 60000)"', process.cwd())
     expect(esito.codice).not.toBe(0)
     expect(esito.uscita.toLowerCase()).toContain('interrotto')
+  })
+
+  // 11/11: la prova di unione scaduta ferma il comando figlio (prima restava vivo a tenere il turno).
+  it('con il segnale: il comando in corso si ferma subito, molto prima del suo tempo massimo', async () => {
+    const controllo = new AbortController()
+    const inizio = Date.now()
+    const attesa = esecutoreReale(60_000)('node -e "setTimeout(() => {}, 60000)"', process.cwd(), undefined, controllo.signal)
+    setTimeout(() => { controllo.abort() }, 300)
+    const esito = await attesa
+    expect(Date.now() - inizio).toBeLessThan(20_000)
+    expect(esito.codice).not.toBe(0)
+    expect(annullato(esito.uscita)).toBe(true)
+    expect(interrottoPerTempo(esito.uscita)).toBe(false)
+  }, 30_000)
+
+  it('con il segnale già scattato il comando non parte', async () => {
+    const controllo = new AbortController()
+    controllo.abort()
+    const esito = await esecutoreReale(60_000)('node -e "console.log(42)"', process.cwd(), undefined, controllo.signal)
+    expect(esito.codice).not.toBe(0)
+    expect(esito.uscita).not.toContain('42')
+    expect(annullato(esito.uscita)).toBe(true)
+  })
+})
+
+describe('il segnale della prova scaduta nei criteri (11/11)', () => {
+  it('un comando annullato è «non misurato», non si rimisura e non è un rosso da ricordare', async () => {
+    let volte = 0
+    const finto: Esecutore = () => { volte += 1; return Promise.resolve({ codice: 1, uscita: 'RUN\n[comando annullato: prova scaduta]' }) }
+    const controllo = new AbortController()
+    const esiti = await eseguiCriteri([CON_COMANDO], 'C:\\p', finto, controllo.signal)
+    expect(volte).toBe(1)
+    expect(esiti[0]?.passato).toBe(false)
+    expect(esiti[0]?.misurato).toBe(false)
+    expect(daRicordare(esiti[0]!)).toBe(false)
+  })
+
+  it('il segnale arriva all’esecutore, anche attraverso i divieti; senza segnale gli argomenti restano quelli di prima', async () => {
+    const visti: unknown[][] = []
+    const finto: Esecutore = (...a) => { visti.push(a); return Promise.resolve({ codice: 0, uscita: 'ok' }) }
+    const controllo = new AbortController()
+    await eseguiCriteri([CON_COMANDO], 'C:\\p', conDivieti(finto), controllo.signal)
+    await eseguiCriteri([CON_COMANDO], 'C:\\p', finto)
+    expect(visti[0]).toEqual(['npm test', 'C:\\p', TIMEOUT_SUITE_TEST_MS, controllo.signal])
+    expect(visti[1]).toEqual(['npm test', 'C:\\p', TIMEOUT_SUITE_TEST_MS])
   })
 })

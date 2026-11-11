@@ -60,17 +60,18 @@ import { rigaUltimaAzione } from '@shared/specialisti'
 import { eErroreDiRete } from '@shared/errori-rete'
 import type { ArchivioAttesa } from './attesa-store'
 import { creaCambi, type Cambi } from '@shared/spinta-specialisti'
+import { attesaDopoScadenza, UNIONE_MAX_MS } from './tempi-unione'
 
 /** 0.89.4: dopo quanto il lavoro fermo sveglia l'autopilota, e quante volte al più per lo stesso stato. */
 export const FERMO_DOPO_MS = 3 * 60_000
 export const SPINTE_MAX = 2
 /** 0.89.4: dopo quanto una domanda dell'autopilota senza risposta si chiude. */
 export const DOMANDA_VECCHIA_MS = 24 * 60 * 60_000
-/** 06/11, fila delle unioni: un'unione (prova, unione, criterio) che supera questo tempo si chiude e si rimette in fila. */
-export const UNIONE_MAX_MS = 25 * 60_000
+/** 06/11, fila delle unioni: un'unione (prova, unione, criterio) che supera questo tempo si chiude e si rimette in fila. 11/11: 60 minuti, in `tempi-unione.ts`. */
+export { UNIONE_MAX_MS }
 /** Ogni quanto riprova l'unione che aspetta una cartella principale con file di Nicholas a metà. */
 export const UNIONE_RIPROVA_MS = 30_000
-/** Quante volte al più si rimette in fila un'unione scaduta, poi il compito dice com'è andata. */
+/** 11/11: dopo quante scadenze il compito dice com'è andata (una volta sola). L'unione resta in fila e riprova da sola, sempre più di rado. */
 export const UNIONE_TENTATIVI_MAX = 3
 /** L'unione non è fallita per colpa del ramo: va riprovata (cartella principale occupata, o tempo massimo superato). */
 class RiprovaUnione extends Error {
@@ -854,22 +855,35 @@ ${NOTA_SENZA_GIT}`,
    * riprovava). `avviaUnione` torna la posizione in fila (1 = parte subito) o
    * `undefined` se la stessa unione è già lì.
    */
-  type LavoroUnione = { chiave: string; chi: string; compito?: string; p: { compito?: string; specialista?: string; ramo?: string }; tentativi: number; inCorso: boolean }
+  /** `nonPrima` (11/11, ms): un'unione scaduta aspetta il suo momento in fondo alla fila, senza fermare le altre. */
+  type LavoroUnione = { chiave: string; chi: string; compito?: string; p: { compito?: string; specialista?: string; ramo?: string }; tentativi: number; inCorso: boolean; nonPrima?: number }
   const filaUnioni = new Map<string, LavoroUnione[]>()
   /** Workspace per cui si è già detto che la cartella principale ha file di Nicholas a metà (una volta sola). */
   const sporcoDetto = new Set<string>()
   const dormi = (ms: number): Promise<void> => new Promise((ris) => { const t = setTimeout(ris, ms); t.unref?.() })
+  /** 11/11: la fila che dorme aspettando il momento di riprovare si sveglia se arriva un'unione nuova. */
+  const sveglieFila = new Map<string, () => void>()
+  const dormiFila = (ws: string, ms: number): Promise<void> => new Promise((ris) => {
+    const fatto = (): void => { clearTimeout(t); if (sveglieFila.get(ws) === fatto) sveglieFila.delete(ws); ris() }
+    const t = setTimeout(fatto, ms)
+    t.unref?.()
+    sveglieFila.set(ws, fatto)
+  })
+  const prontaOra = (l: LavoroUnione, ora: number): boolean => l.inCorso || (l.nonPrima ?? 0) <= ora
   const avviaUnione = (ws: string, p: { compito?: string; specialista?: string; ramo?: string }): number | undefined => {
     const chi = p.compito ?? daUnire(ws, p).sub?.compito ?? p.specialista ?? p.ramo ?? ''
     const chiave = `${ws}|${chi}`
     const fila = filaUnioni.get(ws) ?? []
     if (fila.some((l) => l.chiave === chiave)) return undefined
     const idCompito = p.compito ?? daUnire(ws, p).sub?.compito
+    // 11/11: chi è scaduto e aspetta di riprovare non conta: la nuova gli passa davanti.
+    const davanti = fila.filter((l) => prontaOra(l, Date.now()))
     fila.push({ chiave, chi: p.specialista ?? p.compito ?? p.ramo ?? '?', ...(idCompito !== undefined ? { compito: idCompito } : {}), p, tentativi: 0, inCorso: false })
     filaUnioni.set(ws, fila)
     if (fila.length === 1) void giraFila(ws)
-    else evento(ws, { tipo: 'unione', quando: x.adesso(), ...(p.specialista !== undefined ? { chat: p.specialista } : {}), testo: `${p.specialista ?? p.compito ?? p.ramo ?? '?'}: unione in fila, ${fila.length}ª: parte da sola quando ${fila[fila.length - 2]!.chi} ha finito` })
-    return fila.length
+    else if (davanti.length === 0) sveglieFila.get(ws)?.()
+    else evento(ws, { tipo: 'unione', quando: x.adesso(), ...(p.specialista !== undefined ? { chat: p.specialista } : {}), testo: `${p.specialista ?? p.compito ?? p.ramo ?? '?'}: unione in fila, ${davanti.length + 1}ª: parte da sola quando ${davanti[davanti.length - 1]!.chi} ha finito` })
+    return davanti.length + 1
   }
   /** I compiti del workspace che hanno già un posto prenotato o sono nella lista d'attesa dei posti. */
   const compitiInAttesa = (ws: string): Set<string> => new Set(archivioAttesa.leggi().voci.filter((v) => v.workspace === ws && v.compito !== undefined).map((v) => v.compito!))
@@ -879,15 +893,26 @@ ${NOTA_SENZA_GIT}`,
   /** I compiti la cui unione è in corso o in fila: non sono «fermi», il programma li sta unendo. */
   const compitiInUnione = (ws: string): string[] => (filaUnioni.get(ws) ?? []).flatMap((l) => (l.compito !== undefined ? [l.compito] : []))
   /** Le unioni in corso e in fila, per lo stato dell'autopilota. */
-  const righeUnioni = (ws: string): string[] => (filaUnioni.get(ws) ?? []).map((l, i) => (i === 0 ? `- ${l.chi}: in corso${l.tentativi > 0 ? ` (tentativo ${l.tentativi + 1})` : ''}` : `- ${l.chi}: in fila, ${i + 1}ª`))
+  const righeUnioni = (ws: string): string[] => (filaUnioni.get(ws) ?? []).map((l, i) => {
+    if (!l.inCorso && l.tentativi > 0 && (l.nonPrima ?? 0) > Date.now()) return `- ${l.chi}: scaduta ${l.tentativi} ${l.tentativi === 1 ? 'volta' : 'volte'}, riprova da sola fra poco`
+    return i === 0 ? `- ${l.chi}: in corso${l.tentativi > 0 ? ` (tentativo ${l.tentativi + 1})` : ''}` : `- ${l.chi}: in fila, ${i + 1}ª`
+  })
   const giraFila = async (ws: string): Promise<void> => {
     const max = x.unioneMaxMs ?? UNIONE_MAX_MS
     const riprova = x.unioneRiprovaMs ?? UNIONE_RIPROVA_MS
     const tentativiMax = x.unioneTentativiMax ?? UNIONE_TENTATIVI_MAX
     for (;;) {
       const fila = filaUnioni.get(ws) ?? []
-      const lavoro = fila[0]
-      if (lavoro === undefined) { filaUnioni.delete(ws); return }
+      if (fila.length === 0) { filaUnioni.delete(ws); return }
+      // 11/11: tocca alla prima che può partire adesso; chi è scaduta aspetta il suo momento senza fermare le altre.
+      const ora = Date.now()
+      const prima = fila.findIndex((l) => (l.nonPrima ?? 0) <= ora)
+      if (prima < 0) {
+        await dormiFila(ws, Math.max(1, Math.min(riprova, ...fila.map((l) => (l.nonPrima ?? 0) - ora))))
+        continue
+      }
+      if (prima > 0) fila.unshift(...fila.splice(prima, 1))
+      const lavoro = fila[0] as LavoroUnione
       lavoro.inCorso = true
       const { p, chi } = lavoro
       const scambio = { scaduto: false }
@@ -929,19 +954,22 @@ ${NOTA_SENZA_GIT}`,
         await dormi(riprova)
         continue
       }
-      // Scaduta: chiusa, e di nuovo in fila (in coda alle altre) fino al tetto di tentativi.
+      // Scaduta: chiusa, e di nuovo in fila (in coda alle altre). 11/11: mai fuori dalla fila
+      // (il 07/11 sette lavori finiti restarono fuori dal principale dopo tre scadenze):
+      // riprova da sola, sempre più di rado, e intanto le altre unioni passano.
       lavoro.tentativi += 1
-      if (lavoro.tentativi >= tentativiMax) {
-        fila.shift()
-        const resta = `unione NON fatta: scaduta ${lavoro.tentativi} volte (${ancora.perche})`
-        if (compito !== undefined) cambiaCompito(ws, compito.id, (k) => ({ ...k, esito: resta }))
-        evento(ws, { tipo: 'unione', quando: x.adesso(), ...(p.specialista !== undefined ? { chat: p.specialista } : {}), testo: `${chi}: ${resta}. Il ramo resta com’è: serve un controllo del lavoro (non un riavvio del servizio).` })
-        continue
-      }
+      const attesa = attesaDopoScadenza(lavoro.tentativi, riprova)
+      lavoro.nonPrima = Date.now() + attesa
       fila.shift()
       fila.push(lavoro)
-      evento(ws, { tipo: 'unione', quando: x.adesso(), ...(p.specialista !== undefined ? { chat: p.specialista } : {}), testo: `${chi}: unione ${ancora.perche}: la chiudo e la rimetto in fila (tentativo ${lavoro.tentativi + 1} di ${tentativiMax})` })
-      await dormi(riprova)
+      if (lavoro.tentativi < tentativiMax) {
+        evento(ws, { tipo: 'unione', quando: x.adesso(), ...(p.specialista !== undefined ? { chat: p.specialista } : {}), testo: `${chi}: unione ${ancora.perche}: la chiudo e la rimetto in fila (tentativo ${lavoro.tentativi + 1})` })
+      } else if (lavoro.tentativi === tentativiMax) {
+        // Detto una volta sola: dopo, i tentativi continuano in silenzio.
+        const resta = `unione in fila: scaduta ${lavoro.tentativi} volte, il programma riprova da solo (${ancora.perche})`
+        if (compito !== undefined) cambiaCompito(ws, compito.id, (k) => ({ ...k, esito: resta }))
+        evento(ws, { tipo: 'unione', quando: x.adesso(), ...(p.specialista !== undefined ? { chat: p.specialista } : {}), testo: `${chi}: unione scaduta ${lavoro.tentativi} volte: resta in fondo alla fila e riprova da sola (al più ogni ${Math.max(1, Math.round(attesaDopoScadenza(99, riprova) / 60_000))} minuti), le altre passano. Non serve un riavvio né rifare il lavoro. Motivo: ${ancora.perche}` })
+      }
     }
   }
   const cancelloOra = async (ws: string, p0: { compito?: string; specialista?: string; ramo?: string }, scambio: { scaduto: boolean } = { scaduto: false }): Promise<string> => {

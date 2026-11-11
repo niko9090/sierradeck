@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { ePesante } from './criteri-veloci'
 import type { GuardiaPc } from './guardia-pc'
-import type { Esecutore } from './verifiche'
+import { RIGA_ANNULLATO_PRIMA, type Esecutore } from './verifiche'
 
 /**
  * **I comandi lunghi uno alla volta per PC, mai durante un'unione** (0.82.1).
@@ -49,7 +49,7 @@ const normale = (cwd: string): string => cwd.replace(/\\/g, '/').replace(/\/+$/,
 
 /**
  * 06/11: il tempo massimo di un singolo passo git dell'unione nel turno del PC (attesa compresa).
- * Voluto più corto della prova (15 min): il turno copre solo inizio e chiusura della prova, non le misure,
+ * Voluto più corto della prova (45 min, `tempi-unione.ts`): il turno copre solo inizio e chiusura della prova, non le misure,
  * e se scade prima la prova esce con lo stesso esito (`scaduta`, cartella ripulita, unione rimessa in fila).
  */
 export const UNIONE_TURNO_MAX_MS = 12 * 60_000
@@ -228,9 +228,9 @@ function scriptTestDi(cwd: string): string | undefined {
 
 /** L'esecutore che lancia i pesanti con le risorse contenute (vedi `conRisorseContenute`). */
 export function conRisorse(esegui: Esecutore): Esecutore {
-  return (comando, cwd, timeoutMs) => {
+  return (comando, cwd, timeoutMs, segnale) => {
     const c = ePesante(comando) ? conRisorseContenute(comando, /\bnpm\s+(run\s+)?test\b/i.test(comando) ? scriptTestDi(cwd) : undefined) : comando
-    return timeoutMs !== undefined ? esegui(c, cwd, timeoutMs) : esegui(c, cwd)
+    return segnale !== undefined ? esegui(c, cwd, timeoutMs, segnale) : timeoutMs !== undefined ? esegui(c, cwd, timeoutMs) : esegui(c, cwd)
   }
 }
 
@@ -246,12 +246,24 @@ export const TURNI_PC: TurniCriteri = creaTurni()
  * tenendo il turno: un criterio fermo dalla guardia (fino a mezz'ora) teneva
  * fermi anche i comandi delle chat e gli altri criteri, e dentro la fermata di
  * una chat la faceva scadere.
+ *
+ * 11/11: con il `segnale` della prova di unione. Scattato mentre il comando
+ * aspetta la guardia o il turno, il comando non parte più; scattato mentre
+ * gira, lo ferma l'esecutore e il turno torna libero subito.
  */
 export function conTurni(esegui: Esecutore, turni: TurniCriteri = TURNI_PC, guardia?: GuardiaPc): Esecutore {
-  return async (comando, cwd, timeoutMs) => {
-    const lancia = (): ReturnType<Esecutore> => (timeoutMs !== undefined ? esegui(comando, cwd, timeoutMs) : esegui(comando, cwd))
+  return async (comando, cwd, timeoutMs, segnale) => {
+    const annullatoPrima = { codice: 1, uscita: RIGA_ANNULLATO_PRIMA }
+    // Si rilegge ogni volta: il segnale scatta mentre si aspetta.
+    const scattato = (): boolean => segnale?.aborted === true
+    const lancia = (): ReturnType<Esecutore> => {
+      if (scattato()) return Promise.resolve(annullatoPrima)
+      return segnale !== undefined ? esegui(comando, cwd, timeoutMs, segnale) : timeoutMs !== undefined ? esegui(comando, cwd, timeoutMs) : esegui(comando, cwd)
+    }
+    if (scattato()) return annullatoPrima
     if (!ePesante(comando, cwd)) return lancia()
     if (guardia !== undefined) await guardia.attendi(`«${comando.slice(0, 80)}»`)
+    if (scattato()) return annullatoPrima
     const s = turni.stato()
     const davanti = s.inFila + (s.inCorso !== undefined ? 1 : 0)
     if (davanti > 0) console.info(`[criterio] aspetta il suo turno dietro ${davanti} comandi lunghi: ${comando.slice(0, 120)}`)
