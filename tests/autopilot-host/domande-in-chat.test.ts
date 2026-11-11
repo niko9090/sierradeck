@@ -5,12 +5,12 @@ import { tmpdir } from 'node:os'
 import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/server'
 import { apriArchivio, type Archivio } from '../../src/autopilot-host/archivio'
 import { creaRegistroDomande, soloInChat, type DomandaAperta, type RegistroDomande } from '../../src/autopilot-host/domande'
-import { apriMemoria } from '../../src/autopilot-host/memoria'
+import { apriMemoria, type Memoria } from '../../src/autopilot-host/memoria'
 import { apriCode, type ArchivioCode } from '../../src/autopilot-host/coda-store'
 import { apriOrchestratori, type ArchivioOrchestratori } from '../../src/autopilot-host/orchestratore-store'
 import type { AvviaProcesso, ProcessoClaude } from '../../src/autopilot-host/orchestratore'
 import {
-  chiusaDopoLaDomanda, devePassareAlleDomande, DOMANDA_DECIDO_IO_MS, DOMANDA_IN_CHAT_MS, DOMANDA_VISTA_SENZA_RISPOSTA_MS, domandaRischiosa, richiestaChiusa, scadenzaDomanda, seNonRispondi, richiestaDellaDomanda, rispostaInCoda, rispostaScritta, rispostaSenzaLavoro, scelteDaToccare, scelteProposte
+  chiusaDopoLaDomanda, decisioneDaRicordare, devePassareAlleDomande, eRispostaInChat, RISPOSTA_LIBERA_ENTRO_MS, DOMANDA_DECIDO_IO_MS, DOMANDA_IN_CHAT_MS, DOMANDA_VISTA_SENZA_RISPOSTA_MS, domandaRischiosa, richiestaChiusa, scadenzaDomanda, seNonRispondi, richiestaDellaDomanda, rispostaInCoda, rispostaScritta, rispostaSenzaLavoro, scelteDaToccare, scelteProposte
 } from '../../src/autopilot-host/domande-in-chat'
 import { leggiStatoProgramma } from '../../src/autopilot-host/stato-programma'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
@@ -53,6 +53,28 @@ describe('la risposta scritta e i tasti (puro)', () => {
     expect(rispostaScritta('no', scelte)).toBe('No')
     expect(rispostaScritta('3', scelte)).toBe('3')
     expect(rispostaScritta('meglio domani', scelte)).toBe('meglio domani')
+  })
+  // 08/11: uno sfogo registrato come risposta a «Pubblico adesso la 0.97.1?» di tre ore e mezza prima.
+  it('11/11: un numero o una scelta è sempre una risposta; un testo libero solo entro mezz’ora dalla domanda', () => {
+    expect(RISPOSTA_LIBERA_ENTRO_MS).toBe(30 * MIN)
+    const tardi = INIZIO + 3 * 60 * MIN
+    expect(eRispostaInChat('1', scelte, INIZIO, tardi)).toBe(true)
+    expect(eRispostaInChat(' no ', scelte, INIZIO, tardi)).toBe(true)
+    expect(eRispostaInChat('Sì', scelte, INIZIO, tardi)).toBe(true)
+    expect(eRispostaInChat('anche negli altri pc gli autopiloti continuano a fermarsi', scelte, INIZIO, tardi)).toBe(false)
+    expect(eRispostaInChat('3', scelte, INIZIO, tardi)).toBe(false)
+    expect(eRispostaInChat('meglio un verde più scuro', scelte, INIZIO, INIZIO + 29 * MIN)).toBe(true)
+    expect(eRispostaInChat('meglio un verde più scuro', scelte, INIZIO, INIZIO + 30 * MIN)).toBe(false)
+    expect(eRispostaInChat('un nome a piacere', [], INIZIO, INIZIO + 5 * MIN)).toBe(true)
+  })
+  // 06/11: «Uno specialista chiede il permesso per Monitor: {…}» → Consenti, due volte, nel quaderno.
+  it('11/11: fra le decisioni del quaderno non vanno permessi, consensi a cancellare e risposte senza lavoro', () => {
+    expect(decisioneDaRicordare({ domanda: 'Le chat sul Drive: le teniamo tutte per sempre o solo quelle recenti?', risposta: 'Solo quelle usate', diConsenso: false })).toBe(true)
+    expect(decisioneDaRicordare({ domanda: 'Uno specialista chiede il permesso per Monitor: {"description":"fine attesa 90 s"}. Lo permetto?', risposta: 'Consenti', diConsenso: false })).toBe(false)
+    expect(decisioneDaRicordare({ domanda: 'Una chat vuole cancellare questi percorsi', risposta: 'Sì, cancella', diConsenso: true })).toBe(false)
+    expect(decisioneDaRicordare({ domanda: 'Tengo il colore verde per la barra?', risposta: 'no', diConsenso: false })).toBe(false)
+    expect(decisioneDaRicordare({ domanda: 'Tengo il colore verde per la barra?', risposta: 'Lascia stare', diConsenso: false })).toBe(false)
+    expect(decisioneDaRicordare({ domanda: 'Tengo il colore verde per la barra?', risposta: 'No, fai invece il blu', diConsenso: false })).toBe(true)
   })
   it('i tasti sono le scelte, senza il campo «scrivo io»', () => {
     const parti = { staFacendo: 'a', domanda: 'b', perche: 'c', seNonRispondi: 'd', scelte: [{ scelta: 'Sì', conseguenza: 'x' }, { scelta: 'Ti scrivo io cosa provare', conseguenza: '', libera: true as const }] }
@@ -229,6 +251,7 @@ let domande: RegistroDomande
 let processi: Finto[] = []
 let ora = INIZIO
 let avvisi: { tipo: string; testo?: string | undefined }[] = []
+let memoria: Memoria
 
 const avvia: AvviaProcesso = ({ args }) => {
   const righe: ((r: string) => void)[] = []
@@ -258,9 +281,10 @@ async function avviaServizio(): Promise<void> {
   orch = apriOrchestratori(cartella)
   domande = creaRegistroDomande({ adesso: () => ora })
   processi = []
+  memoria = apriMemoria(mkdtempSync(join(tmpdir(), 'ap-domchat-mem-')))
   const s = creaServer({
     archivio,
-    memoria: apriMemoria(mkdtempSync(join(tmpdir(), 'ap-domchat-mem-'))),
+    memoria,
     versione: '0.96.0',
     esegui: () => Promise.resolve({ codice: 1, uscita: 'non ancora' }),
     avviaLavoro: () => Promise.resolve(),
@@ -539,6 +563,61 @@ describe('rispondere nella chat vale come risposta', () => {
     const prima = code.leggi('Lavoro').richieste.length
     await posta(`/autopiloti/${idUnico()}/dialogo`, { testo: 'poi sistema anche il menu' })
     expect(code.leggi('Lavoro').richieste.length).toBe(prima + 1)
+  })
+
+  // 11/11: l'08/11 uno sfogo scritto tre ore e mezza dopo è diventato la «risposta» a «Pubblico adesso la 0.97.1?».
+  it('11/11: un testo libero scritto più di mezz’ora dopo è un messaggio nuovo, non la risposta alla domanda vecchia', async () => {
+    zitto()
+    await avviaServizio()
+    const { mcp, p0 } = await conStrumenti()
+    await mcp('chiedi_utente', DOMANDA)
+    const prima = code.leggi('Lavoro').richieste.length
+    ora += 31 * MIN
+    await posta(`/autopiloti/${idUnico()}/dialogo`, { testo: 'anche negli altri pc gli specialisti continuano a fermarsi' })
+    // In coda come richiesta sua, con le sue parole; non «Risposta di Nicholas a «Tengo il colore…»».
+    const dopo = code.leggi('Lavoro').richieste
+    expect(dopo).toHaveLength(prima + 1)
+    expect(dopo.at(-1)!.testo).toBe('anche negli altri pc gli specialisti continuano a fermarsi')
+    expect(JSON.stringify(dopo)).not.toContain('Risposta di Nicholas a')
+    await attendi(() => p0.scritte.some((x) => testoScritto(x).includes('continuano a fermarsi')), { cosa: 'il messaggio all’autopilota' })
+    expect(p0.scritte.some((x) => testoScritto(x).includes('Risposta alla tua domanda'))).toBe(false)
+    // La domanda (non rischiosa) si chiude come superata, e l'autopilota lo sa; niente fra le decisioni.
+    expect(domande.aperte(idUnico())).toHaveLength(0)
+    expect(p0.scritte.some((x) => testoScritto(x).includes('chiuso una tua domanda aperta'))).toBe(true)
+    expect(memoria.decisioni(process.cwd())).toHaveLength(0)
+  })
+
+  it('11/11: un numero o una scelta rispondono anche dopo ore, e la risposta va fra le decisioni; un «no» no', async () => {
+    zitto()
+    await avviaServizio()
+    const { mcp, p0 } = await conStrumenti()
+    await mcp('chiedi_utente', DOMANDA)
+    ora += 3 * 60 * MIN
+    // Dopo un'ora una domanda non rischiosa la decide il programma: qui il giro di guardia non è passato.
+    await posta(`/autopiloti/${idUnico()}/dialogo`, { testo: '1' })
+    expect(domande.aperte(idUnico())).toHaveLength(0)
+    await attendi(() => p0.scritte.some((x) => testoScritto(x).includes('Risposta alla tua domanda') && testoScritto(x).includes('Sì')), { cosa: 'la risposta' })
+    expect(memoria.decisioni(process.cwd()).map((d) => d.testo)).toEqual(['«Tengo il colore verde per la barra?» → Sì'])
+    await mcp('chiedi_utente', { domanda: 'Il menu va a sinistra o a destra?', perche: 'cambia il resto', scelte: ['Sinistra → a sinistra', 'Destra → a destra'] })
+    await posta(`/autopiloti/${idUnico()}/dialogo`, { testo: 'lascia stare' })
+    expect(domande.aperte(idUnico())).toHaveLength(0)
+    expect(memoria.decisioni(process.cwd())).toHaveLength(1)
+  })
+
+  it('11/11: una domanda rischiosa resta aperta se Nicholas scrive altro in chat, e l’autopilota sa che c’è', async () => {
+    zitto()
+    await avviaServizio()
+    const { mcp, p0 } = await conStrumenti()
+    await mcp('chiedi_utente', { domanda: 'Le copie vecchie le cancello subito o le tengo un mese?', perche: 'sono dati tuoi', scelte: ['Cancellale subito → lo spazio si libera adesso', 'Tienile un mese → lo spazio si libera dopo'] })
+    expect(domande.aperte(idUnico())[0]!.contesto?.rischiosa).toBe(true)
+    ora += 45 * MIN
+    await posta(`/autopiloti/${idUnico()}/dialogo`, { testo: 'a che punto siamo con la barra?' })
+    expect(domande.aperte(idUnico())).toHaveLength(1)
+    await attendi(() => p0.scritte.some((x) => testoScritto(x).includes('a che punto siamo con la barra?') && testoScritto(x).includes('Resta aperta una tua domanda a Nicholas')), { cosa: 'il messaggio con la nota' })
+    expect(p0.scritte.some((x) => testoScritto(x).includes('chiuso una tua domanda aperta'))).toBe(false)
+    // La scelta scritta per intero vale ancora come risposta.
+    await posta(`/autopiloti/${idUnico()}/dialogo`, { testo: 'cancellale subito' })
+    expect(domande.aperte(idUnico())).toHaveLength(0)
   })
 
   it('lo stesso messaggio ripetuto (stesso idMessaggio) non risponde due volte: la seconda domanda resta aperta', async () => {

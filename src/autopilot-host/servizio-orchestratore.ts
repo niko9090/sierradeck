@@ -1435,12 +1435,18 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     ricalcola(ws, `richiesta nuova: «${testo.replace(/\s+/gu, ' ').slice(0, 60)}»`)
     // k-44: se Nicholas scrive nel dialogo, le domande rimaste aperte prima del suo messaggio sono superate
     // (ha parlato lui): spariscono dalle Domande e l'autopilota lo legge qui.
-    // 11/11: non per un messaggio del programma, e mai per una domanda segnata «mai da sola».
-    const chiuse = opz.daProgramma === true ? [] : x.domande.aperte(a.id).filter((d) => d.contesto?.maiDaSola !== true && d.apertaIl <= Date.parse(quando) && x.domande.superata(d.id, 'Nicholas ha scritto nel dialogo dopo la domanda'))
+    // 11/11: non per un messaggio del programma, mai per una domanda segnata «mai da sola», e non per una
+    // rischiosa: quella aspetta la sua risposta vera (chiuderla qui la farebbe solo rifare all'autopilota).
+    const chiuse = opz.daProgramma === true ? [] : x.domande.aperte(a.id).filter((d) => d.contesto?.maiDaSola !== true && d.contesto?.rischiosa !== true && d.apertaIl <= Date.parse(quando) && x.domande.superata(d.id, 'Nicholas ha scritto nel dialogo dopo la domanda'))
     const nota = chiuse.length > 0
       ? ` [Il programma ha chiuso ${chiuse.length === 1 ? 'una tua domanda aperta' : `${chiuse.length} tue domande aperte`}, perché hai scritto nel dialogo dopo: ${chiuse.map((d) => `«${(d.parti?.domanda ?? d.testo).replace(/\s+/gu, ' ').slice(0, 120)}»`).join(', ')}. Se serve ancora la risposta, rifalla.]`
       : ''
-    orchestratore.messaggio(ws, { quando, testo: `${testo}${nota}` })
+    // 11/11: le domande rischiose restano aperte. Se questo messaggio risponde a una, lo capisce l'autopilota.
+    const restano = opz.daProgramma === true ? [] : x.domande.aperte(a.id).filter((d) => d.contesto?.rischiosa === true && d.apertaIl <= Date.parse(quando))
+    const ancora = restano.length > 0
+      ? ` [${restano.length === 1 ? 'Resta aperta una tua domanda a Nicholas' : `Restano aperte ${restano.length} tue domande a Nicholas`}: ${restano.map((d) => `«${(d.parti?.domanda ?? d.testo).replace(/\s+/gu, ' ').slice(0, 120)}»`).join(', ')}. Se questo messaggio risponde, tienine conto e ritirala con ritira_domanda; se no lasciala lì e non rifarla.]`
+      : ''
+    orchestratore.messaggio(ws, { quando, testo: `${testo}${nota}${ancora}` })
     return x.archivio.leggi(a.id) ?? conTua
   }
 

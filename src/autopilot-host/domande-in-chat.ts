@@ -68,6 +68,41 @@ export function rispostaScritta(testo: string, scelte: string[]): string {
 }
 
 /**
+ * Per quanto un **testo libero** scritto nella chat vale come risposta alla
+ * domanda aperta lì. Dopo, la domanda è nelle Domande con il suo campo, e
+ * quello che Nicholas scrive in chat è un messaggio nuovo.
+ */
+export const RISPOSTA_LIBERA_ENTRO_MS = DOMANDA_VISTA_SENZA_RISPOSTA_MS
+
+/**
+ * Quello che Nicholas ha scritto in chat **è la risposta** alla domanda aperta lì? (11/11)
+ *
+ * Prima lo era sempre, qualunque cosa scrivesse e quando: l'08/11 un suo
+ * sfogo è stato registrato come risposta a «Pubblico adesso la 0.97.1?» di tre
+ * ore e mezza prima, e un altro messaggio come risposta a una domanda di 28
+ * ore prima; tutti e due sono finiti fra le decisioni del quaderno.
+ * - un numero o il nome di una scelta: è una risposta, sempre;
+ * - un testo libero: solo se la domanda ha meno di mezz'ora.
+ */
+export function eRispostaInChat(testo: string, scelte: string[], apertaIl: number, ora: number): boolean {
+  const t = testo.trim()
+  if (rispostaScritta(t, scelte) !== t || scelte.some((s) => s.trim().toLowerCase() === t.toLowerCase())) return true
+  return ora - apertaIl < RISPOSTA_LIBERA_ENTRO_MS
+}
+
+/**
+ * Una risposta va scritta fra le **decisioni** del quaderno? (11/11) Lì stanno le
+ * scelte di Nicholas che valgono per il futuro: non il «Consenti» a un permesso
+ * (il 06/11 ne sono finiti due, con dentro il comando e un percorso del PC), non
+ * il sì o il no a una cancellazione, non un «no» o un «lascia stare».
+ */
+export function decisioneDaRicordare(p: { domanda: string; risposta: string; diConsenso: boolean }): boolean {
+  if (p.diConsenso) return false
+  if (/^\s*(?:«[^»]*»\s+ti chiede:\s*)?Uno specialista chiede il permesso per /u.test(p.domanda)) return false
+  return !rispostaSenzaLavoro(p.risposta)
+}
+
+/**
  * La richiesta della coda (r-N) da cui nasce una domanda. In ordine: quella
  * dichiarata dall'autopilota (se esiste); l'unica citata nel testo; l'unica
  * richiesta ancora aperta. Con più candidate, nessuna: meglio non ritirare mai
