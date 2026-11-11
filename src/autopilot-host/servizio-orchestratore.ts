@@ -856,9 +856,10 @@ ${NOTA_SENZA_GIT}`,
         // 0.89.4: l'unione parte da sola. Prima aspettava che l'autopilota chiamasse
         // unisci, e se non lo faceva il compito restava «finito» per sempre.
         if (s.stato === 'finito' && x.unioneDaSola !== false) avviaUnione(ws, { compito: k.id })
-      } else if (k === undefined && s.stato === 'finito' && x.unioneDaSola !== false && !RUOLI_SOLA_LETTURA.has(s.ruolo)) {
+      } else if ((k === undefined || k.stato === 'unito') && s.stato === 'finito' && x.unioneDaSola !== false && !RUOLI_SOLA_LETTURA.has(s.ruolo)) {
         // 0.94.0: anche il lavoro di uno specialista senza compito del piano (05/11: finito
         // alle 11:52, unito solo dopo la spinta del lavoro fermo, tre minuti dopo).
+        // 11/11: e quello di chi finisce su un compito unito nel frattempo: il suo ramo non resta fuori in silenzio.
         avviaUnione(ws, { specialista: s.id })
       }
       if (u !== undefined) {
@@ -1042,6 +1043,10 @@ ${NOTA_SENZA_GIT}`,
       await dormi(riprova)
     }
   }
+  /** 11/11: i rami ricordati di un compito, nella forma che il cancello usa per quelli degli specialisti in memoria. */
+  const comeRamiConLavoro = (c: CompitoPiano, rami: string[]): RamoConLavoro[] => rami.map((r) => ({
+    sub: { id: r, ruolo: c.ruolo ?? 'sviluppatore', descrizione: c.titolo, compito: c.id, stato: 'finito', inizio: c.creato, ramo: r }, ramo: r, avanti: 1
+  }))
   const cancelloOra = async (ws: string, p0: { compito?: string; specialista?: string; ramo?: string }, scambio: { scaduto: boolean } = { scaduto: false }): Promise<string> => {
     let p = p0
     // 06/11 (k-60): chiesta l'unione di uno specialista che fa parte di un compito, vale il compito:
@@ -1052,7 +1057,15 @@ ${NOTA_SENZA_GIT}`,
       if (s?.compito !== undefined && x.orchestratori.piano(ws).compiti.some((k) => k.id === s.compito) && !RUOLI_SOLA_LETTURA.has(s.ruolo)) p = { compito: s.compito }
     }
     const giaUnito = p.compito !== undefined && p.ramo === undefined ? x.orchestratori.piano(ws).compiti.find((k) => k.id === p.compito) : undefined
-    if (giaUnito !== undefined && giaUnito.stato === 'unito' && giaUnito.criterioVerde === true) return `${giaUnito.id} è già unito con il criterio verde: non c’è altro da unire.`
+    if (giaUnito !== undefined && giaUnito.stato === 'unito' && giaUnito.criterioVerde === true) {
+      // 11/11 (k-165): «già verde» non chiude la porta a un ramo del compito rimasto con lavoro fuori dal principale.
+      const u0 = unicoDi(ws)
+      const g0 = gitA()
+      const fuori = u0 !== undefined && g0 !== undefined && u0.ramoBase !== undefined && conGit(u0.cwd)
+        ? (await ramiDelCompitoSulDisco(g0, { cwd: u0.cwd, base: u0.ramoBase, compito: giaUnito, daNonGuardare: ramiAltrui(ws, giaUnito.id) })).conLavoro
+        : []
+      if (fuori.length === 0) return `${giaUnito.id} è già unito con il criterio verde: non c’è altro da unire.`
+    }
     const a = unicoDi(ws)
     if (a === undefined) return 'l’autopilota unico non c’è più'
     const g = gitA()
@@ -1067,7 +1080,12 @@ ${NOTA_SENZA_GIT}`,
     const senzaGit = !conGit(a.cwd)
     // 0.89.4: l'esploratore e il revisore non scrivono: niente ramo da unire,
     // vale il criterio. Prima la loro analisi restava «da unire» per sempre (k-10).
-    const soloLettura = sub !== undefined && p.ramo === undefined && RUOLI_SOLA_LETTURA.has(sub.ruolo)
+    let soloLettura = sub !== undefined && p.ramo === undefined && RUOLI_SOLA_LETTURA.has(sub.ruolo)
+    // 11/11 (k-165): chi legge soltanto non chiude da solo un compito su cui qualcuno scrive, o che ha un ramo con lavoro fuori dal principale.
+    if (soloLettura && !senzaGit && compito !== undefined && g !== undefined && a.ramoBase !== undefined) {
+      const scrive = subagenti(ws).some((s) => s.unito !== true && s.compito === compito.id && !RUOLI_SOLA_LETTURA.has(s.ruolo))
+      if (scrive || (await ramiDelCompitoSulDisco(g, { cwd: a.cwd, base: a.ramoBase, compito, daNonGuardare: ramiAltrui(ws, compito.id) })).conLavoro.length > 0) soloLettura = false
+    }
     if (!senzaGit && !soloLettura && (g === undefined || a.ramoBase === undefined)) return 'senza ramo principale non si può unire'
     if ((senzaGit || soloLettura) && sub !== undefined && (sub.stato === 'avviato' || sub.stato === 'lavoro')) return `${nome}: sta ancora lavorando, aspetta che finisca`
     let ramo = p.ramo ?? chat?.ramo
@@ -1090,7 +1108,7 @@ ${NOTA_SENZA_GIT}`,
       const suoi = await ramiDelCompitoSulDisco(g, { cwd: a.cwd, base: a.ramoBase, compito, daNonGuardare: ramiAltrui(ws, compito.id) })
       if (suoi.conLavoro.length > 0) {
         // Un ramo ricordato ha ancora lavoro fuori dal principale: si unisce quello (prima gli altri, se sono più d'uno).
-        const fuori = suoi.conLavoro.map((r): RamoConLavoro => ({ sub: { id: r, ruolo: compito.ruolo ?? 'sviluppatore', descrizione: compito.titolo, compito: compito.id, stato: 'finito', inizio: compito.creato, ramo: r }, ramo: r, avanti: 1 }))
+        const fuori = comeRamiConLavoro(compito, suoi.conLavoro)
         ramo = fuori[fuori.length - 1]!.ramo
         altriRami = fuori.slice(0, -1)
         assorbiti = altriRami
@@ -1120,9 +1138,17 @@ ${NOTA_SENZA_GIT}`,
         // Le copie anche dai worktree di git: una modifica non salvata lì non si perde.
         const conCopia = delCompito.map((d) => { const w = ramoDelloSpecialista(d, voci, { presi: ramiPresi(d, tutti, voci), nato }); return w.ok && w.cartella !== undefined ? { ...d, cartella: w.cartella } : d })
         if (!s.ok && await senzaLavoroSuiRami(g, conCopia, s.motivo)) {
-          fuoriDaiRami = true
           sub = delCompito[delCompito.length - 1]
           nome = sub?.id ?? nome
+          // 11/11 (k-165): prima di dire «niente da unire» si guardano i rami ricordati del compito. Dopo un riavvio
+          // chi ha scritto non è più in memoria e resta solo chi ha verificato: il compito si chiudeva col ramo vero fuori.
+          const fuori = compito !== undefined ? comeRamiConLavoro(compito, (await ramiDelCompitoSulDisco(g, { cwd: a.cwd, base: a.ramoBase, compito, daNonGuardare: ramiAltrui(ws, compito.id) })).conLavoro) : []
+          if (fuori.length === 0) fuoriDaiRami = true
+          else {
+            ramo = fuori[fuori.length - 1]!.ramo
+            altriRami = fuori.slice(0, -1)
+            assorbiti = altriRami
+          }
         } else if (!s.ok) {
           if (compito !== undefined) cambiaCompito(ws, compito.id, (k) => ({ ...k, esito: `unione non fatta: ${s.motivo}` }))
           return `${p.compito}: unione NON fatta — ${s.motivo}.`

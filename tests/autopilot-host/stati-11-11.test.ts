@@ -46,6 +46,8 @@ const avvia: AvviaProcesso = ({ args }) => {
 const WS = 'Lavoro'
 const R1 = 'worktree-agent-a1111111111111111'
 const R2 = 'worktree-agent-a2222222222222222'
+/** Un ramo la cui copia non c'è sul disco (un altro test crea quella di R1): nessuno specialista lo prende «per data». */
+const R3 = 'worktree-agent-a3333333333333333'
 const radice = process.cwd()
 
 const ap = (): Autopilota => ({
@@ -391,6 +393,79 @@ describe('compito senza specialisti in memoria: il cancello chiede a git (11/11,
     await strumento('unisci', { compito: 'k-165' })
     await attendi(() => k('k-165')?.criterioVerde === true, { cosa: 'k-165 verde' })
     expect(porte.merge).toEqual([R2])
+  })
+
+  describe('niente falso «unito»: il ramo vero non resta fuori (k-165)', () => {
+    it('chi legge soltanto non chiude un compito che ha un ramo ricordato con lavoro fuori dal principale: prima si unisce quello', async () => {
+      zitto()
+      const porte: Porte = { merge: [], rami: { [R3]: 1 } }
+      await avviaServizio(porte)
+      orch.scriviPiano(WS, { versione: 1, compiti: [compito('k-1', { rami: [R3] })] })
+      await lanciaAgent('k-1: rileggo il lavoro', { tipo: 'revisore' })
+      finisciUltimo()
+      await attendi(() => k('k-1')?.stato === 'unito', { cosa: 'k-1 unito' })
+      expect(porte.merge).toEqual([R3])
+    })
+
+    it('chi verifica senza cambiare niente non chiude il compito col solo criterio se il ramo di chi ha scritto è ancora fuori', async () => {
+      zitto()
+      const porte: Porte = { merge: [], rami: { [R3]: 1 } }
+      await avviaServizio(porte)
+      orch.scriviPiano(WS, { versione: 1, compiti: [compito('k-2', { rami: [R3] })] })
+      await lanciaAgent('k-2: verifico che ci sia tutto', { tipo: 'verificatore', task: 'a9999999999999999' })
+      finisciUltimo()
+      await attendi(() => k('k-2')?.stato === 'unito', { cosa: 'k-2 unito' })
+      expect(porte.merge).toEqual([R3])
+    })
+
+    it('senza rami con lavoro vale ancora il solo criterio (lavoro fuori dai rami, analisi)', async () => {
+      zitto()
+      const porte: Porte = { merge: [], rami: { [R1]: 0 } }
+      await avviaServizio(porte)
+      orch.scriviPiano(WS, { versione: 1, compiti: [compito('k-2', { rami: [R1] }), compito('k-3')] })
+      await lanciaAgent('k-2: verifico che ci sia tutto', { tipo: 'verificatore', task: 'a9999999999999999' })
+      finisciUltimo()
+      await attendi(() => k('k-2')?.stato === 'unito', { cosa: 'k-2 unito' })
+      await lanciaAgent('k-3: guardo i registri', { tipo: 'esploratore' })
+      finisciUltimo()
+      await attendi(() => k('k-3')?.stato === 'unito', { cosa: 'k-3 unito' })
+      expect(porte.merge).toEqual([])
+    })
+
+    it('compito già unito e verde: il ramo di uno specialista che ci ha lavorato dopo si unisce lo stesso', async () => {
+      zitto()
+      const porte: Porte = { merge: [], rami: { [R2]: 1 } }
+      await avviaServizio(porte)
+      orch.scriviPiano(WS, { versione: 1, compiti: [compito('k-3', { stato: 'unito', criterioVerde: true })] })
+      await lanciaAgent('k-3: ancora un pezzo', { task: 'a2222222222222222' })
+      finisciUltimo()
+      await attendi(() => porte.merge.length === 1, { cosa: 'il ramo dello specialista unito' })
+      expect(porte.merge).toEqual([R2])
+      expect(k('k-3')!.rami).toEqual([R2])
+    })
+
+    it('uno specialista che finisce su un compito unito nel frattempo, e che risultava suo: il ramo si unisce', async () => {
+      zitto()
+      const porte: Porte = { merge: [], rami: { [R1]: 1 } }
+      await avviaServizio(porte)
+      // «tu-1» è l'id del primo Agent lanciato qui sotto: il compito era suo, ed è stato unito mentre lavorava.
+      orch.scriviPiano(WS, { versione: 1, compiti: [compito('k-4', { stato: 'unito', criterioVerde: true, chat: 'tu-1' })] })
+      await lanciaAgent('k-4: la mia parte', { task: 'a1111111111111111' })
+      finisciUltimo()
+      await attendi(() => porte.merge.length === 1, { cosa: 'il ramo unito' })
+      expect(porte.merge).toEqual([R1])
+    })
+
+    it('già unito e verde senza niente fuori: come prima, non c’è altro da unire', async () => {
+      zitto()
+      const porte: Porte = { merge: [], rami: { [R1]: 0 } }
+      await avviaServizio(porte)
+      orch.scriviPiano(WS, { versione: 1, compiti: [compito('k-3', { stato: 'unito', criterioVerde: true, rami: [R1] })] })
+      await lanciaAgent('k-3: controllo', { task: 'a1111111111111111' })
+      finisciUltimo()
+      await attendi(() => processi[0]!.scritte.join('\n').includes('k-3 è già unito con il criterio verde'), { cosa: 'l’esito' })
+      expect(porte.merge).toEqual([])
+    })
   })
 
   it('dopo un aggiornamento non si riprovano i compiti di una richiesta già chiusa; un’analisi di una aperta sì', async () => {
