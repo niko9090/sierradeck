@@ -13,8 +13,12 @@ import { paginaClient } from '../../src/main/client-pagina'
 const CASI = ['', 'aggiorn', 'novita', 'NOVITÀ', 'pin', 'porta', 'drive salva', 'tailscale', 'non esiste per niente', 'colore', 'notifiche']
 
 describe('la struttura delle impostazioni', () => {
-  it('«Aggiornamenti» è la prima sezione, poi Computer, Chat e autopiloti, Drive e salvataggi, Aspetto, Notifiche, Info e aiuto', () => {
-    expect(SEZIONI.map((s) => s.titolo)).toEqual(['Aggiornamenti', 'Computer', 'Chat e autopiloti', 'Drive e salvataggi', 'Aspetto', 'Notifiche', 'Info e aiuto'])
+  it('«Aggiornamenti» è la prima sezione, poi Computer, Chat e autopiloti, Limiti, Drive e salvataggi, Aspetto, Notifiche, Info e aiuto', () => {
+    // 11/11: «Limiti» dopo «Chat e autopiloti», solo sul PC (i limiti li decide Nicholas).
+    expect(SEZIONI.map((s) => s.titolo)).toEqual(['Aggiornamenti', 'Computer', 'Chat e autopiloti', 'Limiti', 'Drive e salvataggi', 'Aspetto', 'Notifiche', 'Info e aiuto'])
+    expect(sezioniDi('pc').some((g) => g.sezione.id === 'limiti')).toBe(true)
+    expect(sezioniDi('app').some((g) => g.sezione.id === 'limiti')).toBe(false)
+    expect(sezioniDi('pagina').some((g) => g.sezione.id === 'limiti')).toBe(false)
     for (const d of ['pc', 'app', 'pagina'] as const) expect(sezioniDi(d)[0]?.sezione.id).toBe('aggiornamenti')
   })
   it('ogni voce ha una spiegazione vera (cosa fa, cosa succede se la cambi), un id unico, una sezione che esiste', () => {
