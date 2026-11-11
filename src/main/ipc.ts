@@ -3,6 +3,8 @@ import { elencoRecuperoWorkspace, mettiWorkspaceNelRecupero, recuperoLeggibile, 
 import { leggiRecentiWorkspace, rinominaRecenteWorkspace, toccaRecenteWorkspace } from './workspace-recenti-file'
 import { creaRichiestaUnita } from '@shared/richiesta-unita'
 import { modelloAutopilotaAmmesso, modelloValido } from '@shared/modelli'
+import { leggiPermessi } from '@shared/permessi-nicholas'
+import { conLimiti, LIMITI_DI_SERIE } from '@shared/limiti-pc'
 import { elencoModelliVivo } from './modelli-scoperti'
 import { finestreDiChat } from './finestre-pannello'
 import { app, ipcMain, screen, shell, BrowserWindow } from 'electron'
@@ -1653,8 +1655,19 @@ export function registerAutopilotaIpc(client: ClientAutopilota, log?: (m: string
     const o = (typeof p === 'object' && p !== null ? p : {}) as Record<string, unknown>
     return client.impostaOrchestratore(wsCoda(ws), {
       ...(modelloValido(o.modello) && modelloAutopilotaAmmesso(o.modello) ? { modello: o.modello } : {}),
-      ...(typeof o.tettoSpecialisti === 'number' && Number.isInteger(o.tettoSpecialisti) ? { tettoSpecialisti: o.tettoSpecialisti } : {})
+      ...(typeof o.tettoSpecialisti === 'number' && Number.isInteger(o.tettoSpecialisti) ? { tettoSpecialisti: o.tettoSpecialisti } : {}),
+      // 11/11: i permessi del progetto, solo dalla pagina delle impostazioni (Nicholas li rimette a «chiedi»).
+      ...(typeof o.permessi === 'object' && o.permessi !== null ? { permessi: leggiPermessi(o.permessi) } : {})
     })
+  })
+  // 11/11: i limiti del PC, letti e cambiati da Nicholas nella sezione «Limiti».
+  ipcMain.handle('autopilota:limiti', async () => client.limiti().catch(() => undefined))
+  ipcMain.handle('autopilota:impostaLimiti', async (_e, p: unknown) => {
+    // Solo le voci conosciute e nei loro margini: il resto non passa (lo rifà anche il servizio).
+    const ok = conLimiti(LIMITI_DI_SERIE, p)
+    const o = (typeof p === 'object' && p !== null ? p : {}) as Record<string, unknown>
+    const cambio = Object.fromEntries(Object.keys(o).filter((k) => k in LIMITI_DI_SERIE).map((k) => [k, ok[k as keyof typeof ok]]))
+    return client.impostaLimiti(cambio)
   })
 
   // L'avvio al login vive nel Core e non nel servizio: è il Core a sapere dove

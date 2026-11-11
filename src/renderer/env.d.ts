@@ -407,7 +407,10 @@ declare global {
         attesaSpecialisti: () => Promise<import('@shared/attesa-specialisti').VistaAttesa | undefined>
         prioritaAttesa: (id: string, mossa: import('@shared/attesa-specialisti').MossaAttesa) => Promise<import('@shared/attesa-specialisti').VistaAttesa | undefined>
         togliAttesa: (id: string) => Promise<import('@shared/attesa-specialisti').VistaAttesa | undefined>
-        impostaOrchestratore: (ws: string, p: { modello?: string; tettoSpecialisti?: number }) => Promise<import('@shared/piano-orchestratore').VistaOrchestratore>
+        impostaOrchestratore: (ws: string, p: { modello?: string; tettoSpecialisti?: number; permessi?: import('@shared/permessi-nicholas').PermessiScelti }) => Promise<import('@shared/piano-orchestratore').VistaOrchestratore>
+        /** 11/11: i limiti del PC e i permessi «sempre» dei progetti, per la sezione «Limiti». */
+        limiti: () => Promise<import('@shared/limiti-pc').VistaLimiti | undefined>
+        impostaLimiti: (p: Partial<import('@shared/limiti-pc').LimitiPc>) => Promise<import('@shared/limiti-pc').VistaLimiti | undefined>
         rispondi: (idDomanda: string, risposta: string) => Promise<void>
         avvioAlLogin: (attivare?: boolean) => Promise<{ installato: boolean; percorso: string }>
       }
