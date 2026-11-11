@@ -266,6 +266,9 @@ const cosaDel = (t: string): string => { const x = t.replace(/^\s*[kr]-\d+\s*[:�
  * e «Nega», e valgono esatte. Un testo libero vale sì solo se comincia con
  * una parola di consenso intera e non contiene nessun no: «sicuramente no»,
  * «okay, no», «non consentire» restano no. Nel dubbio, no.
+ *
+ * 11/11: il servizio non la usa più (i permessi li decide il programma, senza
+ * domanda); resta, con le sue prove, per chi deve leggere un sì scritto a mano.
  */
 export function permessoConcesso(risposta: string): boolean {
   const t = risposta.trim().toLowerCase().replace(/\s+/gu, ' ')
@@ -1224,8 +1227,12 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
 
   /** 0.96.0: l'ultima volta che la chat di ogni workspace è stata davanti a Nicholas (ms). */
   const vistoIl = new Map<string, number>()
-  /** 11/11: i workspace a cui l'ultima domanda è tornata indietro per il testo: la seconda passa comunque. */
-  const testoRimandato = new Set<string>()
+  /**
+   * 11/11: quando l'ultima domanda del workspace è tornata indietro per il testo. La seconda, entro
+   * dieci minuti, passa comunque (una domanda zoppa è meglio di un lavoro fermo); dopo si ricomincia.
+   */
+  const testoRimandato = new Map<string, number>()
+  const RIMANDATA_VALE_MS = 10 * 60_000
   // Una domanda chiusa (risposta, superata, ritirata): i suoi tasti spariscono dalla chat.
   x.domande.suChiusa((d) => {
     const a = x.archivio.leggi(d.autopilotaId)
@@ -1275,9 +1282,10 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       // 11/11: il testo si controlla prima di aprire, e la domanda torna a chi l'ha scritta (una volta sola).
       // Prima passava con «⚠ Domanda incompleta anche dopo la riscrittura», che nessuno aveva chiesto.
       const note = noteSulTesto({ staFacendo: '', domanda, perche: perche ?? '', scelte: scelteProposte(scelte), seNonRispondi: '' })
-      if (note.length > 0 && !testoRimandato.has(ws)) {
-        testoRimandato.add(ws)
-        return { ok: false, motivo: `la domanda non si capisce abbastanza: ${note.join('; ')}. Riscrivila e richiamami: una frase sola con un solo punto interrogativo, al più ${DOMANDA_MAX} caratteri, in italiano semplice, senza sigle. Il resto mettilo in «perche»` }
+      const ora = Date.parse(x.adesso())
+      if (note.length > 0 && ora - (testoRimandato.get(ws) ?? -Infinity) > RIMANDATA_VALE_MS) {
+        testoRimandato.set(ws, ora)
+        return { ok: false, motivo:`la domanda non si capisce abbastanza: ${note.join('; ')}. Riscrivila e richiamami: una frase sola con un solo punto interrogativo, al più ${DOMANDA_MAX} caratteri, in italiano semplice, senza sigle. Il resto mettilo in «perche»` }
       }
       testoRimandato.delete(ws)
       const richiestaId =richiestaDellaDomanda(coda(ws), richiesta, domanda)

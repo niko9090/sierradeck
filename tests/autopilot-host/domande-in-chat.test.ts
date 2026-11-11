@@ -10,7 +10,7 @@ import { apriCode, type ArchivioCode } from '../../src/autopilot-host/coda-store
 import { apriOrchestratori, type ArchivioOrchestratori } from '../../src/autopilot-host/orchestratore-store'
 import type { AvviaProcesso, ProcessoClaude } from '../../src/autopilot-host/orchestratore'
 import {
-  chiusaDopoLaDomanda, decisioneDaRicordare, devePassareAlleDomande, eRispostaInChat, RISPOSTA_LIBERA_ENTRO_MS, DOMANDA_DECIDO_IO_MS, DOMANDA_IN_CHAT_MS, DOMANDA_VISTA_SENZA_RISPOSTA_MS, domandaRischiosa, richiestaChiusa, scadenzaDomanda, seNonRispondi, richiestaDellaDomanda, rispostaInCoda, rispostaScritta, rispostaSenzaLavoro, scelteDaToccare, scelteProposte
+  chiusaDopoLaDomanda, decisioneDaRicordare, devePassareAlleDomande, domandaRispostaInChat, eRispostaInChat, RISPOSTA_LIBERA_ENTRO_MS, DOMANDA_DECIDO_IO_MS, DOMANDA_IN_CHAT_MS, DOMANDA_VISTA_SENZA_RISPOSTA_MS, domandaRischiosa, richiestaChiusa, scadenzaDomanda, seNonRispondi, richiestaDellaDomanda, rispostaInCoda, rispostaScritta, rispostaSenzaLavoro, scelteDaToccare, scelteProposte
 } from '../../src/autopilot-host/domande-in-chat'
 import { leggiStatoProgramma } from '../../src/autopilot-host/stato-programma'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
@@ -66,6 +66,22 @@ describe('la risposta scritta e i tasti (puro)', () => {
     expect(eRispostaInChat('meglio un verde più scuro', scelte, INIZIO, INIZIO + 29 * MIN)).toBe(true)
     expect(eRispostaInChat('meglio un verde più scuro', scelte, INIZIO, INIZIO + 30 * MIN)).toBe(false)
     expect(eRispostaInChat('un nome a piacere', [], INIZIO, INIZIO + 5 * MIN)).toBe(true)
+  })
+  // Una domanda rischiosa non scade più: un «1» scritto per la domanda nuova non deve finire a lei.
+  it('11/11: fra più domande aperte in chat, un numero o un testo libero rispondono alla più recente; il nome di una scelta alla sua', () => {
+    const vecchia = { id: 'd-vecchia', apertaIl: INIZIO, opzioni: ['Cancellale subito', 'Tienile un mese'] }
+    const nuova = { id: 'd-nuova', apertaIl: INIZIO + 2 * 60 * MIN, opzioni: ['Sì', 'No'] }
+    const adesso = INIZIO + 2 * 60 * MIN + 5 * MIN
+    expect(domandaRispostaInChat('1', [vecchia, nuova], adesso)?.id).toBe('d-nuova')
+    expect(domandaRispostaInChat('no', [vecchia, nuova], adesso)?.id).toBe('d-nuova')
+    expect(domandaRispostaInChat('meglio un verde più scuro', [vecchia, nuova], adesso)?.id).toBe('d-nuova')
+    expect(domandaRispostaInChat('tienile un mese', [vecchia, nuova], adesso)?.id).toBe('d-vecchia')
+    // Dopo mezz'ora un testo libero non risponde più a nessuna; un numero sì, alla più recente.
+    expect(domandaRispostaInChat('a che punto siamo?', [vecchia, nuova], adesso + 40 * MIN)).toBeUndefined()
+    expect(domandaRispostaInChat('2', [vecchia, nuova], adesso + 40 * MIN)?.id).toBe('d-nuova')
+    expect(domandaRispostaInChat('1', [], adesso)).toBeUndefined()
+    // Nate nello stesso istante: vale quella aperta dopo.
+    expect(domandaRispostaInChat('1', [{ ...vecchia, apertaIl: INIZIO }, { ...nuova, apertaIl: INIZIO }], INIZIO + MIN)?.id).toBe('d-nuova')
   })
   // 06/11: «Uno specialista chiede il permesso per Monitor: {…}» → Consenti, due volte, nel quaderno.
   it('11/11: fra le decisioni del quaderno non vanno permessi, consensi a cancellare e risposte senza lavoro', () => {
@@ -419,6 +435,10 @@ describe('11/11: il testo della domanda si controlla prima di aprirla', () => {
     expect(domande.aperte(idUnico())[0]!.testo).not.toContain('⚠')
     expect(domande.aperte(idUnico())[0]!.avvertenza).toBeUndefined()
     expect(await mcp('chiedi_utente', { domanda: 'Faccio come prima anche per il menu?', perche: 'cambia il resto' })).toContain('Rifiutato')
+    // «La seconda passa» vale per lo stesso tentativo: dieci minuti dopo un'altra domanda che non va torna indietro.
+    ora += 11 * MIN
+    expect(await mcp('chiedi_utente', { domanda: LUNGA, perche: 'cambia il resto' })).toContain('Rifiutato')
+    expect(domande.aperte(idUnico())).toHaveLength(1)
   })
 
   it('una risposta libera o scelte senza conseguenza non portano più l’avvertenza a Nicholas', async () => {
@@ -618,6 +638,22 @@ describe('rispondere nella chat vale come risposta', () => {
     // La scelta scritta per intero vale ancora come risposta.
     await posta(`/autopiloti/${idUnico()}/dialogo`, { testo: 'cancellale subito' })
     expect(domande.aperte(idUnico())).toHaveLength(0)
+  })
+
+  it('11/11: con una domanda rischiosa aperta da ore, «1» risponde alla domanda nuova e non a lei', async () => {
+    zitto()
+    await avviaServizio()
+    const { mcp, p0 } = await conStrumenti()
+    await mcp('chiedi_utente', { domanda: 'Le copie vecchie le cancello subito o le tengo un mese?', perche: 'sono dati tuoi', scelte: ['Cancellale subito → lo spazio si libera adesso', 'Tienile un mese → lo spazio si libera dopo'] })
+    const rischiosa = domande.aperte(idUnico())[0]!
+    ora += 3 * 60 * MIN
+    await mcp('chiedi_utente', DOMANDA)
+    expect(domande.aperte(idUnico())).toHaveLength(2)
+    await posta(`/autopiloti/${idUnico()}/dialogo`, { testo: '1' })
+    // Chiusa la nuova («Sì»), la cancellazione aspetta ancora la sua risposta.
+    expect(domande.aperte(idUnico()).map((d) => d.id)).toEqual([rischiosa.id])
+    await attendi(() => p0.scritte.some((x) => testoScritto(x).includes('Risposta alla tua domanda «Tengo il colore verde per la barra?»: Sì')), { cosa: 'la risposta alla domanda nuova' })
+    expect(p0.scritte.some((x) => testoScritto(x).includes('Cancellale subito') && testoScritto(x).includes('Risposta alla tua domanda'))).toBe(false)
   })
 
   it('lo stesso messaggio ripetuto (stesso idMessaggio) non risponde due volte: la seconda domanda resta aperta', async () => {

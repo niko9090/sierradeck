@@ -91,6 +91,27 @@ export function eRispostaInChat(testo: string, scelte: string[], apertaIl: numbe
 }
 
 /**
+ * Fra le domande aperte nella chat, **quella a cui risponde** quello che Nicholas
+ * ha scritto, o nessuna (allora è un messaggio nuovo). 11/11.
+ *
+ * Prima era sempre la più vecchia. Ma adesso una domanda rischiosa non scade:
+ * può restare aperta per giorni, e un «1» scritto per la domanda appena
+ * arrivata sarebbe finito a lei (magari a una cancellazione). Quindi:
+ * - il nome di una scelta risponde alla domanda più recente che ha quella scelta;
+ * - un numero o un testo libero riguardano solo la **più recente**, quella che
+ *   ha davanti (`eRispostaInChat`: il testo libero solo entro mezz'ora).
+ */
+export function domandaRispostaInChat<D extends Pick<DomandaAperta, 'id' | 'apertaIl' | 'parti' | 'opzioni'>>(testo: string, aperte: D[], ora: number): D | undefined {
+  const t = testo.trim().toLowerCase()
+  // Dalla più recente; a parità di istante, quella aperta dopo.
+  const dalla = [...aperte].reverse().sort((a, b) => b.apertaIl - a.apertaIl)
+  const perNome = dalla.find((d) => scelteDaToccare(d).some((s) => s.trim().toLowerCase() === t))
+  if (perNome !== undefined) return perNome
+  const ultima = dalla[0]
+  return ultima !== undefined && eRispostaInChat(testo, scelteDaToccare(ultima), ultima.apertaIl, ora) ? ultima : undefined
+}
+
+/**
  * Una risposta va scritta fra le **decisioni** del quaderno? (11/11) Lì stanno le
  * scelte di Nicholas che valgono per il futuro: non il «Consenti» a un permesso
  * (il 06/11 ne sono finiti due, con dentro il comando e un percorso del PC), non

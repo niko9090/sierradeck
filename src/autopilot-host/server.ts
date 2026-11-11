@@ -35,7 +35,7 @@ import { ultimoRapportoDa } from './trascrizione'
 import { apriMemoria, type Memoria } from './memoria'
 import { aperteSulloStesso } from './domande-doppie'
 import type { RegistroDomande, ContestoDomanda } from './domande'
-import { decisioneDaRicordare, eRispostaInChat, rispostaScritta, scelteDaToccare } from './domande-in-chat'
+import { decisioneDaRicordare, domandaRispostaInChat, rispostaScritta, scelteDaToccare } from './domande-in-chat'
 import type { TipoAvviso } from './telegram'
 import { avanzaFine, inizioFine } from './fine-chat'
 import { chatAlLavoroSulPc, daChiudereDaSole, RICHIUDI_DOPO_MS } from './posti'
@@ -1192,10 +1192,11 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
               if (dialoghiRicevuti.size > 500) dialoghiRicevuti.delete(dialoghiRicevuti.values().next().value as string)
             }
             // 0.96.0: con una sua domanda nata in chat ancora aperta, quello che scrivi è la risposta.
-            // 11/11: non più sempre. Un numero o una scelta sì; un testo libero solo entro mezz'ora dalla
-            // domanda (`eRispostaInChat`): dopo è un messaggio nuovo, e non la risposta a una domanda vecchia.
-            const inChat = deps.domande.aperte(a.id).filter((d) => d.inChat !== undefined).sort((p, q) => p.apertaIl - q.apertaIl)[0]
-            if (inChat !== undefined && eRispostaInChat(testo, scelteDaToccare(inChat), inChat.apertaIl, Date.parse(deps.adesso())) && rispondiAllaDomanda(inChat.id, rispostaScritta(testo, scelteDaToccare(inChat)), 'modale')) {
+            // 11/11: non più sempre, e non più alla più vecchia. Un numero o una scelta sì; un testo libero solo
+            // entro mezz'ora dalla domanda, e sempre per la più recente (`domandaRispostaInChat`). Il resto è
+            // un messaggio nuovo, non la risposta a una domanda vecchia.
+            const inChat = domandaRispostaInChat(testo, deps.domande.aperte(a.id).filter((d) => d.inChat !== undefined), Date.parse(deps.adesso()))
+            if (inChat !== undefined && rispondiAllaDomanda(inChat.id, rispostaScritta(testo, scelteDaToccare(inChat)), 'modale')) {
               ricorda()
               rispondi(res, 202, { ricevuto: true, autopilota: deps.archivio.leggi(a.id) ?? a })
               return
