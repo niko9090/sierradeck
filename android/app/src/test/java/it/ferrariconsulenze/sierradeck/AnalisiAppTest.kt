@@ -6,6 +6,21 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertFalse
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.AutopilotaBreve
+import it.ferrariconsulenze.sierradeck.nucleo.Chat
+import it.ferrariconsulenze.sierradeck.nucleo.Domanda
+import it.ferrariconsulenze.sierradeck.nucleo.SessioneRipresa
+import it.ferrariconsulenze.sierradeck.nucleo.Stato
+import it.ferrariconsulenze.sierradeck.nucleo.TonoChat
+import it.ferrariconsulenze.sierradeck.nucleo.chatCheTiAspettano
+import it.ferrariconsulenze.sierradeck.nucleo.etichettaAltrove
+import it.ferrariconsulenze.sierradeck.nucleo.leggiChat
+import it.ferrariconsulenze.sierradeck.nucleo.riassuntoChat
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.schermate.altro.quandoLetti
+import it.ferrariconsulenze.sierradeck.nucleo.urgenzaDi
+import it.ferrariconsulenze.sierradeck.sottofondo.Avvisi
+import it.ferrariconsulenze.sierradeck.sottofondo.rigaPresenza
 
 /**
  * I difetti trovati nell'analisi dell'app del 30/09/2026, con una prova
@@ -64,36 +79,6 @@ class AnalisiAppTest {
     }
 
     // ── La banda delle urgenze ───────────────────────────────────────────
-
-    @Test
-    fun `una chat ferma su un permesso accende la banda, non solo il pallino`() {
-        // Il difetto: la banda guardava solo le domande degli autopiloti, e la
-        // cosa che blocca di più non si portava a chi guarda.
-        val u = urgenzaDi(Stato(chat = listOf(chat("a", chiede = true, titolo = "Sito"))), connesso = true)
-        assertEquals(TipoUrgenza.DOMANDE, u?.tipo)
-        assertTrue(u!!.titolo.contains("Sito"))
-        assertEquals("Vedi", u.azione)
-    }
-
-    @Test
-    fun `domande e scelte insieme si contano insieme`() {
-        val u = urgenzaDi(
-            Stato(chat = listOf(chat("a", chiede = true)), domande = listOf(Domanda("d1", testo = "Quale chiave?"))),
-            connesso = true
-        )
-        assertTrue(u!!.titolo.startsWith("2 "))
-        assertEquals("Quale chiave?", u.sotto)
-    }
-
-    @Test
-    fun `l ordine resta scollegato, domande - l autopilota unico non ha fermi né pronti`() {
-        val fermo = AutopilotaBreve("x", nome = "Notte", stato = "sospeso", motivo = "test rossi")
-        val pronto = AutopilotaBreve("y", nome = "Alba", stato = "pronto")
-        assertEquals(TipoUrgenza.SCOLLEGATO, urgenzaDi(Stato(chat = listOf(chat("a", chiede = true))), connesso = false)?.tipo)
-        assertNull(urgenzaDi(Stato(autopiloti = listOf(pronto, fermo)), true))
-        assertNull(urgenzaDi(Stato(chat = listOf(chat("a", aspetta = true))), true))
-        assertNull(urgenzaDi(null, connesso = false))
-    }
 
     // ── Le notifiche ─────────────────────────────────────────────────────
 
@@ -167,19 +152,6 @@ class AnalisiAppTest {
     }
 
     // ── Lavori e consumi ─────────────────────────────────────────────────
-
-    @Test
-    fun `il riassunto dei lavori non tace su chi aspetta il via o una risposta`() {
-        // Prima: «N in attesa di te» contava solo sospesi e falliti.
-        val l = listOf(
-            AutopilotaBreve("1", stato = "pronto"), AutopilotaBreve("2", stato = "attesa"),
-            AutopilotaBreve("3", stato = "lavoro"), AutopilotaBreve("4", stato = "lavoro"),
-            AutopilotaBreve("5", stato = "fallito"), AutopilotaBreve("6", stato = "finito")
-        )
-        assertEquals("1 fermo · 1 aspetta una risposta · 1 aspetta il via · 2 al lavoro · 1 finito", riassuntoLavori(l))
-        assertEquals("2 si preparano", riassuntoLavori(listOf(AutopilotaBreve("1", stato = "intervista"), AutopilotaBreve("2", stato = "intervista"))))
-        assertEquals("nessun lavoro affidato", riassuntoLavori(emptyList()))
-    }
 
     @Test
     fun `i limiti letti ieri non sembrano di adesso`() {

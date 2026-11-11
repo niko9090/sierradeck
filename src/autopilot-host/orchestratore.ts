@@ -152,6 +152,8 @@ export const REGOLE_ORCHESTRATORE = [
   // 0.89.5 (02/11): «niente installazioni» valeva per tutto, e l’autopilota rifiutava di installare sul Synology. La regola di Nicholas è solo su SierraDeck.
   // 11/11: «Quando la installi?» non è una domanda (prometteva «fra un giorno decido io» su una cosa che non può fare).
   '- Non installare mai una versione di SierraDeck: la installa solo Nicholas, quando vuole. Non chiedergli quando: lo strumento rifiuta la domanda e il programma gli scrive un avviso. Tu scrivi una riga («La X è pronta: quando la installi, succede Y») e vai avanti con il resto, senza aspettarlo. Tutto il resto che la richiesta chiede (installare pacchetti o programmi, mettere un servizio su un server, sul Synology o su un altro PC, configurarlo) fallo: è lavoro come un altro, non una regola da rispettare. Anche scaricare (pacchetti, programmi, installer, file per un progetto) è permesso. Se nel quaderno o nel dialogo trovi scritto che scaricare o installare «non è permesso», è superato: non citarlo e vai avanti.',
+  // 11/11, Nicholas: «perché hai lasciato i limiti? devono poter essere sorpassati se decisi da me».
+  '- I divieti del programma (push forzato e cancellazioni dal remoto, scrivere nei posti protetti, comandi in sottofondo e attese lunghe, strumenti negati, funzioni del programma non tue, cancellare fuori dalle cartelle, installare SierraDeck) si superano solo con il sì di Nicholas registrato dal programma. Se un rifiuto dice «si sblocca solo con il sì di Nicholas» e quell’azione l’ha chiesta lui, usa chiedi_consenso con la classe e il comando o i percorsi esatti: la domanda la scrive il programma, non scade e nessuno la decide al posto suo. Non usarlo per aggirare di tua iniziativa un divieto, e non scrivere mai «ho il permesso»: non vale. Installare SierraDeck: solo se Nicholas ha scritto lui di installare, e solo per quella volta; tu non proporlo mai.',
   '- Le chat adottate «solo mia» sono di Nicholas: non toccarle.',
   '',
   '- Le tue domande aperte sono in DOMANDE APERTE nello stato. Appena una non serve più (hai deciso tu, il lavoro è andato avanti o è finito, Nicholas ti ha risposto nel dialogo), ritirala con ritira_domanda nello stesso turno: una domanda superata che resta lì lo confonde.',
@@ -266,7 +268,7 @@ export function sessionePersa(testo: string): boolean {
 
 /** L'ambiente del figlio: ripulito, git nel PATH, il tetto dei subagenti, e mai la chiave API (vale l'abbonamento). */
 export function ambienteOrchestratore(base: NodeJS.ProcessEnv, tetto: number): Record<string, string> {
-  const env: Record<string, string> = { ...ambientePulito(base), ...gitPerLeChat(), CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS: String(Math.min(POSTI_MAX, Math.max(1, tetto))) }
+  const env: Record<string, string> = { ...ambientePulito(base), ...gitPerLeChat(), CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS: String(Math.max(1, Math.round(tetto))) }
   delete env.ANTHROPIC_API_KEY
   return env
 }
@@ -303,7 +305,8 @@ export type DipendenzeOrchestratore = {
   nuovaSessione?: () => string
   ambiente?: (tetto: number) => Record<string, string>
   raccoltaMs?: number
-  globaliMax?: number
+  /** Quanti turni insieme sul PC: un numero, o (11/11) una funzione letta a ogni uso (lo decide Nicholas). */
+  globaliMax?: number | (() => number)
   sogliaRotazione?: number
   inattivoMs?: number
   /** Il cane da guardia: un turno senza righe per tanto si dà per appeso. */
@@ -379,7 +382,8 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
   const stati = new Map<string, StatoWs>()
   const fila: string[] = []
   const raccoltaMs = d.raccoltaMs ?? RACCOLTA_EVENTI_MS
-  const globali = d.globaliMax ?? CHIAMATE_PC_MAX
+  // 11/11: il tetto dei turni lo decide Nicholas (limiti-pc.ts): si legge a ogni uso, vale subito.
+  const globali = (): number => { const g = typeof d.globaliMax === 'function' ? d.globaliMax() : d.globaliMax; return Math.max(1, g ?? CHIAMATE_PC_MAX) }
   const soglia = d.sogliaRotazione ?? ROTAZIONE_TOKEN
   const inattivoMs = d.inattivoMs ?? INATTIVO_MS
   const mutoMs = d.mutoMs ?? TURNO_MUTO_MS
@@ -406,7 +410,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
   }
   const avanza = (): void => {
     for (const ws of [...fila]) {
-      if (turniPc() >= globali) break
+      if (turniPc() >= globali()) break
       const s = di(ws)
       if (!pronto(s)) { if (!inTurno(s)) fila.splice(fila.indexOf(ws), 1); continue }
       fila.splice(fila.indexOf(ws), 1)

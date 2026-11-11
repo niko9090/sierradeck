@@ -42,6 +42,16 @@ export type TurniCriteri = {
   stato: () => { inCorso: string | undefined; inFila: number; unioni: number }
 }
 
+/**
+ * 11/11: «un comando pesante alla volta» spento da Nicholas (`@shared/limiti-pc`).
+ * I comandi pesanti di chat e specialisti non prendono più il turno: partono
+ * insieme. Le unioni e le misure dei criteri del servizio restano quelle vere,
+ * una alla volta: è quello che tiene pulita la cartella principale.
+ */
+export function turniSenzaFila(veri: TurniCriteri): TurniCriteri {
+  return { ...veri, prenota: () => ({ ok: true }), rilascia: () => {}, prenotato: () => undefined }
+}
+
 /** Quanto si stima un pesante in fila, per dire alla chat «riprova fra N minuti». */
 export const STIMA_PESANTE_MS = 4 * 60_000
 

@@ -631,6 +631,12 @@ contextBridge.exposeInMainWorld('gestore', {
       return () => ipcRenderer.off('quadernoPersonale:cambiato', h)
     }
   },
+  /** Le notifiche (11/11): le stesse impostazioni e le stesse ultime di app e pagina. */
+  avvisi: {
+    stato: (): Promise<import('@shared/avvisi-telefono').VistaAvvisi> => ipcRenderer.invoke('avvisi:stato'),
+    imposta: (x: unknown): Promise<import('@shared/avvisi-telefono').ImpostazioniAvvisi> => ipcRenderer.invoke('avvisi:imposta', x),
+    prova: (): Promise<import('@shared/avvisi-telefono').VistaAvvisi> => ipcRenderer.invoke('avvisi:prova')
+  },
   /** I file dal PC al telefono (0.54.0): «📱 Manda al telefono» e la sua coda. */
   alTelefono: {
     stato: (): Promise<import('@shared/file-telefono').StatoAlTelefono> => ipcRenderer.invoke('alTelefono:stato'),
@@ -883,7 +889,10 @@ contextBridge.exposeInMainWorld('gestore', {
     attesaSpecialisti: (): Promise<import('@shared/attesa-specialisti').VistaAttesa | undefined> => ipcRenderer.invoke('autopilota:attesaSpecialisti'),
     prioritaAttesa: (id: string, mossa: import('@shared/attesa-specialisti').MossaAttesa): Promise<import('@shared/attesa-specialisti').VistaAttesa | undefined> => ipcRenderer.invoke('autopilota:prioritaAttesa', id, mossa),
     togliAttesa: (id: string): Promise<import('@shared/attesa-specialisti').VistaAttesa | undefined> => ipcRenderer.invoke('autopilota:togliAttesa', id),
-    impostaOrchestratore: (ws: string, p: { modello?: 'sonnet' | 'opus'; tettoSpecialisti?: number }): Promise<import('@shared/piano-orchestratore').VistaOrchestratore> => ipcRenderer.invoke('autopilota:impostaOrchestratore', ws, p),
+    impostaOrchestratore: (ws: string, p: { modello?: 'sonnet' | 'opus'; tettoSpecialisti?: number; permessi?: import('@shared/permessi-nicholas').PermessiScelti }): Promise<import('@shared/piano-orchestratore').VistaOrchestratore> => ipcRenderer.invoke('autopilota:impostaOrchestratore', ws, p),
+    /** 11/11: i limiti del PC e i permessi «sempre» dei progetti, per la sezione «Limiti». */
+    limiti: (): Promise<import('@shared/limiti-pc').VistaLimiti | undefined> => ipcRenderer.invoke('autopilota:limiti'),
+    impostaLimiti: (p: Partial<import('@shared/limiti-pc').LimitiPc>): Promise<import('@shared/limiti-pc').VistaLimiti | undefined> => ipcRenderer.invoke('autopilota:impostaLimiti', p),
     rispondi: (idDomanda: string, risposta: string): Promise<void> =>
       ipcRenderer.invoke('autopilota:rispondi', idDomanda, risposta),
     avvioAlLogin: (attivare?: boolean): Promise<{ installato: boolean; percorso: string }> =>

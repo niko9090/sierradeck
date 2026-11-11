@@ -28,3 +28,4 @@ android/.kotlin/
 
 # Gli errori mandati dagli altri PC e dal telefono (0.81.0): restano su questo PC, mai su GitHub.
 .sierradeck/errori-arrivati/
+tests/android/local.properties

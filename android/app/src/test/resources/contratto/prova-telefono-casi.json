@@ -1,0 +1,36 @@
+{
+  "nota": "I casi della prova fra PC e telefono (GET /api/ciao?sfida=&chi=). Li leggono il test vitest (tests/shared/prova-telefono.test.ts) e l'app Android: le due parti devono dare gli stessi valori. Chiavi finte, inventate per la prova. segno = hex minuscolo di SHA-256(chiave in UTF-8); chi = primi 16 hex di SHA-256(\"chi|\" + segno); prova = hex minuscolo di HMAC-SHA256(chiave HMAC = i 32 byte del segno, messaggio = \"ciao|\" + sfida).",
+  "casi": [
+    {
+      "caso": "un telefono accoppiato",
+      "chiave": "1uGGZPOeBp57f7Bf-w2_obnA4bkS9TZ3qNJqAmA_-Tg",
+      "segno": "2c642ef7dcc2a67544f1806e67b2af3e32c09918a3401ad7af874d164f096abb",
+      "chi": "15b67725a06b661c",
+      "sfida": "85b233689003cf685692f745c63dfb56845e036fad9a5531ea32971de4d22031",
+      "prova": "cdab274d0e2d2481916164ddb624221c80e686212af4d7d1d5be4f65e6186ce8"
+    },
+    {
+      "caso": "un secondo telefono, stessa sfida del primo: la prova è diversa",
+      "chiave": "dwDF3UqEgrRA4Q63G-2_Uogs3DhpuZi5AcJaQ-kdqDc",
+      "segno": "70edf116e7c16fb67aaf5aead1d02911754569dabbff60bc68cc52d616d62541",
+      "chi": "f3c0eaff5482596e",
+      "sfida": "85b233689003cf685692f745c63dfb56845e036fad9a5531ea32971de4d22031",
+      "prova": "7a2e9e07eb8ac93f5478d5aac02adc9c38036669c067341547f4a942cefac276"
+    },
+    {
+      "caso": "una chiave con lettere accentate: si conta sui byte UTF-8",
+      "chiave": "chiave-finta-più-è-così",
+      "segno": "42ceee9c2f9574047ee00b9de0f5f9694b49b6a4218c96c034d8e0f74b486c92",
+      "chi": "e819cae31e4c9860",
+      "sfida": "1dfafe77d5867612313f96edec919433641ba6ab582e86cba19e67ef66b76fef",
+      "prova": "53603f7a04b31b160eb6610295eb91cfd14df76c58d9c288ca07c0139414d472"
+    }
+  ],
+  "sfideNonValide": [
+    "",
+    "85b233689003cf68",
+    "85B233689003CF685692F745C63DFB56845E036FAD9A5531EA32971DE4D22031",
+    "85b233689003cf685692f745c63dfb56845e036fad9a5531ea32971de4d2203z",
+    "85b233689003cf685692f745c63dfb56845e036fad9a5531ea32971de4d2203100"
+  ]
+}

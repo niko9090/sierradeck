@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { request } from 'node:https'
 import type { Autopilota } from '@shared/autopilota'
 
@@ -47,6 +48,40 @@ export function leggiConfigurazione(percorsi: string[]): ConfigurazioneTelegram 
   }
   return undefined
 }
+
+/**
+ * Dove cercare la configurazione del bot Telegram.
+ *
+ * Dove cercarla lo dice chi la usa: la variabile d'ambiente, o la cartella dei
+ * dati del programma. Nessun percorso di nessuno scritto qui dentro — un
+ * percorso che vale su una macchina sola non ha niente da fare nel codice.
+ * 11/11: la legge il programma (prima il servizio), con la stessa regola.
+ */
+export function percorsiConfigTelegram(ambiente: Record<string, string | undefined>, cartellaDati: string): string[] {
+  const daAmbiente = ambiente.SIERRADECK_AVVISI_CONFIG ?? ambiente.GESTORE_TELEGRAM_CONFIG
+  return [
+    ...(daAmbiente !== undefined && daAmbiente.trim() !== '' ? [daAmbiente] : []),
+    join(cartellaDati, 'telegram_config.json')
+  ]
+}
+
+/** La riga che dice che Telegram non c'è. */
+export const RIGA_TELEGRAM_ASSENTE = '[autopilota] nessuna configurazione Telegram trovata: avvisi disattivati'
+let telegramAssenteDetto = false
+/**
+ * Dice una volta per processo che Telegram non è configurato (0.86.2, audit
+ * M7). Il registro ne aveva 72: la riga partiva a ogni avvio del servizio,
+ * anche dei doppioni che escono subito perché la porta è già presa. Dall'11/11
+ * la dice il programma, una volta, quando apre gli avvisi.
+ */
+export function diciTelegramAssente(configurazione: unknown, dici: (riga: string) => void = (r) => { console.warn(r) }): boolean {
+  if (configurazione !== undefined || telegramAssenteDetto) return false
+  telegramAssenteDetto = true
+  dici(RIGA_TELEGRAM_ASSENTE)
+  return true
+}
+/** Solo per le prove: torna come all'avvio del processo. */
+export function dimenticaTelegramAssente(): void { telegramAssenteDetto = false }
 
 function tronca(testo: string, quanto: number): string {
   return testo.length > quanto ? `${testo.slice(0, quanto)}…` : testo

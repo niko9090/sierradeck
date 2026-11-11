@@ -1,6 +1,7 @@
 import { isAbsolute, join, resolve } from 'node:path'
 import { dentro, type Giudizio } from './divieti'
 import { soloLetturaInFila } from './sola-lettura'
+import { chiaveComando, comeChiedere, type Concesso } from './permessi-nicholas'
 
 /**
  * **La guardia dell'autopilota unico** (P3, 30/10/2026): il PreToolUse del
@@ -62,10 +63,15 @@ export type ContestoGuardia = {
   dipendenze?: (r: { descrizione: string; tipo: string }) => string | undefined
   /** 11/11: il compito ha già finito e aspetta l'unione: il motivo del rifiuto (un rilancio azzerava il lavoro pronto, k-133). */
   inUnione?: (r: { descrizione: string; tipo: string }) => string | undefined
+  /** 11/11: il sì di Nicholas per un'azione protetta (`permessi-nicholas.ts`): «sempre» nel progetto, o «questa volta» per quel comando. */
+  concesso?: Concesso
+  /** 11/11: quanti secondi di attesa a mano passano in un comando (di serie `ATTESA_A_MANO_MAX_S`): li decide Nicholas. */
+  sleepMaxS?: number
 }
 
-/** k-189: il motivo per i comandi in sottofondo e per le attese a mano. */
-export const MOTIVO_SOTTOFONDO = 'lancia il comando davanti, senza sottofondo e senza attese lunghe a mano (sleep oltre 30 secondi, o dentro un ciclo): se il PC è carico, l’attesa la fa SierraDeck. Aspetta sempre la fine del comando, poi chiudi.'
+/** k-189: il motivo per i comandi in sottofondo e per le attese a mano. 11/11: i secondi li decide Nicholas (`limiti-pc.ts`). */
+export const motivoSottofondo = (maxS: number = ATTESA_A_MANO_MAX_S): string => `lancia il comando davanti, senza sottofondo e senza attese lunghe a mano (sleep oltre ${maxS} secondi, o dentro un ciclo): se il PC è carico, l’attesa la fa SierraDeck. Aspetta sempre la fine del comando, poi chiudi.`
+export const MOTIVO_SOTTOFONDO = motivoSottofondo(30)
 /** `sleep 90`, `Start-Sleep -Seconds 30` all'inizio di un comando o dopo `;`, `&&`, `|`: con quello che segue (la durata). */
 const ATTESA_A_MANO = /(?:^|[;&|(]\s*|\n\s*)(?:sleep|start-sleep)(?=\s|$)([^;&|)\n]*)/giu
 /** 11/11: un'attesa breve passa (`npm run dev & sleep 6; curl …`): in tutto, al più questi secondi per comando. */
@@ -92,7 +98,7 @@ function secondiDiAttesa(argomenti: string): number | undefined {
  * cui non si sa leggere la durata, e quelle dentro un ciclo (quante volte gira
  * non si sa).
  */
-export function attesaAManoLunga(comando: string): boolean {
+export function attesaAManoLunga(comando: string, maxS: number = ATTESA_A_MANO_MAX_S): boolean {
   let totale = 0
   let trovata = false
   for (const m of comando.matchAll(ATTESA_A_MANO)) {
@@ -103,7 +109,7 @@ export function attesaAManoLunga(comando: string): boolean {
   }
   if (!trovata) return false
   // Le parole fra apici non sono un ciclo (`grep "ready for"`).
-  return totale > ATTESA_A_MANO_MAX_S || CICLO.test(comando.replace(/'[^']*'|"(?:[^"\\]|\\.)*"/gu, ' '))
+  return totale > maxS || CICLO.test(comando.replace(/'[^']*'|"(?:[^"\\]|\\.)*"/gu, ' '))
 }
 
 const ordinale =(n: number): string => `${n}°`
@@ -238,13 +244,18 @@ export function giudicaGuardiaOrchestratore(corpo: Record<string, unknown>, c: C
   }
 
   // k-189: niente sottofondo e niente attese a mano (8 casi di specialisti chiusi a metà).
-  // 11/11: un'attesa breve sì (`attesaAManoLunga`).
+  // 11/11: un'attesa breve sì (`attesaAManoLunga`); e con il sì di Nicholas per quel comando anche il resto.
   if ((STRUMENTI_SHELL as readonly string[]).includes(nome)) {
     const comando = s(input.command) ?? ''
-    if (input.run_in_background === true || attesaAManoLunga(comando)) return { ok: false, motivo: MOTIVO_SOTTOFONDO }
-    // 11/11: mai riscrivere o cancellare quello che è già pubblicato, in nessuna cartella.
+    const azione = chiaveComando(comando)
+    if ((input.run_in_background === true || attesaAManoLunga(comando, c.sleepMaxS)) && c.concesso?.('sottofondo', azione) !== true) {
+      return { ok: false, permesso: { classe: 'sottofondo', azione }, motivo: `${motivoSottofondo(c.sleepMaxS)}${comeChiedere('sottofondo')}` }
+    }
+    // 11/11: riscrivere o cancellare quello che è già pubblicato, in nessuna cartella, senza il sì di Nicholas.
     const riscrive = gitCheRiscriveIlPubblicato(comando)
-    if (riscrive !== undefined) return { ok: false, motivo: `${riscrive}: non si fa senza il sì di Nicholas. Pubblica con un push normale e con tag nuovi; se un tag pubblicato è sbagliato, dillo all’autopilota e fermati lì.` }
+    if (riscrive !== undefined && c.concesso?.('push-forzato', azione) !== true) {
+      return { ok: false, permesso: { classe: 'push-forzato', azione }, motivo: `${riscrive}: non si fa senza il sì di Nicholas. Pubblica con un push normale e con tag nuovi; se un tag pubblicato è sbagliato, dillo all’autopilota e fermati lì.${comeChiedere('push-forzato')}` }
+    }
   }
 
   // Senza git non c'è una copia: lo specialista lavora proprio nella cartella principale.

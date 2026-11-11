@@ -4,6 +4,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.EventoDettatura
+import it.ferrariconsulenze.sierradeck.nucleo.RegolaDettatura
+import it.ferrariconsulenze.sierradeck.nucleo.StatoDettatura
 
 /**
  * App 2.75.0: il microfono. Nicholas: «voglio poterti parlare direttamente

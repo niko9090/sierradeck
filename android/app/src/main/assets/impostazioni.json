@@ -16,6 +16,11 @@
       "spiega": "Il PIN, il quaderno personale, cosa fanno le chat quando cambi workspace e dove si apre la scheda di un autopilota. «Riparti al login» degli autopiloti sta in Autopiloti, nel menu «Strumenti ▾»: vale per tutti insieme."
     },
     {
+      "id": "limiti",
+      "titolo": "Limiti",
+      "spiega": "I limiti di autopiloti e specialisti li decidi tu: quanti lavorano insieme, quanto si aspetta, quanto dura un’unione, e i permessi che hai tolto con «Sì, sempre». Di serie restano com’erano. Una cosa sola non si sblocca mai: cancellare le cartelle che reggono il PC."
+    },
+    {
       "id": "drive",
       "titolo": "Drive e salvataggi",
       "spiega": "L’account Google del Drive e come tornare a una disposizione delle finestre di prima. Il contenuto del Drive e «Salva ora» stanno in Progetti."
@@ -330,6 +335,42 @@
       ]
     },
     {
+      "id": "avvisi",
+      "sezione": "notifiche",
+      "titolo": "Cosa ti avvisa e come",
+      "spiega": "Per Domande, Lavoro fermo, Fatto e Da sapere scegli se la notifica suona, arriva muta o non arriva; vale per telefono, pagina e Telegram di questo computer. Qui anche la chat ferma da tre minuti, le ore di silenzio e «Prova notifica».",
+      "parole": [
+        "avvisi",
+        "suono",
+        "silenzio",
+        "prova",
+        "telegram",
+        "chat ferma",
+        "muta"
+      ],
+      "dove": [
+        "pc",
+        "app",
+        "pagina"
+      ]
+    },
+    {
+      "id": "avvisi-ultimi",
+      "sezione": "notifiche",
+      "titolo": "Ultime notifiche",
+      "spiega": "Le ultime venti notifiche partite da questo computer, con l’ora e com’è finita ognuna: risposta data, scelta del programma, non serve più o scaduta. Serve a capire se un avviso è partito.",
+      "parole": [
+        "storico",
+        "elenco",
+        "arrivate"
+      ],
+      "dove": [
+        "pc",
+        "app",
+        "pagina"
+      ]
+    },
+    {
       "id": "fumetti-sincronia",
       "sezione": "notifiche",
       "titolo": "Avvisi del salvataggio automatico",
@@ -441,6 +482,42 @@
       ]
     },
     {
+      "id": "limiti-pc",
+      "sezione": "limiti",
+      "titolo": "Tetti e interruttori",
+      "spiega": "Quanti specialisti e autopiloti lavorano insieme, quante domande all’ora, quanto si aspetta un PC carico, quanto dura al più una prova o un’unione, quanti secondi di sleep passano; e la guardia del PC e «un comando pesante alla volta». Valgono subito, senza riavvii.",
+      "parole": [
+        "limite",
+        "tetto",
+        "massimo",
+        "specialisti",
+        "sleep",
+        "guardia",
+        "unione",
+        "domande"
+      ],
+      "dove": [
+        "pc"
+      ]
+    },
+    {
+      "id": "permessi-nicholas",
+      "sezione": "limiti",
+      "titolo": "Permessi tolti",
+      "spiega": "Le azioni protette (push forzato, posti protetti, sottofondo, cancellare fuori dalle cartelle…) che in un progetto non si chiedono più perché hai risposto «Sì, sempre». Da qui tornano a chiedere.",
+      "parole": [
+        "permesso",
+        "divieto",
+        "sempre",
+        "push",
+        "cancellare",
+        "consenso"
+      ],
+      "dove": [
+        "pc"
+      ]
+    },
+    {
       "id": "registro",
       "sezione": "info",
       "titolo": "Registro",
@@ -525,11 +602,15 @@
         "posto-autopilota",
         "account-google",
         "torna-indietro",
+        "avvisi",
+        "avvisi-ultimi",
         "fumetti-sincronia",
         "avviso-windows-aggiornamento",
         "colore",
         "stile",
         "scorciatoie",
+        "limiti-pc",
+        "permessi-nicholas",
         "registro",
         "errori",
         "copia-dettagli"
@@ -547,6 +628,8 @@
         "cambia-computer",
         "quaderno-personale",
         "account-google",
+        "avvisi",
+        "avvisi-ultimi",
         "colore",
         "stile",
         "controllo-continuo",
@@ -564,6 +647,8 @@
         "ultimo-tentativo",
         "quaderno-personale",
         "account-google",
+        "avvisi",
+        "avvisi-ultimi",
         "notifiche-pagina",
         "errori",
         "copia-dettagli",
@@ -762,6 +847,8 @@
       "q": "notifiche",
       "dove": "pc",
       "trovate": [
+        "avvisi",
+        "avvisi-ultimi",
         "fumetti-sincronia",
         "avviso-windows-aggiornamento"
       ]
@@ -770,6 +857,8 @@
       "q": "notifiche",
       "dove": "app",
       "trovate": [
+        "avvisi",
+        "avvisi-ultimi",
         "controllo-continuo",
         "notifiche-android"
       ]
@@ -778,6 +867,8 @@
       "q": "notifiche",
       "dove": "pagina",
       "trovate": [
+        "avvisi",
+        "avvisi-ultimi",
         "notifiche-pagina"
       ]
     }

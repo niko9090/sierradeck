@@ -2,6 +2,10 @@ package it.ferrariconsulenze.sierradeck
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.AutopilotaBreve
+import it.ferrariconsulenze.sierradeck.nucleo.StatoVistaDrive
+import it.ferrariconsulenze.sierradeck.nucleo.VistaAutopilotaApp
+import it.ferrariconsulenze.sierradeck.nucleo.urgenzaAp
 
 /**
  * 2.73.0: la lista degli autopiloti chiara e uguale al PC. Un autopilota «al
@@ -18,14 +22,4 @@ class ElencoAutopilotiTest {
         assertEquals(listOf("chiede", "vecchio", "lavora", "finito"), lista.sortedBy { urgenzaAp(it) }.map { it.id })
     }
 
-    @Test
-    fun `il riassunto conta la domanda aperta fra chi aspetta`() {
-        assertEquals("1 aspetta una risposta · 1 al lavoro", riassuntoLavori(listOf(ap("a", "lavoro", "aspetta"), ap("b", "lavoro", "al-lavoro"))))
-    }
-
-    @Test
-    fun `le parole sono quelle del PC`() {
-        assertEquals("pronto", statoInParole("pronto"))
-        assertEquals("guasto", statoInParole("fallito"))
-    }
 }

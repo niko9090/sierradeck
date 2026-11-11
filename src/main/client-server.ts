@@ -8,6 +8,9 @@ import { createHash, timingSafeEqual } from 'node:crypto'
 import { gzip as comprimi, gzipSync } from 'node:zlib'
 import { creaControlloFirme, INTESTAZIONE_FIRMA, provaCasa, visoreDaFirma } from './casa-firma'
 import type { Dispositivi } from './dispositivi'
+import { conProva, rigaAccoppiamentoRespinto, rigaProvaMancata } from './client-prova'
+import { creaMemoriaRichieste, idRichiestaDa, type MemoriaRichieste } from './client-richieste'
+import { annotaRotta, conAtteseLunghe, iniziaMisura, misuraRisposta } from './client-misure'
 
 /**
  * Il server che serve il Client sulla rete di casa.
@@ -32,7 +35,7 @@ export const PORTA_CLIENT = 47640
 export type Esito = { stato: number; corpo: unknown; tipo?: string }
 export type Rotta = (
   /** `cerca`: i parametri dell'indirizzo (0.86.0), per esempio `?leggero=1`. */
-  richiesta: { metodo: string; percorso: string; corpo: unknown; dispositivo?: string; cerca?: URLSearchParams }
+  richiesta: { metodo: string; percorso: string; corpo: unknown; dispositivo?: string; cerca?: URLSearchParams; /** `x-sierradeck-richiesta`, per il ponte che la inoltra. */ richiesta?: string }
 ) => Promise<Esito> | Esito
 
 /**
@@ -175,12 +178,15 @@ export function creaServerClient(deps: DipendenzeClient): Server {
     try { deps.log?.(`[client] ${messaggio}`) } catch { /* il registro non ferma il server */ }
   }
   const controlloFirme = creaControlloFirme()
-  return createServer((req, res) => {
-    void gestisci(req, res, deps, racconta, controlloFirme).catch((err: unknown) => {
+  const memoria = creaMemoriaRichieste()
+  // Connessioni tenute aperte 75 s (`conAtteseLunghe`): di serie Node le chiudeva dopo 5.
+  return conAtteseLunghe(createServer((req, res) => {
+    iniziaMisura(req, racconta)
+    void gestisci(req, res, deps, racconta, controlloFirme, memoria).catch((err: unknown) => {
       console.error('[client] richiesta non gestita:', err)
       if (!res.headersSent) rispondi(res, { stato: 500, corpo: { errore: 'guasto interno' } })
     })
-  })
+  }))
 }
 
 /** Sotto questa misura comprimere costa più di quanto risparmia. */
@@ -206,8 +212,11 @@ function testoPronto(corpo: string): { gz: Buffer; etag: string } {
  * l'ETag: alla riapertura il browser riceve 304 e niente corpo.
  */
 function rispondi(res: ServerResponse, esito: Esito, req?: IncomingMessage, conEtag = false): void {
-  const tipo = esito.tipo ?? 'application/json; charset=utf-8'
-  const corpo = tipo.startsWith('application/json') ? JSON.stringify(esito.corpo) : String(esito.corpo)
+  let tipo = esito.tipo ?? 'application/json; charset=utf-8'
+  let corpo = tipo.startsWith('application/json') ? JSON.stringify(esito.corpo) : String(esito.corpo)
+  // Peso e tempo (`client-misure.ts`): una riga se lenta o pesante, 413 oltre 8 MB.
+  const troppo = misuraRisposta(req, corpo, esito.stato)
+  if (troppo !== undefined) { esito = troppo; tipo = 'application/json; charset=utf-8'; corpo = JSON.stringify(troppo.corpo) }
   const intestazioni: Record<string, string> = {
     'Content-Type': tipo,
     // Nessuna origine esterna può interrogare questo server dal browser: senza,
@@ -262,7 +271,8 @@ function rispondi(res: ServerResponse, esito: Esito, req?: IncomingMessage, conE
 async function gestisci(
   req: IncomingMessage, res: ServerResponse, deps: DipendenzeClient,
   racconta: (chiave: string, messaggio: string) => void = () => {},
-  controlloFirme: ReturnType<typeof creaControlloFirme> = creaControlloFirme()
+  controlloFirme: ReturnType<typeof creaControlloFirme> = creaControlloFirme(),
+  memoria: MemoriaRichieste = creaMemoriaRichieste()
 ): Promise<void> {
   const indirizzo = req.socket.remoteAddress ?? ''
   // Primo muro, prima di leggere qualunque cosa: una richiesta da fuori non
@@ -278,6 +288,7 @@ async function gestisci(
   const cerca = new URL(req.url ?? '/', 'http://x').searchParams
   const metodo = req.method ?? 'GET'
   const corpo = metodo === 'GET' ? undefined : await leggiCorpoJson(req)
+  annotaRotta(req, percorso, corpo)
 
   // Il polso delle chat: nasce da un comando lanciato da Claude Code su questa
   // macchina, quindi vale solo dal loopback e non ha una chiave. Da fuori e'
@@ -345,7 +356,11 @@ async function gestisci(
   }
 
   if (autorizzata(percorso)) {
-    rispondi(res, await (deps.rottaLibera ?? deps.rotta)({ metodo, percorso, corpo, cerca }), req)
+    const libera = await (deps.rottaLibera ?? deps.rotta)({ metodo, percorso, corpo, cerca })
+    // m-collegamento: un accoppiamento respinto si racconta, senza il codice.
+    if (percorso === '/api/accoppia' && libera.stato === 403) racconta(`accoppia:${indirizzo}`, rigaAccoppiamentoRespinto(indirizzo))
+    // La prova per il telefono, solo su `/api/ciao` (vedi `client-prova.ts`).
+    rispondi(res, percorso === '/api/ciao' ? conProva(libera, cerca, deps.dispositivi, (perche) => racconta(`prova:${indirizzo}`, rigaProvaMancata(indirizzo, perche))) : libera, req)
     return
   }
 
@@ -383,7 +398,15 @@ async function gestisci(
   }
   racconta(`ok:${indirizzo}`, `${dispositivo.nome ?? dispositivo.id} (${indirizzo}) collegato`)
 
-  rispondi(res, await deps.rotta({ metodo, percorso, corpo, dispositivo: dispositivo.id, cerca }), req, ROTTE_CON_ETAG.has(percorso))
+  // Scritture senza doppioni (`client-richieste.ts`): lo stesso id, la stessa risposta, l'azione una volta sola.
+  const idRichiesta = metodo === 'POST' ? idRichiestaDa(req.headers) : undefined
+  const chi = dispositivo.id
+  const fai = (): Promise<Esito> | Esito => deps.rotta({ metodo, percorso, corpo, dispositivo: chi, cerca, ...(idRichiesta !== undefined ? { richiesta: idRichiesta } : {}) })
+  const esito = idRichiesta === undefined ? await fai() : await memoria.unaVolta(percorso, idRichiesta, fai, {
+    ripetuta: () => racconta(`ripetuta:${indirizzo}`, `${indirizzo}: ${percorso} chiesta di nuovo con lo stesso id (la rete è caduta a metà?): ridata la risposta di prima, l'azione non è stata rifatta`)
+  })
+  // `/api/storia` (m-collegamento) ha l'ETag anche lei: la chat aperta che non cambia è un 304.
+  rispondi(res, esito, req, ROTTE_CON_ETAG.has(percorso) || percorso === '/api/storia')
 }
 
 /**

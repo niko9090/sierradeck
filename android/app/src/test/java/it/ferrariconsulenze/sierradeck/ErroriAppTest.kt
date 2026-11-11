@@ -4,6 +4,10 @@ import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.ZoneId
+import it.ferrariconsulenze.sierradeck.sottofondo.ErroreDaMandare
+import it.ferrariconsulenze.sierradeck.sottofondo.ErroriApp
+import it.ferrariconsulenze.sierradeck.sottofondo.StoricoErroriPc
+import it.ferrariconsulenze.sierradeck.sottofondo.VoceErroreApp
 
 /** Lo storico degli errori nell'app (app 2.81.0): la coda verso il PC e la voce «Errori». */
 class ErroriAppTest {

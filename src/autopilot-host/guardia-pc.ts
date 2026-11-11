@@ -236,6 +236,21 @@ export type GuardiaPc = {
   avvia?: () => () => void
 }
 
+/**
+ * 11/11: la guardia con il suo interruttore (`@shared/limiti-pc`, lo decide
+ * Nicholas). Spenta, nessuno aspetta il PC e nessuno lo trova «carico»; continua
+ * a misurare, così riaccesa vale subito.
+ */
+export function guardiaSpegnibile(g: GuardiaPc, accesa: () => boolean): GuardiaPc {
+  return {
+    ...g,
+    valuta: () => { const v = g.valuta(); return accesa() ? v : undefined },
+    stato: () => (accesa() ? g.stato() : undefined),
+    attendi: (cosa) => (accesa() ? g.attendi(cosa) : Promise.resolve()),
+    ...(g.passoLibero !== undefined ? { passoLibero: (prendi?: boolean) => (accesa() ? g.passoLibero!(prendi) : true) } : {})
+  }
+}
+
 export type OpzioniGuardia = {
   misura: () => MisuraPc
   cerca?: CercaProgramma

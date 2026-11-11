@@ -4,6 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.Specialisti
+import it.ferrariconsulenze.sierradeck.rete.Api
 
 /**
  * PC 0.74.0: gli specialisti che hanno finito chiudono la loro chat da soli.

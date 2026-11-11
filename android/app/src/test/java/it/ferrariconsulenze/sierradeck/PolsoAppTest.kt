@@ -3,6 +3,7 @@ package it.ferrariconsulenze.sierradeck
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.dati.PolsoApp
 
 /**
  * «I PC girano lenti» (12/10): con l'app dietro lo stato si chiedeva ogni 15

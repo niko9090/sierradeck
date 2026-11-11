@@ -11,9 +11,16 @@
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
     <!-- Il diritto di restare in ascolto con l'app chiusa: è ciò per cui
-         questa app esiste invece della sola pagina web. -->
+         questa app esiste invece della sola pagina web. Tipo connectedDevice
+         (app 2.100.0): il computer è un dispositivo raggiunto in rete; niente
+         tetto di 6 ore al giorno come dataSync, e parte anche all'accensione.
+         Il suo requisito è uno dei permessi di rete: CHANGE_WIFI_MULTICAST_STATE, qui sotto. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <!-- Per chiedere direttamente «niente risparmio batteria» (schermata Notifiche):
+         senza, a telefono fermo Android sospende la rete e l'ascolto tace. L'app non
+         sta sul Play Store e non può usare FCM (il computer è in casa, non nel cloud). -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Nessun permesso per la fotocamera: a inquadrare il QR e' la schermata
          di Google Play Services, che la fotocamera la usa per conto suo. Un
@@ -37,6 +44,7 @@
         <package android:name="com.tailscale.ipn" />
     </queries>
     <application
+        android:name=".SierraDeckApp"
         android:label="SierraDeck"
         android:icon="@mipmap/ic_launcher"
         android:theme="@style/Theme.SierraDeck"
@@ -80,9 +88,10 @@
                 android:resource="@xml/cartelle_condivise" />
         </provider>
 
+        <!-- L'ascolto del computer (app 2.100.0): una richiesta lunga sempre aperta. -->
         <service
-            android:name=".GuardiaService"
-            android:foregroundServiceType="dataSync"
+            android:name=".sottofondo.AscoltoService"
+            android:foregroundServiceType="connectedDevice"
             android:exported="false" />
 
         <!--
@@ -96,24 +105,17 @@
             android:name=".RispostaVeloce"
             android:exported="false" />
 
-        <!--
-          La sveglia periodica: e cio che ha permesso di togliere la riga fissa
-          dalle notifiche. Non esportata, la fa scattare solo il sistema.
-        -->
-        <receiver android:name=".Sentinella" android:exported="false" />
         <!-- «Salva» nella notifica di un file arrivato dal computer (app 2.54.0):
              lo chiama solo il sistema per conto nostro. -->
         <receiver android:name=".SalvaRicevuto" android:exported="false" />
         <!--
-          Le sveglie non sopravvivono a due cose: lo spegnimento del telefono e
+          L'ascolto non sopravvive a due cose: lo spegnimento del telefono e
           l'aggiornamento dell'app. Il secondo se lo fa da se' - l'app si
-          aggiorna da dentro - e Android in quel momento cancella tutte le sue
-          sveglie SENZA mandare BOOT_COMPLETED. Con il solo riavvio, dopo ogni
-          aggiornamento la guardia smetteva di svegliarsi e nessuno lo diceva:
-          tornava solo riaprendo l'app a mano.
+          aggiorna da dentro - e Android in quel momento ferma tutto SENZA
+          mandare BOOT_COMPLETED: servono tutti e due.
         -->
         <receiver
-            android:name=".SentinellaAlRiavvio"
+            android:name=".sottofondo.AscoltoAlRiavvio"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

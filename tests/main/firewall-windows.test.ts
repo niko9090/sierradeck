@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { NOME_REGOLA_FIREWALL, argomentiElevazione, comandoElevato, sbloccaConElevazione, comandoSblocco, daUscita, valutaFirewall } from '../../src/main/firewall-windows'
+import { NOME_REGOLA_FIREWALL, argomentiElevazione, argomentiLettura, comandoElevato, sbloccaConElevazione, comandoSblocco, daUscita, valutaFirewall } from '../../src/main/firewall-windows'
 import { indirizziPerApp } from '../../src/main/rete-telefono'
 import { indirizziDaAnnunciare } from '../../src/main/client-server'
 
@@ -50,6 +50,85 @@ describe('firewall di Windows davanti alla porta', () => {
     const j = JSON.stringify({ profili: { scheda: 'Wi-Fi', categoria: 'Public' }, regole: [{ profili: 2, programma: EXE, porte: 'Any' }] })
     expect(daUscita(j, EXE, PORTA).stato).toBe('bloccato')
     expect(daUscita('non e json', EXE, PORTA).stato).toBe('sconosciuto')
+  })
+})
+
+describe('lettura veloce, regole di blocco e stato dei profili (m-collegamento)', () => {
+  const pubblica = [{ scheda: 'Wi-Fi', categoria: 'Public' }]
+  const tuttiProfili = 0x7fffffff
+  const acceso = (profilo: number, extra: Partial<{ bloccaTutto: boolean; predefinita: number; acceso: boolean }> = {}) => ({ profilo, acceso: true, bloccaTutto: false, predefinita: 0, ...extra })
+  const stati = [acceso(1), acceso(2), acceso(4)]
+
+  it('una regola che blocca il programma vince sul permesso, e il rimedio la spegne', () => {
+    const regole = [{ profili: tuttiProfili, programma: EXE.toLowerCase(), porte: '*', remoti: '*', azione: 1 }, { nome: 'sierradeck.exe', profili: 4, programma: EXE.toLowerCase(), porte: '*', remoti: '*', azione: 0 }]
+    const r = valutaFirewall(pubblica, regole, EXE, PORTA, stati)
+    expect(r.stato).toBe('bloccato')
+    if (r.stato !== 'bloccato') return
+    expect(r.motivo).toBe('regola-di-blocco')
+    expect(r.regola).toBe('sierradeck.exe')
+    expect(r.messaggio).toContain('«sierradeck.exe»')
+    expect(r.comando).toBe(comandoElevato(EXE))
+    // Sul profilo Privato quella regola non c'è: passa.
+    expect(valutaFirewall([{ scheda: 'Wi-Fi', categoria: 'Private' }], regole, EXE, PORTA, stati).stato).toBe('ok')
+  })
+
+  it('il blocco per un altro programma o per altri indirizzi non conta', () => {
+    const permesso = { profili: 4, programma: EXE, azione: 1 }
+    expect(valutaFirewall(pubblica, [permesso, { profili: 4, programma: 'C:\\altro.exe', azione: 0 }], EXE, PORTA, stati).stato).toBe('ok')
+    expect(valutaFirewall(pubblica, [permesso, { profili: 4, programma: EXE, remoti: '10.9.8.7/255.255.255.255', azione: 0 }], EXE, PORTA, stati).stato).toBe('ok')
+  })
+
+  it('«blocca tutto» non lo scavalca nessuno; il comando proposto non si esegue da solo', () => {
+    const r = valutaFirewall(pubblica, [{ nome: NOME_REGOLA_FIREWALL, profili: 0, azione: 1 }], EXE, PORTA, [acceso(4, { bloccaTutto: true })])
+    expect(r.stato).toBe('bloccato')
+    if (r.stato !== 'bloccato') return
+    expect(r.motivo).toBe('blocca-tutto')
+    expect(r.comando).toBe('Set-NetFirewallProfile -Profile Public -AllowInboundRules True')
+  })
+
+  it('firewall spento o azione predefinita «lascia passare»: passa anche senza regola', () => {
+    expect(valutaFirewall(pubblica, [], EXE, PORTA, [acceso(4, { acceso: false })]).stato).toBe('ok')
+    expect(valutaFirewall(pubblica, [], EXE, PORTA, [acceso(4, { predefinita: 1 })]).stato).toBe('ok')
+    expect(valutaFirewall(pubblica, [], EXE, PORTA, stati).stato).toBe('bloccato')
+  })
+
+  it('la regola del programma vale solo per le sue porte; quella per porta con «*» vale per tutte', () => {
+    expect(valutaFirewall(pubblica, [{ profili: 4, programma: EXE, porte: '8080', azione: 1 }], EXE, PORTA, stati).stato).toBe('bloccato')
+    expect(valutaFirewall(pubblica, [{ profili: 4, programma: '', porte: '*', remoti: 'LocalSubnet', azione: 1 }], EXE, PORTA, stati).stato).toBe('ok')
+    expect(valutaFirewall(pubblica, [{ profili: 4, programma: '', porte: '', azione: 1 }], EXE, PORTA, stati).stato).toBe('bloccato')
+  })
+
+  it('legge il JSON nuovo (stato dei profili, azione, indirizzi) e quello di prima', () => {
+    const j = JSON.stringify({
+      profili: pubblica,
+      stato: [acceso(1), acceso(2), acceso(4)],
+      regole: [{ nome: 'x', profili: tuttiProfili, programma: EXE.toLowerCase(), porte: '*', remoti: '*', azione: 1 }, { nome: 'blocco', profili: 4, programma: EXE.toLowerCase(), porte: '*', remoti: '*', azione: 0 }]
+    })
+    const r = daUscita(j, EXE, PORTA)
+    expect(r.stato === 'bloccato' && r.motivo).toBe('regola-di-blocco')
+    // Senza «azione» una regola lascia passare, come nelle letture di prima.
+    expect(daUscita(JSON.stringify({ profili: pubblica, regole: [{ profili: 4, programma: EXE }] }), EXE, PORTA).stato).toBe('ok')
+  })
+
+  it('il testo per PowerShell va codificato, porta il nome fisso e prende il programma dall ambiente', () => {
+    const args = argomentiLettura()
+    expect(args.slice(0, 3)).toEqual(['-NoProfile', '-NonInteractive', '-EncodedCommand'])
+    const testo = Buffer.from(args[3] ?? '', 'base64').toString('utf16le')
+    expect(testo).toContain('HNetCfg.FwPolicy2')
+    expect(testo).toContain(`'${NOME_REGOLA_FIREWALL}'`)
+    expect(testo).toContain('$env:SD_PROGRAMMA')
+    expect(testo).toContain('BlockAllInboundTraffic')
+    // Solo lettura: niente che cambi una regola.
+    expect(testo).not.toMatch(/Enabled\s*=|New-NetFirewallRule|Remove-NetFirewallRule|Set-NetFirewall|Disable-NetFirewall/)
+  })
+
+  it('il comando elevato spegne soltanto i blocchi in ingresso di questo programma, poi crea la regola', () => {
+    const c = comandoElevato("C:\\Programmi\\L'App\\SierraDeck.exe")
+    expect(c).toContain("-eq 'c:\\programmi\\l''app\\sierradeck.exe'")
+    expect(c).toContain('$x.Direction -eq 1 -and $x.Action -eq 0')
+    expect(c).toContain('$x.Enabled = $false')
+    expect(c).not.toMatch(/\.Delete|Remove-NetFirewallRule -Program|Rules\.Remove/)
+    expect(c.indexOf('$x.Enabled = $false')).toBeLessThan(c.indexOf('New-NetFirewallRule'))
   })
 })
 

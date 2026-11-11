@@ -62,6 +62,8 @@ export type VoceDomanda =
       /** Le cinque parti (0.41.0): la scheda (0.72.1) mostra la frase e mette il resto nel «?». */
       parti?: PartiDomanda
       avvertenza?: string
+      /** 11/11: rischiosa o «mai da sola» (dal contesto del servizio): la scheda dice se e quando sceglie il programma. */
+      rischio?: { rischiosa?: boolean; maiDaSola?: boolean }
     }
   | {
       tipo: 'scelta'
@@ -321,7 +323,7 @@ export type AutopilotaPerDomande = { id: string; nome: string; obiettivo: string
  * conferma di un file che una chat vuole mandare al telefono — dice da sola
  * chi chiede e di cosa si tratta.
  */
-export type DomandaPerDomande = { id: string; autopilotaId: string; testo: string; apertaIl?: number; scadeIl?: number; opzioni?: string[]; da?: string; sotto?: string; parti?: PartiDomanda; avvertenza?: string }
+export type DomandaPerDomande = { id: string; autopilotaId: string; testo: string; apertaIl?: number; scadeIl?: number; opzioni?: string[]; da?: string; sotto?: string; parti?: PartiDomanda; avvertenza?: string; contesto?: { rischiosa?: boolean; maiDaSola?: boolean } }
 
 /** Le chat degli altri PC, dal loro battito sul Drive: solo quelle che aspettano contano. */
 export type AltroPcPerDomande = {
@@ -374,7 +376,9 @@ export function raccogliDomande(p: {
       ...(d.opzioni !== undefined && d.opzioni.length > 0 ? { opzioni: d.opzioni } : {}),
       ...(a === undefined && d.sotto !== undefined ? { sotto: d.sotto } : {}),
       ...(d.parti !== undefined && typeof d.parti === 'object' ? { parti: d.parti } : {}),
-      ...(typeof d.avvertenza === 'string' && d.avvertenza !== '' ? { avvertenza: d.avvertenza } : {})
+      ...(typeof d.avvertenza === 'string' && d.avvertenza !== '' ? { avvertenza: d.avvertenza } : {}),
+      // 11/11: solo i due segni del rischio, non il resto del contesto (che è del servizio).
+      ...(d.contesto?.rischiosa !== undefined || d.contesto?.maiDaSola === true ? { rischio: { ...(d.contesto.rischiosa !== undefined ? { rischiosa: d.contesto.rischiosa } : {}), ...(d.contesto.maiDaSola === true ? { maiDaSola: true } : {}) } } : {})
     })
   }
   const ferme: VoceDomanda[] = []
@@ -491,7 +495,7 @@ export function vociPerLeApp(voci: VoceDomanda[]): unknown[] {
   return voci.filter((v) => v.tipo !== 'risolta').map((v) => {
     if (v.tipo !== 'autopilota') return v
     // Le parti (0.72.1) servono alla scheda delle conversazioni, non alle app vecchie.
-    const { parti: _p, avvertenza: _a, ...resto } = v
+    const { parti: _p, avvertenza: _a, rischio: _r, ...resto } = v
     if (resto.opzioni === undefined) return resto
     return { ...resto, opzioni: resto.opzioni.map((testo, i) => ({ numero: i + 1, testo, scelta: false })) }
   })

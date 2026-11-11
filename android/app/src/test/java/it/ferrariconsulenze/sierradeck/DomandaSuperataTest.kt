@@ -3,6 +3,8 @@ package it.ferrariconsulenze.sierradeck
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.SchedaDomanda
+import it.ferrariconsulenze.sierradeck.rete.Api
 
 /**
  * Una domanda chiusa perché non serve più (PC 0.84.1): nessuno ha risposto.

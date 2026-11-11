@@ -7,6 +7,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
 import java.io.File
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.schermate.radice.Scheda
 
 /**
  * Il menu principale (app 2.61.0, PC 0.61.0): le sette voci del PC e della

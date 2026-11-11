@@ -35,9 +35,11 @@ import { azioniMenuWorkspace, gruppiMenuWorkspace } from '@shared/menu-workspace
 import { FRASE_SVUOTA, motivoNonChiude, TESTI_AZIONI_CHAT } from '@shared/gestione-chat'
 import { confermaArchiviaChat, confermaChiediSvuota, confermaChiudiChat, confermaEliminaChat, ORDINI_SPAZIO, SPIEGA_ELIMINA_DRIVE, SPIEGA_SVUOTA_DRIVE } from '@shared/gestione-chat-vista'
 import { testoEsito } from '@shared/quaderno-personale'
+import { MODI_AVVISO, NOMI_MODI, NOMI_TIPI, TIPI_AVVISO } from '@shared/avvisi-telefono'
 import { FRASE_GROSSO_FUORI, drivePienoDa, eseguiPasso, grossoFuoriDaSierraDeck, passiDa, percentualeDrive, ripartizioneDrive, righeDa, riepilogoFinale } from '@shared/libera-spazio'
 import { RECUPERO_DRIVE_PIENO_DEFAULT } from '@shared/spazio-drive'
 import { ATTIVITA, ATTIVITA_ORDINE, COLORI, TITOLO_LEGENDA } from '@shared/colori-attivita'
+import { rigaDecisa, rigaSeNonRispondi } from '@shared/scadenza-domanda'
 
 /** I segni delle quattro voci nella fascia (0.83.0): si leggono anche in piccolo, mai emoji. */
 const ICONE_TELEFONO: Record<IdTelefono, string> = { adesso: '◉', chat: '▭', progetti: '▦', altro: '☰' }
@@ -743,6 +745,9 @@ var CONFERME = ${JSON.stringify({
 // Il recupero dei workspace (0.81.0): il «?» e la riga sotto il nome, come sul PC e nell'app.
 var AIUTO_ELIMINA_WS = ${JSON.stringify(AIUTO_ELIMINA_WORKSPACE)}
 ${rigaEliminato.toString()}
+// 11/11: sotto una domanda, se e quando sceglie il programma, e come è finita (src/shared/scadenza-domanda.ts).
+${rigaSeNonRispondi.toString()}
+${rigaDecisa.toString()}
 // Il menu dei workspace (0.82.0): i gruppi e le azioni dietro «⋯», gli stessi del PC (src/shared/menu-workspace.ts).
 ${gruppiMenuWorkspace.toString()}
 ${azioniMenuWorkspace.toString()}
@@ -1048,6 +1053,22 @@ async function chiediAp(percorso, corpo, conEtag) {
  */
 /** I colori degli stati in una parola (0.70.0), come sul PC. */
 const COLORE_VISTA = { verde: 'var(--verde,#3c9)', ambra: 'var(--ambra,#e0a33c)', rosso: 'var(--rosso,#dc5f5f)', blu: 'var(--blu,#4aa3ff)', quieto: 'var(--testo-quieto,#9aa1a9)' }
+/** 11/11: il colore della frase di adesso, dal suo tono (lo stesso della riga sotto la percentuale sul PC). */
+const COLORE_TONO = { lavora: 'var(--verde,#3c9)', aspetta: 'var(--ambra,#e0a33c)', fermo: 'var(--rosso,#dc5f5f)', riposo: 'var(--testo-quieto,#9aa1a9)' }
+/** 11/11: cosa succede adesso, in una frase scritta dal PC; da un PC di prima lo stato in una parola. */
+function fraseApHtml(a) {
+  if (a.adesso && a.adesso.testo) return '<b style="color:' + (COLORE_TONO[a.adesso.tono] || COLORE_TONO.riposo) + '">' + esc(a.adesso.testo) + '</b>'
+  return a.vista ? '<b style="color:' + COLORE_VISTA[a.vista.stato.colore] + '">' + esc(a.vista.stato.parola) + '</b>' : ''
+}
+/** 11/11: la riga sotto il nome: la frase, la percentuale vera (al posto di «criteri —») e quanto manca. */
+function sottoApHtml(a, coda) {
+  const av = a.avanzamento || {}
+  const pezzi = [fraseApHtml(a)]
+  if (typeof av.percento === 'number') pezzi.push(av.percento + '%')
+  if (typeof av.mancaMin === 'number') pezzi.push('mancano ~' + (av.mancaMin >= 90 ? Math.round(av.mancaMin / 60) + ' ore' : av.mancaMin + ' min'))
+  else if (a.vista && a.vista.da) pezzi.push('da ' + esc(a.vista.da))
+  return '<span class="voce__sotto">' + pezzi.filter(Boolean).join(' · ') + (coda || '') + '</span>' + (a.vista && a.vista.ultima ? '<span class="voce__sotto">' + esc(a.vista.ultima) + '</span>' : '')
+}
 /**
  * Il riquadro «Adesso» (0.81.0, come sul PC): una riga per chat, cosa fa, da
  * quanto, e se è ferma perché. Le righe arrivano calcolate dal computer.
@@ -1130,7 +1151,7 @@ function altriApHtml() {
           '<span class="voce__testo"><span class="voce__nome">' + esc(a.nome) + '</span>' +
           // 0.73.0: le stesse parole delle righe di questo PC (la vista calcolata là); le vecchie solo per un PC che non la manda.
           (a.vista
-            ? '<span class="voce__sotto"><b style="color:' + COLORE_VISTA[a.vista.stato.colore] + '">' + esc(a.vista.stato.parola) + '</b>' + (a.vista.da ? ' · da ' + esc(a.vista.da) : '') + ' · criteri ' + esc(a.vista.criteri.testo) + ' · gira su ' + esc(p.nome) + '</span>' + (a.vista.ultima ? '<span class="voce__sotto">' + esc(a.vista.ultima) + '</span>' : '')
+            ? sottoApHtml(a, ' · gira su ' + esc(p.nome))
             : '<span class="voce__sotto">gira su ' + esc(p.nome) + ' · ' + esc(a.strategia ? 'bloccato, provo: ' + a.strategia : (a.motivo || a.stato)) + (a.criteri !== undefined ? ' · ' + a.fatti + '/' + a.criteri : '') + '</span>' + dalVivoHtml(a.dalVivo)) + '</span>' +
           '<span class="voce__freccia">›</span></button>').join('')).join('')
 }
@@ -1341,6 +1362,13 @@ function richiestaDi(r, testo) {
  * ★), il campo «Scrivi tu», e il resto dietro il «?». Nessuna cronologia.
  * \`tasto(c)\` fa il tasto di una scelta; \`campo\` il campo e il tasto per mandare.
  */
+/** 11/11: la riga sotto una domanda: se e quando sceglie il programma, o come è finita. */
+function sottoDomandaHtml(seNonRispondi, decisa, tag) {
+  const t = tag || 'span'
+  const riga = decisa ? rigaDecisa(decisa) : seNonRispondi
+  if (!riga) return ''
+  return '<' + t + ' class="' + (t === 'span' ? 'battuta__esito' : 'sotto') + ' sotto-domanda">' + esc(riga) + '</' + t + '>'
+}
 function schedaDomandaHtml(s, k, tasto, campo) {
   var dettagli = (s.dettagli || []).map(function (d) {
     return '<div class="serigrafia" style="margin-top:6px">' + esc(d.etichetta) + '</div><div style="white-space:pre-wrap">' + esc(d.testo) + '</div>'
@@ -1348,8 +1376,12 @@ function schedaDomandaHtml(s, k, tasto, campo) {
   return '<div class="sotto" style="display:flex;gap:6px;align-items:center">' + esc(s.chi) +
       (s.poi ? ' · poi ' + (s.poi === 1 ? 'un’altra' : 'altre ' + s.poi) : '') + (dettagli ? aiuto('sd-' + k, dettagli) : '') + '</div>' +
     '<div class="grande domanda-ap" style="font-weight:600">' + esc(s.domanda) + '</div>' +
-    (s.risposta ? '<div class="sotto" style="color:var(--verde)">risposta dall’autopilota: ' + esc(s.risposta) + '</div>' : '') +
-    (s.superata ? '<div class="sotto">chiusa senza risposta, non serve più: ' + esc(s.superata) + '</div>' : '') +
+    // 11/11: come è finita («Ha scelto il programma: …») dal PC; da un PC di prima le righe di prima.
+    (s.decisa ? '<div class="sotto"' + (s.decisa.come === 'ritirata' ? '' : ' style="color:var(--verde)"') + '>' + esc(rigaDecisa(s.decisa)) + '</div>' : '') +
+    (!s.decisa && s.risposta ? '<div class="sotto" style="color:var(--verde)">risposta dall’autopilota: ' + esc(s.risposta) + '</div>' : '') +
+    (!s.decisa && s.superata ? '<div class="sotto">chiusa senza risposta, non serve più: ' + esc(s.superata) + '</div>' : '') +
+    // 11/11: «Se non rispondi: fra 40 min scelgo io «X»» o «Aspetta te».
+    (!s.decisa && !s.risposta && !s.superata ? sottoDomandaHtml(rigaSeNonRispondi(s.scadeIl, s.rischiosa, ((s.scelte || []).find(function (c) { return c.consigliata }) || {}).testo, Date.now()), undefined, 'div') : '') +
     sceltePagina(s.scelte || [], function (c) { return c.libera ? tastoScrivi(c, campo.id) : tasto(c) }) +
     apriAltroveHtml(s) +
     '<div class="riga"><textarea id="' + campo.id + '" rows="2" placeholder="' + esc(s.segnaposto || 'Scrivi tu') + '"></textarea></div>' +
@@ -2226,7 +2258,7 @@ function pannello(s) {
     inMoto.map((a) =>
       '<div class="polso"><span class="led ' + led(a) + '"></span>' +
       '<span class="polso__nome">' + esc(a.nome) + '</span>' +
-      '<span class="polso__misura">' + (a.criteri ? Math.round(a.fatti / a.criteri * 100) : 0) + '%</span></div>'
+      '<span class="polso__misura">' + (a.avanzamento && typeof a.avanzamento.percento === 'number' ? a.avanzamento.percento + '%' : (a.criteri ? Math.round(a.fatti / a.criteri * 100) + '%' : '')) + '</span></div>'
     ).join('') +
     chatInMoto.map(rigaChatPolso).join('') +
     (chatAltre.length > 0 ? '<div class="serigrafia riga-polso" style="margin-top:var(--s2)">ALTRE CHAT<span>' + chatAltre.length + '</span></div>' + chatAltre.map(rigaChatPolso).join('') : '')
@@ -2290,7 +2322,7 @@ function pannello(s) {
     <div class="piastrella \${apRiassunto ? 'riassunto-aperto' : 'riassunto-chiuso'}">
       <div class="solo-riassunto">
       <div style="\${panoramicaAp && panoramicaAp.situazione ? 'display:none' : ''}">
-      <div class="sotto">\${apAperto.vista ? '<b style="color:' + COLORE_VISTA[apAperto.vista.stato.colore] + '">' + esc(apAperto.vista.stato.parola) + '</b>' + (apAperto.vista.da ? ' · da ' + esc(apAperto.vista.da) : '') + (apAperto.vista.stato.ragione ? ' · ' + esc(apAperto.vista.stato.ragione) : '') : esc(apAperto.strategia ? 'bloccato, provo: ' + apAperto.strategia : (apAperto.motivo || apAperto.stato))}</div>
+      <div class="sotto">\${apAperto.vista ? fraseApHtml(apAperto) + (apAperto.vista.da ? ' · da ' + esc(apAperto.vista.da) : '') + (apAperto.vista.stato.ragione ? ' · ' + esc(apAperto.vista.stato.ragione) : '') : esc(apAperto.strategia ? 'bloccato, provo: ' + apAperto.strategia : (apAperto.motivo || apAperto.stato))}</div>
       \${percentoAvanzamento(apAvanzamento) !== undefined ? '<div class="misura-riga">' + Math.round(percentoAvanzamento(apAvanzamento)) + '%</div><div class="barra"><i style="width:' + Math.max(0, Math.min(100, Math.round(percentoAvanzamento(apAvanzamento)))) + '%"></i></div>' : ''}
       </div>
       \${apDettaglio ? panoramicaHtml(panoramicaAp, 'testa') : ''}
@@ -2311,7 +2343,7 @@ function pannello(s) {
       <span class="voce__testo">
         <span class="voce__nome">\${esc(a.nome)}</span>
         \${a.vista
-          ? '<span class="voce__sotto"><b style="color:' + COLORE_VISTA[a.vista.stato.colore] + '">' + esc(a.vista.stato.parola) + '</b>' + (a.vista.da ? ' · da ' + esc(a.vista.da) : '') + ' · criteri ' + esc(a.vista.criteri.testo) + '</span>' + (a.vista.ultima ? '<span class="voce__sotto">' + esc(a.vista.ultima) + '</span>' : '')
+          ? sottoApHtml(a)
           : '<span class="voce__sotto">' + esc(a.strategia ? 'bloccato, provo: ' + a.strategia : (a.motivo || a.stato)) + ' · ' + a.fatti + '/' + a.criteri + '</span>' + dalVivoHtml(a.dalVivo)}
       </span>
       <span class="voce__freccia">›</span>
@@ -2768,6 +2800,7 @@ function pannello(s) {
     <div class="piastrella" data-sezione="notifiche">
       \${intestaImp('notifiche')}
       \${vociImp('notifiche')}
+      \${avvisiPaginaHtml()}
     </div>
     <div class="piastrella" data-sezione="info">
       \${intestaImp('info')}
@@ -3310,7 +3343,7 @@ function panoramicaRestoHtml(p) {
 /** La Panoramica della 0.77.0, per un PC che non manda ancora situazione e piano. */
 function panoramicaVecchiaHtml(p) {
   const r = p.riassunto
-  const riga = r ? '<div class="pan-tel-riga"><b>' + esc(r.obiettivo) + '</b><span class="pan-tel-stato pan-tel-stato--' + esc(r.stato.colore) + '">' + esc(r.stato.parola) + '</span><span class="sotto">criteri ' + esc(r.criteri.testo) + '</span></div>' : ''
+  const riga = r ? '<div class="pan-tel-riga"><b>' + esc(r.obiettivo) + '</b><span class="pan-tel-stato pan-tel-stato--' + esc(r.stato.colore) + '">' + esc(r.stato.parola) + '</span>' + (r.criteri && r.criteri.testo && r.criteri.testo !== '—' ? '<span class="sotto">criteri ' + esc(r.criteri.testo) + '</span>' : '') + '</div>' : ''
   return '<div class="pan-tel">' + riga + '<div class="serigrafia" style="margin-top:8px">Panoramica</div>' + (p.schede.map((s) => schedaTelHtml(s, 2)).join('') || '<div class="sotto">Nessuna chat: l’autopilota le apre quando serve.</div>') + '</div>'
 }
 window.apriDaPanoramica = async (id) => {
@@ -3330,6 +3363,8 @@ function riassuntoApTesto(ap, d) {
   const parole = { lavoro: 'al lavoro', intervista: 'si prepara', attesa: 'aspetta te', pronto: 'pronto', sospeso: 'fermo', fallito: 'guasto', finito: 'finito' }
   pezzi.push(ap.vista ? ap.vista.stato.parola : (parole[ap.stato] || ap.stato))
   if (ap.criteri) pezzi.push('criteri ' + ap.fatti + '/' + ap.criteri)
+  // 11/11: la percentuale vera del workspace, dal PC.
+  else if (ap.avanzamento && typeof ap.avanzamento.percento === 'number') pezzi.push(ap.avanzamento.percento + '%')
   const chat = d && d.chats ? d.chats.length : 0
   if (chat > 0) pezzi.push(chat + ' chat')
   const giri = (d && d.cicli) || 0
@@ -3368,6 +3403,7 @@ function vistaAutopilota(a) {
       '<span class="battuta__chi">' + (b.da === 'lui' ? esc(a.nome || 'lui') : 'tu') + ' · ' + ora(b.quando) + '</span>' +
       '<span>' + esc(b.testo) + '</span>' +
       (b.dettaglio ? '<span class="battuta__esito">' + esc(b.dettaglio) + '</span>' : '') +
+      sottoDomandaHtml(b.domanda ? rigaSeNonRispondi(b.domanda.scadeIl, b.domanda.rischiosa, b.domanda.consigliata, Date.now()) : '', b.decisa) +
       '</div>'
   }).join('')
   const pensa = a.pensa
@@ -3387,7 +3423,7 @@ function vistaAutopilota(a) {
       micHtml('dialogo-' + a.id) +
       // I file dal telefono (0.50.0): nella sua cartella, e il messaggio nel suo dialogo.
       '<button data-ap="' + esc(a.id) + '" onclick="scegliFileAp(this.dataset.ap)" title="Scegli file: lo mandi a questo autopilota (fino a 100 MB). Finisce nella sua cartella di lavoro, in .sierradeck/allegati, fuori da git, e lui lo trova nel dialogo. Se nella casella hai scritto qualcosa, va come nota.">📎 Allega</button>' +
-      '<span class="sotto info-ap" role="note" tabindex="0" aria-label="Spiegazione: come parlare all’autopilota" title="Qui parli con l’autopilota, non con la chat che esegue. Risponde con parole sue; se è un’istruzione la applica e la consegna alla chat alla fine del turno che ha in mano. Se ha una domanda aperta, quello che scrivi è la risposta e arriva subito.">?</span>' +
+      '<span class="sotto info-ap" role="note" tabindex="0" aria-label="Spiegazione: come parlare all’autopilota" title="Qui parli con l’autopilota, non con la chat che esegue. Risponde con parole sue; se è un’istruzione la applica e la consegna alla chat alla fine del turno che ha in mano. Se ti ha fatto una domanda qui in chat, tocca una scelta o scrivi il suo numero: un testo libero vale come risposta solo nella prima mezz’ora, poi è un messaggio nuovo. Una domanda su cose tue (cancellare, account, soldi) resta aperta finché non rispondi.">?</span>' +
     '</div>' +
     (notaDialogo ? '<div class="errore">' + esc(notaDialogo) + '</div>' : '') +
     (allegatoNota ? '<div class="sotto">' + esc(allegatoNota) + '</div>' : '') + '</div>'
@@ -4035,7 +4071,7 @@ window.apriPannello = async (quale) => {
   if (pannelloAperto === 'pc') { pcAperto = null; postaVoci = null; await leggiPc() }
   if (pannelloAperto === 'drive') { driveRiavviato = false; await leggiDrive() }
   if (pannelloAperto === 'pannellodrive') { pdDati = null; pdErrore = ''; pdDaConfermare = ''; await leggiPannelloDrive() }
-  if (pannelloAperto === 'impostazioni') { await leggiPreferenze(); await leggiAggiornamento(); await leggiQuadernoPersonale(); await leggiAccount() }
+  if (pannelloAperto === 'impostazioni') { await leggiPreferenze(); await leggiAggiornamento(); await leggiQuadernoPersonale(); await leggiAccount(); await leggiAvvisiPagina() }
   if (pannelloAperto === 'quaderno') {
     schedaAperta = null
     quadernoTag = ''
@@ -5227,6 +5263,11 @@ var qpErrore = ''
 var qpVisti = {}
 var qpBozza = { id: '', nome: '', valore: '', nota: '' }
 var qpDaTogliere = ''
+// Le notifiche (11/11): i nomi dei tipi e dei modi, gli stessi del PC (src/shared/avvisi-telefono.ts).
+var NOMI_TIPI_AVVISO = ${JSON.stringify(NOMI_TIPI)}
+var NOMI_MODI_AVVISO = ${JSON.stringify(NOMI_MODI)}
+var TIPI_AVVISO_PAGINA = ${JSON.stringify(TIPI_AVVISO)}
+var MODI_AVVISO_PAGINA = ${JSON.stringify(MODI_AVVISO)}
 var QP_ESITI = ${JSON.stringify(Object.fromEntries((['una-volta', 'sempre', 'gia-consentita', 'negato', 'nessuna-risposta', 'voce-assente'] as const).map((e) => [e, testoEsito(e)])))}
 window.leggiQuadernoPersonale = async () => {
   try {
@@ -6097,7 +6138,7 @@ function vaiAlPosto(nuovo) {
   entra(() => { postaVoci = null; leggiPc().then(ridisegna) }, aperto('pc'))
   entra(() => { leggiConsumi().then(ridisegna) }, aperto('consumi'))
   entra(() => { attesaConferma = ''; attesaNota = ''; leggiAttesa().then(ridisegna) }, aperto('specialisti'))
-  entra(() => { Promise.all([leggiPreferenze(), leggiAggiornamento(), leggiQuadernoPersonale(), leggiAccount()]).then(ridisegna) }, inVista('impostazioni') || (nuovo.voce === 'altro' && prima.voce !== 'altro'))
+  entra(() => { Promise.all([leggiPreferenze(), leggiAggiornamento(), leggiQuadernoPersonale(), leggiAccount(), leggiAvvisiPagina()]).then(ridisegna) }, inVista('impostazioni') || (nuovo.voce === 'altro' && prima.voce !== 'altro'))
   pannello(ultimoStato)
   window.scrollTo(0, 0)
 }
@@ -6284,115 +6325,132 @@ async function vestiti() {
  */
 function chiediDiAvvisare() { }
 
-/** Gli avvisi gia' dati: la stessa domanda non si annuncia due volte. */
-var avvisati = {}
-/** Al primo stato non si annuncia niente: e' il passato, non una novita'. */
-var primoAvviso = true
-/** Quando si è mostrato l'ultimo avviso (0.80.0): quelli vicini si raggruppano. */
-var ultimoAvvisoIl = undefined
-
 /**
- * Avvisa quando l'autopilota ha bisogno di te.
- *
- * Le stesse due cose che annuncia l'app Android: una domanda che aspetta, e un
- * lavoro che si e' fermato. Non «sta lavorando», che non richiede niente a
- * nessuno - un avviso che non chiede niente insegna a ignorare quelli che
- * chiedono.
+ * Le notifiche del browser (11/11): dal registro degli avvisi del computer,
+ * gli stessi dell'app e di Telegram, con le stesse impostazioni. La pagina
+ * chiede ogni giro «cosa è cambiato dopo il numero N» (/api/eventi) e dice fin
+ * dove ha ricevuto (/api/avvisi/visto): ritardi e consegne finiscono nel
+ * registro del PC. All'apertura si legge solo il numero: le domande già lì si
+ * vedono nella pagina. Con la pagina davanti agli occhi non si notifica niente
+ * (si vede già), tranne «Prova notifica». Un avviso chiuso toglie la sua
+ * notifica; «ho scelto io» la sostituisce, muta.
  */
-/** Una chat che ha finito il turno avvisa solo se aspetta te da almeno tanto (0.74.0). */
-var ATTESA_CHAT_MS = 3 * 60000
+var avvisiUltimo = -1
+var avvisiInCorso = false
+var notificheAperte = {}
+var avvisiLettiIl = 0
 function avvisaSeServe(stato) {
+  if (avvisiInCorso) return
+  avvisiInCorso = true
+  const da = avvisiUltimo < 0 ? 0 : avvisiUltimo
+  chiedi('/api/eventi?avvisi=' + da + '&attesa=0').then(function (r) {
+    if (!r || typeof r.ultimo !== 'number' || !Array.isArray(r.avvisi)) return
+    const primo = avvisiUltimo < 0
+    avvisiUltimo = r.ultimo
+    if (primo || r.avvisi.length === 0) return
+    mostraAvvisi(r.avvisi)
+    chiedi('/api/avvisi/visto', { fino: r.ultimo }).catch(function () { })
+  }).catch(function () { }).then(function () { avvisiInCorso = false })
+  // La schermata Notifiche aperta: la riga di chi ascolta e le ultime si rileggono ogni 10 s.
+  if (inVista('impostazioni') && Date.now() - avvisiLettiIl > 10000) {
+    const prima = JSON.stringify(avvisiVisti)
+    leggiAvvisiPagina().then(function () { if (JSON.stringify(avvisiVisti) !== prima) pannello(ultimoStato) })
+  }
+}
+function mostraAvvisi(avvisi) {
+  if (typeof Notification === 'undefined') return
+  for (const a of avvisi) {
+    if (a.chiuso) {
+      const vecchia = notificheAperte[a.id]
+      if (vecchia) { try { vecchia.close() } catch (e) { } delete notificheAperte[a.id] }
+      if (a.chiuso.come === 'programma' && Notification.permission === 'granted' && document.visibilityState !== 'visible') {
+        mostraNotifica(a, a.testo + ' · Ho scelto io' + (a.chiuso.testo ? ': ' + a.chiuso.testo : ' la strada più prudente') + '.', true)
+      }
+      continue
+    }
+    // Il permesso si chiede alla prima domanda vera, non all'apertura: prima non c'è un motivo per dire sì.
+    if (Notification.permission === 'default' && a.tipo === 'domanda') { try { Notification.requestPermission() } catch (e) { } continue }
+    if (Notification.permission !== 'granted') continue
+    if (document.visibilityState === 'visible' && a.id.indexOf('prova:') !== 0) continue
+    mostraNotifica(a, a.testo + (a.sotto ? ' · ' + a.sotto : ''), !a.suona)
+  }
+}
+function mostraNotifica(a, corpo, muta) {
   try {
-    if (typeof Notification === 'undefined') return
-    // Il permesso si chiede alla **prima domanda vera**, non al primo disegno.
-    // Chiederlo appena aperta la pagina significa chiederlo prima che esista un
-    // motivo per dire di si' - e chi dice di no, dice di no per sempre.
-    if (Notification.permission === 'default' && (stato.domande || []).length > 0) {
-      Notification.requestPermission()
-      return
+    const n = new Notification(a.titolo, { body: corpo, tag: a.id, silent: muta === true })
+    notificheAperte[a.id] = n
+    n.onclick = function () {
+      try { window.focus() } catch (e) { }
+      const b = a.bersaglio || {}
+      if (b.cosa === 'file') vaiScheda('file')
+      else if (b.cosa === 'aggiornamenti') apriSezione('aggiornamenti')
+      else if (b.cosa === 'chat' && a.tipo !== 'domanda') vaiScheda('chat')
+      else vaiScheda('domande')
+      n.close()
     }
-    if (Notification.permission !== 'granted') return
-    const nuovo = !primoAvviso
-    const ora = Date.now()
-    // 0.80.0: si raccoglie, poi avvisiDaMostrare raggruppa quelli vicini e
-    // ognuno mostrato va nel registro del computer.
-    const nuovi = []
-    // Una domanda già aperta quando si apre la pagina si vede nella pagina:
-    // non si riannuncia a ogni ricarica (0.80.0).
-    for (const d of (stato.domande || [])) {
-      if (avvisati['d-' + d.id]) continue
-      avvisati['d-' + d.id] = true
-      if (nuovo) nuovi.push({ tipo: 'domanda', titolo: 'SierraDeck ti sta chiedendo una cosa', corpo: d.testo, tag: d.id, causa: 'domanda ' + (d.autopilotaId || d.id) + ': ' + String(d.testo || '').slice(0, 60) })
-    }
-    for (const c of (stato.chat || [])) {
-      // Una chat ferma su una scelta (un permesso): e' una domanda a tutti gli
-      // effetti, e fino alla 0.34 non si annunciava. Anche per le governate,
-      // come nell'app: l'autopilota non concede permessi al posto tuo. Una
-      // scelta che va e viene in meno di un minuto si annuncia una volta
-      // (0.80.0, sceltaDaAnnunciare): ogni ritorno era una notifica nuova.
-      const r = sceltaDaAnnunciare(c.chiede === true, avvisati['k-' + c.id], ora)
-      if (r.visto === undefined) delete avvisati['k-' + c.id]
-      else avvisati['k-' + c.id] = r.visto
-      // Una per chat (0.74.0): la stessa etichetta della sua attesa, così si sostituiscono.
-      if (r.annuncia && nuovo) nuovi.push({ tipo: 'scelta', titolo: (c.titolo || 'Una chat') + ' aspetta che tu scelga', corpo: 'Sullo schermo c’è un elenco di scelte: rispondi da Adesso.', tag: 'chat-' + c.id, causa: 'la chat ' + c.id + ' è ferma su una scelta' + (c.governata === true ? ' (governata da un autopilota)' : '') })
-    }
-    // Il servizio degli autopiloti non ha risposto: l'elenco vuoto non vuol
-    // dire «nessuno», e non si deve ne' dimenticare ne' riannunciare niente.
-    for (const a of (stato.autopilotiLetti === false ? [] : (stato.autopiloti || []))) {
-      // Un annuncio del programma (0.81.0, il riepilogo di «Errori arrivati»): una volta per id.
-      if (a.annuncio && a.annuncio.id && !avvisati['n-' + a.annuncio.id]) {
-        avvisati['n-' + a.annuncio.id] = true
-        if (nuovo && a.archiviato !== true) nuovi.push({ tipo: 'annuncio', titolo: a.annuncio.titolo || a.nome, corpo: 'Il riepilogo è nella conversazione di «' + a.nome + '».', tag: 'n-' + a.id, causa: 'annuncio ' + a.annuncio.id + ' di «' + a.nome + '»: un riepilogo che aspetta te' })
-      }
-      if (a.stato === 'pronto') {
-        if (avvisati['p-' + a.id]) continue
-        avvisati['p-' + a.id] = true
-        if (nuovo) nuovi.push({ tipo: 'pronto', titolo: a.nome + ' aspetta il tuo via', corpo: 'Ha letto il progetto e capito l’obiettivo: apri Lavori e premi «Vai».', tag: a.id, causa: 'autopilota ' + a.id + ' pronto, aspetta il via' })
-        continue
-      }
-      // Chi riparte torna annunciabile: se si ferma di nuovo e' una notizia.
-      if (a.stato !== 'sospeso' && a.stato !== 'fallito' && a.stato !== 'finito') { delete avvisati['f-' + a.id + 'finito']; continue }
-      // Un fermo si annuncia **una volta**, con la sua chiave (id, momento,
-      // motivo: 0.37.0); uno nuovo ha una chiave nuova. Un archiviato tace.
-      const chiaveF = a.stato === 'finito' ? 'f-' + a.id + 'finito' : 'f-' + (a.fermo || (a.id + a.stato))
-      // Un fermo che riparte da solo (limiti del piano, aggiornamento) non chiede niente a te (0.81.0).
-      // Non si segna come visto: se poi resta fermo davvero, con la stessa chiave, si annuncia.
-      if (a.stato !== 'finito' && a.riparteDaSolo === true) continue
-      if (avvisati[chiaveF]) continue
-      avvisati[chiaveF] = true
-      if (!nuovo || a.archiviato === true) continue
-      if (a.stato === 'finito') nuovi.push({ tipo: 'finito', titolo: a.nome + ' ha finito', corpo: 'Il lavoro è concluso: puoi guardare il risultato.', tag: a.id, causa: 'autopilota ' + a.id + ' finito' })
-      else nuovi.push({ tipo: 'fermo', titolo: a.nome + ' si è fermato', corpo: a.motivo || 'Serve una tua occhiata.', tag: a.id, causa: 'autopilota ' + a.id + ' ' + a.stato + ': ' + (a.motivo || 'senza motivo') })
-    }
-    // Una chat tua che aspetta te: solo dopo ATTESA_CHAT_MS (0.74.0, come
-    // l'app). Le pause brevi fra un turno e l'altro erano la maggior parte
-    // degli avvisi, e non chiedevano niente. Finché resta ferma non si ripete.
-    for (const c of (stato.chat || [])) {
-      const chiaveChat = 'a-' + c.id
-      if (c.aspetta === true && c.governata !== true && !c.chiede) {
-        if (avvisati[chiaveChat]) continue
-        if (!avvisati['t-' + c.id]) avvisati['t-' + c.id] = ora
-        if (ora - avvisati['t-' + c.id] < ATTESA_CHAT_MS) continue
-        avvisati[chiaveChat] = true
-        if (nuovo) nuovi.push({ tipo: 'aspetta', titolo: (c.titolo || 'Una chat') + ' ha finito il turno', corpo: 'Ferma da ' + Math.round((ora - avvisati['t-' + c.id]) / 60000) + ' min. ' + (c.ultimaRiga || 'Ha finito di scrivere.'), tag: 'chat-' + c.id, causa: 'la chat ' + c.id + ' ha finito il turno e aspetta da ' + Math.round((ora - avvisati['t-' + c.id]) / 60000) + ' min' })
-      } else {
-        delete avvisati[chiaveChat]
-        delete avvisati['t-' + c.id]
-      }
-    }
-    // La versione pronta non è più una notifica (0.81.0): solo domande che
-    // aspettano te, lavori finiti ed errori che bloccano. La banda nella pagina resta.
-    // Vicini = uno solo (0.80.0); ognuno mostrato nel registro del computer.
-    // Nel registro va ogni avviso, anche dentro un gruppo, con la sua causa (0.81.0).
-    for (const m of avvisiDaMostrare(nuovi, ultimoAvvisoIl, ora)) {
-      new Notification(m.titolo, { body: m.corpo, tag: m.tag })
-      ultimoAvvisoIl = ora
-    }
-    for (const n of nuovi) {
-      chiedi('/api/avviso-mostrato', { da: 'pagina', tipo: n.tipo, titolo: n.titolo, causa: n.causa, gruppo: nuovi.length > 1 ? nuovi.length : undefined }).catch(function () { })
-    }
-    primoAvviso = false
+    n.onclose = function () { if (notificheAperte[a.id] === n) delete notificheAperte[a.id] }
   } catch (e) { }
+}
+
+// La schermata «Notifiche» (11/11): le stesse scelte del PC e dell'app, tenute dal computer.
+var avvisiVisti = null
+var avvisiErrore = ''
+var avvisiNota = ''
+window.leggiAvvisiPagina = async () => {
+  avvisiLettiIl = Date.now()
+  try { avvisiVisti = await chiedi('/api/avvisi/stato'); avvisiErrore = '' }
+  catch (e) { avvisiVisti = null; avvisiErrore = (e && e.message) || String(e) }
+}
+window.impostaAvvisi = async (x) => {
+  try { const imp = await chiedi('/api/avvisi/impostazioni', x); if (avvisiVisti && imp && imp.tipi) avvisiVisti.impostazioni = imp; avvisiNota = '' }
+  catch (e) { avvisiNota = 'Non cambiata: ' + ((e && e.message) || e) }
+  pannello(ultimoStato)
+}
+window.modoAvviso = (tipo, modo) => {
+  if (!avvisiVisti) return
+  const tipi = Object.assign({}, avvisiVisti.impostazioni.tipi)
+  tipi[tipo] = modo
+  impostaAvvisi({ tipi: tipi })
+}
+window.silenzioAvvisi = (acceso) => impostaAvvisi({ silenzio: acceso ? { da: '23:00', a: '07:00' } : null })
+window.oraSilenzio = (quale, valore) => {
+  const s = avvisiVisti && avvisiVisti.impostazioni.silenzio
+  if (!s || !valore) return
+  const n = { da: s.da, a: s.a }
+  n[quale] = valore
+  impostaAvvisi({ silenzio: n })
+}
+window.provaAvviso = async () => {
+  // Un tocco: il momento giusto per chiedere il permesso, così la prova arriva anche qui.
+  if (typeof Notification !== 'undefined' && Notification.permission === 'default') { try { await Notification.requestPermission() } catch (e) { } }
+  try { await chiedi('/api/avvisi/prova', {}); avvisiNota = 'Partita: deve arrivare sul telefono, qui e su Telegram.'; await leggiAvvisiPagina() }
+  catch (e) { avvisiNota = 'La prova non è partita: ' + ((e && e.message) || e) }
+  pannello(ultimoStato)
+}
+function avvisiPaginaHtml() {
+  if (avvisiErrore) return '<div class="sotto" style="color:var(--ambra)">' + esc(avvisiErrore) + '</div>'
+  if (!avvisiVisti) return '<div class="sotto">Leggo le notifiche…</div>'
+  const v = avvisiVisti
+  const imp = v.impostazioni
+  let h = '<div class="sotto" style="margin-top:10px">' + esc(v.riga) + aiuto('avvisi-chi', 'Le notifiche nascono sul computer e partono per l’app, per questa pagina (se è aperta) e per Telegram. Se il telefono è spento, le domande ancora aperte gli arrivano appena si ricollega. Ogni passaggio resta nel registro del PC, alla riga «[avviso]».') + '</div>'
+  h += '<div class="riga"><button onclick="provaAvviso()">Prova notifica</button></div>'
+  if (avvisiNota) h += '<div class="sotto">' + esc(avvisiNota) + '</div>'
+  for (const t of TIPI_AVVISO_PAGINA) {
+    h += '<div class="sotto" style="margin-top:10px">' + esc(NOMI_TIPI_AVVISO[t].titolo) + aiuto('avvisi-' + t, NOMI_TIPI_AVVISO[t].spiega + ' Suona: con il suono (uno ogni venti secondi al massimo, mai nelle ore di silenzio). Silenziosa: senza suono. Spenta: non arriva da nessuna parte.') + '</div>' +
+      '<div class="ws" style="margin-top:6px">' + MODI_AVVISO_PAGINA.map((m) => '<button class="' + (imp.tipi[t] === m ? 'attivo' : '') + '" onclick="modoAvviso(\\'' + t + '\\', \\'' + m + '\\')">' + esc(NOMI_MODI_AVVISO[m]) + '</button>').join('') + '</div>'
+  }
+  h += '<div class="sotto" style="margin-top:12px"><label><input type="checkbox"' + (imp.chatFerma ? ' checked' : '') + ' onchange="impostaAvvisi({ chatFerma: this.checked })"> Anche una chat mia ferma da tre minuti</label>' + aiuto('avvisi-chat-ferma', 'Una chat aperta da te (non quelle degli autopiloti) che ha finito il turno o chiede una scelta e resta ferma tre minuti manda una notifica: Domanda se chiede, Fatto se ha solo finito.') + '</div>'
+  h += '<div class="sotto" style="margin-top:8px"><label><input type="checkbox"' + (imp.silenzio ? ' checked' : '') + ' onchange="silenzioAvvisi(this.checked)"> Ore di silenzio</label>' +
+    (imp.silenzio ? ' dalle <input type="time" value="' + esc(imp.silenzio.da) + '" onchange="oraSilenzio(\\'da\\', this.value)"> alle <input type="time" value="' + esc(imp.silenzio.a) + '" onchange="oraSilenzio(\\'a\\', this.value)">' : '') +
+    aiuto('avvisi-silenzio', 'Nelle ore di silenzio le notifiche arrivano lo stesso, senza suono. L’ora è quella del computer. «Prova notifica» suona sempre.') + '</div>'
+  h += '<div class="sotto" style="margin-top:12px"><b>Ultime notifiche</b>' + aiuto('avvisi-ultime', 'Le ultime venti partite dal computer, la più recente in cima, con com’è finita ognuna. Se qui c’è e sul telefono no, il problema è fra il computer e il telefono.') + '</div>'
+  if (v.ultimi.length === 0) h += '<div class="sotto">Ancora nessuna.</div>'
+  for (const a of v.ultimi) h += '<div class="sotto"><b>' + esc(a.ora) + '</b> · ' + esc((NOMI_TIPI_AVVISO[a.tipo] || {}).titolo || a.tipo) + ' · ' + esc(a.titolo) + ': ' + esc(a.testo) + ' <i>(' + esc(a.esito) + ')</i></div>'
+  const permesso = typeof Notification === 'undefined' ? 'Questo browser non sa mostrare notifiche.'
+    : Notification.permission === 'granted' ? 'Questo browser mostra le notifiche mentre la pagina è aperta in un’altra scheda o nascosta.'
+    : Notification.permission === 'denied' ? 'Questo browser ha le notifiche spente per la pagina: si riaccendono dalle sue impostazioni.'
+    : 'Questo browser chiederà il permesso alla prima domanda, o con «Prova notifica».'
+  return h + '<div class="sotto" style="margin-top:8px">' + esc(permesso) + '</div>'
 }
 
 /*

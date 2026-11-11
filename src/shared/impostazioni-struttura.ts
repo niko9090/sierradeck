@@ -17,7 +17,7 @@
  * (`menu-rifatti-0-61-0-inventario.md`).
  */
 
-export type IdSezione = 'aggiornamenti' | 'computer' | 'chat' | 'drive' | 'aspetto' | 'notifiche' | 'info'
+export type IdSezione = 'aggiornamenti' | 'computer' | 'chat' | 'limiti' | 'drive' | 'aspetto' | 'notifiche' | 'info'
 export type Dove = 'pc' | 'app' | 'pagina'
 
 export type Sezione = { id: IdSezione; titolo: string; spiega: string }
@@ -26,6 +26,8 @@ export const SEZIONI: readonly Sezione[] = [
   { id: 'aggiornamenti', titolo: 'Aggiornamenti', spiega: 'Le versioni di questo programma e del computer collegato, se ce n’è una nuova, cosa cambia, e com’è andato l’ultimo tentativo.' },
   { id: 'computer', titolo: 'Computer', spiega: 'Come si chiama questo computer, le porte, quali reti accetta e i dispositivi accoppiati. Gli altri PC e le strade per raggiungerli stanno in Salute.' },
   { id: 'chat', titolo: 'Chat e autopiloti', spiega: 'Il PIN, il quaderno personale, cosa fanno le chat quando cambi workspace e dove si apre la scheda di un autopilota. «Riparti al login» degli autopiloti sta in Autopiloti, nel menu «Strumenti ▾»: vale per tutti insieme.' },
+  // 11/11, Nicholas: «perché hai lasciato i limiti? devono poter essere sorpassati se decisi da me».
+  { id: 'limiti', titolo: 'Limiti', spiega: 'I limiti di autopiloti e specialisti li decidi tu: quanti lavorano insieme, quanto si aspetta, quanto dura un’unione, e i permessi che hai tolto con «Sì, sempre». Di serie restano com’erano. Una cosa sola non si sblocca mai: cancellare le cartelle che reggono il PC.' },
   { id: 'drive', titolo: 'Drive e salvataggi', spiega: 'L’account Google del Drive e come tornare a una disposizione delle finestre di prima. Il contenuto del Drive e «Salva ora» stanno in Progetti.' },
   { id: 'aspetto', titolo: 'Aspetto', spiega: 'Colori, chiarezza e la disposizione dei pannelli.' },
   { id: 'notifiche', titolo: 'Notifiche', spiega: 'Quando e come avvisa che una chat o un autopilota ha bisogno di te.' },
@@ -68,6 +70,9 @@ export const VOCI: readonly Voce[] = [
   // ── Drive e salvataggi ──
   { id: 'account-google', sezione: 'drive', titolo: 'Account Google del Drive', spiega: 'Quale account Google usa il computer per salvare le chat, cifrate con la passphrase della cassaforte. Sul computer si collega e si scollega da Impostazioni → Account. Scollegato: le chat non si salvano e gli altri PC non si vedono. Il contenuto del Drive, «Porta qui» e il salvataggio stanno in Progetti.', parole: ['google', 'cloud', 'sincronia', 'cassaforte', 'drive', 'passphrase', 'account'], dove: ['pc', 'app', 'pagina'] },
   { id: 'torna-indietro', sezione: 'drive', titolo: 'Torna a com’era', spiega: 'Le ultime chiusure del programma con le chat che c’erano: se una disposizione si è persa, la rimetti com’era. Le chat di adesso non si cancellano, tornano nei loro workspace.', parole: ['ripristina', 'istantanee', 'chiusura', 'layout'], dove: ['pc'] },
+  // Le notifiche (11/11): le stesse scelte su PC, app e pagina, tenute dal computer.
+  { id: 'avvisi', sezione: 'notifiche', titolo: 'Cosa ti avvisa e come', spiega: 'Per Domande, Lavoro fermo, Fatto e Da sapere scegli se la notifica suona, arriva muta o non arriva; vale per telefono, pagina e Telegram di questo computer. Qui anche la chat ferma da tre minuti, le ore di silenzio e «Prova notifica».', parole: ['avvisi', 'suono', 'silenzio', 'prova', 'telegram', 'chat ferma', 'muta'], dove: ['pc', 'app', 'pagina'] },
+  { id: 'avvisi-ultimi', sezione: 'notifiche', titolo: 'Ultime notifiche', spiega: 'Le ultime venti notifiche partite da questo computer, con l’ora e com’è finita ognuna: risposta data, scelta del programma, non serve più o scaduta. Serve a capire se un avviso è partito.', parole: ['storico', 'elenco', 'arrivate'], dove: ['pc', 'app', 'pagina'] },
   { id: 'fumetti-sincronia', sezione: 'notifiche', titolo: 'Avvisi del salvataggio automatico', spiega: 'Mostra un fumetto a ogni salvataggio sul Drive. Spento: il salvataggio avviene lo stesso, in silenzio; gli errori si vedono sempre.', parole: ['fumetti', 'notifiche drive'], dove: ['pc'] },
   { id: 'avviso-windows-aggiornamento', sezione: 'notifiche', titolo: 'Avviso di Windows per l’aggiornamento che aspetta', spiega: 'Acceso: se una versione nuova è pronta e le chat non finiscono il turno per molto tempo, Windows mostra «SierraDeck aspetta per aggiornarsi». Spento: Windows non dice niente; l’attesa si vede lo stesso in Aggiornamenti. Non cambia mai quando si installa.', parole: ['windows', 'avviso', 'aggiornamento', 'attesa'], dove: ['pc'] },
   // ── Aspetto ──
@@ -78,6 +83,9 @@ export const VOCI: readonly Voce[] = [
   { id: 'controllo-continuo', sezione: 'notifiche', titolo: 'Controllo continuo', spiega: 'Acceso: l’app guarda il computer ogni cinque secondi anche da chiusa e ti avvisa subito; Android mostra una riga fissa nelle notifiche. Spento: guarda ogni paio di minuti, senza riga fissa.', parole: ['avvisi', 'sfondo', 'batteria'], dove: ['app'] },
   { id: 'notifiche-android', sezione: 'notifiche', titolo: 'Notifiche di Android', spiega: 'Se Android ha spento le notifiche di SierraDeck, nessun avviso può arrivare: il tasto apre le impostazioni di Android per riaccenderle.', parole: ['permesso', 'android'], dove: ['app'] },
   { id: 'notifiche-pagina', sezione: 'notifiche', titolo: 'Notifiche del browser', spiega: 'La pagina avvisa con le notifiche del browser solo mentre è aperta. Per gli avvisi anche a pagina chiusa serve l’app.', parole: ['browser'], dove: ['pagina'] },
+  // ── Limiti (11/11) ──
+  { id: 'limiti-pc', sezione: 'limiti', titolo: 'Tetti e interruttori', spiega: 'Quanti specialisti e autopiloti lavorano insieme, quante domande all’ora, quanto si aspetta un PC carico, quanto dura al più una prova o un’unione, quanti secondi di sleep passano; e la guardia del PC e «un comando pesante alla volta». Valgono subito, senza riavvii.', parole: ['limite', 'tetto', 'massimo', 'specialisti', 'sleep', 'guardia', 'unione', 'domande'], dove: ['pc'] },
+  { id: 'permessi-nicholas', sezione: 'limiti', titolo: 'Permessi tolti', spiega: 'Le azioni protette (push forzato, posti protetti, sottofondo, cancellare fuori dalle cartelle…) che in un progetto non si chiedono più perché hai risposto «Sì, sempre». Da qui tornano a chiedere.', parole: ['permesso', 'divieto', 'sempre', 'push', 'cancellare', 'consenso'], dove: ['pc'] },
   // ── Info e aiuto ──
   { id: 'registro', sezione: 'info', titolo: 'Registro', spiega: 'Il diario del programma, giorno per giorno: serve a capire cosa è successo quando qualcosa non va.', parole: ['log', 'diario'], dove: ['pc'] },
   { id: 'errori', sezione: 'info', titolo: 'Errori', spiega: 'Gli errori del computer, del servizio degli autopiloti, della pagina e dell’app, con quando, dove, cosa si stava facendo e il punto del codice. Gli stessi errori ripetuti sono una riga sola. «Copia» li mette in un testo da incollare a una chat, «Manda al PC di sviluppo» li porta al PC scelto; password e chiavi non ci sono mai.', parole: ['errore', 'storico', 'problemi', 'guasti', 'copia', 'manda', 'pc di sviluppo'], dove: ['pc', 'app', 'pagina'] },

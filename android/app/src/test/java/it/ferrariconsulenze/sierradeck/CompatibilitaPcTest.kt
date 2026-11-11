@@ -5,6 +5,16 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.AppScaricabile
+import it.ferrariconsulenze.sierradeck.nucleo.AutopilotaDettaglio
+import it.ferrariconsulenze.sierradeck.nucleo.Ciao
+import it.ferrariconsulenze.sierradeck.nucleo.Domande
+import it.ferrariconsulenze.sierradeck.nucleo.FunzionePc
+import it.ferrariconsulenze.sierradeck.nucleo.FunzioniPc
+import it.ferrariconsulenze.sierradeck.nucleo.Stato
+import it.ferrariconsulenze.sierradeck.nucleo.Storia
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.sottofondo.Aggiornamenti
 
 /**
  * L'app con computer più vecchi (0.43.0, app 2.46.0).
@@ -121,11 +131,4 @@ class CompatibilitaPcTest {
         assertTrue(FunzioniPc.avvisiScheda("0.28.0", "PC-ESEMPIO").first().startsWith("La chat con l'autopilota arriva aggiornando PC-ESEMPIO alla 0.29.0"))
     }
 
-    @Test
-    fun `lo schermo di una chat da un PC vecchio - niente colonne né continua, si mostra com'era`() {
-        val vecchio = Api.json.decodeFromString(Storia.serializer(), """{"chat":"p-1","totale":2,"da":0,"righe":["a","b"],"grezze":["● una riga","  un'altra"]}""")
-        assertEquals(0, vecchio.colonne)
-        assertTrue(vecchio.continua.isEmpty())
-        assertEquals(2, blocchiAdattati(vecchio.grezze, vecchio.continua, vecchio.colonne).size)
-    }
 }

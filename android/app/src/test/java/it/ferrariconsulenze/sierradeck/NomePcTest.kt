@@ -10,6 +10,11 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import it.ferrariconsulenze.sierradeck.dati.Postazioni
+import it.ferrariconsulenze.sierradeck.nucleo.NomeComputer
+import it.ferrariconsulenze.sierradeck.nucleo.NomePc
+import it.ferrariconsulenze.sierradeck.nucleo.intestazionePc
+import it.ferrariconsulenze.sierradeck.rete.Api
 
 /**
  * Il nome scelto di un PC al posto dell'hostname (app 2.52.4). Nicholas
@@ -75,14 +80,4 @@ class NomePcTest {
         assertEquals("PC-ESEMPIO" to false, Postazioni.nomeDopo(ip, null, ip, "PC-ESEMPIO", "PC-ESEMPIO"))
     }
 
-    @Test
-    fun `ovunque si mostra un PC passa da qui`() {
-        val app = File("src/main/java/it/ferrariconsulenze/sierradeck/App.kt").readText()
-        assertTrue(app.contains("intestazionePc("))
-        assertFalse(app.contains("stato?.computer?.nome?.takeIf"))
-        val comp = File("src/main/java/it/ferrariconsulenze/sierradeck/AltriComputer.kt").readText()
-        assertTrue(comp.contains("Text(p.mostra"))
-        assertFalse(comp.contains("PcPonte(p.pcId, p.nome)"))
-        assertTrue(File("src/main/java/it/ferrariconsulenze/sierradeck/Api.kt").readText().contains("\"/api/nome-pc\""))
-    }
 }

@@ -4,6 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.NodoAlbero
+import it.ferrariconsulenze.sierradeck.rete.Api
 
 /** PC 0.71: il ruolo di ogni chat nell'albero dell'autopilota, come lo manda il PC. */
 class RuoloChatTest {

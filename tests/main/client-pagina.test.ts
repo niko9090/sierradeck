@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { paginaClient, MANIFESTO } from '../../src/main/client-pagina'
 
 const html = paginaClient()
@@ -541,16 +542,7 @@ describe('la profondita, e i bordi', () => {
     expect(stile).toMatch(/\.cartella__dove\s*\{[^}]*direction:\s*rtl/)
   })
 
-  it('il permesso di avvisare si chiede alla prima domanda vera', () => {
-    // Chiederlo al primo disegno significa chiederlo prima che esista un
-    // motivo per dire di si' — e chi dice di no, dice di no per sempre.
-    const f = script.slice(script.indexOf('function avvisaSeServe('))
-    expect(f.slice(0, 700)).toContain('requestPermission')
-    expect(f.slice(0, 700)).toContain('(stato.domande || []).length > 0')
-    // E all'apertura non si chiede piu' niente.
-    const c = script.slice(script.indexOf('function chiediDiAvvisare('))
-    expect(c.slice(0, 120)).not.toContain('requestPermission')
-  })
+  // Il permesso alla prima domanda vera (11/11): ora dal registro degli avvisi, provato in client-pagina-spunte-e-schede.
 
   it('c e un solo momento animato, e si puo spegnere', () => {
     expect(stile).toContain('@keyframes entra')
@@ -762,12 +754,17 @@ describe('analisi del telefono, 30/09', () => {
   })
 
   it('la stessa regola dell app Android, parola per parola', () => {
-    // Due copie della stessa regola divergono al primo ritocco: qui si
-    // confrontano le parole con quelle di StatoChat.kt.
-    const kt = readFileSync('android/app/src/main/java/it/ferrariconsulenze/sierradeck/StatoChat.kt', 'utf8')
-    for (const c of [{ chiede: true }, { aspetta: true }, { aspetta: true, governata: true }, { viva: false }, { governata: true }, {}]) {
-      expect(kt).toContain('"' + pure.statoChat(c).parola.replace('’', "'") + '"')
+    // Due copie della stessa regola divergono al primo ritocco. I casi vanno in un
+    // file che legge il test dell'app (StatoChatParoleTest): spostare i sorgenti
+    // Kotlin non rompe niente. `AGGIORNA=1` lo riscrive.
+    const casi = [{ chiede: true }, { aspetta: true }, { aspetta: true, governata: true }, { viva: false }, { governata: true }, {}]
+      .map((chat) => ({ chat, ...pure.statoChat(chat) }))
+    const file = join('android', 'app', 'src', 'test', 'resources', 'parole', 'stato-chat.json')
+    if (process.env.AGGIORNA === '1') {
+      mkdirSync(join(file, '..'), { recursive: true })
+      writeFileSync(file, `${JSON.stringify(casi, null, 2)}\n`)
     }
+    expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual(casi)
   })
 
   it('un autopilota fermo e rosso come sulla console, non grigio come il «non so»', () => {

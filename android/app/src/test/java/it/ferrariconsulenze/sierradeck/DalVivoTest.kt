@@ -4,6 +4,18 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.Adesso
+import it.ferrariconsulenze.sierradeck.nucleo.AutopilotaBreve
+import it.ferrariconsulenze.sierradeck.nucleo.AutopilotaDettaglio
+import it.ferrariconsulenze.sierradeck.nucleo.Chat
+import it.ferrariconsulenze.sierradeck.nucleo.chatCheTiAspettano
+import it.ferrariconsulenze.sierradeck.nucleo.coloreAdesso
+import it.ferrariconsulenze.sierradeck.nucleo.leggiChat
+import it.ferrariconsulenze.sierradeck.nucleo.parolaChatGovernata
+import it.ferrariconsulenze.sierradeck.nucleo.parolaPerRiga
+import it.ferrariconsulenze.sierradeck.nucleo.righeFinite
+import it.ferrariconsulenze.sierradeck.nucleo.tonoDalVivo
+import it.ferrariconsulenze.sierradeck.rete.Api
 
 /**
  * Si vede sempre chi lavora (PC 0.69.0): l'app legge le parole decise dal PC

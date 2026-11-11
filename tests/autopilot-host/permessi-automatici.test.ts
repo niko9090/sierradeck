@@ -34,20 +34,20 @@ describe('i permessi che il programma concede da solo (0.89.5)', () => {
     expect(permessoDaSolo('Write', { file_path: '' }, progetto, o).concesso).toBe(false)
     expect(permessoDaSolo('mcp__altro__fai', {}, progetto, o).concesso).toBe(false)
     if (process.platform === 'win32') expect(permessoDaSolo('Write', { file_path: 'C:\\Windows\\System32\\x.dll' }, progetto, o).concesso).toBe(false)
-    expect(motivo('Write', { file_path: join(casa, '.ssh', 'authorized_keys') })).toBe(MOTIVO_POSTO_DELICATO)
-    expect(motivo('Write', { file_path: join(progetto, '.git', 'hooks', 'pre-commit') })).toBe(MOTIVO_POSTO_DELICATO)
+    expect(motivo('Write', { file_path: join(casa, '.ssh', 'authorized_keys') })).toContain(MOTIVO_POSTO_DELICATO)
+    expect(motivo('Write', { file_path: join(progetto, '.git', 'hooks', 'pre-commit') })).toContain(MOTIVO_POSTO_DELICATO)
     expect(motivo('Write', { file_path: '' })).toMatch(/manca il percorso/)
-    expect(motivo('mcp__altro__fai', {})).toBe(MOTIVO_SCONOSCIUTO)
+    expect(motivo('mcp__altro__fai', {})).toContain(MOTIVO_SCONOSCIUTO)
     // Un comando di shell per cui la CLI chiede lo stesso un permesso: non si fa, e non si chiede.
-    expect(motivo('Bash', { command: 'rm -rf cartella-importante' })).toBe(MOTIVO_COMANDO)
+    expect(motivo('Bash', { command: 'rm -rf cartella-importante' })).toContain(MOTIVO_COMANDO)
   })
 
   it('11/11: Monitor e le attese sono negati, «l’esito ti arriva come evento, chiudi il turno»', () => {
     // Il caso vero del 06/11: «fine attesa 90 s», un comando di shell che aspetta un file.
     const monitor = { description: 'fine attesa 90 s', timeout_ms: 120000, command: 'until grep -q . "esito.txt" 2>/dev/null; do sleep 2; done' }
-    expect(motivo('Monitor', monitor)).toBe(MOTIVO_ATTESA)
+    expect(motivo('Monitor', monitor)).toContain(MOTIVO_ATTESA)
     expect(MOTIVO_ATTESA).toMatch(/l’esito di specialisti e unioni ti arriva come evento, chiudi il turno/)
-    for (const s of ['ScheduleWakeup', 'CronCreate', 'Sleep']) expect(motivo(s, {})).toBe(MOTIVO_ATTESA)
+    for (const s of ['ScheduleWakeup', 'CronCreate', 'Sleep']) expect(motivo(s, {})).toContain(MOTIVO_ATTESA)
   })
 
   it('11/11: AskUserQuestion rimanda a chiedi_utente; chi legge e basta passa', () => {

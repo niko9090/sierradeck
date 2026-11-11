@@ -2,6 +2,8 @@ import { isAbsolute, normalize, resolve, sep } from 'node:path'
 import { VERBI_CANCELLA, bersaglioIgnoto } from '@shared/cancella-sicura-comandi'
 import { divietoAssoluto, type AmbienteCancellazione } from '@shared/cancella-sicura'
 import type { ConsensoCancellazione } from './consenso-cancellazione'
+import type { ClassePermesso } from '@shared/permessi-nicholas'
+import { chiaveComando, comeChiedere, type Concesso } from './permessi-nicholas'
 
 /**
  * I divieti dell'autopilota, fatti rispettare dal **programma**, non dal modello.
@@ -62,15 +64,24 @@ export function leggiMosse(raw: unknown): Mossa[] {
   return mosse
 }
 
-/** `pcCarico`: rimandato solo perché il PC è al limite (0.85.1), non un divieto. */
-export type Giudizio = { ok: true } | { ok: false; motivo: string; pcCarico?: true; consensoPer?: string[] }
+/**
+ * `pcCarico`: rimandato solo perché il PC è al limite (0.85.1), non un divieto.
+ * 11/11, `permesso`: il rifiuto è di un'azione protetta che il sì di Nicholas
+ * può sbloccare (`permessi-nicholas.ts`): la classe e l'azione precisa.
+ * `soloVolta`: fra i percorsi di `consensoPer` c'è una cartella di lavoro
+ * intera, che non diventa mai «sempre».
+ */
+export type Giudizio = { ok: true } | { ok: false; motivo: string; pcCarico?: true; consensoPer?: string[]; soloVolta?: true; permesso?: { classe: ClassePermesso; azione: string } }
 
 /**
  * Per le cancellazioni: `consenso` è il permesso di Nicholas già registrato dal
  * programma (se c'è, il rifiuto spiega come ottenerlo; `consensoPer` dice a
  * chi chiama quali percorsi mostrare a Nicholas); `ambiente` serve alle prove.
+ * 11/11: `sempre`, Nicholas ha tolto la domanda per le cancellazioni fuori
+ * dalle cartelle in questo progetto (il pavimento resta); `concesso`, il suo
+ * sì per le altre azioni protette.
  */
-export type OpzioniCancellazioni = { consenso?: ConsensoCancellazione; ambiente?: AmbienteCancellazione }
+export type OpzioniCancellazioni = { consenso?: ConsensoCancellazione; ambiente?: AmbienteCancellazione; sempre?: boolean; concesso?: Concesso; /** La porta del servizio vero (`parlaPerNicholas`). */ portaServizio?: number }
 
 /**
  * Si puo' fare? `sueChat` sono gli id delle chat di questo autopilota: chiudere
@@ -385,13 +396,42 @@ export function giudicaStrumento(r: RichiestaStrumento, ammesse: string[], opz: 
   const comando = typeof input.command === 'string' ? input.command : ''
   if (comando === '') return { ok: true }
 
-  for (const rotta of ROTTE_VIETATE) {
-    if (comando.includes(rotta) && /(curl|Invoke-WebRequest|Invoke-RestMethod|iwr|irm|wget|fetch)/i.test(comando)) {
-      return { ok: false, motivo: `SierraDeck blocca questa chiamata: ${rotta} fa una cosa che l'autopilota non può fare da solo (vedi i divieti decisi da Nicholas).` }
-    }
+  // 11/11: la parola di Nicholas (risposte, impostazioni, limiti, messaggi) non la dice un agente. Nessun permesso
+  // lo sblocca: è quello che regge tutti gli altri permessi.
+  if (parlaPerNicholas(comando, opz.portaServizio)) {
+    return { ok: false, motivo: 'SierraDeck blocca questa chiamata: rispondere alle domande, cambiare impostazioni e limiti o scrivere nel dialogo al posto di Nicholas lo fa solo Nicholas, dal programma. Non c’è un permesso che lo sblocchi, e non va aggirato: se ti serve una sua decisione, la chiede l’autopilota (chiedi_utente o chiedi_consenso).' }
+  }
+  // 11/11: con il sì di Nicholas per questo comando preciso (o «sempre» nel progetto) la chiamata passa.
+  const rotta = rottaVietata(comando)
+  if (rotta !== undefined && opz.concesso?.('cose-altrui', chiaveComando(comando)) !== true) {
+    return { ok: false, permesso: { classe: 'cose-altrui', azione: chiaveComando(comando) }, motivo: `SierraDeck blocca questa chiamata: ${rotta} fa una cosa che l'autopilota non può fare da solo (vedi i divieti decisi da Nicholas).${comeChiedere('cose-altrui')}` }
   }
 
   return giudicaCancellazioni(comando, cwd, ammesse, nome === 'PowerShell', opz)
+}
+
+/** Le rotte del servizio che portano la parola di Nicholas: la risposta a una domanda, le impostazioni, i limiti, un messaggio nel dialogo. */
+// Contano solo dentro un indirizzo (dopo la porta, o dopo una variabile che lo porta): `docs/limiti.md` non è una rotta.
+const ROTTE_DI_NICHOLAS = /(?::\d{2,5}|\$\{?\w+\}?)(?:\/domande\/[^\s"'`/]+\/risposta|\/orchestratore\/(?:impostazioni|messaggio)|\/limiti(?![\w-])|\/stato-programma)/iu
+const CHIAMA_LA_RETE = /curl|Invoke-WebRequest|Invoke-RestMethod|\biwr\b|\birm\b|wget|fetch|http\.request|WebClient|HttpClient|urllib|requests\./iu
+
+/**
+ * **Un agente non parla per Nicholas** (11/11). I permessi nascono dalle sue
+ * risposte e dalle sue impostazioni, che arrivano al servizio per HTTP su
+ * questo PC: un comando che chiama quelle rotte si darebbe il permesso da
+ * solo. `porta` è quella del servizio vero: un'altra porta scritta per intero
+ * è un servizio di prova (chi lavora a SierraDeck lo fa), e passa.
+ */
+export function parlaPerNicholas(comando: string, porta?: number): boolean {
+  if (!CHIAMA_LA_RETE.test(comando) || !ROTTE_DI_NICHOLAS.test(comando)) return false
+  const porte = [...comando.matchAll(/(?:127\.0\.0\.1|localhost|\[::1\]):(\d{2,5})/giu)].map((m) => Number(m[1]))
+  return porta === undefined || porte.length === 0 || porte.includes(porta)
+}
+
+/** La rotta del programma che un comando chiama per fare una cosa non sua, se c'è. */
+export function rottaVietata(comando: string): string | undefined {
+  if (!/(curl|Invoke-WebRequest|Invoke-RestMethod|iwr|irm|wget|fetch)/i.test(comando)) return undefined
+  return ROTTE_VIETATE.find((rotta) => comando.includes(rotta))
 }
 
 /**
@@ -403,6 +443,8 @@ export function giudicaStrumento(r: RichiestaStrumento, ammesse: string[], opz: 
 export function giudicaCancellazioni(comando: string, cwd: string, ammesse: string[], powershell = false, opz: OpzioniCancellazioni = {}): Giudizio {
   // Fuori dalle cartelle ma non vietati per sempre: il consenso di Nicholas li può sbloccare.
   const chiedibili: string[] = []
+  /** Le cartelle di lavoro intere fra i chiedibili. */
+  const interne: string[] = []
   for (const b of bersagliCancellazione(comando, cwd, powershell)) {
     if (bersaglioIgnoto(b)) {
       return { ok: false, motivo: `SierraDeck blocca questa cancellazione: «${b}» contiene una variabile, e non si può sapere dove porta. Scrivi il percorso per intero, dentro ${ammesse.join(', ')}. Nemmeno il consenso di Nicholas vale per un percorso con una variabile.` }
@@ -410,28 +452,44 @@ export function giudicaCancellazioni(comando: string, cwd: string, ammesse: stri
     const radice = ammesse.some((c) => dentro(c, b))
     const dentroUna = ammesse.some((c) => dentro(b, c))
     if (dentroUna && !radice) continue
-    if (radice) {
-      return {
-        ok: false,
-        motivo: `SierraDeck blocca questa cancellazione: «${b}» è una cartella di lavoro intera (${ammesse.join(', ')}). Si cancellano solo file dentro le sue cartelle; una cartella di lavoro intera non si cancella nemmeno col consenso di Nicholas.`
-      }
-    }
+    // Il pavimento (incidente del 14/10): le cartelle che reggono il PC non si cancellano mai, nemmeno con «sempre».
     const assoluto = divietoAssoluto(b, opz.ambiente)
     if (assoluto !== undefined) {
       return { ok: false, motivo: `SierraDeck blocca questa cancellazione: ${assoluto}. Questa cartella (o una che la contiene) non si cancella mai, nemmeno col consenso di Nicholas: cancella solo percorsi precisi dentro.` }
     }
     if (opz.consenso?.copre(b) === true) continue
+    // 11/11: una cartella di lavoro intera non era cancellabile nemmeno col suo consenso. Ora sì, ma solo con un
+    // «questa volta» per quel percorso preciso: «sempre» non la copre mai.
+    if (radice) { interne.push(b); chiedibili.push(b); continue }
+    if (opz.sempre === true) continue
     chiedibili.push(b)
   }
   if (chiedibili.length === 0) return { ok: true }
+  const cosa = interne.length > 0
+    ? `${interne.map((b) => `«${b}»`).join(', ')} ${interne.length === 1 ? 'è una cartella di lavoro intera' : 'sono cartelle di lavoro intere'} (si cancellano da soli solo i file dentro)${chiedibili.length > interne.length ? `, e ${chiedibili.filter((b) => !interne.includes(b)).map((b) => `«${b}»`).join(', ')} fuori dalle cartelle di questo autopilota` : ''}. `
+    : `${chiedibili.map((b) => `«${b}»`).join(', ')} ${chiedibili.length === 1 ? 'è fuori dalle' : 'sono fuori dalle'} cartelle di questo autopilota (${ammesse.join(', ')}). `
   return {
     ok: false,
     consensoPer: chiedibili,
-    motivo: `SierraDeck blocca questa cancellazione: ${chiedibili.map((b) => `«${b}»`).join(', ')} ${chiedibili.length === 1 ? 'è fuori dalle' : 'sono fuori dalle'} cartelle di questo autopilota (${ammesse.join(', ')}). `
+    ...(interne.length > 0 ? { soloVolta: true as const } : {}),
+    permesso: { classe: 'cancellazioni', azione: chiedibili.join('\n') },
+    motivo: `SierraDeck blocca questa cancellazione: ${cosa}`
       + (opz.consenso !== undefined
-        ? 'Se Nicholas ti ha chiesto di cancellarli, serve il suo consenso registrato dal programma: ho aperto io una domanda a Nicholas con i percorsi esatti (tu non devi fare altro, e scrivere «ho il consenso» non basta). Quando risponde «Sì, cancella», rilancia lo stesso comando entro 30 minuti: passerà solo per quei percorsi. Se non risponde, scegli un’altra strada.'
+        ? 'Se Nicholas ti ha chiesto di cancellarli, serve il suo consenso registrato dal programma: ho aperto io una domanda a Nicholas con i percorsi esatti (tu non devi fare altro, e scrivere «ho il consenso» non basta). Quando risponde di sì, rilancia lo stesso comando entro 30 minuti: passerà solo per quei percorsi. Se non risponde, scegli un’altra strada.'
         : 'Serve il consenso di Nicholas, registrato dal programma con una sua risposta: chiediglielo con chiedi_utente, elencando i percorsi esatti.')
   }
+}
+
+/**
+ * Il comando **esegue** l'installatore di SierraDeck o chiama la rotta che
+ * installa. Leggerne il nome (gh release upload, ls dist/, grep nel codice)
+ * non conta. `./` conta solo a inizio parola: dentro `../` di una copia no
+ * (0.85.1). Il `.exe` deve chiudere il nome: `.exe.blockmap` non si esegue.
+ */
+export function eInstallazione(comando: string): boolean {
+  const esegueInstallatore = /(^|[;&|]\s*|Start-Process\s+(-FilePath\s+)?|cmd(\.exe)?\s+\/c\s+|(?<=^|\s)\.\/)["']?[^\s"';&|]*SierraDeck-Setup[^\s"';&|]*\.exe(?![\w.])/i.test(comando)
+  const chiamaInstalla = /(curl|Invoke-WebRequest|Invoke-RestMethod|\biwr\b|\birm\b|wget|fetch)[^;&|]*\/api\/installa/i.test(comando)
+  return esegueInstallatore || chiamaInstalla
 }
 
 /**
@@ -441,20 +499,16 @@ export function giudicaCancellazioni(comando: string, cwd: string, ammesse: stri
  *   che cambia il ramo, niente cancellazioni o spostamenti. Un revisore che
  *   «sistema» il codice che sta giudicando non è più un revisore.
  * - **Nessuno installa** una versione di SierraDeck: la installa solo Nicholas
- *   (regola del 12/10). Vale per tutti i ruoli, Rilascio compreso.
+ *   (regola del 12/10). Vale per tutti i ruoli, Rilascio compreso. 11/11: un
+ *   agente può farlo solo con il «Sì, questa volta» di Nicholas (`opz.concesso`).
  */
-export function giudicaRuolo(r: RichiestaStrumento, ruolo: string | undefined): Giudizio {
+export function giudicaRuolo(r: RichiestaStrumento, ruolo: string | undefined, opz: { concesso?: Concesso } = {}): Giudizio {
   const nome = typeof r.tool_name === 'string' ? r.tool_name : ''
   const input = (typeof r.tool_input === 'object' && r.tool_input !== null ? r.tool_input : {}) as Record<string, unknown>
   const comando = (nome === 'Bash' || nome === 'PowerShell') && typeof input.command === 'string' ? input.command : ''
-  // Solo quando si **esegue** l'installatore o si chiama la rotta: leggerne il nome
-  // (gh release upload, ls dist/, grep nel codice) resta permesso.
-  // `./` conta solo a inizio parola: dentro `../` di una copia no (0.85.1). Il
-  // `.exe` deve chiudere il nome: `.exe.blockmap` non si esegue.
-  const esegueInstallatore = /(^|[;&|]\s*|Start-Process\s+(-FilePath\s+)?|cmd(\.exe)?\s+\/c\s+|(?<=^|\s)\.\/)["']?[^\s"';&|]*SierraDeck-Setup[^\s"';&|]*\.exe(?![\w.])/i.test(comando)
-  const chiamaInstalla = /(curl|Invoke-WebRequest|Invoke-RestMethod|\biwr\b|\birm\b|wget|fetch)[^;&|]*\/api\/installa/i.test(comando)
-  if (comando !== '' && (esegueInstallatore || chiamaInstalla)) {
-    return { ok: false, motivo: 'SierraDeck blocca questo comando: le versioni nuove le installa solo Nicholas.' }
+  // 11/11: installa solo Nicholas, o chi ha il suo «Sì, questa volta» per questo comando preciso (mai «sempre»).
+  if (comando !== '' && eInstallazione(comando) && opz.concesso?.('installazione', chiaveComando(comando)) !== true) {
+    return { ok: false, permesso: { classe: 'installazione', azione: chiaveComando(comando) }, motivo: `SierraDeck blocca questo comando: le versioni nuove le installa solo Nicholas. Si sblocca solo con il suo «Sì, questa volta», registrato dal programma, e solo se installare l’ha chiesto lui: non proporlo e non aggirarlo. Se sei uno specialista, fermati e scrivilo nel riepilogo («bloccato: serve il sì di Nicholas, classe installazione», con il comando esatto).` }
   }
   if (ruolo !== 'revisione') return { ok: true }
   if (['Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(nome)) {

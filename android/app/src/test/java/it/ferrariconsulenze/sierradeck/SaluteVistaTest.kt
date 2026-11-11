@@ -2,6 +2,10 @@ package it.ferrariconsulenze.sierradeck
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.StatoVistaDrive
+import it.ferrariconsulenze.sierradeck.schermate.altro.SaluteVista
+import it.ferrariconsulenze.sierradeck.schermate.altro.VoceSalute
+import it.ferrariconsulenze.sierradeck.nucleo.chiave
 
 /** PC 0.70: la Salute a gruppi, con la parola di ogni voce. */
 class SaluteVistaTest {

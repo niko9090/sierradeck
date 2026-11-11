@@ -66,7 +66,9 @@ describe('la voce «Errori» sulla pagina', () => {
   })
 
   it('il riepilogo di «Errori arrivati» si notifica una volta per id, come i lavori finiti', () => {
-    expect(script).toContain("if (a.annuncio && a.annuncio.id && !avvisati['n-' + a.annuncio.id])")
-    expect(script).toContain("tipo: 'annuncio'")
+    // 11/11: dal registro degli avvisi del PC (l'annuncio del servizio è un «Da sapere», id stabile:
+    // tests/autopilot-host/avvisi-servizio.test.ts); la pagina mostra ogni avviso una volta, per numero.
+    expect(script).toContain("chiedi('/api/eventi?avvisi=' + da + '&attesa=0')")
+    expect(script).toContain('tag: a.id')
   })
 })

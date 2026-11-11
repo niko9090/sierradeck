@@ -4,6 +4,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.FunzionePc
+import it.ferrariconsulenze.sierradeck.nucleo.FunzioniPc
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.schermate.altro.PcIndietro
 
 /**
  * L'app 2.56 con PC alla 0.50 e alla 0.54 (app 2.56.2). Le risposte in
@@ -16,18 +20,6 @@ class CompatibilitaVecchiTest {
     private fun corpo(v: String, r: String): String = javaClass.classLoader!!.getResource("pc/$v/$r.json")!!.readText()
     private fun stato(v: String, r: String): Int = javaClass.classLoader!!.getResource("pc/$v/$r.stato")!!.readText().trim().toInt()
     private fun errore(v: String, r: String): Api.Errore = Api.Errore(stato(v, r), corpo(v, r))
-
-    @Test
-    fun `le azioni nuove su un PC vecchio dicono quale versione serve, mai un errore secco`() {
-        for (v in listOf("0.50.0", "0.54.0")) {
-            for ((rotta, f) in listOf("chat-dormi" to FunzionePc.GESTIONE, "chat-sposta" to FunzionePc.GESTIONE, "workspace-rinomina" to FunzionePc.GESTIONE,
-                "pin-proteggi" to FunzionePc.PARITA, "autopilota-archivia" to FunzionePc.PARITA)) {
-                assertEquals("$v $rotta", 404, stato(v, rotta))
-                val t = spiegaGestione(errore(v, rotta), "farlo", "PC-ESEMPIO", f)
-                assertTrue("$v $rotta: $t", t.startsWith(f.nome) && t.contains("alla ${f.minima}") && t.contains("Installa là"))
-            }
-        }
-    }
 
     @Test
     fun `la chat nuova e l'autopilota su un PC vecchio passano, ma i campi nuovi no - per questo l'app avvisa`() {

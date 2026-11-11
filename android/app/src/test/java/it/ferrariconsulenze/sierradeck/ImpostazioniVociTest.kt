@@ -7,6 +7,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import it.ferrariconsulenze.sierradeck.nucleo.ImpostazioniVoci
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.rete.EventoLinea
+import it.ferrariconsulenze.sierradeck.rete.Linea
+import it.ferrariconsulenze.sierradeck.schermate.altro.Dettagli
+import it.ferrariconsulenze.sierradeck.sottofondo.Aggiornamenti
 
 /**
  * Le impostazioni rifatte (app 2.56.0): la struttura è quella che il PC
@@ -19,7 +25,7 @@ class ImpostazioniVociTest {
 
     @Test
     fun `Aggiornamenti in cima, poi le sezioni per argomento, ognuna con la sua spiegazione`() {
-        assertEquals(listOf("Aggiornamenti", "Computer", "Chat e autopiloti", "Drive e salvataggi", "Aspetto", "Notifiche", "Info e aiuto"), s.sezioni.map { it.titolo })
+        assertEquals(listOf("Aggiornamenti", "Computer", "Chat e autopiloti", "Limiti", "Drive e salvataggi", "Aspetto", "Notifiche", "Info e aiuto"), s.sezioni.map { it.titolo })
         for (v in s.voci) assertTrue(v.id, v.spiega.length > 60)
         assertEquals("aggiornamenti", ImpostazioniVoci.cerca(s, "", "app").first().sezione)
     }

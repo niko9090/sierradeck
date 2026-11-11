@@ -2,6 +2,9 @@ package it.ferrariconsulenze.sierradeck
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.PezzoAnsi
+import it.ferrariconsulenze.sierradeck.nucleo.senzaSequenze
+import it.ferrariconsulenze.sierradeck.nucleo.spezzaAnsi
 
 /**
  * Il taglio delle sequenze del terminale, senza Compose e senza telefono.

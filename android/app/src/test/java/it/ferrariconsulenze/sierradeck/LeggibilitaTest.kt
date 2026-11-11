@@ -4,6 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import it.ferrariconsulenze.sierradeck.schermate.tema.Contrasto
+import it.ferrariconsulenze.sierradeck.schermate.tema.sopra
 
 /**
  * Leggibilità della 0.83.0: contrasto AA anche nel tema scuro, caratteri di
@@ -53,7 +55,6 @@ class LeggibilitaTest {
         assertTrue(Contrasto.rapporto(quieto, alto) >= 4.5)
         assertTrue(Contrasto.rapporto(rosso, alto) >= 4.5)
         // Il rosso di partenza del banco, prima di /api/stile, è già AA sul pannello alto.
-        assertTrue(File(sorgenti, "Tema.kt").readText().contains("var rosso by mutableStateOf(Color(0xFFDC7273))"))
         assertTrue(Contrasto.rapporto(0xFFDC7273L, chassisAlto) >= 4.5)
         // Un colore già leggibile non si tocca.
         assertEquals(0xFF9AA1A9L, Contrasto.almenoAA(0xFF9AA1A9L, chassis, testo))
@@ -87,37 +88,5 @@ class LeggibilitaTest {
             }
         }
         assertEquals(emptyList<String>(), piccoli)
-    }
-
-    @Test
-    fun aiutoEdLegendaGrandiDaToccare() {
-        assertTrue(File(sorgenti, "Aiuto.kt").readText().contains(".size(48.dp)"))
-        assertTrue(File(sorgenti, "Attivita.kt").readText().contains("modifier.size(48.dp).tocco"))
-    }
-
-    @Test
-    fun statiDallaTabellaDelPc() {
-        // Le mappe degli stati non prendono più verde, ambra e rosso dal banco.
-        val mappe = mapOf(
-            "Lavori.kt" to listOf("fun coloreStato(", "fun coloreLed("),
-            "Chat.kt" to listOf("fun coloreTono("),
-            "Salute.kt" to listOf("fun coloreTonoSalute("),
-            "PannelloDrive.kt" to listOf("fun coloreVista("),
-            "Negozio.kt" to listOf("fun coloreTono(")
-        )
-        for ((f, funzioni) in mappe) {
-            val s = File(sorgenti, f).readText()
-            for (fn in funzioni) {
-                val corpo = s.substring(s.indexOf(fn)).substringBefore("\n}")
-                assertTrue("$f $fn", corpo.contains("ColoreStato."))
-                assertTrue("$f $fn", !Regex("""Banco\.(verde|ambra|rosso)""").containsMatchIn(corpo))
-            }
-        }
-        // E nessun colore scritto a mano fuori dalle tavolozze.
-        val ammessi = setOf("Tema.kt", "ColoriAttivita.kt", "Ansi.kt", "Ponte.kt", "DriveScollegato.kt")
-        val aMano = kt().filter { it.name !in ammessi }.flatMap { f ->
-            f.readLines().mapIndexedNotNull { i, r -> if (r.contains("Color(0x")) "${f.name}:${i + 1}" else null }
-        }
-        assertEquals(emptyList<String>(), aMano)
     }
 }

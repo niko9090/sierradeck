@@ -77,11 +77,23 @@ describe('argomenti e ambiente', () => {
     expect(r[r.indexOf('--model') + 1]).toBe('opus')
   })
 
-  it('il figlio non riceve la chiave API (vale l’abbonamento) e ha il tetto dei subagenti, al più 8', () => {
+  // 11/11: il tetto dei subagenti non ha più il massimo di 8 messo dal programma: il numero lo decide Nicholas.
+  it('il figlio non riceve la chiave API (vale l’abbonamento) e ha il tetto dei subagenti deciso da Nicholas, almeno 1', () => {
     const env = ambienteOrchestratore({ ANTHROPIC_API_KEY: 'sk-finta', PATH: 'x' }, 9)
     expect(env.ANTHROPIC_API_KEY).toBeUndefined()
-    expect(env.CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS).toBe('8')
+    expect(env.CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS).toBe('9')
     expect(ambienteOrchestratore({}, 3).CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS).toBe('3')
+    expect(ambienteOrchestratore({}, 0).CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS).toBe('1')
+  })
+
+  it('11/11: quanti autopiloti hanno il turno insieme si legge a ogni uso: cambiato, vale subito', () => {
+    let tetto = 1
+    const { o, processi } = motore({ globaliMax: () => tetto })
+    for (const ws of ['a', 'b', 'c']) o.messaggio(ws, { quando: '2026-10-30T09:00:00.000Z', testo: `ciao ${ws}` })
+    expect(processi).toHaveLength(1)
+    tetto = 5
+    processi[0]!.emetti(result())
+    expect(processi).toHaveLength(3)
   })
 
   it('il messaggio sull’ingresso è nella busta stream-json', () => {

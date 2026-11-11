@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 import type { PartiDomanda } from '@shared/domanda-strutturata'
+import type { ClassePermesso } from '@shared/permessi-nicholas'
 import { RISOLTE_PER_ORE, SUPERATA, type DomandaRisolta } from '@shared/domande-telefono'
 
 export type Provenienza = 'modale' | 'telegram'
@@ -63,6 +64,12 @@ export type ContestoDomanda = {
    * decidersi da sola, qualunque cosa dica il testo. La scadenza la rispetta.
    */
   maiDaSola?: boolean
+  /**
+   * 11/11: la domanda è un permesso di Nicholas a un'azione protetta
+   * (`permessi-nicholas.ts`): la classe e le azioni precise. Sta qui, sul
+   * disco, perché una risposta data dopo un riavvio del servizio valga lo stesso.
+   */
+  permesso?: { classe: ClassePermesso; azioni: string[]; soloVolta?: true }
   pubblica?: boolean
   /** Altre chat che hanno chiesto la stessa cosa (0.81.0): la risposta riprende anche loro. */
   ancheChat?: string[]

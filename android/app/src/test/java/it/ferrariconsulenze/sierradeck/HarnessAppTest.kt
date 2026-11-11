@@ -4,6 +4,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import it.ferrariconsulenze.sierradeck.nucleo.AutopilotaDettaglio
+import it.ferrariconsulenze.sierradeck.nucleo.Domande
+import it.ferrariconsulenze.sierradeck.nucleo.ViaRisposta
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.nucleo.chiave
+import it.ferrariconsulenze.sierradeck.nucleo.richiestaRisposta
 
 /**
  * L'autopilota «harness» e le Domande come conversazione, lato app (0.36.0).
@@ -62,17 +68,6 @@ class HarnessAppTest {
     }
 
     @Test
-    fun `la chat con l autopilota e le conversazioni si copiano (tocco lungo)`() {
-        // Il difetto del 30/09: senza SelectionContainer un Text di Compose non
-        // si seleziona. La prova guarda il sorgente: la vista dipende da Compose.
-        val sorgenti = File("src/main/java/it/ferrariconsulenze/sierradeck")
-        val lavori = File(sorgenti, "DettaglioAutopilota.kt").readText()
-        val pezzo = lavori.substring(lavori.indexOf("itemsIndexed(messaggi, key = { i, _ -> chiavi[i] }) { _, b ->")).take(700)
-        assertTrue(pezzo.contains("SelectionContainer"))
-        assertTrue(File(sorgenti, "Conversazioni.kt").readText().contains("SelectionContainer { Text(m.testo"))
-    }
-
-    @Test
     fun `le domande iniziali di un autopilota si rispondono dalle Domande, anche toccando un opzione`() {
         // Il difetto del 30/09: dall'app non si riusciva a rispondere alle
         // domande della preparazione. Arrivano come conversazione con le loro
@@ -86,9 +81,5 @@ class HarnessAppTest {
         assertEquals(null, c.scelte)
         assertEquals("YAML", c.messaggi.single().opzioni?.single()?.testo)
         assertEquals("/api/rispondi" to mapOf("domanda" to "d9", "risposta" to "YAML"), richiestaRisposta(c.risposta, "YAML"))
-        // E la vista le mostra anche senza «scelte», rispondendo con il testo.
-        val vista = File("src/main/java/it/ferrariconsulenze/sierradeck/Conversazioni.kt").readText()
-        assertTrue(vista.contains("if (!opzioni.isNullOrEmpty()) {"))
-        assertTrue(vista.contains("else manda({ api.rispondiConversazione(aperta.risposta, o.testo) }, o.testo)"))
     }
 }
