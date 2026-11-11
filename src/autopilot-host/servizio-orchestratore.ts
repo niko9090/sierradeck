@@ -512,7 +512,9 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
   const rifiutati = new Set<string>()
   /** 10/11: gli Agent rifiutati perché il compito aspetta un'unione: tornano «da fare» senza dirli falliti. */
   const rifiutatiPerDipendenze = new Map<string, string[]>()
-  const subagenti = (ws: string): Specialista[] => orchestratore.stato(ws).specialisti.filter((s) => !rifiutati.has(s.id)).map((s) => (uniti.get(ws)?.has(s.id) === true ? { ...s, unito: true } : s))
+  /** 11/11 (k-133): com'era il compito prima che un Agent partisse per lui: se la guardia lo rifiuta, torna così. */
+  const primaDelLancio = new Map<string, CompitoPiano>()
+  const subagenti =(ws: string): Specialista[] => orchestratore.stato(ws).specialisti.filter((s) => !rifiutati.has(s.id)).map((s) => (uniti.get(ws)?.has(s.id) === true ? { ...s, unito: true } : s))
 
   const misura = (ws: string): MisuraCompito => {
     const u = unicoDi(ws)
@@ -734,7 +736,12 @@ ${NOTA_SENZA_GIT}`,
         const prima = archivioAttesa.leggi()
         archivioAttesa.scrivi(rifiutataDalTetto(prima, { workspace: ws, ...(unicoDi(ws) !== undefined ? { autopilota: unicoDi(ws)!.id } : {}), descrizione: s.descrizione, tipo: s.ruolo, ...(e.prompt !== undefined ? { prompt: e.prompt } : {}) }, { adesso: oraMs(), id: randomUUID }))
         const k = s.compito !== undefined ? x.orchestratori.piano(ws).compiti.find((c) => c.id === s.compito) : undefined
-        if (k !== undefined && k.stato !== 'unito') cambiaCompito(ws, k.id, (c) => ({ ...senzaRamo(c), stato: 'da-fare', esito: 'aspetta un posto fra gli specialisti: il programma lo rilancia' }))
+        // 11/11: solo il compito che questo Agent aveva preso; uno che era già oltre («in corso» di un altro, finito) torna com'era.
+        const comEra = primaDelLancio.get(s.id)
+        primaDelLancio.delete(s.id)
+        if (k !== undefined && k.stato !== 'unito' && (comEra === undefined || k.chat === s.id)) {
+          cambiaCompito(ws, k.id, (c) => (comEra !== undefined && comEra.stato !== 'da-fare' ? comEra : { ...senzaRamo(c), stato: 'da-fare', esito: 'aspetta un posto fra gli specialisti: il programma lo rilancia' }))
+        }
         console.info(`[attesa] ${ws} — tetto di specialisti pieno: ${s.compito ?? cosaDel(s.descrizione)} in fila, prompt salvato`)
         queueMicrotask(() => { try { rivediFila() } catch (err) { console.error('[attesa] giro della lista d’attesa non riuscito:', err) } })
         continue
@@ -746,9 +753,21 @@ ${NOTA_SENZA_GIT}`,
       const u = unicoDi(ws)
       if (e.tipo === 'specialista-partito') {
         const k = s.compito !== undefined ? x.orchestratori.piano(ws).compiti.find((c) => c.id === s.compito) : undefined
-        if (k !== undefined && k.stato !== 'unito') cambiaCompito(ws, k.id, (c) => ({ ...senzaRamo(c), stato: 'in-corso', chat: s.id }))
+        // 11/11 (k-133): un compito finito e in fila per l'unione resta com'è (ramo compreso); degli altri si ricorda com'erano.
+        if (k !== undefined && k.stato !== 'unito' && !finitoInFila(ws, k)) {
+          primaDelLancio.set(s.id, k)
+          cambiaCompito(ws, k.id, (c) => ({ ...senzaRamo(c), stato: 'in-corso', chat: s.id }))
+        }
         if (u !== undefined) { const dopo = { ...u }; x.annota(dopo, `parte ${s.ruolo}${s.compito !== undefined ? ` (${s.compito})` : ''}: ${s.descrizione.slice(0, 140)}`, avanzamento(s.id, `Al lavoro: ${chiSpecialista(s.ruolo)} — ${cosaDel(s.descrizione)}.`)); x.salva(dopo) }
         ricalcola(ws, `${s.compito ?? s.ruolo} parte`)
+        continue
+      }
+      const comEra = primaDelLancio.get(s.id)
+      primaDelLancio.delete(s.id)
+      if (rifiutati.has(s.id) && !rifiutatiPerDipendenze.has(s.id)) {
+        // 11/11 (k-133): rifiutato dalla guardia, mai partito: non è «non riuscito». Il compito torna com'era prima del lancio.
+        if (comEra !== undefined) cambiaCompito(ws, comEra.id, (c) => (c.chat === s.id && c.stato === 'in-corso' ? comEra : c))
+        ricalcola(ws, `${s.compito ?? s.ruolo} non è partito (rifiutato dal programma)`)
         continue
       }
       if (rifiutatiPerDipendenze.has(s.id)) {
@@ -878,6 +897,8 @@ ${NOTA_SENZA_GIT}`,
   const unioniIn = (ws: string): number => filaUnioni.get(ws)?.length ?? 0
   /** I compiti la cui unione è in corso o in fila: non sono «fermi», il programma li sta unendo. */
   const compitiInUnione = (ws: string): string[] => (filaUnioni.get(ws) ?? []).flatMap((l) => (l.compito !== undefined ? [l.compito] : []))
+  /** 11/11 (k-133): il compito ha finito e la sua unione è in corso o in fila: un Agent lanciato per lui non lo riporta «in corso». */
+  const finitoInFila = (ws: string, k: CompitoPiano): boolean => k.stato === 'in-revisione' && compitiInUnione(ws).includes(k.id)
   /** Le unioni in corso e in fila, per lo stato dell'autopilota. */
   const righeUnioni = (ws: string): string[] => (filaUnioni.get(ws) ?? []).map((l, i) => (i === 0 ? `- ${l.chi}: in corso${l.tentativi > 0 ? ` (tentativo ${l.tentativi + 1})` : ''}` : `- ${l.chi}: in fila, ${i + 1}ª`))
   const giraFila = async (ws: string): Promise<void> => {
@@ -1826,6 +1847,14 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
           return q.motivo
         },
         doppio: (r) => motivoSpecialistaDoppio(r, subagenti(wsDi(a)).filter((s) => (s.stato === 'avviato' || s.stato === 'lavoro') && s.id !== idUso), compitoDallaDescrizione),
+        // 11/11 (k-133): chi scrive non riparte su un compito finito che aspetta l'unione (chi legge soltanto sì).
+        inUnione: (r) => {
+          const ws = wsDi(a)
+          const idCompito = compitoDallaDescrizione(r.descrizione)
+          const k = idCompito !== undefined ? x.orchestratori.piano(ws).compiti.find((c) => c.id === idCompito) : undefined
+          if (k === undefined || RUOLI_SOLA_LETTURA.has(r.tipo) || !finitoInFila(ws, k)) return undefined
+          return `${k.id} ha già finito e la sua unione è in corso o in fila (la fa il programma, l’esito ti arriva come evento): non rilanciarlo. Se l’unione viene rifiutata, allora affida la correzione.`
+        },
         fila: (r) => {
           const prima = archivioAttesa.leggi()
           const p = passoAttesa(prima, { workspace: wsDi(a), autopilota: a.id, ...r }, { liberi: liberiPc(idUso), adesso: oraMs(), id: randomUUID })
