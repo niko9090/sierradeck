@@ -120,6 +120,7 @@ import {
 import { battitoVivo, rotteClient, rotteLibere } from './client-rotte'
 import { indirizziPerApp } from './rete-telefono'
 import { leggiFirewall, sbloccaConElevazione, type EsitoFirewall } from './firewall-windows'
+import { creaControlloFirewall, type ControlloFirewall } from './firewall-stato'
 import { avviaAnnuncio } from './annuncio-mdns'
 import { immagineQr, indirizzoAccoppiamento } from './qr-accoppiamento'
 import { apkDisponibile } from './apk-disponibile'
@@ -591,8 +592,8 @@ let pcVistoGlobale: ((pcId: string, indirizzo: string) => void) | undefined
 let localiBattito: (() => LocaliBattito) | undefined
 /** Il Client di questo PC è in ascolto sulla sua porta (0.58.1). */
 let statoClient: { inAscolto: boolean; errore?: string } | undefined
-/** L'ultimo controllo del firewall di Windows sulla porta del Client (si rifà al massimo ogni 2 minuti). */
-let firewallClient: { il: number; esito: EsitoFirewall } | undefined
+/** Il firewall di Windows sulla porta del Client: l'ultimo esito, riletto in sottofondo ogni 2 minuti al più (m-collegamento). */
+let firewallClient: ControlloFirewall | undefined
 
 /** La scheda video, letta una volta dopo whenReady (k-168). */
 let gpuQui: { testo: string; spenta: boolean; motivo?: string; cosaFare?: string } | undefined
@@ -2666,7 +2667,12 @@ if (!app.requestSingleInstanceLock()) {
           consegne,
           chatInErrore: chatAperte.filter((c) => c.errore !== undefined).map((c) => ({ titolo: c.titolo, errore: c.errore as string })),
           oreErrori: ORE_ERRORI_SALUTE,
-          risorse: risorseQui()
+          risorse: risorseQui(),
+          // m-collegamento: l'ultimo esito senza aspettare (se è vecchio si rilegge in sottofondo).
+          ...((): { firewall?: { messaggio: string; comando: string; motivo?: string } } => {
+            const e = firewallClient?.subito()
+            return e?.stato === 'bloccato' ? { firewall: { messaggio: e.messaggio, comando: e.comando, ...(e.motivo !== undefined ? { motivo: e.motivo } : {}) } } : {}
+          })()
         }))
       }
       ipcMain.handle('salute:leggi', () => leggiSalute())
@@ -5312,13 +5318,9 @@ if (!app.requestSingleInstanceLock()) {
       // Il firewall di Windows (telefono sul wifi di casa senza Tailscale): se scarta i
       // pacchetti in silenzio, il telefono vede solo «non risponde». Si controlla in
       // sottofondo, si scrive nel registro e si mostra in Impostazioni → Client.
-      const controllaFirewall = async (): Promise<EsitoFirewall> => {
-        if (firewallClient !== undefined && Date.now() - firewallClient.il < 120_000) return firewallClient.esito
-        const esito = await leggiFirewall(process.execPath, porta).catch((): EsitoFirewall => ({ stato: 'sconosciuto' }))
-        firewallClient = { il: Date.now(), esito }
-        return esito
-      }
-      void controllaFirewall().then((e) => {
+      const controlloFirewall = creaControlloFirewall(() => leggiFirewall(process.execPath, porta))
+      firewallClient = controlloFirewall
+      void controlloFirewall.controlla().then((e) => {
         if (e.stato === 'bloccato') {
           registro.errore(`[client] ${e.messaggio} Comando: ${e.comando}`)
           // Una sola volta per avvio; l'elevazione parte solo dal tasto «Sistema».
@@ -5328,7 +5330,7 @@ if (!app.requestSingleInstanceLock()) {
       // Il tasto «Sistema»: l'unico punto in cui si chiede l'amministratore, e solo dopo il clic.
       ipcMain.handle('client:sistemaFirewall', async () => {
         const esito = await sbloccaConElevazione(process.execPath, porta).catch((): EsitoFirewall => ({ stato: 'sconosciuto' }))
-        firewallClient = { il: Date.now(), esito }
+        controlloFirewall.imposta(esito)
         return esito.stato === 'bloccato' ? { stato: 'bloccato' as const } : { stato: 'ok' as const }
       })
       // L'annuncio in rete locale (k-50, _sierradeck._tcp): non fa mai cadere il programma.
@@ -5359,7 +5361,8 @@ if (!app.requestSingleInstanceLock()) {
           // e la VPN — perché sono due risposte diverse alla stessa domanda.
           inEvidenza: indirizziInEvidenza(indirizzi),
           // Presente solo se il firewall di Windows sta bloccando la rete di casa.
-          firewall: await (async () => { const e = await controllaFirewall(); return e.stato === 'bloccato' ? { messaggio: e.messaggio, comando: e.comando } : undefined })(),
+          // Senza aspettare: l'ultimo esito; se è vecchio si rilegge in sottofondo e arriva al giro dopo (5 s).
+          firewall: (() => { const e = controlloFirewall.subito(); return e?.stato === 'bloccato' ? { messaggio: e.messaggio, comando: e.comando } : undefined })(),
           dispositivi: dispositivi.elenca(),
           accoppiamento: dispositivi.accoppiamentoAperto()
         }

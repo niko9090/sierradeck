@@ -92,6 +92,8 @@ export type IngressiSalute = {
   oreErrori: number
   /** Quanto lavora SierraDeck su questo PC (0.69.0). */
   risorse?: RisorsePc
+  /** m-collegamento: presente solo se il firewall di Windows blocca il telefono sul wifi di casa. */
+  firewall?: { messaggio: string; comando: string; motivo?: string }
 }
 
 /** «3 ore fa», «2 giorni fa», «adesso». */
@@ -186,6 +188,22 @@ export function titoloErrore(messaggio: string): string {
   return corto.length > 120 ? `${corto.slice(0, 120)}…` : corto
 }
 
+/**
+ * La voce del firewall: chi legge la Salute dal telefono via Tailscale o ponte vede
+ * perché sul wifi di casa non entra. Il rimedio si fa dal PC (chiede l'amministratore).
+ */
+export function voceFirewall(f: NonNullable<IngressiSalute['firewall']>, nomeQui: string): VoceSalute {
+  return {
+    chiave: 'firewall', gruppo: 'pc', tono: 'guasto',
+    titolo: `${nomeQui} · il firewall di Windows blocca il telefono sul wifi di casa`,
+    spiegazione: f.messaggio,
+    cosaFare: f.motivo === 'blocca-tutto'
+      ? `Su ${nomeQui}: Sicurezza di Windows → Firewall → la rete attiva → togli «Blocca tutte le connessioni in ingresso». Oppure, da PowerShell come amministratore: ${f.comando}`
+      : `Su ${nomeQui}: Impostazioni → Client → «Sistema» (Windows chiede il permesso di amministratore). Oppure, da PowerShell come amministratore: ${f.comando}`,
+    azioni: []
+  }
+}
+
 /** Le voci del pannello, in ordine: Drive, PC, aggiornamento, errori, consegne. */
 export function componiSalute(i: IngressiSalute): Salute {
   const voci: VoceSalute[] = []
@@ -271,6 +289,9 @@ export function componiSalute(i: IngressiSalute): Salute {
         : [{ id: 'riprova-pc', testo: 'Riprova adesso', pc: p.pcId }, ...(dismettibile ? [{ id: 'dismetti-pc' as const, testo: 'Dismetti questo PC', pc: p.pcId, nome: p.nome }] : [])]
     })
   }
+
+  // ── Il firewall di Windows davanti alla porta (m-collegamento): il telefono sul wifi di casa non entra ──
+  if (i.firewall !== undefined) voci.push(voceFirewall(i.firewall, i.io?.nome ?? 'Questo PC'))
 
   // ── La scheda video, per ogni PC che la manda (k-168): informativa, attenzione leggera se spenta ──
   // Come per i consumi: la scheda di un PC senza battito recente è un dato vecchio, non una criticità di adesso.
