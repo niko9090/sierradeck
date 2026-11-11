@@ -66,6 +66,8 @@ type Porte = {
   chiamate?: string[]
   rami?: Record<string, number>
   soggetti?: Record<string, string[]>
+  /** I rami che stanno sulla linea del principale: mai staccati, senza un commit loro. */
+  suLinea?: string[]
   rispondi?: (args: string[], cwd: string) => EsitoGit | undefined
 }
 
@@ -93,7 +95,11 @@ function gitDiProva(porte: Porte): { git: Git; asinc: GitAsincrono } {
       return { codice: 0, uscita: righe.join('\n') }
     }
     const verifica = /^rev-parse --verify --quiet refs\/heads\/(.+)$/u.exec(a)
-    if (verifica !== null) return { codice: verifica[1] === 'main' || rami()[verifica[1]!] !== undefined ? 0 : 1, uscita: '' }
+    if (verifica !== null) return verifica[1] === 'main' || rami()[verifica[1]!] !== undefined ? { codice: 0, uscita: `punta-${verifica[1]}` } : { codice: 1, uscita: '' }
+    // La linea del principale che il ramo non ha: vuota per un ramo mai staccato, altrimenti parte da un commit che non è figlio suo.
+    const linea = /^rev-list --first-parent --reverse refs\/heads\/main \^refs\/heads\/(.+)$/u.exec(a)
+    if (linea !== null) return { codice: 0, uscita: porte.suLinea?.includes(linea[1]!) === true ? '' : 'c0ffee' }
+    if (a === 'rev-parse --verify --quiet c0ffee^1') return { codice: 0, uscita: 'padre-di-c0ffee' }
     if (args[0] === 'merge-base' && args[1] === '--is-ancestor') {
       const r = (args[2] ?? '').replace(/^refs\/heads\//u, '')
       return { codice: rami()[r] === 0 ? 0 : 1, uscita: '' }
@@ -454,6 +460,20 @@ describe('compito senza specialisti in memoria: il cancello chiede a git (11/11,
     await attendi(() => k('k-133')?.stato === 'unito', { cosa: 'k-133 unito' })
     expect(porte.merge).toEqual([])
     expect(k('k-133')!.criterioVerde).toBe(true)
+  })
+
+  it('un ramo mai staccato dal principale (lo specialista è fallito senza un commit) non fa chiudere un compito da fare', async () => {
+    zitto()
+    const porte: Porte = { merge: [], rami: { [R1]: 0, [R2]: 0 }, suLinea: [R1, R2] }
+    await avviaServizio(porte)
+    orch.scriviPiano(WS, { versione: 1, compiti: [compito('k-9', { rami: [R1], esito: 'sviluppatore non è riuscito' }), compito('k-10', { stato: 'in-revisione', rami: [R2] })] })
+    await strumento('unisci', { compito: 'k-9' })
+    await attendi(() => processi[0]!.scritte.join('\n').includes('non so quale ramo unire'), { cosa: 'l’esito' })
+    expect(k('k-9')!.stato).toBe('da-fare')
+    // Chi invece ha detto «ho finito» e non ha niente fuori dal principale: vale il criterio, come prima.
+    await strumento('unisci', { compito: 'k-10' })
+    await attendi(() => k('k-10')?.stato === 'unito', { cosa: 'k-10 unito' })
+    expect(porte.merge).toEqual([])
   })
 
   it('un compito di prima, che scrive, senza niente di noto: resta com’è e lo dice (non si chiude a caso)', async () => {

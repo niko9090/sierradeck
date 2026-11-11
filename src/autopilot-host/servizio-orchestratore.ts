@@ -463,8 +463,13 @@ export function compitoDiSolaLettura(c: Pick<CompitoPiano, 'ruolo' | 'esito' | '
 export type RamiDelCompito = {
   /** Quelli con commit che il principale non ha e che unirli cambierebbe qualcosa, dal più vecchio. */
   conLavoro: string[]
-  /** Quanti sono già nel principale (contenuti, o senza novità). */
+  /** Quanti sono entrati di sicuro nel principale: uniti con un'unione, o senza novità (il loro lavoro è arrivato per un'altra strada). */
   dentro: number
+  /**
+   * Quanti stanno sulla linea del principale: mai staccati (lo specialista non ha fatto commit) o entrati
+   * in avanti veloce. Non si sa se avevano lavoro loro: non bastano a dire «il lavoro è già dentro».
+   */
+  incerti: number
   /** Quanti non ci sono più (tolti dopo l'unione, o mai nati perché lo specialista non ha cambiato niente). */
   mancanti: number
 }
@@ -481,7 +486,7 @@ export async function ramiDelCompitoSulDisco(
   g: GitAsincrono,
   p: { cwd: string; base: string; compito: Pick<CompitoPiano, 'id' | 'ramo' | 'rami'>; daNonGuardare?: ReadonlySet<string> }
 ): Promise<RamiDelCompito> {
-  const fuori: RamiDelCompito = { conLavoro: [], dentro: 0, mancanti: 0 }
+  const fuori: RamiDelCompito = { conLavoro: [], dentro: 0, incerti: 0, mancanti: 0 }
   let candidati = [...new Set([...(p.compito.rami ?? []), ...(p.compito.ramo !== undefined ? [p.compito.ramo] : [])])]
   if (candidati.length === 0) {
     const log = await g(['log', '--source', '--no-merges', '--format=%S%x09%s', '--branches=worktree-agent-*', '--not', p.base], p.cwd)
@@ -497,12 +502,25 @@ export async function ramiDelCompitoSulDisco(
     if (ramo === p.base || p.daNonGuardare?.has(ramo) === true) continue
     const chiuso = await ramoGiaChiusoAsincrono(g, { cwd: p.cwd, ramo, base: p.base })
     if (chiuso === 'mancante') { fuori.mancanti += 1; continue }
-    if (chiuso === 'unito') { fuori.dentro += 1; continue }
+    if (chiuso === 'unito') {
+      // Contenuto nel principale. Entrato con un'unione (certo), o sulla sua linea? Un ramo mai staccato (lo
+      // specialista è fallito senza un commit) è «contenuto» anche lui: non deve far chiudere il compito.
+      // Il primo commit della linea del principale che il ramo non ha: se suo padre è la punta del ramo, il ramo sta sulla linea.
+      const linea = await g(['rev-list', '--first-parent', '--reverse', `refs/heads/${p.base}`, `^refs/heads/${ramo}`], p.cwd)
+      const primo = linea.codice === 0 ? linea.uscita.split(/\r?\n/u)[0]?.trim() ?? '' : ''
+      const padre = primo !== '' ? await g(['rev-parse', '--verify', '--quiet', `${primo}^1`], p.cwd) : undefined
+      const punta = primo !== '' ? await g(['rev-parse', '--verify', '--quiet', `refs/heads/${ramo}`], p.cwd) : undefined
+      const unitoDavvero = padre !== undefined && punta !== undefined && padre.codice === 0 && punta.codice === 0 && padre.uscita.trim() !== '' && padre.uscita.trim() !== punta.uscita.trim()
+      if (unitoDavvero) fuori.dentro += 1
+      else fuori.incerti += 1
+      continue
+    }
     const conta = await g(['rev-list', '--count', `${p.base}..${ramo}`], p.cwd)
     const avanti = conta.codice === 0 ? Number.parseInt(conta.uscita.trim(), 10) : NaN
     // Git non risponde: di questo ramo non si sa niente, e nel dubbio non si decide.
     if (!Number.isFinite(avanti)) continue
-    if (avanti <= 0 || await ramoSenzaNovitaAsincrono(g, { cwd: p.cwd, ramo, base: p.base })) { fuori.dentro += 1; continue }
+    if (avanti <= 0) { fuori.incerti += 1; continue }
+    if (await ramoSenzaNovitaAsincrono(g, { cwd: p.cwd, ramo, base: p.base })) { fuori.dentro += 1; continue }
     fuori.conLavoro.push(ramo)
   }
   return fuori
@@ -1126,6 +1144,7 @@ ${NOTA_SENZA_GIT}`,
         assorbiti = altriRami
       } else if (compito.stato === 'unito') soloMisura = 'già unito: rimisuro il criterio'
       else if (suoi.dentro > 0) soloMisura = 'il suo lavoro è già nel principale: niente da unire, vale il criterio'
+      else if (compito.stato === 'in-revisione' && suoi.incerti > 0) soloMisura = 'il suo ramo non ha niente fuori dal principale: niente da unire, vale il criterio'
       else if (compito.stato === 'in-revisione' && suoi.mancanti > 0) soloMisura = 'il suo ramo non c’è più (unito e tolto, o senza modifiche): vale il criterio'
       else if (compito.stato === 'in-revisione' && compitoDiSolaLettura(compito)) soloMisura = 'analisi in sola lettura, niente da unire'
     }
