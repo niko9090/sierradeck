@@ -42,6 +42,7 @@ import type { VistaOrchestratore } from '@shared/piano-orchestratore'
 import { creaStatoTelefono, criteriInPercento } from './stato-telefono-rotta'
 import { attesaInParole, avanzamentoInParole } from '@shared/parole-telefono'
 import { leggiAttesa } from '@shared/stato-telefono'
+import { scollegaTelefono } from './scollega-telefono'
 import {
   bozzaDaCorpo, controllaBozzaAutopilota, controllaNomeWorkspace, ULTIMO_WORKSPACE,
   type AzioneFinestra, type EsitoAzioneFinestra, type RichiestaAutopilota
@@ -1630,6 +1631,9 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       if (v === undefined) return { stato: 502, corpo: { errore: 'il servizio degli autopiloti non ha risposto' } }
       return OK(v)
     }
+
+    // 11/11: il telefono si toglie da solo dall'elenco del PC (`scollega-telefono.ts`).
+    if (r.metodo === 'POST' && r.percorso === '/api/scollega') return scollegaTelefono(r.dispositivo, daAltroPc(r.dispositivo), deps.dispositivi)
 
     if (r.metodo === 'POST' && r.percorso === '/api/rispondi') {
       const id = stringa(r.corpo, 'domanda')
