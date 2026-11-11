@@ -30,7 +30,8 @@ export function promemoriaRosso(
   visti: Map<string, RossoVisto>,
   p: { compiti: readonly Compito[]; compitiConSpecialista: ReadonlySet<string>; richiesteAperte: ReadonlySet<string>; occupato: boolean; ora: number }
 ): string | undefined {
-  const rossi = p.compiti.filter((c) => c.stato === 'unito' && c.criterioVerde !== true && p.richiesteAperte.has(c.richiesta) && !p.compitiConSpecialista.has(c.id))
+  // 11/11: un compito chiuso senza unirlo (superato, annullato) non è un rosso da correggere.
+  const rossi = p.compiti.filter((c) => c.stato === 'unito' && c.criterioVerde !== true && c.chiuso === undefined && p.richiesteAperte.has(c.richiesta) && !p.compitiConSpecialista.has(c.id))
   const ids = new Set(rossi.map((c) => c.id))
   for (const id of [...visti.keys()]) if (!ids.has(id)) visti.delete(id)
   const dovuti: Compito[] = []

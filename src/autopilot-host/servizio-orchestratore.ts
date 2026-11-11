@@ -7,7 +7,7 @@ import {
   type Coda, type MisuraCompito, type Modifica, type VistaCoda
 } from '@shared/coda-richieste'
 import {
-  allineaConPiano, comandoDelCriterio, conCompito, conPercento, conRamoRicordato, misuraDalPiano, misuraUnita, vistaLavoro,
+  allineaConPiano, chiudiCompito, chiudiCompitiOrfani, comandoDelCriterio, conCompito, conPercento, conRamoRicordato, misuraDalPiano, misuraUnita, vistaLavoro,
   type CompitoPiano, type Piano, type TrascrizioneSpecialista, type VistaOrchestratore
 } from '@shared/piano-orchestratore'
 import { compitoDallaDescrizione, durata, specialistiAlLavoro, type EffettoFlusso, type Specialista, type StatoFlusso } from '@shared/flusso-orchestratore'
@@ -701,7 +701,19 @@ Il posto è tuo per 5 minuti.` })
   }
 
   /** La percentuale nuova, col perché se scende; e gli annunci delle richieste appena fatte. */
+  /** 11/11 (k-6, k-7, k-8, k-10): i compiti non fatti di una richiesta ormai chiusa escono dal piano vivo, da soli. */
+  const chiudiOrfani = (ws: string): void => {
+    const piano = x.orchestratori.piano(ws)
+    if (piano.compiti.length === 0) return
+    const occupati = new Set([...compitiInUnione(ws), ...subagenti(ws).flatMap((s) => ((s.stato === 'avviato' || s.stato === 'lavoro') && s.compito !== undefined ? [s.compito] : []))])
+    const e = chiudiCompitiOrfani(piano, coda(ws), x.adesso(), occupati)
+    if (e.chiusi.length === 0) return
+    x.orchestratori.scriviPiano(ws, e.piano)
+    x.code.cambia(ws, () => ({ coda: e.coda, eventi: [] }))
+    console.info(`[orchestratore] ${ws} — ${e.chiusi.join(', ')}: compiti di richieste già chiuse, tolti dal piano vivo`)
+  }
   const ricalcola = (ws: string, perche: string): void => {
+    chiudiOrfani(ws)
     const prima = coda(ws)
     const c = allineaOra(ws)
     const valore = avanzamentoCoda(c, misura(ws))
@@ -1413,7 +1425,24 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       return { ok: true, testo: r.nuove > 0 ? 'Annotata nel quaderno.' : 'C’era già nel quaderno: confermata.' }
     },
     ricalcola,
-    riassunto
+    riassunto,
+    // 11/11: un compito superato o annullato si chiude senza unirlo. Prima restava nel piano e teneva aperta la richiesta (k-120).
+    chiudiCompito(ws, id, come, perche): EsitoAmbiente {
+      if (subagenti(ws).some((s) => (s.stato === 'avviato' || s.stato === 'lavoro') && s.compito === id)) return { ok: false, motivo: `uno specialista sta lavorando a ${id}: aspetta che finisca, poi decidi` }
+      if (compitiInUnione(ws).includes(id)) return { ok: false, motivo: `l’unione di ${id} è in corso o in fila: aspetta l’esito` }
+      const e = chiudiCompito(x.orchestratori.piano(ws), coda(ws), { id, come, perche, quando: x.adesso() })
+      if (!e.ok) return { ok: false, motivo: e.errore }
+      x.orchestratori.scriviPiano(ws, e.piano)
+      x.code.cambia(ws, () => e.coda)
+      const u = unicoDi(ws)
+      if (u !== undefined) {
+        const dopo = { ...u }
+        x.annota(dopo, `compito ${id} chiuso senza unirlo (${come}): ${e.compito.chiuso?.perche ?? ''}`, avanzamento(id, `Chiuso senza farlo «${cosaDel(e.compito.titolo)}» (${come}): ${e.compito.chiuso?.perche ?? ''}`))
+        x.salva(dopo)
+      }
+      ricalcola(ws, `${id} chiuso senza unirlo (${come})`)
+      return { ok: true, testo: `${id} chiuso (${come}): esce dal piano e dalla percentuale, e chi veniva dopo non lo aspetta più.` }
+    }
   }
 
   // ---------------------------------------------------------------- il servizio
@@ -1715,7 +1744,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       const ws = wsDi(a)
       if (unioniIn(ws) > 0) continue
       const aperte = new Set(coda(ws).richieste.filter((r) => r.stato !== 'fatta').map((r) => r.id))
-      const k = x.orchestratori.piano(ws).compiti.find((c) => c.stato === 'unito' && c.criterioVerde === undefined && aperte.has(c.richiesta)
+      const k = x.orchestratori.piano(ws).compiti.find((c) => c.stato === 'unito' && c.criterioVerde === undefined && c.chiuso === undefined && aperte.has(c.richiesta)
         && ora - (rimisureChieste.get(`${ws}|${c.id}`) ?? -Infinity) >= RIMISURA_OGNI_MS)
       if (k === undefined) continue
       rimisureChieste.set(`${ws}|${k.id}`, ora)
@@ -1796,9 +1825,10 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       const ws = wsDi(a)
       // Un compito «in revisione» ha finito e non è unito: dopo un riavvio la fila (in memoria) è vuota, si rifà.
       // 11/11 (k-6, k-8, k-10): i compiti di una richiesta già chiusa non si riprovano a ogni aggiornamento.
+      try { chiudiOrfani(ws) } catch (err) { console.error(`[orchestratore] ${ws} — compiti di richieste chiuse non tolti dal piano:`, err) }
       const chiuse = richiesteChiuse(ws)
       for (const k of x.orchestratori.piano(ws).compiti) {
-        if (k.stato !== 'in-revisione' || chiuse.has(k.richiesta)) continue
+        if (k.stato !== 'in-revisione' || k.chiuso !== undefined || chiuse.has(k.richiesta)) continue
         // Senza aggiornamento (accensione, crash) si riprende solo quello di cui si è certi: col ramo noto (o
         // un'analisi, che non ha niente da unire) e senza un'unione già fallita apposta (conflitto stabile).
         if (opzioni.soloCerte === true && ((k.ramo === undefined && !compitoDiSolaLettura(k)) || /unione non fatta/iu.test(k.esito ?? ''))) continue
@@ -2002,6 +2032,8 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
           const ws = wsDi(a)
           const idCompito = compitoDallaDescrizione(r.descrizione)
           const k = idCompito !== undefined ? x.orchestratori.piano(ws).compiti.find((c) => c.id === idCompito) : undefined
+          // Un compito chiuso senza unirlo non riparte per sbaglio: se va rifatto lo riscrive il piano.
+          if (k?.chiuso !== undefined && !RUOLI_SOLA_LETTURA.has(r.tipo)) return `${k.id} è chiuso (${k.chiuso.come}: ${k.chiuso.perche.slice(0, 120)}): se va fatto davvero, riscrivilo prima con piano_scrivi (titolo o criterio nuovi).`
           if (k === undefined || RUOLI_SOLA_LETTURA.has(r.tipo) || !finitoInFila(ws, k)) return undefined
           return `${k.id} ha già finito e la sua unione è in corso o in fila (la fa il programma, l’esito ti arriva come evento): non rilanciarlo. Se l’unione viene rifiutata, allora affida la correzione.`
         },

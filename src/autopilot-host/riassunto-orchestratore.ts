@@ -67,13 +67,16 @@ export function riassuntoOrchestratore(d: DatiRiassunto): string {
   if (fatte.length > 0) righe.push(`Fatte di recente: ${fatte.slice(-5).map((r) => `${r.id} ${corto(r.titolo, 60)}${r.versione !== undefined ? ` (${r.versione})` : ''}`).join('; ')}`)
 
   righe.push('', 'PIANO:')
-  const vivi = d.piano.compiti.filter((c) => c.stato !== 'unito' || c.criterioVerde !== true)
+  // 11/11: i compiti chiusi senza unirli (superati, annullati, di richieste chiuse) non sono lavoro: fuori dall'elenco.
+  const chiusiSenzaUnire = d.piano.compiti.filter((c) => c.chiuso !== undefined && (c.stato !== 'unito' || c.criterioVerde !== true)).length
+  const vivi = d.piano.compiti.filter((c) => c.chiuso === undefined && (c.stato !== 'unito' || c.criterioVerde !== true))
   if (d.piano.compiti.length === 0) righe.push('- nessun compito ancora')
   for (const c of vivi) {
     righe.push(`- ${c.id} (${c.richiesta}, peso ${c.peso}) [${c.stato}${c.stato === 'unito' && c.criterioVerde !== true ? ', criterio rosso' : ''}${c.chat !== undefined ? `, ${c.chat}` : ''}] ${corto(c.titolo, 120)} — criterio: ${corto(c.criterio, 160)}${c.dopo.length > 0 ? ` — dopo ${c.dopo.join(', ')}` : ''}${c.esito !== undefined ? ` — ultimo esito: ${corto(c.esito, 160)}` : ''}`)
   }
-  const chiusi = d.piano.compiti.length - vivi.length
+  const chiusi = d.piano.compiti.length - vivi.length - chiusiSenzaUnire
   if (chiusi > 0) righe.push(`(${chiusi} compiti uniti con il criterio verde)`)
+  if (chiusiSenzaUnire > 0) righe.push(`(${chiusiSenzaUnire} compiti chiusi senza unirli: superati, annullati o di richieste già chiuse)`)
 
   righe.push('', 'SPECIALISTI:')
   const chats = (d.unico?.chats ?? []).filter((c) => c.fine === undefined)

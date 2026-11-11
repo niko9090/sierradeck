@@ -1,7 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import type { Autopilota, ChatGovernata } from '@shared/autopilota'
 import { chiudi as chiudiCoda, unisci as unisciCoda, COME_CHIUSA, type Coda, type ComeChiusa, type Modifica, type PuntoProposto } from '@shared/coda-richieste'
-import { scriviPiano, type Piano } from '@shared/piano-orchestratore'
+import { COME_CHIUSO_COMPITO, scriviPiano, type Piano } from '@shared/piano-orchestratore'
 import type { Specialista } from '@shared/flusso-orchestratore'
 import { LEZIONE_MAX } from '@shared/lezioni-chat'
 import { gettoneBearer, rispondiRpc, type EsitoStrumento, type ServerMcpMinimo, type StrumentoMcp } from '@shared/mcp-minimo'
@@ -115,6 +115,8 @@ export type AmbienteOrchestratore = {
   specialisti: (ws: string) => Specialista[]
   /** Avvia il cancello: l'esito arriva dopo, come evento. */
   unisci: (ws: string, p: { compito?: string; specialista?: string; ramo?: string }) => EsitoAmbiente
+  /** 11/11: chiude un compito senza unirlo (superato, annullato): esce dal piano vivo e dalla percentuale. */
+  chiudiCompito?: (ws: string, id: string, come: string, perche: string) => EsitoAmbiente
   /** Una richiesta di permesso della CLI: si risolve con la risposta di Nicholas (o con un no allo scadere). */
   permesso: (ws: string, strumento: string, input: unknown) => Promise<{ consenti: boolean; motivo?: string }>
   /** Apre la domanda (registro, doppioni); il tetto all'ora lo guarda lo strumento. */
@@ -268,6 +270,21 @@ export const STRUMENTI_ORCHESTRATORE: readonly StrumentoMcp[] = [
       properties: { testo: { type: 'string' }, tag: { type: 'string' } },
       required: ['testo']
     }
+  },
+  {
+    // 11/11: prima un compito usciva dal piano solo unendolo; uno superato restava lì e teneva aperta la richiesta.
+    name: 'piano_chiudi',
+    title: 'Chiudi un compito senza unirlo',
+    description: 'Chiude un compito del piano che non va più fatto: superato da un altro lavoro (dì quale) o annullato. Esce dal piano e dalla percentuale, e chi veniva «dopo» di lui non lo aspetta più. Non vuol dire «fatto»: un compito fatto si chiude solo con unisci e il criterio verde. Si rifiuta se uno specialista ci sta lavorando o se la sua unione è in corso. Il perché è una riga che Nicholas legge.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        compito: { type: 'string', description: 'L’id del compito del piano (k-N).' },
+        come: { type: 'string', enum: [...COME_CHIUSO_COMPITO], description: 'superato: un altro lavoro lo ha reso inutile; annullato: non si fa più.' },
+        perche: { type: 'string', description: 'Una riga che Nicholas legge.' }
+      },
+      required: ['compito', 'come', 'perche']
+    }
   }
 ]
 
@@ -409,6 +426,14 @@ export async function chiamaStrumento(amb: AmbienteOrchestratore, ws: string, no
       if (testo === '') return no('la lezione è vuota')
       if (testo.length > LEZIONE_MAX) return no(`al più ${LEZIONE_MAX} caratteri`)
       const e = amb.annota(ws, testo, str(arg.tag) || 'orchestratore')
+      return e.ok ? si(e.testo) : no(e.motivo)
+    }
+
+    case 'piano_chiudi': {
+      const compito = str(arg.compito)
+      if (compito === '') return no('quale compito? (k-N)')
+      if (amb.chiudiCompito === undefined) return no('la chiusura dei compiti non è disponibile')
+      const e = amb.chiudiCompito(ws, compito, str(arg.come), str(arg.perche))
       return e.ok ? si(e.testo) : no(e.motivo)
     }
 

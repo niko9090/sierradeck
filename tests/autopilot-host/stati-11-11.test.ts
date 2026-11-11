@@ -287,6 +287,60 @@ describe('un Agent rifiutato o rilanciato non azzera un compito (11/11, k-133)',
   })
 })
 
+describe('compiti zombie: si chiudono da soli con la loro richiesta, o con piano_chiudi (11/11)', () => {
+  it('chiusa la richiesta, i suoi compiti non fatti escono dallo stato dell’autopilota', async () => {
+    zitto()
+    await avviaServizio({ merge: [], rami: {} })
+    await posta('/orchestratore/messaggio', { ws: WS, testo: 'una cosa vecchia, già fatta' })
+    const chiusa = code.leggi(WS).richieste.at(-1)!.id
+    orch.scriviPiano(WS, { versione: 1, compiti: [compito('k-6', { richiesta: chiusa, stato: 'in-revisione', esito: 'general-purpose ha finito: da unire con unisci' }), compito('k-1')] })
+    expect(await strumento('stato', {})).toContain('- k-6 (')
+    await strumento('coda_chiudi', { ids: [chiusa], come: 'gia-fatta', perche: 'è già nel principale' })
+    expect(k('k-6')!.chiuso).toMatchObject({ come: 'richiesta-chiusa' })
+    const stato = await strumento('stato', {})
+    expect(stato).not.toContain('- k-6 (')
+    expect(stato).toContain('- k-1 (')
+    expect(stato).toContain('1 compiti chiusi senza unirli')
+  })
+
+  it('piano_chiudi: chiude un compito superato, col perché; la richiesta si chiude con quelli che restano', async () => {
+    zitto()
+    await avviaServizio({ merge: [], rami: {} })
+    await strumento('stato', {})
+    orch.scriviPiano(WS, { versione: 1, compiti: [compito('k-119', { stato: 'unito', criterioVerde: true, unitoIl: '2026-11-11T08:00:00.000Z' }), compito('k-120', { stato: 'unito', esito: 'unione non fatta: non passa' })] })
+    code.cambia(WS, (c) => ({ coda: { ...c, richieste: c.richieste.map((r) => (r.id === 'r-1' ? { ...r, compiti: ['k-119', 'k-120'], stato: 'in-verifica' as const } : r)) }, eventi: [] }))
+    expect(await strumento('piano_chiudi', { compito: 'k-120', come: 'superato', perche: '' })).toContain('Rifiutato')
+    expect(await strumento('piano_chiudi', { compito: 'k-120', come: 'superato', perche: 'tutto quello che doveva contenere è uscito nella release dopo' })).toContain('k-120 chiuso (superato)')
+    expect(k('k-120')!.chiuso).toMatchObject({ come: 'superato' })
+    expect(code.leggi(WS).richieste.find((r) => r.id === 'r-1')).toMatchObject({ stato: 'fatta', compiti: ['k-119'] })
+    expect((await (await fetch(`http://127.0.0.1:${porta}/orchestratore?ws=${WS}`)).json() as { percento?: number }).percento).toBe(100)
+  })
+
+  it('piano_chiudi si rifiuta con uno specialista al lavoro o con l’unione in corso; un compito chiuso non riparte per sbaglio', async () => {
+    zitto()
+    let sblocca = (): void => {}
+    const porte: Porte = { merge: [], blocca: new Promise<void>((ris) => { sblocca = ris }) }
+    await avviaServizio(porte)
+    orch.scriviPiano(WS, { versione: 1, compiti: [compito('k-1'), compito('k-2'), compito('k-3', { dopo: ['k-2'] })] })
+    await lanciaAgent('k-1: il lavoro', { task: 'a1111111111111111' })
+    expect(await strumento('piano_chiudi', { compito: 'k-1', come: 'annullato', perche: 'non serve' })).toContain('uno specialista sta lavorando a k-1')
+    finisciUltimo()
+    await attendi(() => porte.merge.length === 1, { cosa: 'l’unione di k-1 è in corso' })
+    expect(await strumento('piano_chiudi', { compito: 'k-1', come: 'annullato', perche: 'non serve' })).toContain('l’unione di k-1 è in corso o in fila')
+    expect(await strumento('piano_chiudi', { compito: 'k-2', come: 'annullato', perche: 'non serve più' })).toContain('k-2 chiuso (annullato)')
+    const d = await lanciaAgent('k-2: lo faccio lo stesso')
+    expect(rifiutato(d)).toBe(true)
+    expect(motivo(d)).toContain('k-2 è chiuso (annullato')
+    turnoChiuso()
+    await pausa(30)
+    expect(k('k-2')).toMatchObject({ stato: 'da-fare', chiuso: { come: 'annullato' } })
+    // k-3 veniva dopo k-2: adesso parte.
+    expect(rifiutato(await lanciaAgent('k-3: il seguito', { task: 'a2222222222222222' }))).toBe(false)
+    sblocca()
+    await attendi(() => k('k-1')?.stato === 'unito', { cosa: 'k-1 unito' })
+  })
+})
+
 describe('compito senza specialisti in memoria: il cancello chiede a git (11/11, k-6, k-8, k-10, k-120)', () => {
   /** Zitto come `zitto`, ma torna quello che il programma ha scritto nel registro (info). */
   const info = (): (() => string) => {
