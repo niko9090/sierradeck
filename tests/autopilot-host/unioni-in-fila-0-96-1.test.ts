@@ -289,4 +289,52 @@ describe('la fila delle unioni (06/11)', () => {
     expect(segnali.length).toBe(2)
     expect(porte.merge).toEqual([R1, R1])
   })
+
+  // 11/11 (voce 8): il motivo diceva «anche nella cartella principale non passa», il contrario del vero, e senza l'uscita.
+  it('un ramo che rompe una prova che sul principale passa: respinto con il motivo vero e la coda dell’uscita', async () => {
+    zitto()
+    let chiamate = 0
+    const esegui: Esecutore = () => {
+      chiamate += 1
+      // Con il ramo dentro è rossa; senza il ramo (la rimisura) passa.
+      return Promise.resolve(chiamate === 1 ? { codice: 1, uscita: 'RUN v4\n FAIL  tests/x.test.ts > somma\nAssertionError: expected 1 to be 2\n Tests  1 failed | 9 passed' } : { codice: 0, uscita: 'ok' })
+    }
+    const porte: Porte = { sporca: false, appesa: 0, merge: [] }
+    await prepara(porte, { esegui })
+    conCriterioGiaVerde()
+    await strumento('unisci', { compito: 'k-1' })
+    await attendi(() => orch.piano('Lavoro').compiti[1]!.esito?.startsWith('unione non fatta') === true, { cosa: 'k-1 respinto', timeout: 8000 })
+    const esito = orch.piano('Lavoro').compiti[1]!.esito!
+    // La descrizione da sola («le prove vitest dei compiti già uniti») non dice quale test: lo dice la coda dell'uscita.
+    expect(esito).toMatch(/^unione non fatta: il ramo rompe prove che sul principale passano: le prove vitest dei compiti già uniti[^—]* — RUN v4 \| FAIL {2}tests\/x\.test\.ts > somma \| AssertionError: expected 1 to be 2 \| Tests {2}1 failed \| 9 passed$/u)
+    expect(esito).not.toContain('anche nella cartella principale')
+    expect(chiamate).toBe(2)
+    expect(porte.merge).toEqual([R1])
+    expect(unitoK('k-1')).toBe(false)
+  })
+
+  // 11/11: il turno scaduto in mezzo alla prova finiva nel «catch» delle misure e il ramo veniva respinto
+  // («misura non riuscita: l'unione ha superato il tempo massimo»), senza tornare in fila.
+  it('il turno che scade mentre la prova rimette il ramo non respinge il ramo: l’unione torna in fila ed entra', async () => {
+    zitto()
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    let chiamate = 0
+    const porte: Porte = { sporca: false, appesa: 0, merge: [] }
+    const esegui: Esecutore = () => {
+      chiamate += 1
+      // Primo giro: rossa con il ramo e rossa anche senza (non è colpa del ramo), e il ramo rimesso resta appeso.
+      if (chiamate === 1) porte.appesi = [R1]
+      return Promise.resolve(chiamate <= 2 ? { codice: 1, uscita: 'già rossa sul principale' } : { codice: 0, uscita: 'ok' })
+    }
+    await prepara(porte, { esegui, turniMaxMs: 40 })
+    conCriterioGiaVerde()
+    await strumento('unisci', { compito: 'k-1' })
+    await attendi(() => porte.merge.length >= 2, { cosa: 'il ramo rimesso dentro, appeso' })
+    porte.appesi = []
+    await attendi(() => unitoK('k-1'), { cosa: 'k-1 unito dopo il turno scaduto', timeout: 8000 })
+    const testo = await statoTesto()
+    expect(testo).not.toContain('misura non riuscita')
+    expect(testo).not.toContain('NON fatta')
+    expect(testo).toContain('la rimetto in fila')
+  })
 })

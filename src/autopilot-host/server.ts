@@ -26,7 +26,7 @@ import type { Archivio } from './archivio'
 import { interrottoPerTempo, type Esecutore } from './verifiche'
 import { conScadenza, PROVA_MAX_MS } from './tempi-unione'
 import { improntaCodiceAsincrona, misuraCriteri, type MemoriaCriteri } from './criteri-veloci'
-import { peggioratiDelRamo, preparaCopia, radiceDellaCopia } from './ambiente-copia'
+import { motivoProveRotte, peggioratiDelRamo, preparaCopia, radiceDellaCopia } from './ambiente-copia'
 import { criteriPerLaProva } from './criteri-prova'
 import { TURNI_PC, TurnoScaduto, type TurniCriteri } from './turni-criteri'
 import { giudicaPesanteAspettando, idAgente, rendiTurnoDopoComando, type GuardiaPc } from './guardia-pc'
@@ -746,17 +746,21 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           if (eScaduta()) return { unito: false, motivo: 'prova scaduta', ritenta: 'scaduta' }
           if (prima.some((e) => !e.passato && interrottoPerTempo(e.uscita))) return { unito: false, motivo: PER_TEMPO, ritenta: 'scaduta' }
           peggiorati = peggioratiDelRamo(prima, rossi, true).delRamo
-          if (peggiorati.length > 0) return { unito: false, motivo: `anche nella cartella principale non passa: ${peggiorati.join('; ')}` }
+          // 11/11: il motivo dice il vero (sul principale passano: le rompe il ramo) e porta la coda dell'uscita.
+          if (peggiorati.length > 0) return { unito: false, motivo: motivoProveRotte(peggiorati, rossi) }
           if (eScaduta()) return { unito: false, motivo: 'prova scaduta', ritenta: 'scaduta' }
           const ancora = await unisci()
           if (ancora !== undefined) return ancora
         }
       } catch (err) {
+        // 11/11: il turno scaduto non è un rosso del ramo: esce come «scaduta» e l'unione torna in fila.
+        if (err instanceof TurnoScaduto) throw err
         peggiorati = [`misura non riuscita: ${err instanceof Error ? err.message : String(err)}`]
       }
       if (eScaduta()) return { unito: false, motivo: 'prova scaduta', ritenta: 'scaduta' }
       const tenuta = await turni.unione(a.cwd, () => chiudiProvaAsincrono(gitA(git), { cwd: a.cwd, tieni: peggiorati.length === 0 }))
-      if (peggiorati.length > 0) return { unito: false, motivo: `anche nella cartella principale non passa: ${peggiorati.join('; ')}` }
+      // Qui arriva solo una misura che non è riuscita (un errore del programma): non dice che il ramo rompe qualcosa.
+      if (peggiorati.length > 0) return { unito: false, motivo: `l’unione di prova non si è potuta misurare (${peggiorati.join('; ')}): non è detto che sia colpa del ramo` }
       return tenuta ? { unito: true } : { unito: false, motivo: 'i criteri passavano, ma il commit dell’unione non è riuscito' }
     }
     try {

@@ -152,3 +152,18 @@ export function peggioratiDelRamo(
   }
   return { delRamo, ambiente }
 }
+
+/**
+ * **Il motivo di un ramo respinto dall'unione di prova** (11/11). Prima diceva
+ * «anche nella cartella principale non passa», che è il contrario del vero:
+ * quelle prove sul principale passano, è il ramo che le rompe; e senza l'uscita
+ * chi doveva correggere ripartiva da zero. Per ogni prova rotta le ultime righe
+ * dell'uscita (lì sta il riassunto dei test falliti), al più tre prove.
+ */
+export function motivoProveRotte(descrizioni: string[], rossi: Pick<EsitoVerifica, 'descrizione' | 'uscita'>[]): string {
+  const voci = descrizioni.slice(0, 3).map((d) => {
+    const coda = (rossi.find((r) => r.descrizione === d)?.uscita ?? '').split(/\r?\n/u).map((r) => r.trim()).filter((r) => r !== '').slice(-6).join(' | ').slice(-400)
+    return coda !== '' ? `${d} — ${coda}` : d
+  })
+  return `il ramo rompe prove che sul principale passano: ${voci.join('; ')}${descrizioni.length > 3 ? `; e altre ${descrizioni.length - 3}` : ''}`
+}

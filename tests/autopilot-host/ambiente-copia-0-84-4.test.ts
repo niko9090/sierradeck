@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { peggioratiDelRamo, preparaCopia, problemaDiAmbiente, togliCollegamenti } from '../../src/autopilot-host/ambiente-copia'
+import { motivoProveRotte, peggioratiDelRamo, preparaCopia, problemaDiAmbiente, togliCollegamenti } from '../../src/autopilot-host/ambiente-copia'
 import { daRicordare } from '../../src/autopilot-host/criteri-veloci'
 import { verdettoAccettato } from '@shared/ruoli-agenti'
 
@@ -68,6 +68,27 @@ describe('peggioratiDelRamo divide il ramo dall’ambiente', () => {
     const p = peggioratiDelRamo(base, [verde(TS), rosso(ALTRI, 'AssertionError: expected 1 to be 2'), verde(ANDROID), verde(LISTA)], true)
     expect(p.delRamo).toEqual([ALTRI])
     expect(verdettoAccettato({ esito: 'ok', note: 'src/a.ts:3' }, p.delRamo, '', p.ambiente).esito).toBe('rifare')
+  })
+})
+
+// 11/11: «anche nella cartella principale non passa» diceva il contrario del vero, e senza l'uscita.
+describe('il motivo di un ramo che rompe le prove', () => {
+  it('dice che sul principale passano, e porta le ultime sei righe dell’uscita', () => {
+    const uscita = ['RUN v4', 'riga 1', 'riga 2', '', ' FAIL  tests/a.test.ts > somma', 'AssertionError: expected 1 to be 2', ' Test Files  1 failed | 80 passed', '      Tests  1 failed | 900 passed', '   Duration  12s'].join('\r\n')
+    const m = motivoProveRotte([ALTRI], [rosso(ALTRI, uscita), rosso(TS, 'altro')])
+    expect(m).toBe(`il ramo rompe prove che sul principale passano: ${ALTRI} — riga 2 | FAIL  tests/a.test.ts > somma | AssertionError: expected 1 to be 2 | Test Files  1 failed | 80 passed | Tests  1 failed | 900 passed | Duration  12s`)
+    expect(m).not.toContain('riga 1')
+    expect(m).not.toContain('anche nella cartella principale')
+  })
+  it('un’uscita lunghissima resta corta e tiene la fine; senza uscita resta la descrizione; oltre tre prove le conta', () => {
+    const lunga = motivoProveRotte([TS], [rosso(TS, `${'x'.repeat(5000)}\nerror TS2307: Cannot find module './nuovo'`)])
+    expect(lunga.length).toBeLessThan(600)
+    expect(lunga.endsWith("error TS2307: Cannot find module './nuovo'")).toBe(true)
+    expect(motivoProveRotte([LISTA], [rosso(LISTA, '  \n')])).toBe(`il ramo rompe prove che sul principale passano: ${LISTA}`)
+    expect(motivoProveRotte([LISTA], [])).toBe(`il ramo rompe prove che sul principale passano: ${LISTA}`)
+    const tante = motivoProveRotte([TS, ALTRI, ANDROID, LISTA, 'quinta'], [])
+    expect(tante).toContain(`${TS}; ${ALTRI}; ${ANDROID}; e altre 2`)
+    expect(tante).not.toContain(LISTA)
   })
 })
 
