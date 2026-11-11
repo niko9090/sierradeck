@@ -135,7 +135,7 @@ class Centralino(
         if (esito !is Fallito) return esito.esito
         // La strada è caduta: si cerca l'altra, e si riprova se si può.
         p.strada = null
-        val siPuo = rotta in Strade.LETTURE || esito.nonPartita || noto.saProvare
+        val siPuo = Strade.via(rotta) in Strade.LETTURE || esito.nonPartita || noto.saProvare
         if (!siPuo) { segna(pc, Contatto.NonCollegato(orologio(), esito.motivo)); return Esito.Rete(esito.motivo) }
         val altra = collega(noto, forza = true) ?: return Esito.Rete(motivoAttuale(pc))
         val di2 = esegui(noto, altra, rotta, corpo, idRichiesta)
@@ -280,9 +280,12 @@ class Centralino(
     }
 
     private suspend fun esegui(pc: PcNoto, s: Strada, rotta: String, corpo: String?, idRichiesta: String): Esecuzione = withContext(Dispatchers.IO) {
-        val lenta = rotta in Strade.LENTE
+        // La rotta senza `?…` per le tabelle (11/11): `/api/eventi?avvisi=…` non trovava
+        // né le letture né il suo tetto, e aspettava 15 s anche chiedendone 50.
+        val via = Strade.via(rotta)
+        val lenta = via in Strade.LENTE
         val (url, chiave, testoCorpo) = if (s.tipo == TipoStrada.PONTE) {
-            if (rotta !in Ponte.ROTTE) return@withContext Eseguito(Esito.Rifiuto(403, "Questo si fa da quel computer.", Ponte.nonSiPuo(rotta)))
+            if (via !in Ponte.ROTTE) return@withContext Eseguito(Esito.Rifiuto(403, "Questo si fa da quel computer.", Ponte.nonSiPuo(rotta)))
             val tramite = rubrica.pc(s.tramite ?: "") ?: return@withContext Fallito("il PC del ponte non c'è più", true)
             Triple("${s.base.trimEnd('/')}/api/ponte", tramite.chiave, Ponte.corpo(s.idPonte ?: "", rotta, corpo))
         } else Triple("${s.base.trimEnd('/')}$rotta", pc.chiave, corpo)
@@ -292,11 +295,11 @@ class Centralino(
             b.header("x-sierradeck-richiesta", idRichiesta)
         } else b.get()
         if (chiave.isNotBlank()) b.header("x-sierradeck-chiave", chiave)
-        val chiaveEtag = if (rotta in EtagTenuti.ROTTE && s.tipo != TipoStrada.PONTE) EtagTenuti.chiave(pc.id, rotta, corpo) else null
+        val chiaveEtag = if (via in EtagTenuti.ROTTE && s.tipo != TipoStrada.PONTE) EtagTenuti.chiave(pc.id, rotta, corpo) else null
         chiaveEtag?.let { k -> EtagTenuti.etag(k)?.let { b.header("If-None-Match", it) } }
         val tipoCliente = if (s.tipo == TipoStrada.PONTE) (rubrica.pc(s.tramite ?: "")?.let { di(it.id).strada?.tipo } ?: TipoStrada.TAILSCALE) else s.tipo
         val cliente = reti.cliente(tipoCliente).let { c ->
-            val ms = if (lenta) Strade.LENTE_MS else Strade.NORMALE_MS
+            val ms = Strade.attesaDi(rotta) ?: if (lenta) Strade.LENTE_MS else Strade.NORMALE_MS
             c.newBuilder().readTimeout(ms, TimeUnit.MILLISECONDS).build()
         }
         try {
@@ -327,7 +330,7 @@ class Centralino(
     /** Il corpo letto a flusso, col tetto della rotta: oltre, si smette di leggere. */
     private fun leggi(r: Response, rotta: String): String {
         val corpo = r.body ?: return ""
-        val tetto = Strade.tettoDi(rotta)
+        val tetto = Strade.tettoDi(Strade.via(rotta))
         if (corpo.contentLength() > tetto) throw TroppoGrande(tetto)
         val sorgente = corpo.source()
         sorgente.request(tetto + 1)

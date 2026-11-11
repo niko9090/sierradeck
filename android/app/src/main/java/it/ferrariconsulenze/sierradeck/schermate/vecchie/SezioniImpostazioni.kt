@@ -54,8 +54,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import it.ferrariconsulenze.sierradeck.BuildConfig
-import it.ferrariconsulenze.sierradeck.GuardiaService
-import it.ferrariconsulenze.sierradeck.Sentinella
 import it.ferrariconsulenze.sierradeck.dati.Collegamento
 import it.ferrariconsulenze.sierradeck.nucleo.Account
 import it.ferrariconsulenze.sierradeck.nucleo.Aggiornamento
@@ -103,81 +101,10 @@ fun SezioneDrive(api: Api) {
         CatenaDrive(account)
 }
 
+/** Le notifiche (app 2.100.0): la schermata nuova, in `schermate/notifiche`. */
 @Composable
 fun SezioneAvvisi() {
-    val contesto = LocalContext.current
-    val deposito = remember(contesto) { Collegamento(contesto) }
-    var continuo by remember { mutableStateOf(deposito.controlloContinuo) }
-        // ─── Avvisi ───
-        Sezione("Avvisi")
-        Tessera(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(14.dp)) {
-                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                            Text("Controllo continuo", color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                            Aiuto("Accendilo quando stai aspettando qualcosa adesso: un avviso arriva in cinque secondi invece che in qualche minuto. Android in cambio mostra una riga fissa nelle notifiche; spegnendolo la riga fissa sparisce e l’app guarda ogni paio di minuti.", di = "Controllo continuo")
-                        }
-                        Text(
-                            if (continuo) "Guardo ogni cinque secondi."
-                            else "Guardo ogni paio di minuti.",
-                            color = Banco.testoQuieto,
-                            fontSize = 12.sp
-                        )
-                    }
-                    Switch(
-                        checked = continuo,
-                        onCheckedChange = { acceso ->
-                            continuo = acceso
-                            deposito.controlloContinuo = acceso
-                            if (acceso) {
-                                Sentinella.ferma(contesto)
-                                GuardiaService.avvia(contesto)
-                            } else {
-                                GuardiaService.ferma(contesto)
-                                Sentinella.programma(contesto)
-                            }
-                        }
-                    )
-                }
-                val notificheAttive = androidx.core.app.NotificationManagerCompat.from(contesto).areNotificationsEnabled()
-                if (!notificheAttive) {
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "Le notifiche di SierraDeck sono spente in Android: gli avvisi non possono arrivare, qualunque cosa faccia l’app.",
-                        color = Banco.ambra, fontSize = 12.sp
-                    )
-                    TextButton(onClick = {
-                        try {
-                            contesto.startActivity(
-                                android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-                                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, contesto.packageName)
-                                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                            )
-                        } catch (e: Exception) { /* senza la schermata di sistema resta il testo */ }
-                    }) { Text("Accendile nelle impostazioni di Android") }
-                }
-                val energia = contesto.getSystemService(android.content.Context.POWER_SERVICE) as? android.os.PowerManager
-                if (energia != null && !energia.isIgnoringBatteryOptimizations(contesto.packageName)) {
-                    Spacer(Modifier.height(8.dp))
-                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        Text("Gli avvisi possono arrivare in ritardo.", color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                        Aiuto("Android limita l’app in sottofondo: a telefono fermo un avviso può arrivare con minuti di ritardo. Se vuoi gli avvisi puntuali, escludi SierraDeck dal risparmio batteria.", di = "Risparmio batteria")
-                    }
-                    TextButton(onClick = {
-                        try {
-                            contesto.startActivity(
-                                android.content.Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                            )
-                        } catch (e: Exception) { /* idem */ }
-                    }) { Text("Apri il risparmio batteria") }
-                }
-            }
-        }
-        // Quali notifiche (app 2.74.0): Nicholas, 15/10, «devi ricevere solo notifiche utili».
-        Spacer(Modifier.height(10.dp))
-        InterruttoriNotifiche()
+    it.ferrariconsulenze.sierradeck.schermate.notifiche.SchermataNotifiche()
 }
 
 @Composable
