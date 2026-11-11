@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.99.4',
+    righe: [
+      '**Controllo dei PC più paziente:** la salute di un PC lento si aspetta più a lungo e si riprova una volta. Un PC lento non risulta più «non risponde».',
+    ],
+  },
+  {
     versione: '0.99.3',
     righe: [
       '**Autopilota mai fermo:** anche quando l’errore non è di rete, l’autopilota riprova subito una volta e poi aspetta sempre di più, senza fermarsi mai.',
