@@ -41,9 +41,30 @@ export type IndirizziPc = {
   indirizzi: string[]
 }
 
+/** Un indirizzo con il suo tipo: l'app prova `casa` solo sul wifi, `tailscale` solo con la VPN accesa. */
+export type IndirizzoConTipo = { indirizzo: string; tipo: 'casa' | 'tailscale' }
+
+/**
+ * Impronta e indirizzi come li vuole l'app nuova: in `/api/accoppia` (li impara
+ * subito, senza un secondo giro) e sotto `pc` in `/api/stato` (li rilegge a
+ * ogni cambio di rete del PC). `indirizzo` è completo: `http://<ip>:<porta>`.
+ */
+export function pcPerApp(rete: IndirizziPc | undefined): { impronta: string; indirizzi: IndirizzoConTipo[] } | undefined {
+  if (rete === undefined || rete.impronta === '') return undefined
+  return {
+    impronta: rete.impronta,
+    indirizzi: rete.indirizzi.map((indirizzo) => {
+      const ip = indirizzo.replace(/^https?:\/\//, '').replace(/:\d+$/, '')
+      return { indirizzo, tipo: eTailscale(ip) ? 'tailscale' as const : 'casa' as const }
+    })
+  }
+}
+
 /** Gli indirizzi da raccontare all'app, ordinati: la rete di casa prima della VPN. */
 export function indirizziPerApp(ip: string[], porta: number, idPc: string): IndirizziPc {
   const buoni = [...new Set(ip.filter(annunciabile))]
   const ordinati = [...buoni.filter((i) => !eTailscale(i)), ...buoni.filter(eTailscale)]
-  return { impronta: improntaPc(idPc), porta, indirizzi: ordinati.map((i) => `http://${i}:${porta}`) }
+  // Senza identità (il programma sta ancora partendo) niente impronta: quella
+  // di un id vuoto sarebbe uguale su tutti i PC, e l'app li confonderebbe.
+  return { impronta: idPc === '' ? '' : improntaPc(idPc), porta, indirizzi: ordinati.map((i) => `http://${i}:${porta}`) }
 }

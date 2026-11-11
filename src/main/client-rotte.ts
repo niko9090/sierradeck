@@ -17,6 +17,7 @@ import type { ChatSalvata } from '@shared/workspace'
 import { nomeDaMostrare } from '@shared/nome-pc'
 import type { Esito } from './client-server'
 import type { Dispositivi } from './dispositivi'
+import { pcPerApp } from './rete-telefono'
 import { chiaveFermo, eFermo, riparteDaSolo, type Autopilota } from '@shared/autopilota'
 import { autopilotaLeggero, codaConversazione } from '@shared/autopilota-leggero'
 import { paginaClient, ICONA_SVG, MANIFESTO } from './client-pagina'
@@ -709,7 +710,7 @@ export function rotteLibere(deps: DipendenzeRotte) {
       return OK({
         programma: 'SierraDeck',
         versione: deps.versione,
-        ...(impronta !== undefined ? { impronta } : {})
+        ...(impronta !== undefined && impronta !== '' ? { impronta } : {})
       })
     }
 
@@ -729,7 +730,8 @@ export function rotteLibere(deps: DipendenzeRotte) {
         return { stato: 403, corpo: { errore: 'codice non valido o scaduto' } }
       }
       console.log(`[client] dispositivo accoppiato: ${nome}`)
-      return OK(esito)
+      // Chi è questo PC e dove risponde, subito: l'app nuova non deve fare un secondo giro per impararlo.
+      return OK({ ...esito, ...(pcPerApp(deps.reteApp?.()) ?? {}) })
     }
 
     return { stato: 404, corpo: { errore: 'non trovato' } }
@@ -1337,6 +1339,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         aggiornamento: deps.aggiornamento(),
         // Il Drive del computer scollegato (0.39.3): la stessa banda del PC.
         ...(deps.avvisoDrive?.() !== undefined ? { driveScollegato: deps.avvisoDrive?.() } : {}),
+        // Chi è questo PC (impronta) e dove risponde adesso: l'app segue i cambi di indirizzo senza rifare l'accoppiamento.
+        ...(pcPerApp(deps.reteApp?.()) !== undefined ? { pc: pcPerApp(deps.reteApp?.()) } : {}),
         // Come si chiama questo computer.
         //
         // Serve a chi ne ha piu' di uno: un elenco di indirizzi IP non si legge,
