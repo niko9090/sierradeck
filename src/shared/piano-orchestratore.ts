@@ -1,8 +1,8 @@
 import {
-  avanzamentoCoda, conRichiesta, contaNellaPercentuale, passoDichiarato,
-  type Coda, type CompitoMisurato, type EventoCoda, type MisuraCompito, type Modifica, type StatoCoda, type StatoCompito
+  aggiungi, avanzamentoCoda, conRichiesta, contaNellaPercentuale, passoDichiarato,
+  type Coda, type CompitoMisurato, type EventoCoda, type MisuraCompito, type Modifica, type Richiesta, type StatoCoda, type StatoCompito
 } from './coda-richieste'
-import { criterioSempreVerde, titoloDiSolaAnalisi } from './controllo-comandi'
+import { criterioSempreVerde, esaminaCriterio, titoloDiSolaAnalisi } from './controllo-comandi'
 
 /**
  * **Il piano dell'orchestratore unico** (P3, 30/10/2026): i compiti in cui
@@ -35,17 +35,103 @@ export type CompitoPiano = {
   chat?: string
   /** Il ramo dello specialista finito: serve a riprendere un'unione a metà dopo un riavvio, quando la memoria dei suoi specialisti non c'è più. */
   ramo?: string
+  /**
+   * 11/11: i rami di tutti gli specialisti che ci hanno lavorato, qualunque esito. Dopo un riavvio
+   * è l'unico filo fra il compito e il lavoro (k-165: «unito» col suo commit rimasto fuori dal principale).
+   */
+  rami?: string[]
+  /** 11/11: il ruolo dell'ultimo specialista partito: dice, anche dopo un riavvio, se è un'analisi senza niente da unire. */
+  ruolo?: string
   /** L'ultimo esito del cancello `unisci`: il criterio misurato dopo l'unione. */
   criterioVerde?: boolean
   /** L'ultimo esito in parole (unione, criterio, motivo del rifiuto). */
   esito?: string
   creato: string
   unitoIl?: string
+  /**
+   * 11/11: chiuso senza unirlo (superato, annullato, o la sua richiesta è stata chiusa). Non è «fatto»:
+   * esce dal piano vivo, dalla percentuale e dalle attese di chi veniva dopo.
+   */
+  chiuso?: ChiusuraCompito
 }
+
+/** Come si chiude un compito senza unirlo. `richiesta-chiusa` lo mette solo il programma. */
+export type ComeChiusoCompito = 'superato' | 'annullato' | 'richiesta-chiusa'
+/** I modi che l'autopilota può scegliere con `piano_chiudi`. */
+export const COME_CHIUSO_COMPITO: readonly ComeChiusoCompito[] = ['superato', 'annullato']
+export type ChiusuraCompito = { come: ComeChiusoCompito; perche: string; il: string }
 
 export type Piano = { versione: 1; compiti: CompitoPiano[] }
 
 export const pianoVuoto = (): Piano => ({ versione: 1, compiti: [] })
+
+/** Fatto davvero: unito, con il criterio misurato verde. */
+export const compitoFatto = (c: Pick<CompitoPiano, 'stato' | 'criterioVerde'>): boolean => c.stato === 'unito' && c.criterioVerde === true
+
+/**
+ * **I compiti rimasti di una richiesta ormai chiusa** (11/11: k-6, k-7, k-8, k-10 del 31/10, ancora «in
+ * revisione» in ogni stato dell'autopilota e riprovati a ogni aggiornamento). Quelli non fatti di una
+ * richiesta fatta (o compattata) si chiudono ed escono dai compiti della richiesta. `salta`: chi ha uno
+ * specialista al lavoro o un'unione in corso. Torna gli stessi oggetti se non cambia niente.
+ */
+export function chiudiCompitiOrfani(piano: Piano, coda: Coda, adesso: string, salta?: ReadonlySet<string>): { piano: Piano; coda: Coda; chiusi: string[] } {
+  const perId = new Map(coda.richieste.map((r) => [r.id, r]))
+  const compattate = new Set(coda.compattate.map((r) => r.id))
+  const chiusi: string[] = []
+  const compiti = piano.compiti.map((c) => {
+    if (c.chiuso !== undefined || compitoFatto(c) || salta?.has(c.id) === true) return c
+    const r = perId.get(c.richiesta)
+    if (r === undefined ? !compattate.has(c.richiesta) : r.stato !== 'fatta') return c
+    chiusi.push(c.id)
+    const perche = r?.chiusa !== undefined ? `la richiesta ${c.richiesta} è stata chiusa (${r.chiusa.come}): ${r.chiusa.perche}` : `la richiesta ${c.richiesta} è fatta`
+    return { ...c, chiuso: { come: 'richiesta-chiusa' as const, perche: perche.slice(0, 300), il: adesso } }
+  })
+  if (chiusi.length === 0) return { piano, coda, chiusi }
+  const via = new Set(chiusi)
+  return {
+    piano: { ...piano, compiti },
+    coda: { ...coda, richieste: coda.richieste.map((r) => (r.compiti.some((k) => via.has(k)) ? { ...r, compiti: r.compiti.filter((k) => !via.has(k)) } : r)) },
+    chiusi
+  }
+}
+
+/**
+ * Chiude un compito senza unirlo (`piano_chiudi`, 11/11): superato da un altro lavoro, o annullato. Serve
+ * il perché. Esce dai compiti della sua richiesta, che così può chiudersi con quelli che restano; se non
+ * ne resta nessuno la richiesta torna «in coda», da ripianificare o da chiudere.
+ */
+export function chiudiCompito(piano: Piano, coda: Coda, p: { id: string; come: string; perche: string; quando: string }): { ok: true; piano: Piano; coda: Modifica; compito: CompitoPiano } | { ok: false; errore: string } {
+  const c = piano.compiti.find((x) => x.id === p.id)
+  if (c === undefined) return { ok: false, errore: `il compito ${p.id} non è nel piano` }
+  if (c.chiuso !== undefined) return { ok: false, errore: `il compito ${p.id} è già chiuso (${c.chiuso.come})` }
+  if (compitoFatto(c)) return { ok: false, errore: `il compito ${p.id} è già fatto: unito, con il criterio verde` }
+  if (!COME_CHIUSO_COMPITO.includes(p.come as ComeChiusoCompito)) return { ok: false, errore: `«come» è uno fra ${COME_CHIUSO_COMPITO.join(', ')}` }
+  const perche = p.perche.replace(/\s+/gu, ' ').trim()
+  if (perche === '') return { ok: false, errore: 'serve il perché, in una riga: Nicholas lo legge' }
+  const chiuso: CompitoPiano = { ...c, chiuso: { come: p.come as ComeChiusoCompito, perche: perche.slice(0, 300), il: p.quando } }
+  const eventi: EventoCoda[] = []
+  let nuova = coda
+  for (const r of coda.richieste) {
+    if (!r.compiti.includes(c.id)) continue
+    nuova = conRichiesta(nuova, r.id, (y) => {
+      const compiti = y.compiti.filter((k) => k !== c.id)
+      // Senza più compiti e non fatta: torna «in coda», così non pesa nella percentuale e si vede che va ripianificata.
+      if (compiti.length > 0 || y.stato === 'fatta' || y.stato === 'in-coda') return { ...y, compiti }
+      eventi.push({ tipo: 'stato', quando: p.quando, id: y.id, da: y.stato, a: 'in-coda' })
+      return { ...y, compiti, stato: 'in-coda' as StatoCoda }
+    })
+  }
+  return { ok: true, piano: conCompito(piano, c.id, () => chiuso), coda: { coda: nuova, eventi }, compito: chiuso }
+}
+
+/** Quanti rami si ricordano per compito (i più recenti). */
+export const RAMI_RICORDATI = 12
+
+/** Il compito con un ramo in più fra quelli ricordati (lo stesso oggetto se c'era già). */
+export function conRamoRicordato(c: CompitoPiano, ramo: string | undefined): CompitoPiano {
+  if (ramo === undefined || ramo === '' || c.rami?.includes(ramo) === true) return c
+  return { ...c, rami: [...(c.rami ?? []), ramo].slice(-RAMI_RICORDATI) }
+}
 
 /** Quanti compiti al più in un `piano_scrivi`. */
 export const COMPITI_PER_VOLTA_MAX = 30
@@ -132,6 +218,13 @@ export function scriviPiano(piano: Piano, coda: Coda, raw: unknown, adesso: stri
     if (verde !== undefined) {
       return { ok: false, errore: `il compito ${c.id}: il criterio \`${verde.comando}\` ${verde.motivo}. Usa invece ${verde.alternativa}.` }
     }
+    // 11/11 (k-129): lo stesso esame del cancello, subito. Un comando che il cancello respinge sempre non entra nel piano.
+    const esame = comando !== undefined ? esaminaCriterio(comando, c.titolo) : undefined
+    if (esame !== undefined && !esame.ok) {
+      const cosa = esame.problemi.filter((q) => q.gravita === 'errore').map((q) => q.messaggio).join(' ').slice(0, 500)
+      const nota = esame.problemi.some((q) => q.tipo === 'note') ? ' Se il compito è proprio una nota, dillo nel titolo («nota», «quaderno», «rapporto»); altrimenti togli il comando e scrivi il criterio a parole.' : ''
+      return { ok: false, errore: `il compito ${c.id}: il comando del criterio \`${comando}\` non va bene e il cancello non lo misurerebbe mai. ${cosa}${nota}` }
+    }
     const prima = piano.compiti.find((x) => x.id === c.id)
     if (prima !== undefined && prima.stato !== 'da-fare' && prima.richiesta !== c.richiesta) {
       return { ok: false, errore: `il compito ${c.id} è già ${prima.stato}: non cambia richiesta (aprine uno nuovo)` }
@@ -151,6 +244,8 @@ export function scriviPiano(piano: Piano, coda: Coda, raw: unknown, adesso: stri
     const dopo: CompitoPiano = { ...prima, richiesta: c.richiesta, titolo: c.titolo, criterio: c.criterio, dopo: c.dopo, peso: c.peso }
     // Un criterio cambiato non è più verde: va rimisurato.
     if (dopo.criterio !== prima.criterio) delete dopo.criterioVerde
+    // 11/11: un compito chiuso senza unirlo torna vivo solo se il piano lo riscrive davvero (richiesta, titolo o criterio nuovi).
+    if (dopo.richiesta !== prima.richiesta || dopo.titolo !== prima.titolo || dopo.criterio !== prima.criterio) delete dopo.chiuso
     if (JSON.stringify(dopo) !== JSON.stringify(prima)) cambiati.push(c.id)
     compiti[i] = dopo
   }
@@ -167,6 +262,8 @@ export function scriviPiano(piano: Piano, coda: Coda, raw: unknown, adesso: stri
   const eventi: EventoCoda[] = []
   for (const k of [...nuovi, ...cambiati]) {
     const compito = compiti.find((x) => x.id === k)!
+    // 11/11: un compito rimasto chiuso non torna fra i compiti della sua richiesta.
+    if (compito.chiuso !== undefined) continue
     // Un compito che cambia richiesta esce da quella di prima.
     for (const r of c.richieste) {
       if (r.id !== compito.richiesta && r.compiti.includes(k)) c = conRichiesta(c, r.id, (x) => ({ ...x, compiti: x.compiti.filter((y) => y !== k) }))
@@ -181,6 +278,99 @@ export function scriviPiano(piano: Piano, coda: Coda, raw: unknown, adesso: stri
   return { ok: true, piano: { versione: 1, compiti }, coda: { coda: c, eventi }, nuovi, cambiati }
 }
 
+// ---------------------------------------------------------------- i seguiti
+
+/** Quanti seguiti al più l'autopilota apre da solo sotto una richiesta di Nicholas. */
+export const SEGUITI_PER_RICHIESTA_MAX = 2
+/** Così comincia il testo di un seguito aperto dal programma: da qui si riconosce e si conta. */
+export const PREFISSO_SEGUITO = 'Seguito deciso dall’autopilota di «'
+
+/** Un seguito aperto dal programma (non una richiesta di Nicholas che ne segue un'altra). */
+export function eSeguitoDaSolo(r: Pick<Richiesta, 'originali' | 'testo'>): boolean {
+  return (r.originali[0]?.testo ?? r.testo).startsWith(PREFISSO_SEGUITO)
+}
+
+export type EsitoSeguiti =
+  | { ok: true; compiti: unknown; coda: Coda; eventi: EventoCoda[]; seguiti: { di: string; nuova: string; riusata: boolean }[] }
+  | { ok: false; errore: string }
+
+/**
+ * **I seguiti** (11/11). Un compito nuovo su una richiesta **già fatta** prima
+ * veniva rifiutato («è già fatta»), e l'autopilota non aveva modo di aprire
+ * lavoro: così chiedeva a Nicholas «Li correggo?» solo per farsi dare una
+ * richiesta aperta (08 e 09/11, tre volte: «il programma non mi lascia aprire
+ * lavoro nuovo su una richiesta già chiusa, quindi serve il tuo sì»).
+ *
+ * Adesso il compito passa a un **seguito**: una richiesta nuova che segue
+ * quella fatta, aperta dal programma. Valgono questi limiti:
+ * - solo per le richieste fatte con il lavoro: una chiusa senza lavoro
+ *   (risposta, doppione, annullata da Nicholas) non si riapre così;
+ * - solo per i compiti nuovi: uno che c'è già nel piano non cambia richiesta;
+ * - al più `SEGUITI_PER_RICHIESTA_MAX` seguiti sotto la stessa richiesta di
+ *   Nicholas, contando anche i seguiti dei seguiti; oltre, si rifiuta;
+ * - un seguito ancora aperto si riusa, senza aprirne un altro.
+ * Pura: torna i compiti con la richiesta giusta e la coda con i seguiti.
+ */
+export function apriSeguiti(piano: Piano, coda: Coda, raw: unknown, adesso: string): EsitoSeguiti {
+  const niente: EsitoSeguiti = { ok: true, compiti: raw, coda, eventi: [], seguiti: [] }
+  const letti = leggiCompitiProposti(raw)
+  // Un elenco che non si legge lo rifiuta `scriviPiano`, con il suo errore.
+  if (!letti.ok || !Array.isArray(raw)) return niente
+  const perId = (c: Coda, id: string): Richiesta | undefined => c.richieste.find((r) => r.id === id)
+  /** La richiesta di Nicholas da cui discende un seguito (risalendo i seguiti aperti dal programma). */
+  const radice = (c: Coda, id: string): string => {
+    let qui = id
+    for (let giri = 0; giri < 50; giri += 1) {
+      const r = perId(c, qui)
+      if (r === undefined || r.segue === undefined || !eSeguitoDaSolo(r)) return qui
+      qui = r.segue
+    }
+    return qui
+  }
+  const daSpostare = new Map<string, CompitoProposto[]>()
+  for (const k of letti.compiti) {
+    const r = perId(coda, k.richiesta)
+    if (r === undefined || r.stato !== 'fatta' || r.chiusa !== undefined) continue
+    if (piano.compiti.some((x) => x.id === k.id)) continue
+    daSpostare.set(r.id, [...(daSpostare.get(r.id) ?? []), k])
+  }
+  if (daSpostare.size === 0) return niente
+  let c = coda
+  const eventi: EventoCoda[] = []
+  const seguiti: { di: string; nuova: string; riusata: boolean }[] = []
+  const nuovaRichiesta = new Map<string, string>()
+  for (const [fatta, compiti] of daSpostare) {
+    const origine = radice(c, fatta)
+    const sotto = c.richieste.filter((r) => r.id !== origine && eSeguitoDaSolo(r) && radice(c, r.id) === origine)
+    const aperto = sotto.find((r) => r.stato !== 'fatta' && r.chiusa === undefined)
+    if (aperto !== undefined) {
+      nuovaRichiesta.set(fatta, aperto.id)
+      seguiti.push({ di: fatta, nuova: aperto.id, riusata: true })
+      continue
+    }
+    if (sotto.length >= SEGUITI_PER_RICHIESTA_MAX) {
+      return { ok: false, errore: `il compito ${compiti[0]!.id}: la richiesta ${fatta} è già fatta e ha già ${sotto.length} seguiti aperti da te (${sotto.map((r) => r.id).join(', ')}). Altro lavoro su questa cosa lo decide Nicholas: diglielo in una riga, o legalo a una richiesta aperta se ne fa parte` }
+    }
+    const titoloFatta = perId(c, fatta)?.titolo ?? fatta
+    const m = aggiungi(c, {
+      testo: `${PREFISSO_SEGUITO}${titoloFatta}» (${fatta}): ${compiti.map((k) => k.titolo).join('; ')}`,
+      quando: adesso,
+      segue: fatta
+    })
+    c = m.coda
+    eventi.push(...m.eventi)
+    nuovaRichiesta.set(fatta, m.richiesta.id)
+    seguiti.push({ di: fatta, nuova: m.richiesta.id, riusata: false })
+  }
+  const spostati = new Set([...daSpostare.values()].flat().map((k) => k.id))
+  const compiti = raw.map((x: unknown) => {
+    const o = (typeof x === 'object' && x !== null ? x : {}) as Record<string, unknown>
+    if (typeof o.id !== 'string' || !spostati.has(o.id) || typeof o.richiesta !== 'string') return x
+    return { ...o, richiesta: nuovaRichiesta.get(o.richiesta.trim()) ?? o.richiesta }
+  })
+  return { ok: true, compiti, coda: c, eventi, seguiti }
+}
+
 /** Un compito cambiato per id: il piano nuovo, o lo stesso se non c'è. */
 export function conCompito(piano: Piano, id: string, f: (c: CompitoPiano) => CompitoPiano): Piano {
   const i = piano.compiti.findIndex((c) => c.id === id)
@@ -192,8 +382,9 @@ export function conCompito(piano: Piano, id: string, f: (c: CompitoPiano) => Com
 
 /** I compiti pronti a partire: da fare, con tutte le dipendenze unite. */
 export function compitiPronti(piano: Piano): CompitoPiano[] {
-  const uniti = new Set(piano.compiti.filter((c) => c.stato === 'unito').map((c) => c.id))
-  return piano.compiti.filter((c) => c.stato === 'da-fare' && c.dopo.every((d) => uniti.has(d)))
+  // 11/11: un compito chiuso senza unirlo non è pronto, e chi veniva dopo di lui non lo aspetta.
+  const uniti = new Set(piano.compiti.filter((c) => c.stato === 'unito' || c.chiuso !== undefined).map((c) => c.id))
+  return piano.compiti.filter((c) => c.stato === 'da-fare' && c.chiuso === undefined && c.dopo.every((d) => uniti.has(d)))
 }
 
 /** Quello che serve di una chat per misurare il suo compito. */
@@ -235,9 +426,11 @@ export function allineaConPiano(coda: Coda, piano: Piano, adesso: string): Modif
   let cambiata = false
   const richieste = coda.richieste.map((r) => {
     if (r.stato === 'fatta') return r
-    const suoi = r.compiti.flatMap((k) => { const c = perId.get(k); return c !== undefined ? [c] : [] })
+    const delPiano = r.compiti.flatMap((k) => { const c = perId.get(k); return c !== undefined ? [c] : [] })
+    // 11/11: un compito chiuso senza unirlo non tiene aperta la richiesta (di norma non è nemmeno più fra i suoi).
+    const suoi = delPiano.filter((c) => c.chiuso === undefined)
     if (suoi.length === 0) return r
-    const altri = r.compiti.length - suoi.length
+    const altri = r.compiti.length - delPiano.length
     const verdi = suoi.every((c) => c.stato === 'unito' && c.criterioVerde === true)
     let stato: StatoCoda
     if (verdi && altri === 0) stato = 'fatta'
@@ -332,7 +525,7 @@ export function conPercento(prima: PercentoWs | undefined, valore: number | unde
 export function vistaLavoro(coda: Coda, piano: Piano, domandeAperte: number): Pick<VistaOrchestratore, 'piano' | 'richieste' | 'domandeAperte'> {
   const aperte = coda.richieste.filter((r) => r.stato !== 'fatta')
   const ids = new Set(aperte.map((r) => r.id))
-  const suoi = piano.compiti.filter((c) => ids.has(c.richiesta))
+  const suoi = piano.compiti.filter((c) => ids.has(c.richiesta) && c.chiuso === undefined)
   return {
     piano: { totale: suoi.length, uniti: suoi.filter((c) => c.stato === 'unito' && c.criterioVerde === true).length },
     richieste: { aperte: aperte.filter(contaNellaPercentuale).length, daPianificare: aperte.filter((r) => !contaNellaPercentuale(r)).length },
@@ -364,10 +557,21 @@ function leggiCompitoPiano(x: unknown): CompitoPiano | undefined {
     creato: typeof o.creato === 'string' ? o.creato : '',
     ...(typeof o.chat === 'string' && o.chat !== '' ? { chat: o.chat } : {}),
     ...(typeof o.ramo === 'string' && o.ramo !== '' ? { ramo: o.ramo.slice(0, 200) } : {}),
+    ...(Array.isArray(o.rami) && o.rami.some((r) => typeof r === 'string' && r !== '') ? { rami: o.rami.filter((r): r is string => typeof r === 'string' && r !== '').map((r) => r.slice(0, 200)).slice(-RAMI_RICORDATI) } : {}),
+    ...(typeof o.ruolo === 'string' && o.ruolo !== '' ? { ruolo: o.ruolo.slice(0, 60) } : {}),
     ...(typeof o.criterioVerde === 'boolean' ? { criterioVerde: o.criterioVerde } : {}),
     ...(typeof o.esito === 'string' && o.esito !== '' ? { esito: o.esito.slice(0, 600) } : {}),
-    ...(typeof o.unitoIl === 'string' && o.unitoIl !== '' ? { unitoIl: o.unitoIl } : {})
+    ...(typeof o.unitoIl === 'string' && o.unitoIl !== '' ? { unitoIl: o.unitoIl } : {}),
+    ...(leggiChiusura(o.chiuso) !== undefined ? { chiuso: leggiChiusura(o.chiuso)! } : {})
   }
+}
+
+function leggiChiusura(x: unknown): ChiusuraCompito | undefined {
+  if (typeof x !== 'object' || x === null) return undefined
+  const q = x as Record<string, unknown>
+  const come = q.come === 'superato' || q.come === 'annullato' || q.come === 'richiesta-chiusa' ? q.come : undefined
+  if (come === undefined || typeof q.perche !== 'string' || typeof q.il !== 'string') return undefined
+  return { come, perche: q.perche.slice(0, 300), il: q.il }
 }
 
 export function leggiPiano(x: unknown): Piano {

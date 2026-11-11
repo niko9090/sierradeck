@@ -617,9 +617,32 @@ export function avanzamentoRichiesta(r: Richiesta, misura: MisuraCompito): numbe
 }
 
 /**
+ * **Da quando parte «il lavoro di adesso»** (11/11). Prima era la nascita della più vecchia richiesta aperta:
+ * quando quella si chiudeva la finestra saltava in avanti, le fatte di prima uscivano dal conto e la
+ * percentuale scendeva proprio perché un lavoro era finito. Ora si risale la catena: una fatta che era ancora
+ * aperta quando è nata una richiesta della finestra ne fa parte anche lei. È il periodo senza interruzioni in
+ * cui c'è sempre stato qualcosa di aperto; finisce (e si riparte da capo) quando tutto è fatto.
+ */
+function inizioDelLavoroDiAdesso(contate: Richiesta[], aperte: Richiesta[]): number {
+  let dal = Math.min(...aperte.map((r) => Date.parse(r.creata)).filter((t) => !Number.isNaN(t)))
+  const fatte = contate
+    .filter((r) => r.stato === 'fatta' && r.fattaIl !== undefined)
+    .map((r) => ({ nata: Date.parse(r.creata), fatta: Date.parse(r.fattaIl as string) }))
+    .filter((r) => !Number.isNaN(r.nata) && !Number.isNaN(r.fatta))
+  for (let cambiato = true; cambiato;) {
+    cambiato = false
+    for (const r of fatte) {
+      if (r.fatta >= dal && r.nata < dal) { dal = r.nata; cambiato = true }
+    }
+  }
+  return dal
+}
+
+/**
  * La percentuale del workspace: tutti i compiti delle richieste di adesso, con
  * il loro peso (una richiesta senza compiti vale uno, per il suo stato). «Di
- * adesso»: le aperte, più le fatte da quando è nata la più vecchia aperta.
+ * adesso»: le aperte, più le fatte nel periodo in cui c'è sempre stato qualcosa
+ * di aperto (`inizioDelLavoroDiAdesso`): finire un lavoro non la fa mai scendere.
  * Senza richieste aperte, 100 se ce ne sono di fatte; senza niente `undefined`.
  */
 export function avanzamentoCoda(coda: Coda, misura: MisuraCompito): number | undefined {
@@ -627,13 +650,15 @@ export function avanzamentoCoda(coda: Coda, misura: MisuraCompito): number | und
   const contate = coda.richieste.filter(contaNellaPercentuale)
   const aperte = contate.filter((r) => r.stato !== 'fatta')
   if (aperte.length === 0) return contate.length > 0 ? 100 : undefined
-  const dal = Math.min(...aperte.map((r) => Date.parse(r.creata)).filter((t) => !Number.isNaN(t)))
+  const dal = inizioDelLavoroDiAdesso(contate, aperte)
   const dentro = contate.filter((r) => r.stato !== 'fatta' || (r.fattaIl !== undefined && Date.parse(r.fattaIl) >= dal))
   let num = 0
   let den = 0
   for (const r of dentro) {
     if (r.stato === 'fatta') {
-      const n = Math.max(1, r.compiti.length)
+      // 11/11: una fatta pesa quanto pesavano i suoi compiti da aperta (prima: quanti erano). Con il conto
+      // dei compiti, un compito di peso 3 che passava da «in revisione» a fatto faceva scendere il totale.
+      const n = Math.max(1, compitiMisurati(r, misura).reduce((s, c) => s + pesoDi(c), 0))
       num += n
       den += n
       continue

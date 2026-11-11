@@ -530,6 +530,7 @@ export function apriSincronia(deps: {
   // Come sopra, per i file che il giro automatico rimanda (chat vive, tetto di byte).
   let rimandatiDettoIl = 0
   let sospesiDettoIl = 0
+  let perPcDettoIl = 0
   const scriviManifestoLocale = (m: Manifesto): void => {
     const testo = JSON.stringify(soloSuDisco(m))
     if (testo === manifestoScritto && existsSync(fileManifesto)) return
@@ -880,7 +881,11 @@ export function apriSincronia(deps: {
           log(`SALVA conflitto su ${c.percorso}: vince ${c.vinto === 'mio' ? 'questo PC' : 'il Drive'}${c.copia !== undefined ? `, copia in ${c.copia}` : ''}`)
         }
         if (conflittiDetti.size > 5000) conflittiDetti.clear()
-        if (perPc.length > 0) log(`SALVA: ${perPc.map((c) => c.percorso.slice('sierradeck/'.length)).join(', ')} riscritti da un altro PC: sono file per-PC, sul Drive resta l'ultimo salvato, qui non cambia niente`)
+        // 11/11: è la regola, non una notizia: una volta l'ora basta (a ogni giro erano 46 righe in due giorni).
+        if (perPc.length > 0 && Date.now() - perPcDettoIl >= 60 * 60_000) {
+          log(`SALVA: ${perPc.map((c) => c.percorso.slice('sierradeck/'.length)).join(', ')} riscritti da un altro PC: sono file per-PC, sul Drive resta l'ultimo salvato, qui non cambia niente (lo ridico fra un’ora)`)
+          perPcDettoIl = Date.now()
+        }
         if (esito.cancellatiPercorsi.length > 0) log(`SALVA rimossi dal Drive (spariti da qui, nei progetti): ${esito.cancellatiPercorsi.slice(0, 20).join(', ')}${esito.cancellatiPercorsi.length > 20 ? ` … e altri ${esito.cancellatiPercorsi.length - 20}` : ''}`)
         // I conti veri (0.86.2, M1): caricati sono quelli saliti davvero; i
         // saltati (il Drive vince, file illeggibile) e i rimandati a parte.

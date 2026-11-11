@@ -8,6 +8,7 @@ import { POSTI_MAX } from '@shared/posti-chat'
 import { uccidiAlberi } from '@shared/uccidi-alberi'
 import { separaAvvisiNode } from '@shared/avvisi-node'
 import { eErroreDiRete } from '@shared/errori-rete'
+import { attesaLimiteMs, azzeramentoDalTesto, eLimiteDelPiano } from '@shared/limite-del-piano'
 import { NON_EREDITATE } from '../pty-host/pty-manager'
 import { applicaRiga, flussoVuoto, specialistiAlLavoro, type EffettoFlusso, type StatoFlusso } from '@shared/flusso-orchestratore'
 import type { ImpostazioniOrchestratore, RigaDialogo } from './orchestratore-store'
@@ -49,15 +50,16 @@ export function ambientePulito(base: NodeJS.ProcessEnv): Record<string, string> 
  *   `--bare` (ignorerebbe il login dell'abbonamento), e niente
  *   `ANTHROPIC_API_KEY` nell'ambiente del figlio;
  * - il processo si spegne dopo 10 minuti senza turni né specialisti al
- *   lavoro, e riparte con `--resume`; oltre 80k token di contesto la sessione
- *   ruota (quella nuova riceve lo stato e le ultime 10 battute);
+ *   lavoro, e riparte con `--resume`; quando il contesto cresce troppo sopra il
+ *   primo turno della sessione (`sogliaDiRotazione`, 11/11) la sessione ruota
+ *   (quella nuova riceve lo stato e le ultime 10 battute);
  * - un turno alla volta per workspace e al più 2 su tutto il PC: quello che
  *   arriva durante un turno aspetta e parte insieme, alla fine del turno.
  */
 
 // ---------------------------------------------------------------- tipi
 
-export type TipoEvento = 'finito' | 'bloccato' | 'domanda' | 'silenzio' | 'unione' | 'fermo' | 'risposta' | 'adozione' | 'domanda-scaduta' | 'posto'
+export type TipoEvento = 'finito' | 'bloccato' | 'domanda' | 'silenzio' | 'unione' | 'fermo' | 'risposta' | 'adozione' | 'domanda-scaduta' | 'posto' | 'sveglia'
 export type EventoOrchestratore = { tipo: TipoEvento; quando: string; testo: string; chat?: string }
 export type MessaggioUtente = { quando: string; testo: string }
 
@@ -76,8 +78,19 @@ export type AvviaProcesso = (p: { args: string[]; cwd: string; env: Record<strin
 export const MODELLO_ORCHESTRATORE = 'opus'
 /** Gli eventi esterni (non i messaggi) si raccolgono un poco, per partire insieme. */
 export const RACCOLTA_EVENTI_MS = 30_000
-export const CHIAMATE_PC_MAX = 2
+/** Quanti autopiloti (uno per workspace) possono avere un turno aperto insieme sul PC. 11/11: da 2 a 3, con tre workspace vivi il terzo aspettava il turno degli altri. */
+export const CHIAMATE_PC_MAX = 3
 export const ROTAZIONE_TOKEN = 80_000
+/**
+ * 11/11: la soglia vale **sopra la base della sessione**. Una sessione nuova parte già da 52-63k token (regole,
+ * agenti, strumenti, stato): con 80k fissi ruotava ogni 3-8 turni (76 rotazioni in dodici giorni), e ogni volta
+ * rileggeva tutto e perdeva il filo. Ora ruota quando il contesto cresce di tre quarti della soglia sopra il
+ * primo turno della sessione (60k con la soglia di serie), mai sotto la soglia e mai oltre il doppio.
+ */
+export const MARGINE_ROTAZIONE = 0.75
+export function sogliaDiRotazione(soglia: number, base: number | undefined): number {
+  return Math.min(2 * soglia, Math.max(soglia, (base ?? 0) + Math.round(MARGINE_ROTAZIONE * soglia)))
+}
 export const BATTUTE_SEMINA = 10
 export const INATTIVO_MS = 10 * 60_000
 export const SILENZIO_SPECIALISTA_MS = 20 * 60_000
@@ -100,7 +113,7 @@ export const STRUMENTO_PERMESSO = 'mcp__sierradeck__permesso'
  */
 export const REGOLE_ORCHESTRATORE = [
   'Sei l’autopilota di SierraDeck per questo workspace, l’unico. Parli con Nicholas, che possiede il progetto, come un collega che coordina una squadra: lui ti dice cosa vuole, tu fai in modo che venga fatto da specialisti.',
-  'Non scrivi codice e non modifichi i file del progetto tu: leggi (Read, Grep, Glob, e git in sola lettura: git status, git log, git diff, git show), decidi, e affidi il lavoro agli specialisti con lo strumento Agent, in sottofondo. Gli specialisti: sviluppatore, interfaccia, android (scrivono codice), verificatore (prova), revisore ed esploratore (solo lettura). Ognuno lavora nella sua copia del progetto, su un ramo suo.',
+  'Non scrivi codice e non modifichi i file del progetto tu: leggi (Read, Grep, Glob, e git in sola lettura: git status, git log, git diff, git show), decidi, e affidi il lavoro agli specialisti con lo strumento Agent, in sottofondo. Gli specialisti: sviluppatore, interfaccia, android (scrivono codice), verificatore (prova), revisore ed esploratore (solo lettura), rilascio (pubblica una versione già unita, dalla cartella principale). Gli altri lavorano ognuno nella sua copia del progetto, su un ramo suo.',
   'Ogni chiamata a uno strumento sierradeck la controlla il programma: se rifiuta, leggi il motivo e cambia strada, non insistere.',
   '',
   'Ogni messaggio che ricevi comincia con lo stato scritto dal programma (coda, piano, specialisti, percentuale, eventi recenti); poi i messaggi di Nicholas e gli eventi. Lo stato è la verità di adesso.',
@@ -109,24 +122,41 @@ export const REGOLE_ORCHESTRATORE = [
   '1. Ogni cosa che Nicholas chiede è già in coda come richiesta (r-N), con le sue parole intere. Se due richieste parlano della stessa cosa (stesso obiettivo, stessi file, una che raffina o corregge l’altra), uniscile con coda_unisci e riformula: nomina ogni punto (p-N), nessuno si perde; un punto contraddetto lo dichiari superato con il perché. Tienile separate se l’obiettivo è diverso, se una è già fatta, se Nicholas ha detto «separata».',
   '1b. Non tutto quello che scrive Nicholas è lavoro. Una domanda («a che punto siamo?»), una conferma («sì», «procedi»), un ordine che esegui subito («fermati»), un doppione di una richiesta aperta, una cosa già fatta: rispondi o esegui, e nello stesso turno chiudila con coda_chiudi, con il perché. Dire «la chiudo» senza lo strumento non la chiude. Se nello stato ci sono richieste così rimaste aperte, chiudile.',
   '2. Dividi ogni richiesta aperta in compiti con piano_scrivi: piccoli, verificabili, con un criterio chiaro (meglio un comando fra apici inversi, per esempio `npx vitest run tests/coda.test.ts`), le dipendenze vere (dopo) e un peso da 1 a 3.',
-  '2b. Una richiesta chiara la porti avanti subito: piano e specialisti nello stesso turno. Non chiedere «procedo?» o «vuoi che…?»: chiedi solo con chiedi_utente una decisione che spetta a Nicholas (per esempio quando pubblicare).',
+  // 11/11 (Nicholas: «riduci domande idiote»): via «per esempio quando pubblicare»; cosa è suo sta in una regola sola, più sotto.
+  '2b. Una richiesta chiara la porti avanti subito: piano e specialisti nello stesso turno. Non chiedere «procedo?» o «vuoi che…?»: decidi tu e scrivilo in una riga. A Nicholas si chiede solo quello che è suo (vedi «Cosa è di Nicholas»).',
+  // 11/11: l'08 e il 09/11 «Li correggo?» tre volte, solo perché la richiesta era già chiusa.
+  '2c. I difetti trovati da un’analisi o da una revisione su un lavoro che Nicholas ha chiesto li correggi senza chiedere, e lo dici in una riga. Se la richiesta è già fatta, piano_scrivi apre da solo il suo seguito (al più due per richiesta): non ti serve un suo sì per avere una richiesta aperta.',
   '3. Affida un compito pronto con Agent, in sottofondo: la descrizione COMINCIA con l’id del compito e due punti («k-3: …»), così il programma lo collega al piano; nel prompt metti cosa fare, dove, i vincoli e il criterio. Non più specialisti di quelli che servono.',
-  '4. Quando uno specialista finisce, il programma unisce da solo il suo lavoro (trova il ramo, lo prova nel principale, lo unisce, misura il criterio) e l’esito ti arriva come evento «unione». Appena l’unione finisce l’esito ti arriva subito, con i compiti diventati pronti: lanciali nello stesso turno. Un compito con «dopo» non ancora unito non si lancia: il programma rifiuta l’Agent, lo mette in fila e ti avvisa lui quando è unita (non aspettare con sleep). Tu leggi il riepilogo e passi al compito dopo. Chiama unisci solo per quello che è rimasto fuori (una chat adottata, un ramo che dici tu). Criterio rosso o conflitto: affida subito la correzione a uno specialista, dicendo cosa non va.',
-  '4b. Porta a termine: finché in coda c’è lavoro aperto e nessuna decisione di Nicholas lo blocca, ogni tuo turno lascia almeno uno specialista al lavoro o un’unione in corso. Non chiudere un turno con «dimmi tu se…», «non lancio altro» o «aspetto»: se serve una decisione sua, chiedila con chiedi_utente (2-4 scelte, la consigliata per prima, una frase di contesto) e intanto porta avanti il resto. Se il programma ti dice che il lavoro è fermo, riparti da lì. Scrivere file (anche in una copia fuori dalla cartella del progetto) e leggere il web li permette il programma da solo: uno specialista fermato da un permesso negato o scaduto si rilancia subito, non si aspetta Nicholas.',
+  '4. Quando uno specialista finisce, il programma unisce da solo il suo lavoro (trova il ramo, lo prova nel principale, lo unisce, misura il criterio) e l’esito ti arriva come evento «unione». Appena l’unione finisce l’esito ti arriva subito, con i compiti diventati pronti: lanciali nello stesso turno. Un compito con «dopo» non ancora unito non si lancia: il programma rifiuta l’Agent, lo mette in fila e ti avvisa lui quando è unita (non aspettare con sleep). Tu leggi il riepilogo e passi al compito dopo. Chiama unisci solo per quello che è rimasto fuori (una chat adottata, un ramo che dici tu). Criterio rosso o conflitto: affida subito la correzione a uno specialista, dicendo cosa non va. Se un’unione aspetta per file non salvati nella cartella principale se ne occupa il programma, che lo dice lui a Nicholas: tu non chiederlo e vai avanti con il resto.',
+  '4b. Porta a termine: finché in coda c’è lavoro aperto e nessuna decisione di Nicholas lo blocca, ogni tuo turno lascia almeno uno specialista al lavoro o un’unione in corso. Non chiudere un turno con «dimmi tu se…», «non lancio altro» o «aspetto»: se serve davvero una decisione che è sua (vedi «Cosa è di Nicholas»), chiedila con chiedi_utente (2-4 scelte, la più prudente per prima come consigliata, una frase di contesto) e intanto porta avanti il resto. Se il programma ti dice che il lavoro è fermo, riparti da lì. I permessi li decide il programma da solo, mai Nicholas: scrivere file (anche in una copia fuori dalla cartella del progetto) e leggere il web sono concessi; quello che nega (per esempio Monitor o un’attesa: l’esito ti arriva come evento, chiudi il turno) ha il suo motivo, leggilo e cambia strada.',
   // 06/11 (Nicholas): «il tuo compito è portare a termine tutti i lavori; se non sono al computer li devi finire tu».
   '4c. Sei autosufficiente: finisci tutto da solo, anche quando Nicholas non è al computer. Criterio rosso dopo un’unione: affidi la correzione nello stesso turno. Specialista rifiutato perché il tetto è pieno: non è fallito, il programma lo mette in fila col suo prompt e ti avvisa quando c’è posto, tu lo rilanci. A Nicholas chiedi solo una decisione sua o un caso davvero estremo; non chiedergli mai di riavviare il servizio, di chiudere programmi o di fare a mano lavoro tecnico (lo strumento lo rifiuta): lo risolvi tu, coordinando gli specialisti.',
-  '5. Uno specialista bloccato: se la risposta sta nel codice, nel quaderno o in quello che Nicholas ha già detto, decidi tu e rilancia. Chiedi a Nicholas con chiedi_utente solo una decisione che spetta a lui, con 2-4 scelte e la consigliata per prima.',
-  '6. Quello che conviene ricordare per i lavori futuri va nel quaderno con quaderno_annota, una riga. Le righe LEZIONI: dei riepiloghi le annota già il programma.',
+  // 11/11: prima un compito usciva dal piano solo unendolo, e uno superato teneva aperta la richiesta per sempre.
+  '4d. Un compito che non va più fatto (superato da un altro lavoro, o annullato) chiudilo con piano_chiudi, con il perché: non lasciarlo nel piano. Un compito fatto invece si chiude solo con unisci e il criterio verde.',
+  // 11/11: le release uscite da un ramo lasciavano indietro la cartella principale, e servivano verificatori solo per far misurare i criteri.
+  '4e. Quando un lavoro esce da un ramo (una release pubblicata col push), la cartella principale la rimette in pari il programma, da solo, e chiude lui i compiti il cui lavoro è già dentro misurando il criterio: non lanciare specialisti solo per questo.',
+  // 11/11: «riprendo stasera alle 19» era un promemoria nella sessione, che si spegne dopo 10 minuti di quiete: non suonava mai.
+  '4f. Se devi riprendere più tardi (Nicholas dice «riprendi stasera», o aspetti qualcosa che ha un orario), usa lo strumento sveglia: il programma ti richiama a quell’ora, anche se nel frattempo si riavvia. Un promemoria tenuto a mente o un’attesa con sleep si perdono. Le sveglie in attesa sono in SVEGLIE nello stato.',
+  '5. Uno specialista bloccato: se la risposta sta nel codice, nel quaderno o in quello che Nicholas ha già detto, decidi tu e rilancia. A Nicholas, con chiedi_utente, solo quello che è suo, con 2-4 scelte e la consigliata per prima.',
+  // 11/11: 15 Write/Edit rifiutati in quattro giorni verso la memoria di Claude (`.claude/projects/…/memory`).
+  '6. Quello che conviene ricordare per i lavori futuri va nel quaderno con quaderno_annota, una riga. Le righe LEZIONI: dei riepiloghi le annota già il programma. Non scrivere nella memoria di Claude (i file MEMORY.md e simili sotto la cartella .claude): tu non modifichi file, e il programma lo rifiuta; la tua memoria è il quaderno.',
+  '',
+  // 11/11: la regola unica. In due settimane circa 24 domande, 6 davvero sue.
+  'Cosa è di Nicholas, e solo questo si chiede: cancellare cose sue, i suoi account, i suoi dati personali, i soldi, una versione maggiore, e come deve essere una cosa che vede lui quando non si ricava da quello che ha già detto. Tutto il resto lo decidi tu, con la strada più prudente, e lo scrivi in una riga nel tuo messaggio: mai domande su unioni, rami, prove, specialisti, file non salvati o cartella principale, né su quando pubblicare una correzione, e mai su cose già successe. Installare SierraDeck è suo ma non si chiede: è un avviso (vedi sotto). Un fatto che sa solo lui (per esempio com’era collegato il telefono) lo puoi chiedere, segnando la domanda come rischiosa.',
   '',
   'Regole che non si discutono:',
   '- I fatti vincono. Un compito è fatto solo quando unisci ha misurato il suo criterio verde; una richiesta è fatta quando lo sono tutti i suoi compiti. Non dire «fatto» prima.',
   '- La percentuale la calcola il programma: riportala com’è. Se è scesa perché sono arrivati punti nuovi, dillo.',
-  '- Niente lavoro che non sia in coda. Niente push e niente pubblicazioni se la richiesta non li chiede; se li chiede, prima unisci, poi affidi a uno specialista push, tag e release: il programma non li blocca. Se in quaderno o dialogo trovi che SierraDeck blocca il push, è superato.',
+  // 11/11: «Pubblico adesso la X?» sette volte nelle fonti, risposta sempre sì («Fai tu»). Non si chiede più.
+  '- Niente lavoro che non sia in coda. Pubblicare: quando la richiesta lo chiede, oppure quando una correzione o una funzione di un progetto che esce a versioni è unita con tutte le prove verdi, pubblica senza chiedere «pubblico adesso?»: prima unisci, poi affidi push, tag e release allo specialista «rilascio» (lavora nella cartella principale e non modifica file: versione e note le prepara prima uno sviluppatore; il programma non li blocca). Mai installare. Poi scrivi a Nicholas «Pubblicata la X: installala quando vuoi». Chiedi solo per una versione maggiore, che decide lui. Niente push e niente pubblicazioni in un progetto che non esce a versioni, se la richiesta non li chiede. Se in quaderno o dialogo trovi che SierraDeck blocca il push, è superato.',
   // 0.89.5 (02/11): «niente installazioni» valeva per tutto, e l’autopilota rifiutava di installare sul Synology. La regola di Nicholas è solo su SierraDeck.
-  '- Non installare mai una versione di SierraDeck: la installa solo Nicholas. Tutto il resto che la richiesta chiede (installare pacchetti o programmi, mettere un servizio su un server, sul Synology o su un altro PC, configurarlo) fallo: è lavoro come un altro, non una regola da rispettare. Anche scaricare (pacchetti, programmi, installer, file per un progetto) è permesso. Se nel quaderno o nel dialogo trovi scritto che scaricare o installare «non è permesso», è superato: non citarlo e vai avanti.',
+  // 11/11: «Quando la installi?» non è una domanda (prometteva «fra un giorno decido io» su una cosa che non può fare).
+  '- Non installare mai una versione di SierraDeck: la installa solo Nicholas, quando vuole. Non chiedergli quando: lo strumento rifiuta la domanda e il programma gli scrive un avviso. Tu scrivi una riga («La X è pronta: quando la installi, succede Y») e vai avanti con il resto, senza aspettarlo. Tutto il resto che la richiesta chiede (installare pacchetti o programmi, mettere un servizio su un server, sul Synology o su un altro PC, configurarlo) fallo: è lavoro come un altro, non una regola da rispettare. Anche scaricare (pacchetti, programmi, installer, file per un progetto) è permesso. Se nel quaderno o nel dialogo trovi scritto che scaricare o installare «non è permesso», è superato: non citarlo e vai avanti.',
   '- Le chat adottate «solo mia» sono di Nicholas: non toccarle.',
   '',
   '- Le tue domande aperte sono in DOMANDE APERTE nello stato. Appena una non serve più (hai deciso tu, il lavoro è andato avanti o è finito, Nicholas ti ha risposto nel dialogo), ritirala con ritira_domanda nello stesso turno: una domanda superata che resta lì lo confonde.',
+  // 11/11: la scadenza dipende dal rischio (prima: un giorno per tutte, poi «decido io»).
+  '- Una domanda che non rischia niente, senza risposta, la decide il programma dopo un’ora con la consigliata, e glielo scrive: tu vai avanti con quella e non rifarla. Una che tocca cose sue resta aperta finché non risponde: non decidere al posto suo, non rifarla, e intanto porta avanti il resto.',
   '',
   // 0.92.1 (Nicholas 05/11): «gli autopiloti non mi spiegano un cazzo di quello che sta succedendo».
   'Come rispondi: il tuo testo finale di ogni turno è quello che Nicholas legge nella conversazione del workspace, sul PC e sul telefono. Deve sapere sempre cosa sta succedendo senza doverlo chiedere. In italiano semplice, come a un collega che non legge il codice (niente sigle k-N o r-N senza dire cosa sono, niente nomi di rami o di file se non servono), ogni messaggio dice:',
@@ -164,7 +194,8 @@ export function argomentiOrchestratore(p: {
     // Le regole valgono anche per i subagenti: i comandi di shell passano senza
     // chiedere (li ferma il PreToolUse dei divieti, se serve); le modifiche ai
     // file le concede acceptEdits. Il resto chiede, con lo strumento `permesso`
-    // (0.89.5: che concede da solo le modifiche fuori dai posti delicati e il web).
+    // (0.89.5: che concede da solo le modifiche fuori dai posti delicati e il web;
+    // 11/11: decide sempre il programma, concede o nega con il motivo, mai una domanda a Nicholas).
     '--allowedTools', STRUMENTI_CONCESSI
   ]
 }
@@ -189,7 +220,8 @@ const PAROLA_EVENTO: Record<TipoEvento, string> = {
   risposta: 'risposta di Nicholas',
   adozione: 'adozione',
   'domanda-scaduta': 'domanda scaduta',
-  posto: 'lista d’attesa'
+  posto: 'lista d’attesa',
+  sveglia: 'sveglia'
 }
 
 /** Il messaggio di un turno: stato, indice del quaderno, (le ultime battute), eventi e messaggi. */
@@ -282,6 +314,13 @@ export type DipendenzeOrchestratore = {
   riprovaGuastoMs?: (n: number) => number
   /** Nicholas sta decidendo un permesso per questo workspace: il silenzio è giusto, il cane aspetta. */
   attendeNicholas?: (ws: string) => boolean
+  /**
+   * 11/11: il piano ha finito la quota. Non è un guasto: si aspetta l'azzeramento e si riparte da soli.
+   * `primo` è vero una volta per episodio (fino al prossimo turno riuscito). Assente: passa da `errore`.
+   */
+  limite?: (ws: string, p: { motivo: string; primo: boolean; riprovoIl: number; azzeraIl?: number }) => void
+  /** Quando si azzera il limite secondo il programma (ms), se il messaggio della CLI non lo dice. */
+  azzeramentoLimite?: (ws: string, motivo: string) => number | undefined
 }
 
 export type Orchestratore = {
@@ -322,12 +361,16 @@ type StatoWs = {
   /** Quello che il turno in corso ha portato: torna in attesa se il processo muore. */
   inviati?: { messaggi: MessaggioUtente[]; eventi: EventoOrchestratore[] }
   ruota: boolean
+  /** 11/11: il contesto del primo turno della sessione di adesso: la soglia di rotazione si conta da lì. */
+  baseContesto?: number
   /** Guasti di fila: dal secondo si aspetta sempre di più, senza fermarsi mai. */
   tentativi: number
   /** Dopo un guasto si aspetta (backoff) prima del turno dopo. */
   riprova?: ReturnType<typeof setTimeout>
   /** La sessione persa si è già rifatta una volta. */
   persa: boolean
+  /** 11/11: il limite del piano è già stato detto; vale finché un turno non riesce. */
+  limite?: boolean
   /** Il cane da guardia del turno: riparte a ogni riga. */
   cane?: ReturnType<typeof setTimeout>
 }
@@ -385,11 +428,31 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
     avanza()
   }
   /**
+   * 11/11: il turno è fallito perché il piano ha finito la quota («You've hit your weekly limit · resets 1am»).
+   * Non è un guasto e non si conta: fino all'azzeramento riprovare ogni 5 minuti non serve a niente. Si aspetta
+   * fino a lì (al più un'ora per volta; un quarto d'ora se l'ora non si sa) e lo si dice una volta per episodio.
+   */
+  const limiteDelPiano = (ws: string, s: StatoWs, motivo: string): void => {
+    const letto = Date.parse(adesso())
+    const ora = Number.isNaN(letto) ? Date.now() : letto
+    let azzeraIl = azzeramentoDalTesto(motivo, ora)
+    if (azzeraIl === undefined) { try { azzeraIl = d.azzeramentoLimite?.(ws, motivo) } catch { azzeraIl = undefined } }
+    const attesa = attesaLimiteMs(azzeraIl, ora)
+    const primo = s.limite !== true
+    s.limite = true
+    if (d.limite !== undefined) d.limite(ws, { motivo, primo, riprovoIl: ora + attesa, ...(azzeraIl !== undefined && azzeraIl > ora ? { azzeraIl } : {}) })
+    else d.errore(ws, `${motivo} — riprovo fra ${tra(attesa)}`)
+    if (s.riprova !== undefined) clearTimeout(s.riprova)
+    s.riprova = setTimeout(() => { s.riprova = undefined; metti(ws) }, attesa)
+    s.riprova.unref?.()
+  }
+  /**
    * Un turno è fallito (messaggi già rimessi in attesa): si conta il guasto e si riparte da soli.
    * Il primo guasto non di rete riprova subito; poi l'attesa cresce (con un tetto), mai uno stop.
    * Nicholas ne vede una riga sola («riprovo fra N min»), senza domande.
    */
   const guasto = (ws: string, s: StatoWs, motivo: string, rete: boolean): void => {
+    if (eLimiteDelPiano(motivo)) { limiteDelPiano(ws, s, motivo); return }
     s.tentativi += 1
     const attesa = rete ? riprovaReteMs(s.tentativi) : s.tentativi < 2 ? 0 : riprovaGuastoMs(s.tentativi)
     d.errore(ws, attesa > 0 ? `${motivo} — riprovo fra ${tra(attesa)}` : motivo)
@@ -411,6 +474,26 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
   }
 
   /**
+   * 11/11: col processo muoiono anche i suoi specialisti. Prima, dopo un turno appeso (il processo lo spegne
+   * il programma, e la sua uscita non si guarda più) restavano «al lavoro» per sempre: occupavano i posti del
+   * PC, il rilancio era rifiutato come doppione, niente spinte del lavoro fermo e niente autopulizia, fino al
+   * riavvio del servizio. E quando il processo usciva da solo erano «fermati», ma nessuno lo diceva al piano.
+   * `diLo`: lo si dice al servizio (il compito torna da fare); senza, si segnano soltanto.
+   */
+  const fermaSpecialisti = (ws: string, s: StatoWs, diLo: boolean): void => {
+    const vivi = specialistiAlLavoro(s.flusso)
+    if (vivi.length === 0) return
+    const quando = adesso()
+    const fermati = vivi.map((y) => ({ ...y, stato: 'fermato' as const, fine: quando }))
+    s.flusso = { ...s.flusso, specialisti: s.flusso.specialisti.map((y) => fermati.find((f) => f.id === y.id) ?? y) }
+    if (!diLo) return
+    // Subito dopo, non adesso: chi chiama sta ancora sistemando il turno e il processo.
+    queueMicrotask(() => {
+      try { d.flusso?.(ws, fermati.map((specialista) => ({ tipo: 'specialista-finito' as const, specialista })), s.flusso) } catch (err) { console.error(`[orchestratore] ${ws} — specialisti fermati non registrati:`, err) }
+    })
+  }
+
+  /**
    * Il cane da guardia del turno: una CLI appesa (nessuna riga da 20 minuti,
    * e nessun permesso che aspetta Nicholas) terrebbe per sempre uno dei due
    * turni del PC. Si spegne, quello che il turno portava torna in attesa e si
@@ -428,6 +511,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
       const minuti = Math.round(mutoMs / 60_000)
       console.error(`[orchestratore] ${ws} — turno appeso: nessuna riga da ${minuti} minuti`)
       spegniSe(ws, s, `turno appeso (nessuna riga da ${minuti} minuti)`)
+      fermaSpecialisti(ws, s, true)
       guasto(ws, s, `il turno era appeso (nessuna risposta dalla CLI da ${minuti} minuti): l’ho fermato`, false)
     }, mutoMs)
     s.cane.unref?.()
@@ -439,8 +523,10 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
     if (s.proc === undefined || inTurno(s) || specialistiAlLavoro(s.flusso).length > 0 || pronto(s)) return
     if (s.ruota) {
       s.ruota = false
+      const limite = sogliaDiRotazione(soglia, s.baseContesto)
+      s.baseContesto = undefined
       d.cambiaImpostazioni(ws, (i) => ({ ...i, sessione: undefined, daSeminare: true, rotazioni: (i.rotazioni ?? 0) + 1 }))
-      spegniSe(ws, s, `contesto oltre ${soglia} token: la prossima volta una sessione nuova, con lo stato e le ultime ${BATTUTE_SEMINA} battute`)
+      spegniSe(ws, s, `contesto oltre ${limite} token: la prossima volta una sessione nuova, con lo stato e le ultime ${BATTUTE_SEMINA} battute`)
       return
     }
     s.inattivo = setTimeout(() => { s.inattivo = undefined; if (!inTurno(s) && specialistiAlLavoro(s.flusso).length === 0) spegniSe(ws, s, `fermo da ${Math.round(inattivoMs / 60_000)} minuti; riparte con --resume`) }, inattivoMs)
@@ -452,7 +538,9 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
       if (e.tipo === 'sessione') d.cambiaImpostazioni(ws, (i) => ({ ...i, sessione: e.id, daSeminare: undefined }))
       else if (e.tipo === 'costo') {
         if (e.costo.contesto > 0) d.cambiaImpostazioni(ws, (i) => ({ ...i, contesto: e.costo.contesto }))
-        if (e.costo.contesto > soglia) s.ruota = true
+        // 11/11: la soglia si conta dal primo turno della sessione, non da zero (vedi `sogliaDiRotazione`).
+        if (s.baseContesto === undefined && e.costo.contesto > 0) s.baseContesto = e.costo.contesto
+        if (e.costo.contesto > sogliaDiRotazione(soglia, s.baseContesto)) s.ruota = true
       } else if (e.tipo === 'risposta') {
         if (e.errore !== undefined) {
           // Il turno è fallito: i messaggi non si perdono, e si riparte da soli con attesa crescente.
@@ -462,6 +550,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
           s.inviati = undefined
           s.tentativi = 0
           s.persa = false
+          s.limite = false
           if (e.testo !== '') d.risposta(ws, e.testo)
         }
       }
@@ -502,7 +591,9 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
       s.proc = undefined
       if (s.cane !== undefined) { clearTimeout(s.cane); s.cane = undefined }
       const eraInTurno = s.flusso.inTurno
-      s.flusso = { ...s.flusso, inTurno: false, specialisti: s.flusso.specialisti.map((x) => (specialistiAlLavoro({ ...s.flusso, specialisti: [x] }).length > 0 ? { ...x, stato: 'fermato' as const, fine: adesso() } : x)) }
+      s.flusso = { ...s.flusso, inTurno: false }
+      // 11/11: gli specialisti morti col processo si dicono anche al piano (prima restavano «in corso» fino alla spinta del lavoro fermo).
+      fermaSpecialisti(ws, s, true)
       if (s.inattivo !== undefined) { clearTimeout(s.inattivo); s.inattivo = undefined }
       if (eraInTurno || s.inviati !== undefined) {
         // Quello che il turno portava non si perde: torna in attesa.
@@ -511,6 +602,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
         const motivo = separaAvvisiNode(stderr).resto.slice(-400) || `uscito con ${String(codice)}`
         if (!nuovaSess && sessionePersa(motivo) && !s.persa) {
           d.cambiaImpostazioni(ws, (i) => ({ ...i, sessione: undefined, daSeminare: true, rotazioni: (i.rotazioni ?? 0) + 1 }))
+          s.baseContesto = undefined
           s.persa = true
           metti(ws)
           return
@@ -591,6 +683,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
       if (s.riprova !== undefined) clearTimeout(s.riprova)
       s.riprova = undefined
       s.tentativi = 0
+      s.limite = false
       s.messaggi = []
       s.eventi = []
       s.eventiPronti = false
@@ -598,6 +691,8 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
       s.inattivo = undefined
       s.inviati = undefined
       spegniSe(ws, s, 'interruttore spento')
+      // 11/11: spento l'interruttore non resta nessuno «al lavoro» (senza dirlo al piano: l'autopilota è fermo apposta).
+      fermaSpecialisti(ws, s, false)
       forseQuiete()
     },
     spegni() {

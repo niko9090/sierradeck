@@ -1,8 +1,8 @@
-import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, rmdirSync, statSync, unlinkSync } from 'node:fs'
+import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, rmdirSync, statSync, unlinkSync, type Dirent } from 'node:fs'
 import { lstat, readdir, stat } from 'node:fs/promises'
 import { basename, join, resolve, sep } from 'node:path'
 import type { Autopilota, ChatGovernata } from '@shared/autopilota'
-import { cancellaSicura } from '@shared/cancella-sicura'
+import { cancellaSicuraAsincrona, eBloccoTemporaneo } from '@shared/cancella-sicura'
 import { scriviAtomico } from '@shared/scrittura-atomica'
 import type { Archivio } from './archivio'
 import { cartellaWorktreeDi, type GitAsincrono } from './worktree'
@@ -207,6 +207,25 @@ export function decidiRamo(ramo: string, p: { corrente?: string; inUso: Set<stri
   return { ramo, togli: true, perche: 'già unito' }
 }
 
+/** I rami che la CLI dà ai suoi subagenti: `worktree-agent-<id>`, con la copia in `.claude/worktrees/agent-<id>`. */
+export const PREFISSO_RAMO_AGENTE = 'worktree-agent-'
+
+/**
+ * Si toglie il ramo di uno specialista (11/11)? Pura. **Solo se è già unito**: mai uno con commit
+ * che il principale non ha, mai il ramo corrente, mai uno aperto in una copia, mai quello di uno
+ * specialista al lavoro, mai uno citato da un compito ancora aperto (lo chiude il cancello).
+ */
+export function decidiRamoAgente(ramo: string, p: { corrente?: string; inUso: ReadonlySet<string>; vive: ReadonlySet<string>; citati: ReadonlySet<string>; unito: boolean }): DecisioneRamo {
+  const tieni = (perche: string): DecisioneRamo => ({ ramo, togli: false, perche })
+  if (!ramo.startsWith(PREFISSO_RAMO_AGENTE)) return tieni('non è il ramo di uno specialista')
+  if (ramo === p.corrente) return tieni('ramo corrente')
+  if (p.inUso.has(ramo)) return tieni('aperto in una copia')
+  if (p.vive.has(`agent-${ramo.slice(PREFISSO_RAMO_AGENTE.length)}`)) return tieni('specialista al lavoro')
+  if (p.citati.has(ramo)) return tieni('citato da un compito aperto')
+  if (!p.unito) return tieni('commit non uniti')
+  return { ramo, togli: true, perche: 'già unito' }
+}
+
 /**
  * Le righe più nuove di un file a righe, entro `tetto` byte. Pura. Si tagliano
  * solo righe intere: la prima riga tenuta comincia dopo un a-capo.
@@ -302,19 +321,20 @@ export async function staccaCollegamenti(cartella: string): Promise<{ staccati: 
   let staccati = 0
   const falliti: string[] = []
   const giro = async (dir: string): Promise<void> => {
-    let nomi: string[]
-    try { nomi = await readdir(dir) } catch { return }
-    for (const n of nomi) {
-      const p = join(dir, n)
-      let st
-      try { st = await lstat(p) } catch { continue }
-      if (st.isSymbolicLink()) {
+    // 11/11: il tipo lo dice l'elenco della cartella (`Dirent`), senza un `lstat` per voce. Nel
+    // servizio (Electron in modalità Node) `lstat` su un file `.asar` lo apre come archivio e lo
+    // tiene aperto: la copia con dentro `…/resources/app.asar` non si cancellava più (EPERM a ogni giro).
+    let voci: Dirent[]
+    try { voci = await readdir(dir, { withFileTypes: true }) } catch { return }
+    for (const v of voci) {
+      const p = join(dir, v.name)
+      if (v.isSymbolicLink()) {
         // Una giunzione o un collegamento a una cartella si toglie con rmdir
         // o unlink a seconda del sistema: tutti e due tolgono solo il collegamento.
         try { unlinkSync(p); staccati += 1 } catch {
           try { rmdirSync(p); staccati += 1 } catch (err) { falliti.push(`${p}: ${String(err).slice(0, 80)}`) }
         }
-      } else if (st.isDirectory()) {
+      } else if (v.isDirectory()) {
         await giro(p)
       }
     }
@@ -324,28 +344,61 @@ export async function staccaCollegamenti(cartella: string): Promise<{ staccati: 
   return { staccati, falliti }
 }
 
-/** Quanto pesa una cartella, senza seguire i collegamenti. */
+/** Un archivio di Electron: nel servizio non si guarda mai con `lstat` (vedi `staccaCollegamenti`). */
+const eAsar = (nome: string): boolean => /\.asar$/iu.test(nome)
+
+/**
+ * **Via la copia di uno specialista già unito** (11/11). Prima si staccano i
+ * collegamenti dentro la copia (la giunzione a `node_modules` che lo
+ * specialista, o il programma, ci ha messo) **senza seguirli**; solo dopo
+ * `git worktree remove --force`, e il ramo. Il cancello dell'unione chiamava
+ * git direttamente: con una giunzione dentro, la copia restava lì a metà (git
+ * 2.55 la lascia con la giunzione), e una cancellazione ricorsiva che entra in
+ * una giunzione svuota la cartella vera (regola 2, qui sopra).
+ *
+ * Se anche un solo collegamento non si stacca, git non parte e la copia resta
+ * dov'è: la riguarda l'autopulizia. Mai la cartella principale.
+ */
+export async function togliCopiaUnita(git: GitAsincrono, p: { cwd: string; cartella: string; ramo: string }): Promise<{ tolta: boolean; staccati: number; motivo?: string }> {
+  if (chiavePercorso(p.cartella) === chiavePercorso(p.cwd) || dentroOUguale(p.cwd, p.cartella)) return { tolta: false, staccati: 0, motivo: 'è la cartella principale, o la contiene' }
+  let staccati = 0
+  if (existsSync(p.cartella) || await eCollegamento(p.cartella)) {
+    const s = await staccaCollegamenti(p.cartella)
+    staccati = s.staccati
+    if (s.falliti.length > 0) {
+      console.warn(`[unione] non tolgo la copia ${p.cartella}: collegamenti non staccati (${s.falliti[0]})`)
+      return { tolta: false, staccati, motivo: `collegamenti non staccati: ${s.falliti[0]}` }
+    }
+  }
+  const r = await git(['worktree', 'remove', '--force', p.cartella], p.cwd)
+  await git(['branch', '-d', p.ramo], p.cwd)
+  return { tolta: r.codice === 0 && !existsSync(p.cartella), staccati, ...(r.codice !== 0 ? { motivo: r.uscita.slice(0, 160) } : {}) }
+}
+
+/** Quanto pesa una cartella, senza seguire i collegamenti. Un file `.asar` conta zero (11/11): pesarlo vorrebbe dire aprirlo. */
 export async function pesoCartella(cartella: string): Promise<number> {
   let tot = 0
   const giro = async (dir: string): Promise<void> => {
-    let nomi: string[]
-    try { nomi = await readdir(dir) } catch { return }
-    for (const n of nomi) {
-      const p = join(dir, n)
-      try {
-        const st = await lstat(p)
-        if (st.isSymbolicLink()) continue
-        if (st.isDirectory()) await giro(p)
-        else tot += st.size
-      } catch { /* sparito nel frattempo */ }
+    let voci: Dirent[]
+    try { voci = await readdir(dir, { withFileTypes: true }) } catch { return }
+    for (const v of voci) {
+      if (v.isSymbolicLink()) continue
+      const p = join(dir, v.name)
+      if (v.isDirectory()) { await giro(p); continue }
+      if (eAsar(v.name)) continue
+      try { tot += (await lstat(p)).size } catch { /* sparito nel frattempo */ }
     }
   }
   await giro(cartella)
   return tot
 }
 
-/** Toglie una cartella delle copie: prima i collegamenti, poi la cancellazione dalla guardia, solo dentro `cartellaCopie`. */
-export async function togliCartellaCopia(cartella: string, cartellaCopie: string): Promise<{ ok: boolean; byte: number; motivo?: string }> {
+/**
+ * Toglie una cartella delle copie: prima i collegamenti, poi la cancellazione dalla guardia, solo dentro `cartellaCopie`.
+ * 11/11: la cancellazione non ferma il servizio (`cancellaSicuraAsincrona`); `temporaneo` dice che
+ * non è riuscita per un file in uso o simili (`eBloccoTemporaneo`), e che al giro dopo può riuscire.
+ */
+export async function togliCartellaCopia(cartella: string, cartellaCopie: string): Promise<{ ok: boolean; byte: number; motivo?: string; temporaneo?: true }> {
   if (!dentroOUguale(cartella, cartellaCopie) || chiavePercorso(cartella) === chiavePercorso(cartellaCopie)) {
     return { ok: false, byte: 0, motivo: 'fuori dalla cartella delle copie' }
   }
@@ -354,10 +407,11 @@ export async function togliCartellaCopia(cartella: string, cartellaCopie: string
   if (falliti.length > 0) return { ok: false, byte: 0, motivo: `collegamenti non staccati: ${falliti[0]}` }
   const byte = await pesoCartella(cartella)
   try {
-    cancellaSicura(cartella, { dentro: [cartellaCopie] })
+    await cancellaSicuraAsincrona(cartella, { dentro: [cartellaCopie] })
     return { ok: true, byte }
   } catch (err) {
-    return { ok: false, byte: 0, motivo: String(err).slice(0, 160) }
+    const motivo = String(err).slice(0, 160)
+    return { ok: false, byte: 0, motivo, ...(eBloccoTemporaneo(motivo) ? { temporaneo: true as const } : {}) }
   }
 }
 
@@ -399,6 +453,18 @@ export type OpzioniAutopulizia = {
    * allora non se ne tocca nessuna. Assente: quelle copie non si guardano.
    */
   agentiAlLavoro?: (radice: string) => boolean
+  /**
+   * 11/11: le copie (`agent-<id>`) degli specialisti al lavoro adesso in quella cartella. Con questa si
+   * saltano solo quelle: prima bastava un turno o uno specialista al lavoro perché non se ne guardasse
+   * nessuna, e in un workspace sempre attivo le copie finite restavano per giorni. `undefined`: non si
+   * sa (il servizio non è pronto), e allora nessuna si tocca.
+   */
+  copieVive?: (radice: string) => ReadonlySet<string> | undefined
+  /**
+   * 11/11: i rami degli specialisti citati da compiti ancora aperti (o in fila per l'unione): non si
+   * tolgono. `undefined` o assente: non si sa, e allora nessun ramo `worktree-agent-*` si toglie.
+   */
+  ramiCitati?: (radice: string) => ReadonlySet<string> | undefined
   ora?: () => number
 }
 
@@ -440,6 +506,8 @@ export function decidiCartellaAp(c: CartellaApVecchia): DecisioneCartellaAp {
 async function alberoSenzaSeguire(cartella: string): Promise<{ file: number; collegamento: boolean; ultimaMs: number; dalFondo: string[] }> {
   const m = { file: 0, collegamento: false, ultimaMs: 0, dalFondo: [] as string[] }
   const giro = async (p: string): Promise<void> => {
+    // 11/11: un `.asar` è un file e basta, senza `lstat` (nel servizio lo aprirebbe e lo terrebbe aperto).
+    if (p !== cartella && eAsar(basename(p))) { m.file += 1; return }
     let st
     try { st = await lstat(p) } catch { return }
     m.ultimaMs = Math.max(m.ultimaMs, st.mtimeMs, p === cartella && st.birthtimeMs > 0 ? st.birthtimeMs : 0)
@@ -616,7 +684,7 @@ async function pulisciTrascrizioni(o: OpzioniAutopulizia, radice: string, base: 
     if (falliti.length > 0) { e.errori.push(`${nome}: ${falliti[0]}`); continue }
     const byte = await pesoCartella(dir)
     try {
-      cancellaSicura(dir, { dentro: [projects] })
+      await cancellaSicuraAsincrona(dir, { dentro: [projects] })
       e.trascrizioniTolte = (e.trascrizioniTolte ?? 0) + 1
       e.byteLiberati += byte
     } catch (err) {
@@ -635,6 +703,36 @@ function ramoPrincipale(autopiloti: Autopilota[]): string {
   let n = 0
   for (const [r, c] of conti) if (c > n) { migliore = r; n = c }
   return migliore
+}
+
+/** Perché resta una copia che non si è potuta togliere per un blocco che passa da solo. */
+export const TENUTA_FILE_IN_USO = 'file in uso, riprovo al prossimo giro'
+
+/**
+ * Una copia che non si è potuta togliere (k-165 del 07/11, riportata l'11/11).
+ * Se la cancellazione si è fermata su un file tenuto da un programma vivo o
+ * simili (`temporaneo`), non è un errore: la copia resta fra le «tenute» e si
+ * riprova al giro dopo. Il resto (la guardia che rifiuta, un collegamento non
+ * staccato) resta un errore.
+ */
+function segnalaNonTolta(e: EsitoAutopulizia, nome: string, t: { motivo?: string; temporaneo?: true }, testo: string): void {
+  if (t.temporaneo !== true) { e.errori.push(`${nome}: ${testo}`); return }
+  e.tenute.push({ cosa: nome, perche: TENUTA_FILE_IN_USO })
+  tengoUnaVolta(`${nome}|${TENUTA_FILE_IN_USO}`, `[autopulizia] tengo ${nome}: file in uso (${(t.motivo ?? '').replace(/\s+/gu, ' ').slice(0, 100)})`)
+}
+
+/**
+ * Le copie tenute già scritte nel registro, per cartella e motivo (11/11). La riga «tengo …» usciva per
+ * ogni copia a ogni giro (all'avvio e ogni 6 ore): 324 righe in 4 giorni, sempre le stesse. Ora una copia
+ * tenuta si scrive una volta per motivo, finché il servizio vive; il conto di ogni giro resta nella riga
+ * del riepilogo («tenute N perché …»).
+ */
+const tenuteDette = new Set<string>()
+function tengoUnaVolta(chiave: string, riga: string): void {
+  if (tenuteDette.has(chiave)) return
+  if (tenuteDette.size >= 2000) tenuteDette.clear()
+  tenuteDette.add(chiave)
+  console.info(riga)
 }
 
 /** Un progetto: le copie, poi i rami. */
@@ -670,14 +768,22 @@ async function pulisciProgetto(o: OpzioniAutopulizia, radice: string, autopiloti
   // 1. Le copie: quelle del programma e (0.89.0) quelle degli specialisti, con le stesse regole
   // (pulita, già in main, non giovane, nessuna chat lì), più: nessuno specialista al lavoro adesso.
   const cartelleAgenti = join(radice, '.claude', 'worktrees')
-  const conAgenti = o.agentiAlLavoro !== undefined && existsSync(cartelleAgenti) && !o.agentiAlLavoro(radice)
+  // 11/11: le copie degli specialisti al lavoro adesso. Con `copieVive` solo quelle; senza, tutto o niente come prima.
+  const viveAdesso = (): ReadonlySet<string> | undefined => {
+    if (o.copieVive !== undefined) return o.copieVive(radice)
+    return o.agentiAlLavoro !== undefined && !o.agentiAlLavoro(radice) ? new Set<string>() : undefined
+  }
+  const conAgenti = existsSync(cartelleAgenti) && viveAdesso() !== undefined
   const voci: Array<{ n: string; dentro: string }> = []
   for (const dentro of conAgenti ? [cartellaCopie, cartelleAgenti] : [cartellaCopie]) {
     try { for (const n of existsSync(dentro) ? await readdir(dentro) : []) voci.push({ n, dentro }) } catch { /* illeggibile: niente */ }
   }
   for (const { n, dentro } of voci) {
     // Uno specialista partito durante il giro: si riguarda prima di ogni copia.
-    if (dentro === cartelleAgenti && o.agentiAlLavoro?.(radice) !== false) { e.tenute.push({ cosa: n, perche: 'specialisti al lavoro' }); continue }
+    if (dentro === cartelleAgenti) {
+      const vive = viveAdesso()
+      if (vive === undefined || vive.has(n)) { e.tenute.push({ cosa: n, perche: 'specialisti al lavoro' }); continue }
+    }
     const cartella = join(dentro, n)
     try { if ((await lstat(cartella)).isSymbolicLink() || !statSync(cartella).isDirectory()) continue } catch { continue }
     const cartellaVera = percorsoVero(cartella)
@@ -715,7 +821,7 @@ async function pulisciProgetto(o: OpzioniAutopulizia, radice: string, autopiloti
     if (d.togli && (copia.conGit === true || copia.registrata)) d =decidiCopia(copia, chatAdesso(), verifica)
     if (!d.togli) {
       if (d.perche === 'modifiche non salvate' || d.perche === 'commit non uniti' || (d.perche === 'stato non letto' && !copia.registrata)) {
-        console.info(`[autopulizia] tengo ${cartella}${copia.registrata ? '' : ' (non registrata, con .git)'}: ${d.perche}`)
+        tengoUnaVolta(`${cartella}|${d.perche}`, `[autopulizia] tengo ${cartella}${copia.registrata ? '' : ' (non registrata, con .git)'}: ${d.perche}`)
       }
       e.tenute.push({ cosa: n, perche: d.perche })
       continue
@@ -729,13 +835,13 @@ async function pulisciProgetto(o: OpzioniAutopulizia, radice: string, autopiloti
       // o non toglierla affatto («Filename too long», 07/11): la toglie la guardia.
       if (existsSync(cartella)) {
         const t = await togliCartellaCopia(cartella, dentro)
-        if (!t.ok) { e.errori.push(`${n}: ${r.codice !== 0 ? r.uscita.slice(0, 120) : (t.motivo ?? 'non tolta')}`); continue }
+        if (!t.ok) { segnalaNonTolta(e, n, t, r.codice !== 0 ? r.uscita.slice(0, 120) : (t.motivo ?? 'non tolta')); continue }
       }
       e.copieTolte += 1
       e.byteLiberati += byte
     } else {
       const t = await togliCartellaCopia(cartella, dentro)
-      if (!t.ok) { e.errori.push(`${n}: ${t.motivo ?? 'non tolta'}`); continue }
+      if (!t.ok) { segnalaNonTolta(e, n, t, t.motivo ?? 'non tolta'); continue }
       e.copieTolte += 1
       e.byteLiberati += t.byte
     }
@@ -769,6 +875,28 @@ async function pulisciProgetto(o: OpzioniAutopulizia, radice: string, autopiloti
     const r = await git(['branch', '-D', ramo], radice)
     if (r.codice === 0) e.ramiTolti += 1
     else e.errori.push(`${ramo}: ${r.uscita.slice(0, 120)}`)
+  }
+
+  // 2b. 11/11: i rami degli specialisti (`worktree-agent-*`). L'11/11 ce n'erano 63 già uniti e mai tolti
+  // («tolte N copie, 0 rami» a ogni giro): qui si toglievano solo gli `ap/*`. Solo quelli **già uniti**, e con
+  // `branch -d`, mai `-D`: se git non lo dà per unito il ramo resta. Uno con commit che il principale non ha
+  // non si tocca mai (lo dice all'autopilota il servizio). Senza sapere quali rami servono ancora, nessuno.
+  const citati = o.ramiCitati?.(radice)
+  if (citati === undefined) return
+  const ramiAgenti = await git(['for-each-ref', '--format=%(refname:short)', `refs/heads/${PREFISSO_RAMO_AGENTE}*`], radice)
+  if (ramiAgenti.codice !== 0) return
+  for (const ramo of ramiAgenti.uscita.split(/\r?\n/).map((x) => x.trim()).filter((x) => x.startsWith(PREFISSO_RAMO_AGENTE))) {
+    // Chi lavora e cosa serve si rilegge per ogni ramo: uno specialista può partire durante il giro.
+    const vive = viveAdesso()
+    const servono = o.ramiCitati?.(radice)
+    if (vive === undefined || servono === undefined) return
+    const p = { ...(corrente !== undefined ? { corrente } : {}), inUso, vive, citati: servono }
+    if (!decidiRamoAgente(ramo, { ...p, unito: true }).togli) continue
+    const d = decidiRamoAgente(ramo, { ...p, unito: await unito(ramo) })
+    if (!d.togli) continue
+    const r = await git(['branch', '-d', ramo], radice)
+    if (r.codice === 0) e.ramiTolti += 1
+    else e.tenute.push({ cosa: ramo, perche: 'git non lo dà per unito' })
   }
 }
 

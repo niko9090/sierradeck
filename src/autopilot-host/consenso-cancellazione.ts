@@ -74,6 +74,10 @@ export function creaConsensi(adesso: () => number, durataMs = DURATA_CONSENSO_MS
       for (const [id, a] of attese) if (ora - a.chiesta > 24 * 3_600_000) attese.delete(id)
       attese.set(idDomanda, { ap, percorsi: percorsi.map((p) => resolve(p)), chiesta: ora })
     },
+    /** 11/11: questa domanda è un consenso a cancellare ancora in attesa? (La risposta non va fra le decisioni del quaderno.) */
+    riguarda(idDomanda: string): boolean {
+      return attese.has(idDomanda)
+    },
     /**
      * La risposta di Nicholas a una domanda: se era questa e dice sì, nasce il
      * permesso. Restituisce `true` se il permesso è stato dato.

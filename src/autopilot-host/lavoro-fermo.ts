@@ -33,8 +33,9 @@ const corto = (t: string, n: number): string => {
  */
 export function lavoroFermo(p: { coda: Coda; piano: Piano; alLavoro: ReadonlySet<string>; inUnione?: ReadonlySet<string> }): LavoroFermo | undefined {
   const aperte = new Set(p.coda.richieste.filter((r) => r.stato !== 'fatta').map((r) => r.id))
-  const compiti = p.piano.compiti.filter((c) => aperte.has(c.richiesta))
-  const verde = new Set(p.piano.compiti.filter((c) => c.stato === 'unito' && c.criterioVerde === true).map((c) => c.id))
+  // 11/11: un compito chiuso senza unirlo non è fermo, e chi veniva dopo di lui non lo aspetta.
+  const compiti = p.piano.compiti.filter((c) => aperte.has(c.richiesta) && c.chiuso === undefined)
+  const verde = new Set(p.piano.compiti.filter((c) => (c.stato === 'unito' && c.criterioVerde === true) || c.chiuso !== undefined).map((c) => c.id))
   const firma: string[] = []
   const righe: string[] = []
   for (const c of compiti) {
@@ -61,6 +62,32 @@ export function lavoroFermo(p: { coda: Coda; piano: Piano; alLavoro: ReadonlySet
     righe.push(`- ${r.id} senza piano: «${corto(r.titolo, 100)}» — pianificala, o chiudila con coda_chiudi se non è lavoro`)
   }
   return righe.length === 0 ? undefined : { firma: firma.join('|'), righe }
+}
+
+/**
+ * **Le spinte non finiscono** (11/11). Prima erano due, a 3 e 6 minuti, e poi
+ * il lavoro restava fermo in silenzio finché Nicholas non scriveva. Adesso
+ * l'intervallo raddoppia a ogni spinta (3, 6, 12, 24, 48 minuti) fino a
+ * un'ora; con domande aperte a Nicholas fino a quattro ore, perché forse
+ * l'autopilota sta proprio aspettando lui.
+ */
+export const SPINTA_MASSIMA_MS = 60 * 60_000
+export const SPINTA_MASSIMA_CON_DOMANDE_MS = 4 * 60 * 60_000
+/** Da questa spinta in poi lo si dice anche a Nicholas: una riga, una volta per stato. */
+export const SPINTE_PRIMA_DI_DIRLO = 3
+
+/** Quanta quiete serve prima della prossima spinta: `gia` sono quelle già date per questo stato. */
+export function intervalloSpinta(gia: number, base: number, domandeAperte: boolean): number {
+  const tetto = domandeAperte ? SPINTA_MASSIMA_CON_DOMANDE_MS : SPINTA_MASSIMA_MS
+  // Oltre la ventesima il raddoppio non serve più: il tetto è già passato da un pezzo.
+  return Math.min(tetto, base * 2 ** Math.min(20, Math.max(0, gia)))
+}
+
+/** La riga per Nicholas, corta e senza domande: il lavoro è fermo e il programma continua a provarci. */
+export function rigaFermoPerNicholas(f: LavoroFermo, minuti: number, spinte: number): string {
+  const durata = minuti >= 120 ? `${Math.round(minuti / 60)} ore` : `${minuti} minuti`
+  const cose = f.righe.length === 1 ? 'una cosa in sospeso' : `${f.righe.length} cose in sospeso`
+  return `Lavoro fermo da ${durata} (${cose}): ho svegliato l’autopilota ${spinte} volte e non è ripartito. Continuo a provarci, sempre più di rado.`
 }
 
 /** Il testo dell'evento per l'autopilota. */

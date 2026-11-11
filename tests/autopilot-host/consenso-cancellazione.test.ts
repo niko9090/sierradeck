@@ -121,6 +121,11 @@ describe('consenso di Nicholas alle cancellazioni', () => {
     consensi.chiesta('ap-1', [DA_TOGLIERE], 'd-3')
     expect(consensi.aperta('ap-1', [DA_TOGLIERE])).toBe('d-3')
     expect(consensi.aperta('ap-2', [DA_TOGLIERE])).toBeUndefined()
+    // 11/11: si riconosce anche dall'id, finché aspetta la risposta (serve a non scriverla fra le decisioni).
+    expect(consensi.riguarda('d-3')).toBe(true)
+    expect(consensi.riguarda('d-altra')).toBe(false)
+    consensi.risposta('d-3', SCELTA_SI)
+    expect(consensi.riguarda('d-3')).toBe(false)
   })
 
   it('eUnSi: la scelta e il sì scritto sì, il no mai', () => {

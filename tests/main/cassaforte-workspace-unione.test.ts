@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -41,15 +41,16 @@ function pc(nome: string): { dati: string; claude: string; progetti: string } {
 }
 
 const temp: string[] = []
-afterEach(() => { for (const t of temp.splice(0)) rmSync(t, { recursive: true, force: true }) })
+afterEach(() => { vi.restoreAllMocks(); for (const t of temp.splice(0)) rmSync(t, { recursive: true, force: true }) })
 
-function apri(p: ReturnType<typeof pc>, drive: ReturnType<typeof driveCondiviso>, pcId: string): ReturnType<typeof apriSincronia> {
+function apri(p: ReturnType<typeof pc>, drive: ReturnType<typeof driveCondiviso>, pcId: string, righe?: string[]): ReturnType<typeof apriSincronia> {
   temp.push(join(p.dati, '..'))
   const registro = apriRegistroProgetti(p.dati)
   return apriSincronia({
     dati: p.dati, radiceClaude: p.claude,
     driveConnesso: () => true, magazzino: drive.magazzino, archivio: drive.archivio,
     lavoro: creaLavoro(), pcId: () => pcId, cartellaProgetti: () => p.progetti,
+    ...(righe !== undefined ? { log: (m: string) => { righe.push(m) } } : {}),
     registroProgetti: { leggi: () => registro.leggi(), scrivi: (r) => registro.scrivi(r) }
   })
 }
@@ -122,6 +123,39 @@ describe('l’archivio dei workspace sul Drive e’ l’unione dei PC', () => {
     expect(r.ok).toBe(true)
     expect(r.conflitti).toBeUndefined()
     expect(JSON.parse(readFileSync(join(a.dati, 'impostazioni.json'), 'utf8'))).toEqual({ tema: 'scuro', font: 14 })
+  })
+
+  it('11/11: «riscritti da un altro PC» si dice una volta l’ora, non a ogni salvataggio', async () => {
+    const drive = driveCondiviso()
+    const a = pc('a'); const b = pc('b')
+    const righe: string[] = []
+    const riscritti = (): string[] => righe.filter((r) => r.includes('riscritti da un altro PC'))
+    const orologio = vi.spyOn(Date, 'now')
+    const inizio = Date.parse('2026-11-10T12:00:00.000Z')
+    orologio.mockReturnValue(inizio)
+    writeFileSync(join(a.dati, 'impostazioni.json'), JSON.stringify({ giro: 0 }), 'utf8')
+    const syncA = apri(a, drive, 'A', righe)
+    expect((await syncA.creaPassphrase('passphrase-robusta-1')).ok).toBe(true)
+    expect((await syncA.salva()).ok).toBe(true)
+    const syncB = apri(b, drive, 'B')
+    expect((await syncB.sblocca('passphrase-robusta-1')).ok).toBe(true)
+    // I due PC si riscrivono il file a turno, come fa il salvataggio automatico ogni 5 minuti.
+    const unGiro = async (n: number): Promise<void> => {
+      writeFileSync(join(b.dati, 'impostazioni.json'), JSON.stringify({ diB: n }), 'utf8')
+      expect((await syncB.salva()).ok).toBe(true)
+      writeFileSync(join(a.dati, 'impostazioni.json'), JSON.stringify({ giro: n }), 'utf8')
+      expect((await syncA.salva()).ok).toBe(true)
+    }
+    for (let n = 1; n <= 3; n += 1) { orologio.mockReturnValue(inizio + n * 5 * 60_000); await unGiro(n) }
+    expect(riscritti()).toHaveLength(1)
+    expect(riscritti()[0]).toContain('impostazioni.json riscritti da un altro PC')
+    expect(riscritti()[0]).toContain('(lo ridico fra un’ora)')
+    // Un’ora dopo lo ridice, una volta.
+    orologio.mockReturnValue(inizio + 70 * 60_000)
+    await unGiro(4)
+    orologio.mockReturnValue(inizio + 75 * 60_000)
+    await unGiro(5)
+    expect(riscritti()).toHaveLength(2)
   })
 })
 

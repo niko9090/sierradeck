@@ -181,6 +181,8 @@ export function creaSpazioDrive(deps: {
   let ultimo: { il: number; stato: StatoSpazio } | undefined
   let ultimaPuliziaDaSola = 0
   let ultimoGiroChat = 0
+  /** L'ultimo guasto del giro delle chat già scritto nel registro: uguale, non si riscrive. */
+  let guastoChatDetto: string | undefined
   let ultimoGiroVersioni = 0
   let chatInCorso = false
   let inCorso: Promise<StatoSpazio> | undefined
@@ -730,7 +732,15 @@ export function creaSpazioDrive(deps: {
         if (adesso() - ultimoGiroChat >= GIRO_CHAT_OGNI_MS || deps.pieno?.() === true) {
           ultimoGiroChat = adesso()
           const e = await this.chatSulDrive()
-          if (e.tolte > 0 || !e.ok) deps.log(`[spazio] chat sul Drive: ${e.messaggio}`)
+          // 11/11: lo stesso guasto si dice una volta finché dura. A Drive pieno il giro passa ogni
+          // mezz'ora, ed erano 90 righe uguali in tre giorni («Chat sul Drive non sistemate: Drive pieno»).
+          if (e.ok) {
+            guastoChatDetto = undefined
+            if (e.tolte > 0) deps.log(`[spazio] chat sul Drive: ${e.messaggio}`)
+          } else if (e.messaggio !== guastoChatDetto) {
+            guastoChatDetto = e.messaggio
+            deps.log(`[spazio] chat sul Drive: ${e.messaggio} (non lo ripeto finché non cambia)`)
+          }
         }
         // Spazio finito (k-192): le versioni vecchie dei file che SierraDeck stesso ha scritto
         // (chat, indice, battiti) pesano quanto il file e non servono a nessuno. Si tolgono da

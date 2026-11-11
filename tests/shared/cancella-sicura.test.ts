@@ -2,8 +2,10 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { finche, programmaVivoIn } from '../setup/programma-vivo'
 import {
-  cancellaSicura, cestinoSicuro, controllaCancellazione, divietoAssoluto, CancellazioneRifiutata, type AmbienteCancellazione
+  cancellaSicura, cancellaSicuraAsincrona, cestinoSicuro, controllaCancellazione, divietoAssoluto, eBloccoTemporaneo, CancellazioneRifiutata,
+  type AmbienteCancellazione
 } from '../../src/shared/cancella-sicura'
 
 /**
@@ -58,10 +60,12 @@ describe.runIf(process.platform === 'win32')('cancellaSicura: le cartelle vietat
     ['Windows', 'C:\\Windows']
   ]
   for (const [nome, percorso] of VIETATE) {
-    it(`rifiuta ${nome} (${percorso}), anche con tutto il disco permesso`, () => {
+    it(`rifiuta ${nome} (${percorso}), anche con tutto il disco permesso`, async () => {
       const e = controllaCancellazione(percorso, { dentro: TUTTO, ambiente: W })
       expect(e.ok).toBe(false)
       expect(() => cancellaSicura(percorso, { dentro: TUTTO, ambiente: W })).toThrow(CancellazioneRifiutata)
+      // 11/11: la variante che non ferma il processo passa dagli stessi controlli.
+      await expect(cancellaSicuraAsincrona(percorso, { dentro: TUTTO, ambiente: W })).rejects.toThrow(CancellazioneRifiutata)
     })
   }
 
@@ -165,5 +169,121 @@ describe('cancellaSicura sul disco vero (in una cartella finta)', () => {
     await expect(cestinoSicuro(join(a.casa, 'AppData', 'Local'), { dentro: [r], ambiente: a }, cestino)).rejects.toThrow(CancellazioneRifiutata)
     await cestinoSicuro(join(r, 'progetto'), { dentro: [r], ambiente: a }, cestino)
     expect(chiamati).toEqual([join(r, 'progetto')])
+  })
+})
+
+/**
+ * 11/11: la stessa guardia, senza fermare il processo. Il servizio ha un filo
+ * solo, e togliere una copia grande con `rmSync` lo teneva fermo 8-10 secondi.
+ */
+describe('cancellaSicuraAsincrona: gli stessi controlli, senza fermare il processo (11/11)', () => {
+  const ambienteFinto = (radice: string): AmbienteCancellazione => ({
+    windows: process.platform === 'win32',
+    casa: join(radice, 'casa'),
+    temp: join(radice, 'casa', 'AppData', 'Local', 'Temp'),
+    env: { LOCALAPPDATA: join(radice, 'casa', 'AppData', 'Local'), APPDATA: join(radice, 'casa', 'AppData', 'Roaming') }
+  })
+
+  it('cancella davvero una cartella permessa, e solo quella', async () => {
+    const r = mkdtempSync(join(tmpdir(), 'sd-cancella-as-'))
+    const lavoro = join(r, 'lavoro')
+    mkdirSync(join(lavoro, 'via', 'sotto'), { recursive: true })
+    mkdirSync(join(lavoro, 'resta'), { recursive: true })
+    writeFileSync(join(lavoro, 'via', 'sotto', 'f.txt'), 'x')
+    expect(await cancellaSicuraAsincrona(join(lavoro, 'via'), { dentro: [lavoro], ambiente: ambienteFinto(r) })).toBe('cancellata')
+    expect(readdirSync(lavoro)).toEqual(['resta'])
+    expect(await cancellaSicuraAsincrona(join(lavoro, 'via'), { dentro: [lavoro], ambiente: ambienteFinto(r) })).toBe('non-c-era')
+  })
+
+  it('una cartella con dentro un archivio .asar se ne va intera', async () => {
+    // Nel servizio (Electron) `fs` vede un .asar come una cartella: qui si prova solo che il file non fa da ostacolo.
+    const r = mkdtempSync(join(tmpdir(), 'sd-cancella-as-'))
+    const lavoro = join(r, 'lavoro')
+    mkdirSync(join(lavoro, 'copia', 'dist', 'resources'), { recursive: true })
+    writeFileSync(join(lavoro, 'copia', 'dist', 'resources', 'app.asar'), 'non è un archivio vero')
+    expect(await cancellaSicuraAsincrona(join(lavoro, 'copia'), { dentro: [lavoro], ambiente: ambienteFinto(r) })).toBe('cancellata')
+    expect(readdirSync(lavoro)).toEqual([])
+  })
+
+  it('con «recupero» sposta invece di cancellare', async () => {
+    const r = mkdtempSync(join(tmpdir(), 'sd-cancella-as-'))
+    const lavoro = join(r, 'lavoro')
+    mkdirSync(join(lavoro, 'vecchia'), { recursive: true })
+    writeFileSync(join(lavoro, 'vecchia', 'f.txt'), 'x')
+    const recupero = join(r, 'recupero')
+    expect(await cancellaSicuraAsincrona(join(lavoro, 'vecchia'), { dentro: [lavoro], come: { modo: 'recupero', cartella: recupero }, ambiente: ambienteFinto(r) })).toBe('spostata')
+    expect(existsSync(join(lavoro, 'vecchia'))).toBe(false)
+    expect(readdirSync(recupero)[0]).toMatch(/^vecchia\./)
+  })
+
+  it('rifiuta come la sorella: fuori dal permesso, la cartella permessa stessa, e niente viene toccato', async () => {
+    const r = mkdtempSync(join(tmpdir(), 'sd-cancella-as-'))
+    const a = ambienteFinto(r)
+    const lavoro = join(r, 'lavoro')
+    const altro = join(r, 'altro')
+    mkdirSync(join(lavoro, 'dentro'), { recursive: true })
+    mkdirSync(altro, { recursive: true })
+    writeFileSync(join(altro, 'f.txt'), 'x')
+    await expect(cancellaSicuraAsincrona(altro, { dentro: [lavoro], ambiente: a })).rejects.toThrow(CancellazioneRifiutata)
+    await expect(cancellaSicuraAsincrona(lavoro, { dentro: [lavoro], ambiente: a })).rejects.toThrow(CancellazioneRifiutata)
+    await expect(cancellaSicuraAsincrona(join(lavoro, 'dentro'), { dentro: [], ambiente: a })).rejects.toThrow(CancellazioneRifiutata)
+    await expect(cancellaSicuraAsincrona(a.casa, { dentro: [r], ambiente: a })).rejects.toThrow(CancellazioneRifiutata)
+    expect(existsSync(join(altro, 'f.txt'))).toBe(true)
+    expect(existsSync(join(lavoro, 'dentro'))).toBe(true)
+  })
+
+  it('una giunzione che porta dentro AppData non passa: conta il percorso vero', async () => {
+    const r = mkdtempSync(join(tmpdir(), 'sd-cancella-as-'))
+    const a = ambienteFinto(r)
+    const local = join(r, 'casa', 'AppData', 'Local')
+    mkdirSync(join(local, 'Programmi'), { recursive: true })
+    writeFileSync(join(local, 'Programmi', 'importante.txt'), 'x')
+    const lavoro = join(r, 'lavoro')
+    mkdirSync(lavoro, { recursive: true })
+    symlinkSync(local, join(lavoro, 'scorciatoia'), 'junction')
+    await expect(cancellaSicuraAsincrona(join(lavoro, 'scorciatoia', 'Programmi'), { dentro: [lavoro], ambiente: a })).rejects.toThrow(CancellazioneRifiutata)
+    expect(existsSync(join(local, 'Programmi', 'importante.txt'))).toBe(true)
+  })
+
+  it.runIf(process.platform === 'win32')('una cartella tenuta da un programma vivo non si toglie: l’errore è un blocco che passa, e dopo si toglie', async () => {
+    const r = mkdtempSync(join(tmpdir(), 'sd-cancella-as-'))
+    const lavoro = join(r, 'lavoro')
+    const usata = join(lavoro, 'usata')
+    mkdirSync(usata, { recursive: true })
+    writeFileSync(join(usata, 'f.txt'), 'x')
+    // Un programma che ha quella cartella come cartella di lavoro: Windows non la lascia togliere finché vive.
+    const vivo = await programmaVivoIn(usata)
+    try {
+      const errore = await cancellaSicuraAsincrona(usata, { dentro: [lavoro], ambiente: ambienteFinto(r) }).then(() => undefined, (e: unknown) => e)
+      expect(errore).toBeDefined()
+      expect(errore).not.toBeInstanceOf(CancellazioneRifiutata)
+      expect(eBloccoTemporaneo(String(errore))).toBe(true)
+      expect(existsSync(usata)).toBe(true)
+    } finally {
+      await vivo.ferma()
+    }
+    // Finito il programma la cartella si toglie (Windows la lascia un attimo dopo: si riprova).
+    const dopo = await finche(() => cancellaSicuraAsincrona(usata, { dentro: [lavoro], ambiente: ambienteFinto(r) }).then((e) => e, () => 'ancora-tenuta' as const), (e) => e !== 'ancora-tenuta')
+    expect(dopo).toBe('cancellata')
+    expect(existsSync(usata)).toBe(false)
+  })
+})
+
+describe('eBloccoTemporaneo (k-165)', () => {
+  it('riconosce i file tenuti da un programma e i percorsi troppo lunghi', () => {
+    expect(eBloccoTemporaneo('Error: EPERM, Permission denied: x')).toBe(true)
+    expect(eBloccoTemporaneo('EBUSY: resource busy or locked')).toBe(true)
+    expect(eBloccoTemporaneo("error: failed to delete 'E:/x': Filename too long")).toBe(true)
+    expect(eBloccoTemporaneo('ENOTEMPTY: directory not empty')).toBe(true)
+    expect(eBloccoTemporaneo('EACCES: permission denied')).toBe(true)
+    expect(eBloccoTemporaneo('The process cannot access the file because it is being used by another process.')).toBe(true)
+  })
+  it('un altro errore resta un errore', () => {
+    expect(eBloccoTemporaneo('cancellazione rifiutata: fuori dalla cartella delle copie')).toBe(false)
+    expect(eBloccoTemporaneo('collegamenti non staccati: x')).toBe(false)
+    expect(eBloccoTemporaneo('')).toBe(false)
+  })
+  it('un rifiuto della guardia non passa mai da solo, qualunque cosa ci sia scritta nel percorso (11/11)', () => {
+    expect(eBloccoTemporaneo('CancellazioneRifiutata: cancellazione rifiutata: E:\\copie\\EPERM non sta dentro una cartella permessa per questa cancellazione')).toBe(false)
   })
 })

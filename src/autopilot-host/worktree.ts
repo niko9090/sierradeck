@@ -2,7 +2,7 @@ import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, realpathSync, rmdirSync, unlinkSync, writeFileSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type { FattiPubblicazione } from '@shared/harness'
-import { togliCollegamenti } from './ambiente-copia'
+import { collegamentoRimasto, togliCollegamenti } from './ambiente-copia'
 import { allineaHookEcc, type FuoriDaGit } from './hook-ecc'
 
 /**
@@ -351,15 +351,52 @@ function* firma(cwd: string): Passi<string[]> {
  * Torna vero se ha fatto un commit.
  */
 export function salvaLavoro(git: Git, cartella: string, messaggio: string): boolean {
-  return inLinea(git, salvaPassi(cartella, messaggio))
+  return inLinea(git, salvaPassi(cartella, messaggio)).salvato
 }
 
 export function salvaLavoroAsincrono(git: GitAsincrono, cartella: string, messaggio: string): Promise<boolean> {
+  return aspettando(git, salvaPassi(cartella, messaggio)).then((e) => e.salvato)
+}
+
+/** Cosa ha salvato il programma: i file finiti nel suo commit (vuoto se non ne ha fatto uno). */
+export type EsitoSalvataggio = { salvato: boolean; file: string[] }
+
+/** `salvaLavoro` che dice anche quali file ha messo nel commit (11/11): chi unisce lo racconta, e un avanzo si vede. */
+export function salvaLavoroConFile(git: Git, cartella: string, messaggio: string): EsitoSalvataggio {
+  return inLinea(git, salvaPassi(cartella, messaggio))
+}
+
+export function salvaLavoroConFileAsincrono(git: GitAsincrono, cartella: string, messaggio: string): Promise<EsitoSalvataggio> {
   return aspettando(git, salvaPassi(cartella, messaggio))
 }
 
-function* salvaPassi(cartella: string, messaggio: string): Passi<boolean> {
-  if (!existsSync(cartella)) return false
+/**
+ * La copia di lavoro di uno specialista (11/11): la cartella che Claude Code gli
+ * dà, `<progetto>/.claude/worktrees/agent-<id>`, sul suo ramo `worktree-agent-<id>`.
+ * `radice` è quella che dice git da dentro la copia. Il «salva prima di unire»
+ * valeva solo per i rami `ap/…` delle chat: per gli specialisti era sempre
+ * rifiutato, e le modifiche che non avevano messo in un commit restavano fuori
+ * dall'unione (tre copie così il 10/11).
+ */
+export function eCopiaDiSpecialista(radice: string, ramo: string): boolean {
+  const m = /[\\/]\.claude[\\/]worktrees[\\/](agent-[^\\/]+)[\\/]*$/u.exec(radice)
+  return m !== null && ramo.toLowerCase() === `worktree-${m[1]!.toLowerCase()}`
+}
+
+/** I rifiuti già scritti nel registro, uno per cartella e motivo: un'unione in attesa richiama ogni 30 s (2.000 righe il 10-11/11). */
+const rifiutiDetti = new Set<string>()
+function rifiutoUnaVolta(cartella: string, motivo: string): void {
+  const chiave = `${normale(cartella)}|${motivo}`
+  if (rifiutiDetti.has(chiave)) return
+  if (rifiutiDetti.size >= 500) rifiutiDetti.clear()
+  rifiutiDetti.add(chiave)
+  console.warn(`[autopilota] non salvo in ${cartella}: ${motivo}`)
+}
+
+const NON_SALVATO: EsitoSalvataggio = { salvato: false, file: [] }
+
+function* salvaPassi(cartella: string, messaggio: string): Passi<EsitoSalvataggio> {
+  if (!existsSync(cartella)) return NON_SALVATO
   // **Solo sul ramo dell'autopilota** (0.71.0). Una cartella che non è (più) un
   // worktree vero fa risalire git al repository che la contiene: il 13/10, nella
   // prova, un worktree mancato dentro `note/` ha fatto un commit con tutto il
@@ -370,17 +407,21 @@ function* salvaPassi(cartella: string, messaggio: string): Passi<boolean> {
   // suo lavoro in corso.
   const radice = yield* radicePassi(cartella)
   if (radice === undefined || !(stessaCartella(radice, cartella) || (yield* sottocartellaDelRamo(radice, cartella)))) {
-    console.warn(`[autopilota] non salvo in ${cartella}: non è un worktree suo (git risale a ${radice ?? 'nessun repository'})`)
-    return false
+    rifiutoUnaVolta(cartella, `non è un worktree suo (git risale a ${radice ?? 'nessun repository'})`)
+    return NON_SALVATO
   }
   const ramo = yield* ramoPassi(cartella)
-  if (ramo === undefined || !ramo.startsWith('ap/')) {
-    console.warn(`[autopilota] non salvo in ${cartella}: è sul ramo «${ramo ?? '?'}», non su un ramo dell'autopilota`)
-    return false
+  // 11/11: anche la copia di uno specialista, sul suo ramo `worktree-agent-<id>`, come i rami `ap/…`.
+  if (ramo === undefined || !(ramo.startsWith('ap/') || eCopiaDiSpecialista(radice, ramo))) {
+    rifiutoUnaVolta(cartella, `è sul ramo «${ramo ?? '?'}», non su un ramo dell'autopilota`)
+    return NON_SALVATO
   }
-  if ((yield* chiedi(['add', '-A'], cartella)).codice !== 0) return false
-  if ((yield* chiedi(['diff', '--cached', '--quiet'], cartella)).codice === 0) return false
-  return (yield* chiedi([...(yield* firma(cartella)), 'commit', '-m', messaggio, '--no-verify'], cartella)).codice === 0
+  if ((yield* chiedi(['add', '-A'], cartella)).codice !== 0) return NON_SALVATO
+  if ((yield* chiedi(['diff', '--cached', '--quiet'], cartella)).codice === 0) return NON_SALVATO
+  // I nomi prima del commit: dopo non c'è più niente «in attesa» da elencare.
+  const nomi = yield* chiedi(['diff', '--cached', '--name-only'], cartella)
+  const salvato = (yield* chiedi([...(yield* firma(cartella)), 'commit', '-m', messaggio, '--no-verify'], cartella)).codice === 0
+  return salvato ? { salvato: true, file: nomi.codice === 0 ? soloFile(nomi.uscita) : [] } : NON_SALVATO
 }
 
 export type EsitoUnione =
@@ -533,7 +574,9 @@ export type EsitoProva = { ok: true } | { ok: false; motivo: string; file?: stri
 /**
  * **L'unione di prova** (0.84.4): il ramo unito nella cartella di lavoro
  * **senza commit**, per misurare lì i criteri con i pacchetti veri. Solo sul
- * ramo principale e con la cartella pulita; un conflitto si annulla subito.
+ * ramo principale; un conflitto si annulla subito. 11/11: i file a metà di
+ * Nicholas la fermano solo se il ramo li tocca (allora torna
+ * `MOTIVO_CARTELLA_SPORCA` con i loro nomi); gli altri restano come sono.
  * Dopo la misura `chiudiProva` la conferma o la annulla.
  */
 export function iniziaProvaAsincrono(git: GitAsincrono, p: { cwd: string; ramo: string; base: string }): Promise<EsitoProva> {
@@ -591,9 +634,9 @@ function togliMarcatore(dir: string): void {
  * ogni unione dopo viene respinta per «modifiche non salvate». Il programma
  * riconosce la propria prova: il segno lasciato in `.git` (`sierradeck-prova.json`:
  * il commit unito) deve combaciare con `MERGE_HEAD`. Allora `merge --abort`
- * ripristina solo i file della prova (la cartella era pulita, lo si controlla
- * prima di ogni prova). Un'unione senza il segno, o con un altro commit, è di
- * Nicholas: non si tocca.
+ * ripristina solo i file della prova (prima di ogni prova si controlla che il
+ * ramo non tocchi nessun file a metà: quelli restano come sono). Un'unione
+ * senza il segno, o con un altro commit, è di Nicholas: non si tocca.
  */
 export function ripulisciProvaAsincrono(git: GitAsincrono, p: { cwd: string }): Promise<'niente' | 'ripulita'> {
   return aspettando(git, ripulisciProvaPassi(p.cwd))
@@ -626,40 +669,77 @@ function* iniziaProvaPassi(p: { cwd: string; ramo: string; base: string }): Pass
   const dir = yield* cartellaGitPassi(radice)
   // Un'unione aperta che non è del programma (di Nicholas): non si tocca, nemmeno con `merge --abort`.
   if (dir !== undefined && existsSync(join(dir, 'MERGE_HEAD'))) return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA }
-  // Con file a metà nella cartella di lavoro la prova misurerebbe anche quelli, e l'annullarla li toccherebbe.
   let sporca = yield* chiedi(['status', '--porcelain', '--untracked-files=no'], radice)
-  // Solo le note del programma (`.sierradeck/`: quaderno, consegne)? Si salvano
-  // con un commit e si va avanti (0.88.5): il 30/10 l'unione di k-1 è rimasta
+  // Le note del programma (`.sierradeck/`: quaderno, consegne) si salvano con un
+  // commit e si va avanti (0.88.5): il 30/10 l'unione di k-1 è rimasta
   // ferma per due note, e né l'autopilota né gli specialisti potevano salvarle.
   // 10/11: solo se sono aggiunte (niente righe tolte a mano da Nicholas) e
   // contando solo le voci vere: un avviso di git sugli a capo non è un file.
-  if (sporca.codice === 0 && soloNoteDelProgramma(sporca.uscita)) {
+  // 11/11: anche con altri file a metà accanto: il commit prende solo `.sierradeck`.
+  const note = sporca.codice === 0 ? vociPorcelain(sporca.uscita).filter((v) => percorsiDellaVoce(v).every((x) => x.startsWith('.sierradeck/'))) : []
+  if (note.length > 0) {
     const righe = yield* chiedi(['diff', '--numstat', '--ignore-space-at-eol', 'HEAD', '--', '.sierradeck'], radice)
     // 11/11: dentro `.sierradeck/quaderno/` si salva sempre, anche con righe cambiate: lo scrive il
     // programma (il «(×2)» delle decisioni confermate, il riordino) ed è sotto git, quindi niente si perde.
     // Le altre note (consegne...) restano «solo aggiunte»; fuori da `.sierradeck/` non si tocca mai.
-    const tuttoQuaderno = vociPorcelain(sporca.uscita).every((v) => percorsiDellaVoce(v).every((x) => x.startsWith('.sierradeck/quaderno/')))
+    const tuttoQuaderno = note.every((v) => percorsiDellaVoce(v).every((x) => x.startsWith('.sierradeck/quaderno/')))
     if (tuttoQuaderno || (righe.codice === 0 && soloAggiunteNumstat(righe.uscita))) {
       yield* chiedi(['add', '-u', '--', '.sierradeck'], radice)
       yield* chiedi([...(yield* firma(radice)), 'commit', '-m', 'quaderno: le note del programma, prima di unire', '--', '.sierradeck'], radice)
       sporca = yield* chiedi(['status', '--porcelain', '--untracked-files=no'], radice)
     }
   }
-  if (sporca.codice !== 0 || vociPorcelain(sporca.uscita).length > 0) {
-    const file = [...new Set(vociPorcelain(sporca.uscita).flatMap(percorsiDellaVoce))]
-    return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA, ...(file.length > 0 ? { file } : {}) }
+  if (sporca.codice !== 0) return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA }
+  // **I file a metà fermano l'unione solo se il ramo li tocca** (11/11). Prima bastava un
+  // file modificato qualunque, e la fila delle unioni restava ferma per ore senza che nessuno
+  // potesse sbloccarla. Git unisce senza toccare i file locali che l'unione non riguarda
+  // (se dovesse sovrascriverne uno rifiuta da solo), e `merge --abort` li lascia come sono.
+  // Mai stash, mai reset dei file di Nicholas. Con qualcosa già nell'indice non si prova nemmeno.
+  const sporchi = [...new Set(vociPorcelain(sporca.uscita).flatMap(percorsiDellaVoce))]
+  if (sporchi.length > 0) {
+    const inIndice = yield* chiedi(['diff', '--cached', '--name-only'], radice)
+    const delRamo = yield* chiedi(['diff', '--name-only', '--no-renames', `${p.base}...${p.ramo}`], radice)
+    // Nel dubbio (git che non risponde) vale la regola di prima: non si unisce.
+    if (inIndice.codice !== 0 || delRamo.codice !== 0) return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA, file: sporchi }
+    const uguale = (f: string): string => f.trim().replace(/^"|"$/g, '').replace(/\\/g, '/').toLowerCase()
+    const toccati = new Set(soloFile(delRamo.uscita).map(uguale))
+    const fermano = [...new Set([...soloFile(inIndice.uscita).map((f) => f.trim().replace(/^"|"$/g, '')), ...sporchi.filter((f) => toccati.has(uguale(f)))])]
+    if (fermano.length > 0) return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA, file: fermano }
   }
   // Il segno prima dell'unione: se il processo muore a metà, il prossimo la riconosce.
   if (dir !== undefined) {
     const testa = yield* chiedi(['rev-parse', '--verify', '--quiet', `refs/heads/${p.ramo}`], radice)
     try { writeFileSync(join(dir, MARCATORE_PROVA), JSON.stringify({ ramo: p.ramo, testa: testa.codice === 0 ? testa.uscita.trim() : '', il: new Date().toISOString() })) } catch { /* senza segno la prova si fa lo stesso */ }
   }
-  const r = yield* chiedi([...(yield* firma(radice)), 'merge', '--no-ff', '--no-commit', p.ramo], radice)
+  // Con file a metà, mai lo stash automatico di git (`merge.autoStash` nella configurazione di chi usa il PC).
+  const r = yield* chiedi([...(yield* firma(radice)), 'merge', '--no-ff', '--no-commit', ...(sporchi.length > 0 ? ['--no-autostash'] : []), p.ramo], radice)
   if (r.codice === 0) return { ok: true }
   const inConflitto = soloFile((yield* chiedi(['diff', '--name-only', '--diff-filter=U'], radice)).uscita)
   yield* chiedi(['merge', '--abort'], radice)
   if (dir !== undefined) togliMarcatore(dir)
+  // Git ha rifiutato per non sovrascrivere un file locale: è ancora «cartella sporca», l'unione aspetta.
+  if (inConflitto.length === 0 && sporchi.length > 0 && /overwritten|local changes|sovrascritt/i.test(r.uscita)) return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA, file: sporchi }
   return { ok: false, motivo: inConflitto.length > 0 ? `conflitto su ${inConflitto.join(', ')}` : `unione di prova non riuscita: ${r.uscita.slice(0, 300)}` }
+}
+
+/**
+ * **Salva con un commit i file a metà che fermano un'unione** (11/11), e solo
+ * quelli: `git add` e `git commit` con i percorsi esatti. Si chiama **solo**
+ * dopo il «sì» di Nicholas alla domanda del programma che li elenca. Un commit
+ * non perde niente; mai stash, mai reset, mai checkout. Torna `true` se il
+ * commit c'è.
+ */
+export function salvaFileAsincrono(git: GitAsincrono, p: { cwd: string; file: string[]; messaggio: string }): Promise<boolean> {
+  return aspettando(git, salvaFilePassi(p))
+}
+
+function* salvaFilePassi(p: { cwd: string; file: string[]; messaggio: string }): Passi<boolean> {
+  const radice = yield* radicePassi(p.cwd)
+  // Mai un percorso che comincia con `-` (sarebbe letto come opzione) né uno che esce dalla cartella.
+  const file = p.file.filter((f) => f !== '' && !f.startsWith('-') && !f.split(/[\\/]/).includes('..') && !/^([a-zA-Z]:|[\\/])/.test(f))
+  if (radice === undefined || file.length === 0 || file.length !== p.file.length) return false
+  if ((yield* chiedi(['add', '--', ...file], radice)).codice !== 0) return false
+  return (yield* chiedi([...(yield* firma(radice)), 'commit', '-m', p.messaggio, '--no-verify', '--', ...file], radice)).codice === 0
 }
 
 /** Conferma l'unione di prova con il suo commit (`tieni`), o la annulla. */
@@ -678,6 +758,107 @@ function* chiudiProvaPassi(p: { cwd: string; tieni: boolean }): Passi<boolean> {
   yield* chiedi(['merge', '--abort'], radice)
   if (dir !== undefined) togliMarcatore(dir)
   return false
+}
+
+// ---------------------------------------------------------------------------
+// 11/11: il ramo principale di qui e quello del remoto.
+// ---------------------------------------------------------------------------
+
+/** Quanto si aspetta, al più, il remoto (rete lenta, credenziali): poi si va avanti senza, e si riprova più tardi. */
+export const REMOTO_TEMPO_MS = 20_000
+
+export type EsitoRemoto = { esito: 'preso' } | { esito: 'senza-remoto' } | { esito: 'non-raggiunto'; perche: string }
+
+const ultimaRiga = (uscita: string): string => (uscita.split(/\r?\n/).map((r) => r.trim()).filter((r) => r !== '').pop() ?? '').slice(0, 200)
+/** Perché git non ha unito, in parole: il caso dei file locali che verrebbero sovrascritti, o la sua ultima riga. */
+const percheNonUnito = (uscita: string): string => (/would be overwritten/i.test(uscita) ? 'ci sono file modificati e non salvati che l’unione sovrascriverebbe' : ultimaRiga(uscita) || 'git non ha unito')
+
+/**
+ * **Chiede al remoto il suo ramo principale** (`git fetch`, che tocca solo `refs/remotes/…`, mai la
+ * cartella di lavoro). Non è mai un errore: senza remoto, senza rete o senza credenziali torna il
+ * perché e chi chiama va avanti. Mai una finestra o una domanda per le credenziali, e un tempo corto:
+ * un remoto che non risponde non tiene fermo nessuno (il comando lasciato indietro lo chiude git).
+ */
+export async function prendiDalRemotoAsincrono(git: GitAsincrono, p: { cwd: string; base: string; remoto?: string }, opz: { tempoMs?: number } = {}): Promise<EsitoRemoto> {
+  const remoto = p.remoto ?? 'origin'
+  if (!existsSync(p.cwd)) return { esito: 'senza-remoto' }
+  const url = await git(['remote', 'get-url', remoto], p.cwd)
+  if (url.codice !== 0 || url.uscita.trim() === '') return { esito: 'senza-remoto' }
+  const tempo = opz.tempoMs ?? REMOTO_TEMPO_MS
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const scaduto = new Promise<'scaduto'>((ris) => { timer = setTimeout(() => ris('scaduto'), tempo); timer.unref?.() })
+  const preso = git(['-c', 'credential.interactive=false', 'fetch', '--quiet', '--no-tags', remoto, p.base], p.cwd).catch((err: unknown): EsitoGit => ({ codice: 1, uscita: String(err) }))
+  const r = await Promise.race([preso, scaduto])
+  if (timer !== undefined) clearTimeout(timer)
+  if (r === 'scaduto') return { esito: 'non-raggiunto', perche: `nessuna risposta in ${Math.max(1, Math.round(tempo / 1000))} s` }
+  if (r.codice === 0) return { esito: 'preso' }
+  // Il ramo non c'è sul remoto (un progetto mai pubblicato): non c'è niente con cui allinearsi.
+  if (/couldn't find remote ref|no such ref|impossibile trovare il riferimento remoto/i.test(r.uscita)) return { esito: 'senza-remoto' }
+  return { esito: 'non-raggiunto', perche: ultimaRiga(r.uscita) || 'git fetch non riuscito' }
+}
+
+export type EsitoRiallineo =
+  | { esito: 'senza-remoto' }
+  | { esito: 'non-raggiunto'; perche: string }
+  /** Niente da prendere: uguali, o qui si è solo più avanti (`avanti` commit). */
+  | { esito: 'pari'; avanti: number }
+  | { esito: 'allineato'; presi: number; come: 'avanti-veloce' | 'unione' }
+  /** Adesso non si può, senza colpa di nessuno: altro ramo, un'unione aperta, file locali che verrebbero sovrascritti. Niente è stato toccato. */
+  | { esito: 'occupata'; perche: string }
+  /** I due rami non si uniscono da soli: unione annullata, niente è stato toccato. */
+  | { esito: 'conflitto'; file: string[]; presi: number }
+
+/**
+ * **Il ramo principale di qui raggiunge quello del remoto** (11/11). Le release 0.97.0, 0.99.2 e
+ * 0.99.3 sono uscite da un ramo (push sul remoto) mentre il principale locale restava indietro di
+ * undici commit: i rami già pubblicati restavano «da unire» uno a uno, e nel programma mancava
+ * proprio questo passo. Solo operazioni che git fa in sicurezza, mai forzate:
+ * - qui si è solo indietro: `merge --ff-only`;
+ * - i due rami sono andati avanti tutti e due (qui, di solito, le note del quaderno): un'unione
+ *   normale; su un conflitto `merge --abort` e si dice quali file, senza toccare altro;
+ * - git rifiuta da sé se un file modificato e non salvato verrebbe sovrascritto: allora niente.
+ * Va chiamata dopo `prendiDalRemotoAsincrono`, e mai mentre un'unione di prova è aperta.
+ */
+export function riallineaAsincrono(git: GitAsincrono, p: { cwd: string; base: string; remoto?: string }): Promise<EsitoRiallineo> {
+  return aspettando(git, riallineaPassi({ cwd: p.cwd, base: p.base, remoto: p.remoto ?? 'origin' }))
+}
+
+function* riallineaPassi(p: { cwd: string; base: string; remoto: string }): Passi<EsitoRiallineo> {
+  const radice = yield* radicePassi(p.cwd)
+  if (radice === undefined) return { esito: 'senza-remoto' }
+  const lontano = `refs/remotes/${p.remoto}/${p.base}`
+  const testa = yield* chiedi(['rev-parse', '--verify', '--quiet', lontano], radice)
+  if (testa.codice !== 0) return { esito: 'senza-remoto' }
+  if ((yield* chiedi(['rev-parse', '--verify', '--quiet', `refs/heads/${p.base}`], radice)).codice !== 0) return { esito: 'senza-remoto' }
+  const conta = yield* chiedi(['rev-list', '--left-right', '--count', `refs/heads/${p.base}...${lontano}`], radice)
+  const m = /^(\d+)\s+(\d+)/.exec(conta.uscita.trim())
+  if (conta.codice !== 0 || m === null) return { esito: 'occupata', perche: 'git non ha saputo confrontare il ramo con il remoto' }
+  const avanti = Number(m[1])
+  const presi = Number(m[2])
+  if (presi === 0) return { esito: 'pari', avanti }
+  const qui = yield* ramoPassi(radice)
+  if (qui !== p.base) return { esito: 'occupata', perche: `la cartella di lavoro è sul ramo «${qui ?? '?'}», non su «${p.base}»` }
+  // Una prova nostra rimasta a metà si ripulisce; un'unione aperta che non è nostra non si tocca.
+  yield* ripulisciProvaPassi(radice)
+  const dir = yield* cartellaGitPassi(radice)
+  if (dir !== undefined && existsSync(join(dir, 'MERGE_HEAD'))) return { esito: 'occupata', perche: 'nella cartella di lavoro c’è un’unione aperta' }
+  if (avanti === 0) {
+    const r = yield* chiedi(['merge', '--ff-only', lontano], radice)
+    return r.codice === 0 ? { esito: 'allineato', presi, come: 'avanti-veloce' } : { esito: 'occupata', perche: percheNonUnito(r.uscita) }
+  }
+  // Il segno, come per la prova: se il processo muore a metà, il prossimo riconosce l'unione come sua e la annulla.
+  if (dir !== undefined) {
+    try { writeFileSync(join(dir, MARCATORE_PROVA), JSON.stringify({ ramo: lontano, testa: testa.uscita.split(/\r?\n/)[0]?.trim() ?? '', il: new Date().toISOString() })) } catch { /* senza segno si unisce lo stesso */ }
+  }
+  const r = yield* chiedi([...(yield* firma(radice)), 'merge', '--no-ff', '--no-edit', '--no-verify', lontano], radice)
+  if (r.codice === 0) {
+    if (dir !== undefined) togliMarcatore(dir)
+    return { esito: 'allineato', presi, come: 'unione' }
+  }
+  const inConflitto = soloFile((yield* chiedi(['diff', '--name-only', '--diff-filter=U'], radice)).uscita)
+  if (dir === undefined || existsSync(join(dir, 'MERGE_HEAD'))) yield* chiedi(['merge', '--abort'], radice)
+  if (dir !== undefined) togliMarcatore(dir)
+  return inConflitto.length > 0 ? { esito: 'conflitto', file: inConflitto.map((f) => f.trim()), presi } : { esito: 'occupata', perche: percheNonUnito(r.uscita) }
 }
 
 /** Toglie il worktree di una chat e, se e' gia' unito, il suo ramo. */
@@ -703,6 +884,11 @@ function* togliPassi(p: { cwd: string; cartella: string; ramo: string }): Passi<
   // Il collegamento a node_modules della Revisione (0.84.4) prima della copia:
   // git lo lascerebbe lì e la cartella non si potrebbe togliere.
   togliCollegamenti(radiceWt)
+  // 11/11: se il collegamento è ancora lì (non si è staccato) git non parte: dentro c'è la cartella vera.
+  if (collegamentoRimasto(radiceWt)) {
+    console.warn(`[autopilota] non tolgo la copia ${radiceWt}: il collegamento a node_modules non si è staccato`)
+    return
+  }
   yield* chiedi(['worktree', 'remove', '--force', radiceWt], radice)
   yield* chiedi(['branch', '-d', p.ramo], radice)
   yield* chiedi(['worktree', 'prune'], radice)

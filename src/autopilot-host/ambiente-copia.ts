@@ -1,5 +1,5 @@
-import { copyFileSync, existsSync, lstatSync, symlinkSync, unlinkSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { copyFileSync, existsSync, lstatSync, rmdirSync, symlinkSync, unlinkSync } from 'node:fs'
+import { join, resolve, sep } from 'node:path'
 import type { EsitoVerifica } from './verifiche'
 
 /**
@@ -43,6 +43,25 @@ const esiste = (p: string): boolean => {
   try { lstatSync(p); return true } catch { return false }
 }
 
+/** Dove la CLI mette le copie dei subagenti, dentro la cartella principale. */
+const COPIE_SPECIALISTI = ['.claude', 'worktrees']
+
+/**
+ * **La radice della copia di uno specialista** (11/11), dal `cwd` del suo hook:
+ * `<principale>/.claude/worktrees/<nome>`, anche se lo specialista è sceso in
+ * una sottocartella. `undefined` se il `cwd` non sta lì dentro (la cartella
+ * principale, un'altra cartella, la cartella delle copie stessa): allora non
+ * c'è niente da preparare.
+ */
+export function radiceDellaCopia(cwd: string, principale: string): string | undefined {
+  const copie = resolve(principale, ...COPIE_SPECIALISTI)
+  const qui = resolve(cwd)
+  const minuscolo = (p: string): string => (process.platform === 'win32' ? p.toLowerCase() : p)
+  if (!minuscolo(qui).startsWith(minuscolo(copie) + sep)) return undefined
+  const nome = qui.slice(copie.length + 1).split(/[\\/]/)[0] ?? ''
+  return nome === '' || nome === '.' || nome === '..' ? undefined : join(copie, nome)
+}
+
 /**
  * Rimette nella copia quello che serve per misurare. Non tocca mai la cartella
  * principale, e non fa niente se la copia è la cartella principale o non c'è.
@@ -75,7 +94,19 @@ export function preparaCopia(copia: string, principale: string): Preparazione {
 export function togliCollegamenti(copia: string): string[] {
   const moduli = join(copia, 'node_modules')
   if (!eCollegamento(moduli)) return []
-  try { unlinkSync(moduli); return ['node_modules'] } catch { return [] }
+  // Una giunzione si toglie con unlink o con rmdir a seconda del sistema: tutti e due tolgono solo il collegamento.
+  try { unlinkSync(moduli); return ['node_modules'] } catch {
+    try { rmdirSync(moduli); return ['node_modules'] } catch { return [] }
+  }
+}
+
+/**
+ * 11/11: il collegamento a `node_modules` è ancora lì? Chi sta per togliere la
+ * copia lo chiede dopo `togliCollegamenti`: se non si è staccato la copia non
+ * si tocca, perché dentro la giunzione c'è la cartella vera.
+ */
+export function collegamentoRimasto(copia: string): boolean {
+  return eCollegamento(join(copia, 'node_modules'))
 }
 
 /**
@@ -120,4 +151,19 @@ export function peggioratiDelRamo(
     else delRamo.push(e.descrizione)
   }
   return { delRamo, ambiente }
+}
+
+/**
+ * **Il motivo di un ramo respinto dall'unione di prova** (11/11). Prima diceva
+ * «anche nella cartella principale non passa», che è il contrario del vero:
+ * quelle prove sul principale passano, è il ramo che le rompe; e senza l'uscita
+ * chi doveva correggere ripartiva da zero. Per ogni prova rotta le ultime righe
+ * dell'uscita (lì sta il riassunto dei test falliti), al più tre prove.
+ */
+export function motivoProveRotte(descrizioni: string[], rossi: Pick<EsitoVerifica, 'descrizione' | 'uscita'>[]): string {
+  const voci = descrizioni.slice(0, 3).map((d) => {
+    const coda = (rossi.find((r) => r.descrizione === d)?.uscita ?? '').split(/\r?\n/u).map((r) => r.trim()).filter((r) => r !== '').slice(-6).join(' | ').slice(-400)
+    return coda !== '' ? `${d} — ${coda}` : d
+  })
+  return `il ramo rompe prove che sul principale passano: ${voci.join('; ')}${descrizioni.length > 3 ? `; e altre ${descrizioni.length - 3}` : ''}`
 }

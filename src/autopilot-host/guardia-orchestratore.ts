@@ -1,5 +1,6 @@
 import { isAbsolute, join, resolve } from 'node:path'
 import { dentro, type Giudizio } from './divieti'
+import { soloLetturaInFila } from './sola-lettura'
 
 /**
  * **La guardia dell'autopilota unico** (P3, 30/10/2026): il PreToolUse del
@@ -59,12 +60,51 @@ export type ContestoGuardia = {
   doppio?: (r: { descrizione: string; tipo: string }) => string | undefined
   /** 10/11: il compito aspetta un'unione («dopo» non ancora unito): il motivo del rifiuto, e il programma lo mette in fila. */
   dipendenze?: (r: { descrizione: string; tipo: string }) => string | undefined
+  /** 11/11: il compito ha già finito e aspetta l'unione: il motivo del rifiuto (un rilancio azzerava il lavoro pronto, k-133). */
+  inUnione?: (r: { descrizione: string; tipo: string }) => string | undefined
 }
 
 /** k-189: il motivo per i comandi in sottofondo e per le attese a mano. */
-export const MOTIVO_SOTTOFONDO = 'lancia il comando davanti, senza sottofondo e senza sleep: se il PC è carico, l’attesa la fa SierraDeck. Aspetta sempre la fine del comando, poi chiudi.'
-/** `sleep 90`, `Start-Sleep -Seconds 30` all'inizio di un comando o dopo `;`, `&&`, `|`. */
-const ATTESA_A_MANO = /(?:^|[;&|(]\s*|\n\s*)(?:sleep|start-sleep)(?:\s|$)/iu
+export const MOTIVO_SOTTOFONDO = 'lancia il comando davanti, senza sottofondo e senza attese lunghe a mano (sleep oltre 30 secondi, o dentro un ciclo): se il PC è carico, l’attesa la fa SierraDeck. Aspetta sempre la fine del comando, poi chiudi.'
+/** `sleep 90`, `Start-Sleep -Seconds 30` all'inizio di un comando o dopo `;`, `&&`, `|`: con quello che segue (la durata). */
+const ATTESA_A_MANO = /(?:^|[;&|(]\s*|\n\s*)(?:sleep|start-sleep)(?=\s|$)([^;&|)\n]*)/giu
+/** 11/11: un'attesa breve passa (`npm run dev & sleep 6; curl …`): in tutto, al più questi secondi per comando. */
+export const ATTESA_A_MANO_MAX_S = 30
+const CICLO = /(?:^|[\s;&|({])(?:while|until|for|foreach|do)(?=[\s({]|$)|ForEach-Object|%\s*\{/iu
+
+/** I secondi di uno `sleep`: `6`, `1.5`, `2m`, `1m 30s`, `-Seconds 5`, `-Milliseconds 500`. `undefined` se non si sanno leggere (`$T`, `infinity`). */
+function secondiDiAttesa(argomenti: string): number | undefined {
+  const a = argomenti.trim()
+  const ps = /^-(seconds|s|milliseconds|ms|m)\s+(\d+(?:\.\d+)?)$/iu.exec(a)
+  if (ps !== null) return /^(seconds|s)$/iu.test(ps[1]!) ? Number(ps[2]) : Number(ps[2]) / 1000
+  const pezzi = a.split(/\s+/u)
+  if (a === '' || !pezzi.every((p) => /^\d+(?:\.\d+)?[smhd]?$/u.test(p))) return undefined
+  const UNITA: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86_400 }
+  return pezzi.reduce((somma, p) => somma + Number.parseFloat(p) * (UNITA[p.at(-1)!] ?? 1), 0)
+}
+
+/**
+ * **L'attesa a mano che non passa** (k-189, 11/11). Fino all'11/11 ogni `sleep`
+ * era rifiutato, anche i sei secondi che servono a un server per partire; ma
+ * il guasto vero era un altro, lo specialista che aspetta a lungo un comando
+ * lasciato in sottofondo e chiude a metà. Passa un'attesa breve (in tutto al
+ * più `ATTESA_A_MANO_MAX_S` nel comando); non passano quelle lunghe, quelle di
+ * cui non si sa leggere la durata, e quelle dentro un ciclo (quante volte gira
+ * non si sa).
+ */
+export function attesaAManoLunga(comando: string): boolean {
+  let totale = 0
+  let trovata = false
+  for (const m of comando.matchAll(ATTESA_A_MANO)) {
+    trovata = true
+    const s = secondiDiAttesa(m[1] ?? '')
+    if (s === undefined) return true
+    totale += s
+  }
+  if (!trovata) return false
+  // Le parole fra apici non sono un ciclo (`grep "ready for"`).
+  return totale > ATTESA_A_MANO_MAX_S || CICLO.test(comando.replace(/'[^']*'|"(?:[^"\\]|\\.)*"/gu, ' '))
+}
 
 const ordinale =(n: number): string => `${n}°`
 
@@ -125,6 +165,23 @@ export function comandiGit(comando: string): { verbo: string; indice: number }[]
   return fuori
 }
 
+/**
+ * 11/11: riscrivere o cancellare quello che è già pubblicato (un push forzato,
+ * un ramo o un tag tolti dal remoto) non si rimette a posto, e i PC che hanno
+ * già scaricato quella versione restano con un'altra storia. Il push normale e
+ * i tag nuovi passano (Nicholas, 04/11); questi no, per nessuno specialista:
+ * li decide Nicholas. Torna cosa non va, o `undefined`.
+ */
+export function gitCheRiscriveIlPubblicato(comando: string): string | undefined {
+  for (const g of comandiGit(comando)) {
+    if (g.verbo !== 'push') continue
+    const resto = comando.slice(g.indice).split(/[;&|\n]/u, 1)[0] ?? ''
+    if (/\s(?:--force(?:-with-lease|-if-includes)?(?:=\S*)?|-f|--mirror)(?=\s|$)|\s\+\S/u.test(resto)) return 'un push forzato riscrive quello che è già pubblicato'
+    if (/\s(?:--delete|-d|--prune)(?=\s|$)|\s:\S/u.test(resto)) return 'questo push cancella un ramo o un tag già pubblicato'
+  }
+  return undefined
+}
+
 const GIT_LETTURA = /^(status|log|diff|show|rev-parse|ls-files|describe|shortlog|blame)$/u
 
 /**
@@ -148,9 +205,11 @@ export function giudicaGuardiaOrchestratore(corpo: Record<string, unknown>, c: C
 
   if (agente === undefined) {
     // 0.94.0: guardare lo stato del progetto sì (05/11: cinque comandi bloccati in un giorno, turni persi).
-    if ((STRUMENTI_SHELL as readonly string[]).includes(nome) && gitSoloLettura(s(input.command) ?? '')) return { ok: true }
+    // 11/11: anche più letture in fila (`git status --short && git log --oneline -3`, con `cd` nel progetto
+    // e filtri dopo una pipe): 40 rifiuti in quattro giorni per comandi che leggono e basta (`sola-lettura.ts`).
+    if ((STRUMENTI_SHELL as readonly string[]).includes(nome) && (gitSoloLettura(s(input.command) ?? '') || soloLetturaInFila(s(input.command) ?? '', c.radice))) return { ok: true }
     if ((STRUMENTI_SCRITTURA as readonly string[]).includes(nome) || (STRUMENTI_SHELL as readonly string[]).includes(nome)) {
-      return { ok: false, motivo: 'Sei l’orchestratore: non modifichi file e non lanci comandi. Leggi (Read, Grep, Glob) e affida il lavoro a uno specialista con Agent; per unire usa lo strumento unisci.' }
+      return { ok: false, motivo: 'Sei l’orchestratore: non modifichi file e non lanci comandi. Leggi (Read, Grep, Glob, e git in sola lettura, anche in fila: `git status --short && git log --oneline -5`) e affida il lavoro a uno specialista con Agent; per unire usa lo strumento unisci. Quello che vuoi ricordare annotalo con quaderno_annota, non in un file.' }
     }
     if ((STRUMENTI_AGENTE as readonly string[]).includes(nome) && c.senzaGit === true && (c.specialistiDelWorkspace ?? 0) >= 1) {
       return { ok: false, motivo: 'aspetta: il progetto non è un repository git, quindi lavora uno specialista alla volta nella cartella del progetto. Rilancia quando quello al lavoro ha finito.' }
@@ -164,6 +223,8 @@ export function giudicaGuardiaOrchestratore(corpo: Record<string, unknown>, c: C
       }
       const doppio = c.doppio?.({ descrizione: s(input.description) ?? s(input.prompt)?.slice(0, 120) ?? 'specialista', tipo })
       if (doppio !== undefined) return { ok: false, motivo: doppio }
+      const finito = c.inUnione?.({ descrizione: s(input.description) ?? s(input.prompt)?.slice(0, 120) ?? 'specialista', tipo })
+      if (finito !== undefined) return { ok: false, motivo: finito }
       const aspetta = c.dipendenze?.({ descrizione: s(input.description) ?? s(input.prompt)?.slice(0, 120) ?? 'specialista', tipo })
       if (aspetta !== undefined) return { ok: false, motivo: aspetta }
       if (c.fila !== undefined) {
@@ -177,9 +238,13 @@ export function giudicaGuardiaOrchestratore(corpo: Record<string, unknown>, c: C
   }
 
   // k-189: niente sottofondo e niente attese a mano (8 casi di specialisti chiusi a metà).
+  // 11/11: un'attesa breve sì (`attesaAManoLunga`).
   if ((STRUMENTI_SHELL as readonly string[]).includes(nome)) {
     const comando = s(input.command) ?? ''
-    if (input.run_in_background === true || ATTESA_A_MANO.test(comando)) return { ok: false, motivo: MOTIVO_SOTTOFONDO }
+    if (input.run_in_background === true || attesaAManoLunga(comando)) return { ok: false, motivo: MOTIVO_SOTTOFONDO }
+    // 11/11: mai riscrivere o cancellare quello che è già pubblicato, in nessuna cartella.
+    const riscrive = gitCheRiscriveIlPubblicato(comando)
+    if (riscrive !== undefined) return { ok: false, motivo: `${riscrive}: non si fa senza il sì di Nicholas. Pubblica con un push normale e con tag nuovi; se un tag pubblicato è sbagliato, dillo all’autopilota e fermati lì.` }
   }
 
   // Senza git non c'è una copia: lo specialista lavora proprio nella cartella principale.

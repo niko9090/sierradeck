@@ -3,7 +3,7 @@ import { readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Criterio } from '@shared/autopilota'
 import type { EsitoVerifica } from './verifiche'
-import { eseguiCriteri, type Esecutore } from './verifiche'
+import { annullato, eseguiCriteri, type Esecutore } from './verifiche'
 import type { EsitoGit, Git, GitAsincrono } from './worktree'
 import { problemaDiAmbiente } from './ambiente-copia'
 
@@ -78,7 +78,8 @@ export function senzaApici(comando: string): string {
     /(?:^|\s)(?:-c|-command|\/[ck])\s*$/i.test(comando.slice(0, pos)) ? m : ' ')
 }
 
-const INIZIO_PESANTE = /^(?:gradlew?(?:\.bat)?|vitest(?:\.mjs)?|npm\s+(?:run\s+)?test|playwright|cargo\s+test|mvn|pytest|dotnet\s+test|npm\s+run\s+(?:build|pacchetto|dist)|electron-builder)\b/i
+// 11/11: anche `npm run pubblica` e `npm run allega-apk` (lo specialista del rilascio): compilano e impacchettano, mai insieme a una suite.
+const INIZIO_PESANTE = /^(?:gradlew?(?:\.bat)?|vitest(?:\.mjs)?|npm\s+(?:run\s+)?test|playwright|cargo\s+test|mvn|pytest|dotnet\s+test|npm\s+run\s+(?:build|pacchetto|dist|pubblica|allega-apk)|electron-builder)\b/i
 const PREFISSO = /^(?:timeout\s+\d+|nohup|time|call|exec|start|cmd(?:\.exe)?\s+\/[ck]|(?:ba)?sh\s+-c|powershell(?:\.exe)?(?:\s+-\w+)*\s+-command|[A-Za-z_][A-Za-z0-9_]*=\S*)\s+["']?/i
 
 /** Il pezzo di comando lancia lui stesso un programma pesante (dopo `timeout`, `VAR=x`, `npx`, `node …/vitest.mjs`, `./`). */
@@ -89,7 +90,7 @@ function inizioPesante(pezzo: string): boolean {
   return INIZIO_PESANTE.test(p)
 }
 
-const PESANTE = /\bgradle(w)?\b|\bnpm\s+(run\s+)?test\b|\bvitest(\.mjs)?\s+run\b|\bnpx\s+vitest\b|\bplaywright\b|\bcargo\s+test\b|\bmvn\b|\bpytest\b|\bdotnet\s+test\b|\bnpm\s+run\s+(build|pacchetto|dist)\b|\belectron-builder\b/i
+const PESANTE = /\bgradle(w)?\b|\bnpm\s+(run\s+)?test\b|\bvitest(\.mjs)?\s+run\b|\bnpx\s+vitest\b|\bplaywright\b|\bcargo\s+test\b|\bmvn\b|\bpytest\b|\bdotnet\s+test\b|\bnpm\s+run\s+(build|pacchetto|dist|pubblica|allega-apk)\b|\belectron-builder\b/i
 
 /** Gli script di test che girano una suite vera, o ne lanciano un altro: pesanti. */
 const SCRIPT_PESANTE = /vitest|jest|mocha|playwright|cypress|karma|\bava\b|gradle|\btsc\b|electron|webpack|\bvite\b|turbo|\bnx\b|lerna|\bnpm\s|\bnpx\s|pnpm|yarn|react-scripts|\bng\s|pytest|cargo|dotnet|mvn|jasmine|\btap\b/i
@@ -191,7 +192,8 @@ const inVolo = new Map<string, Promise<EsitoVerifica | undefined>>()
 export function daRicordare(e: EsitoVerifica): boolean {
   // Né un fallimento per l'ambiente della copia (0.84.4): rimesso node_modules,
   // lo stesso commit va rimisurato, non ricordato rosso.
-  return e.misurato !== false && !/\[comando interrotto dopo \d+s\]/.test(e.uscita) && problemaDiAmbiente(e) === undefined
+  // 11/11: né un comando fermato dal segnale (prova scaduta): non dice niente sul codice.
+  return e.misurato !== false && !/\[comando interrotto dopo \d+s\]/.test(e.uscita) && !annullato(e.uscita) && problemaDiAmbiente(e) === undefined
 }
 
 /**
@@ -243,6 +245,8 @@ export async function misuraCriteri(criteri: Criterio[], cwd: string, esegui: Es
   /** `true` per misurare anche i pesanti (turno multiplo di OGNI_TURNI, o prima di «finito»). */
   tutti: boolean
   paralleli?: number
+  /** 11/11: scatta quando la prova di unione scade: i comandi in corso si fermano. */
+  segnale?: AbortSignal
 }): Promise<Misura> {
   const daCache: string[] = []
   const rimandati: string[] = []
@@ -265,7 +269,7 @@ export async function misuraCriteri(criteri: Criterio[], cwd: string, esegui: Es
   const durate: { descrizione: string; ms: number }[] = []
   const misuraUno = async (c: Criterio, comando: string): Promise<EsitoVerifica | undefined> => {
     const t0 = opz.adesso()
-    const [e] = await eseguiCriteri([c], cwd, esegui)
+    const [e] = opz.segnale !== undefined ? await eseguiCriteri([c], cwd, esegui, opz.segnale) : await eseguiCriteri([c], cwd, esegui)
     durate.push({ descrizione: c.descrizione, ms: opz.adesso() - t0 })
     if (e === undefined) return undefined
     const quando = opz.adesso()

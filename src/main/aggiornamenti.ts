@@ -232,7 +232,10 @@ export function eErroreDiReteTransitorio(testo: string): boolean {
 function erroreGitHubPasseggero(testo: string): boolean {
   const delFeed = /Cannot parse releases feed|Unable to find latest version on GitHub|Cannot download|HttpError|releases\/(latest|download)/i.test(testo)
   if (!delFeed) return false
-  return /(?:HttpError:\s*|:\s)50[234](?:\s|$|\))/.test(testo) && !/Cannot download differentially/.test(testo)
+  // 11/11: il download dell'installer lo scrive in un altro modo, «Cannot download "<url>", status 504: <frase>»
+  // (un Error semplice, senza statusCode): il 09/11 un 504 così è stato fase «errore» e due righe ERRORE.
+  const codice = /(?:HttpError:\s*|:\s)50[234](?:\s|$|\))/.test(testo) || /\bstatus 50[234]\b/.test(testo)
+  return codice && !/Cannot download differentially/.test(testo)
 }
 
 export function leggiErroreAggiornamento(err: unknown): { manca: boolean; breve: string; completo: string; statusCode?: number } {

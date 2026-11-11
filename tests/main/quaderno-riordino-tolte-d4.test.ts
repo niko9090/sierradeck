@@ -10,7 +10,7 @@ import { distilla, fraseRiordino } from '@shared/quaderno-riordino'
 
 /**
  * D4: «Riordina il quaderno» lasciava fuori in silenzio le voci oltre il tetto
- * (200 voci o 32 KB). Ora l'anteprima le elenca, il riordino le salva nel
+ * (`VOCI_MAX` voci o `BYTE_MAX` byte). Ora l'anteprima le elenca, il riordino le salva nel
  * recupero con lezioni.md e decisioni.md di prima, e si spostano solo le note
  * viste nell'anteprima. Tutto in cartelle temporanee.
  */

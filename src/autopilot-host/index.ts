@@ -268,6 +268,10 @@ export function consoleNelRegistro(registro: Pick<Registro, 'info' | 'errore'>):
   let dentro = false
   const scrivi = (livello: 'info' | 'errore', a: unknown[]): void => {
     if (dentro) return
+    // 11/11: l'eco che il registro fa di ogni riga appena scritta («[registro] …») non è una riga nuova.
+    // Chi scriveva nel registro senza passare dalla console (l'avviso di Node, un'eccezione non gestita)
+    // usciva due volte, la seconda con «[registro]» davanti.
+    if (a.length === 1 && typeof a[0] === 'string' && a[0].startsWith('[registro] ')) return
     dentro = true
     try {
       const testo = format(...a)
@@ -353,7 +357,7 @@ export function avviaServizio(): void {
 
   // L'autopulizia (0.85.2): copie e rami delle chat concluse, note troppo
   // grosse. Git asincrono, e a PC carico si rimanda al giro dopo.
-  let serverAgenti: { agentiAlLavoro: (cartella: string) => boolean } | undefined
+  let serverAgenti: { agentiAlLavoro: (cartella: string) => boolean; copieVive: (cartella: string) => Set<string>; ramiCitati: (cartella: string) => Set<string> } | undefined
   const autopulizia = creaAutopulizia({
     archivio,
     git: gitAsincronoReale,
@@ -368,7 +372,11 @@ export function avviaServizio(): void {
     }),
     pcCarico: () => guardiaPc.valuta()?.motivo,
     // 0.89.0: le copie degli specialisti (.claude/worktrees). Finché il server non c’è, nessuna si tocca.
-    agentiAlLavoro: (radice) => serverAgenti?.agentiAlLavoro(radice) ?? true
+    agentiAlLavoro: (radice) => serverAgenti?.agentiAlLavoro(radice) ?? true,
+    // 11/11: si saltano solo le copie degli specialisti al lavoro, e i rami `worktree-agent-*` già uniti si tolgono
+    // se nessun compito aperto li cita. Finché il server non c'è non si sa: niente si tocca.
+    copieVive: (radice) => serverAgenti?.copieVive(radice),
+    ramiCitati: (radice) => serverAgenti?.ramiCitati(radice)
   })
 
   const server = creaServer({

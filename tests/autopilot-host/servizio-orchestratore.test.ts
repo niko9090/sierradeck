@@ -12,7 +12,7 @@ import type { AvviaProcesso, ProcessoClaude } from '../../src/autopilot-host/orc
 import type { Git } from '../../src/autopilot-host/worktree'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
 import { pianoVuoto, scriviPiano, type VistaOrchestratore } from '@shared/piano-orchestratore'
-import { DOMANDA_VECCHIA_MS, FERMO_DOPO_MS, SPINTE_MAX } from '../../src/autopilot-host/servizio-orchestratore'
+import { DOMANDA_VECCHIA_MS, FERMO_DOPO_MS } from '../../src/autopilot-host/servizio-orchestratore'
 import type { VistaCoda } from '@shared/coda-richieste'
 import { attendi } from '../setup/attendi'
 import { orologioDa } from '../setup/orologio'
@@ -59,7 +59,7 @@ function ap(p: Partial<Autopilota> = {}): Autopilota {
   }
 }
 
-async function avviaServizio(prima: Autopilota[] = [], extra: { git?: Git; adesso?: () => string; raccoltaEventiMs?: number; unioneDaSola?: boolean } = {}): Promise<void> {
+async function avviaServizio(prima: Autopilota[] = [], extra: { git?: Git; adesso?: () => string; raccoltaEventiMs?: number; unioneDaSola?: boolean; avvisa?: (tipo: string, a: Autopilota, testo?: string) => Promise<void> } = {}): Promise<void> {
   const orologio = orologioDa('2026-10-30T08:00:00.000Z')
   archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'ap-unico-')))
   for (const a of prima) archivio.scrivi(a)
@@ -74,7 +74,7 @@ async function avviaServizio(prima: Autopilota[] = [], extra: { git?: Git; adess
     versione: '0.86.3',
     esegui: () => Promise.resolve({ codice: 1, uscita: 'non ancora' }),
     avviaLavoro: () => Promise.resolve(),
-    avvisa: () => Promise.resolve(),
+    avvisa: extra.avvisa ?? (() => Promise.resolve()),
     domande,
     ultimoDetto: () => undefined,
     scadenzaDomandaMs: 5000,
@@ -198,6 +198,48 @@ describe('autopilota unico nel servizio', () => {
     expect(avviso.mock.calls.some((c) => String(c[0]).includes('turno non riuscito') && String(c[0]).includes('ENOTFOUND'))).toBe(true)
   })
 
+  // 11/11: il 09/11, 11 righe uguali in inglese in 70 minuti, una per tentativo. Il limite del piano
+  // ha il suo gestore (qui sotto): questa prova usa l'accesso scaduto, che resta un «turno non riuscito».
+  it('11/11: «turno non riuscito» arriva in italiano e la stessa riga non si ripete a ogni tentativo', async () => {
+    zitto()
+    await avviaServizio([ap()])
+    migra()
+    const eventi = (): string[] => orch.ultimeDialogo('Lavoro', 40).filter((r) => r.da === 'evento').map((r) => r.testo)
+    const fallisce = (): void => { processi.at(-1)!.emetti({ type: 'result', is_error: true, result: 'Login expired · Please run /login', total_cost_usd: 0, session_id: 'sess-1', usage: { input_tokens: 5 } }) }
+    fallisce()
+    expect(eventi()).toHaveLength(1)
+    expect(eventi()[0]).toBe('turno non riuscito: l’accesso a Claude è scaduto: va rifatto da te (in una chat qualsiasi scrivi /login). Appena torna riparto da solo')
+    // Nel registro resta il motivo com'è, per chi cerca il guasto.
+    expect(vi.mocked(console.error).mock.calls.some((c) => String(c[0]).includes('turno non riuscito') && String(c[0]).includes('Login expired'))).toBe(true)
+    // Il primo guasto riprova subito: il turno riparte, fallisce uguale, e la riga non si riscrive.
+    await attendi(() => processi.reduce((n, p) => n + p.scritte.length, 0) >= 2, { cosa: 'il secondo tentativo' })
+    fallisce()
+    expect(vi.mocked(console.error).mock.calls.filter((c) => String(c[0]).includes('turno non riuscito')).length).toBeGreaterThanOrEqual(2)
+    expect(eventi()).toHaveLength(1)
+  })
+
+  it('11/11: il limite del piano non è un ERRORE: un avviso nel registro e una riga sola nel dialogo, in italiano, con l’ora', async () => {
+    zitto()
+    const avviso = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await avviaServizio([ap()])
+    const { autopilota } = migra()
+    const limite = { type: 'result', is_error: true, result: "You've hit your weekly limit · resets 1am (Europe/Rome)", total_cost_usd: 0, session_id: 'sess-1', usage: { input_tokens: 5 } }
+    const righe = (): string[] => archivio.leggi(autopilota!)!.dialogo.filter((r) => r.testo.startsWith('Limite del piano raggiunto')).map((r) => r.testo)
+    processi[0]!.emetti(limite)
+    expect(vi.mocked(console.error).mock.calls.some((c) => /turno non riuscito|limite|limit/i.test(String(c[0])))).toBe(false)
+    expect(avviso.mock.calls.filter((c) => String(c[0]).includes('limite del piano raggiunto'))).toHaveLength(1)
+    expect(righe()).toHaveLength(1)
+    expect(righe()[0]).toMatch(/^Limite del piano raggiunto: riparto da solo (domani |[a-z]{3} \d\d\/\d\d )?alle \d\d:\d\d\. I tuoi messaggi restano in attesa/u)
+    expect(archivio.leggi(autopilota!)!.dialogo.at(-1)!.da).toBe('lui')
+    // Niente «turno non riuscito» nel dialogo del workspace: non è un guasto.
+    expect(orch.ultimeDialogo('Lavoro', 50).some((r) => r.testo.includes('turno non riuscito'))).toBe(false)
+    // Un altro tentativo che trova ancora il limite: l'avviso sì, la riga no.
+    processi[0]!.emetti(limite)
+    expect(avviso.mock.calls.filter((c) => String(c[0]).includes('limite del piano raggiunto'))).toHaveLength(2)
+    expect(righe()).toHaveLength(1)
+    expect(vi.mocked(console.error).mock.calls.some((c) => /turno non riuscito|limite|limit/i.test(String(c[0])))).toBe(false)
+  })
+
   it('lo Stop con gli id di prima arriva alla chat adottata: evento, niente modello', async () => {
     zitto()
     await avviaServizio([ap()])
@@ -231,7 +273,9 @@ describe('autopilota unico nel servizio', () => {
     expect(archivio.leggi(a.id)!.stato).toBe('lavoro')
   })
 
-  it('il permesso chiesto dalla CLI diventa una domanda; la risposta torna allo strumento', async () => {
+  // 11/11: prima «il permesso chiesto dalla CLI diventa una domanda; la risposta torna allo strumento».
+  // Il 06/11 Nicholas ha ricevuto due «…chiede il permesso per Monitor: {json}. Lo permetto?»: ora decide il programma.
+  it('11/11: il permesso chiesto dalla CLI lo decide il programma, subito: nessuna domanda a Nicholas', async () => {
     zitto()
     await avviaServizio([ap()])
     migra()
@@ -240,16 +284,24 @@ describe('autopilota unico nel servizio', () => {
     // Lo strumento si chiama dal server MCP con il gettone del workspace (scritto nel file mcp.json).
     const cfg = JSON.parse(await import('node:fs').then((fs) => fs.readFileSync(processi[0]!.args[processi[0]!.args.indexOf('--mcp-config') + 1]!, 'utf8'))) as { mcpServers: { sierradeck: { headers: { Authorization: string } } } }
     const auth = cfg.mcpServers.sierradeck.headers.Authorization
-    const chiamata = fetch(url('/mcp/orchestratore?ws=Lavoro'), {
-      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: auth },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'permesso', arguments: { tool_name: 'mcp__altro__fai', input: { url: 'https://example.com' } } } })
-    })
-    await attendi(() => domande.aperte().length === 1)
-    const d = domande.aperte()[0]!
-    expect(d.testo).toContain('mcp__altro__fai')
-    domande.rispondi(d.id, 'Consenti', 'modale')
-    const r = (await (await chiamata).json()) as { result: { content: { text: string }[] } }
-    expect(JSON.parse(r.result.content[0]!.text)).toEqual({ behavior: 'allow', updatedInput: { url: 'https://example.com' } })
+    const chiedi = async (tool_name: string, input: unknown): Promise<{ behavior: string; message?: string }> => {
+      const r = (await (await fetch(url('/mcp/orchestratore?ws=Lavoro'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: auth },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'permesso', arguments: { tool_name, input } } })
+      })).json()) as { result: { content: { text: string }[] } }
+      return JSON.parse(r.result.content[0]!.text) as { behavior: string; message?: string }
+    }
+    // Uno strumento sconosciuto: negato con il motivo, senza aspettare nessuno.
+    const sconosciuto = await chiedi('mcp__altro__fai', { url: 'https://example.com' })
+    expect(sconosciuto.behavior).toBe('deny')
+    expect(sconosciuto.message).toContain('mcp__altro__fai')
+    expect(sconosciuto.message).toMatch(/non lo chiede a Nicholas/)
+    // Il caso vero: Monitor per aspettare uno specialista.
+    const monitor = await chiedi('Monitor', { description: 'fine attesa 90 s', timeout_ms: 120000, command: 'until grep -q . esito.txt; do sleep 2; done' })
+    expect(monitor.behavior).toBe('deny')
+    expect(monitor.message).toMatch(/ti arriva come evento, chiudi il turno/)
+    expect(domande.aperte()).toHaveLength(0)
+    expect(domande.risolte()).toHaveLength(0)
 
 
     // 0.89.5: scrivere un file fuori dalla cartella o leggere il web passa senza domanda.
@@ -511,13 +563,15 @@ describe('il motore non si ferma (0.89.4)', () => {
     await attendi(() => p0.scritte.some((x) => testoScritto(x).includes('unione')), { cosa: 'evento unione' })
   })
 
-  it('unione da sola alla fine dello specialista; il lavoro fermo sveglia l’autopilota, poi smette', async () => {
+  // 11/11: prima «poi smette» (due spinte e basta): il lavoro restava fermo in silenzio.
+  it('unione da sola alla fine dello specialista; il lavoro fermo sveglia l’autopilota sempre più di rado, senza smettere, e dalla terza volta lo sa anche Nicholas', async () => {
     zitto()
     let avanti = 0
     const base = orologioDa('2026-10-30T08:00:00.000Z')
     const adesso = (): string => new Date(base.ms() + avanti).toISOString()
     const senzaGit: Git = () => ({ codice: 128, uscita: 'fatal: not a git repository' })
-    await avviaServizio([ap({ chats: [] })], { git: senzaGit, adesso, raccoltaEventiMs: 5 })
+    const avvisi: { tipo: string; testo?: string }[] = []
+    await avviaServizio([ap({ chats: [] })], { git: senzaGit, adesso, raccoltaEventiMs: 5, avvisa: (tipo, _a, testo) => { avvisi.push({ tipo, ...(testo !== undefined ? { testo } : {}) }); return Promise.resolve() } })
     migra()
     await posta('/orchestratore/messaggio', { ws: 'Lavoro', testo: 'il reset e poi la prova' })
     await attendi(() => processi.length > 0, { cosa: 'processo' })
@@ -554,44 +608,157 @@ describe('il motore non si ferma (0.89.4)', () => {
     await attendi(() => sveglie() === 1, { cosa: 'sveglia 1' })
     expect(testoScritto(p0.scritte.at(-1)!)).toContain('k-2 pronto da affidare')
     fine('Va bene.')
-    // Lo stesso stato: una seconda volta più tardi, poi basta.
-    avanti += 2 * FERMO_DOPO_MS
+    // Lo stesso stato: una seconda volta dopo il doppio della quiete.
+    avanti += 2 * FERMO_DOPO_MS - 1000
+    server!.controllaChatFerme()
+    await new Promise((ris) => setTimeout(ris, 30))
+    expect(sveglie()).toBe(1)
+    avanti += 1000
     server!.controllaChatFerme()
     await attendi(() => sveglie() === 2)
     fine('Va bene.')
-    avanti += 20 * FERMO_DOPO_MS
+    const fermoANicholas = (): { tipo: string; testo?: string }[] => avvisi.filter((v) => v.testo?.startsWith('Lavoro fermo') === true)
+    expect(fermoANicholas()).toEqual([])
+    // La terza dopo il doppio ancora: non smette. E adesso lo sa anche Nicholas, con una riga che non è una domanda.
+    avanti += 4 * FERMO_DOPO_MS
     server!.controllaChatFerme()
-    await new Promise((ris) => setTimeout(ris, 50))
-    expect(sveglie()).toBe(SPINTE_MAX)
+    await attendi(() => sveglie() === 3, { cosa: 'sveglia 3' })
+    expect(fermoANicholas()).toHaveLength(1)
+    expect(fermoANicholas()[0]!.tipo).toBe('avviso')
+    expect(fermoANicholas()[0]!.testo).toMatch(/^Lavoro fermo da \d+ minuti \(una cosa in sospeso\): ho svegliato l’autopilota 3 volte/u)
+    expect(fermoANicholas()[0]!.testo).not.toContain('?')
+    expect(archivio.leggi(orch.impostazioni('Lavoro').autopilota!)!.annuncio?.titolo).toBe('Lavoro fermo')
+    // Mentre l'autopilota lavora (il turno della terza spinta è ancora aperto) niente spinte, e il conto resta.
+    avanti += 8 * FERMO_DOPO_MS
+    server!.controllaChatFerme()
+    await new Promise((ris) => setTimeout(ris, 30))
+    expect(sveglie()).toBe(3)
+    fine('Va bene.')
+    // La quiete riparte da quando ha finito: subito dopo, ancora niente.
+    server!.controllaChatFerme()
+    avanti += 8 * FERMO_DOPO_MS - 1000
+    server!.controllaChatFerme()
+    await new Promise((ris) => setTimeout(ris, 30))
+    expect(sveglie()).toBe(3)
+    avanti += 1000
+    server!.controllaChatFerme()
+    await attendi(() => sveglie() === 4, { cosa: 'sveglia 4' })
+    fine('Va bene.')
+    // Avanti così, con il tetto di un'ora fra una spinta e l'altra: mai un'ultima. E a Nicholas una riga sola.
+    for (let n = 5; n <= 8; n += 1) {
+      avanti += 60 * 60_000
+      server!.controllaChatFerme()
+      await attendi(() => sveglie() === n, { cosa: `sveglia ${n}` })
+      fine('Va bene.')
+    }
+    expect(fermoANicholas()).toHaveLength(1)
   })
 
-  it('una domanda senza risposta da un giorno si chiude e l’autopilota lo sa; il testo ha il perché e le conseguenze', async () => {
-    zitto()
-    let avanti = 0
-    const base = orologioDa('2026-10-30T08:00:00.000Z')
-    const adesso = (): string => new Date(base.ms() + avanti).toISOString()
-    await avviaServizio([ap({ chats: [] })], { adesso, raccoltaEventiMs: 5 })
-    migra()
-    await posta('/orchestratore/messaggio', { ws: 'Lavoro', testo: 'la barra' })
-    await attendi(() => processi.length > 0, { cosa: 'processo' })
-    const p0 = processi[0]!
-    p0.emetti({ type: 'result', result: 'Ok.', total_cost_usd: 0.001, session_id: 'sess-1', usage: { input_tokens: 100 } })
-    const cfg = JSON.parse(readFileSync(p0.args[p0.args.indexOf('--mcp-config') + 1]!, 'utf8')) as { mcpServers: { sierradeck: { headers: { Authorization: string } } } }
-    await fetch(url('/mcp/orchestratore?ws=Lavoro'), {
-      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: cfg.mcpServers.sierradeck.headers.Authorization },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'chiedi_utente', arguments: { domanda: 'Pubblico la nuova versione adesso?', perche: 'le correzioni sono pronte', scelte: ['Sì → la pubblico ora', 'No → aspetto domani'] } } })
+  /**
+   * 11/11, la scadenza. Prima c'era una prova sola: «una domanda senza risposta da un giorno si chiude
+   * e l'autopilota lo sa», con «Pubblico la nuova versione adesso?». Adesso un giorno vale solo per le
+   * domande di prima; una non rischiosa si decide dopo un'ora, una rischiosa (pubblicare lo è) resta.
+   */
+  describe('11/11: la scadenza di una domanda dipende dal rischio', () => {
+    const ORA = 60 * 60_000
+    const preparo = async (): Promise<{ p0: Finto; chiedi: (a: Record<string, unknown>) => Promise<string>; autopilota: string; avanza: (ms: number) => void }> => {
+      zitto()
+      let avanti = 0
+      const base = orologioDa('2026-10-30T08:00:00.000Z')
+      const adesso = (): string => new Date(base.ms() + avanti).toISOString()
+      await avviaServizio([ap({ chats: [] })], { adesso, raccoltaEventiMs: 5 })
+      migra()
+      await posta('/orchestratore/messaggio', { ws: 'Lavoro', testo: 'la barra' })
+      await attendi(() => processi.length > 0, { cosa: 'processo' })
+      const p0 = processi[0]!
+      p0.emetti({ type: 'result', result: 'Ok.', total_cost_usd: 0.001, session_id: 'sess-1', usage: { input_tokens: 100 } })
+      const cfg = JSON.parse(readFileSync(p0.args[p0.args.indexOf('--mcp-config') + 1]!, 'utf8')) as { mcpServers: { sierradeck: { headers: { Authorization: string } } } }
+      const chiedi = async (a: Record<string, unknown>): Promise<string> => JSON.stringify(await (await fetch(url('/mcp/orchestratore?ws=Lavoro'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: cfg.mcpServers.sierradeck.headers.Authorization },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'chiedi_utente', arguments: a } })
+      })).json())
+      return { p0, chiedi, autopilota: orch.impostazioni('Lavoro').autopilota!, avanza: (ms) => { avanti += ms } }
+    }
+
+    it('rischiosa (pubblicare): non scade e nessuno decide; il testo ha il perché, le conseguenze e «non decido io»', async () => {
+      const { chiedi, autopilota, avanza } = await preparo()
+      expect(await chiedi({ domanda: 'Pubblico la nuova versione adesso?', perche: 'le correzioni sono pronte', scelte: ['Sì → la pubblico ora', 'No → aspetto domani'] })).toContain('resta aperta finché non risponde')
+      const d = domande.aperte(autopilota)[0]!
+      expect(d.testo).toContain('Perché gli serve: le correzioni sono pronte')
+      expect(d.testo).toContain('• Sì (consigliata) → la pubblico ora')
+      expect(d.testo).not.toContain('coordino gli specialisti')
+      expect(d.testo).toContain('Se non rispondi: non decido io al posto tuo: la domanda resta qui finché non rispondi')
+      expect(d.testo).not.toContain('fra un giorno')
+      expect(d.contesto?.rischiosa).toBe(true)
+      avanza(2 * DOMANDA_VECCHIA_MS)
+      server!.controllaChatFerme()
+      expect(domande.aperte(autopilota)).toHaveLength(1)
     })
-    const autopilota = orch.impostazioni('Lavoro').autopilota!
-    const d = domande.aperte(autopilota)[0]!
-    expect(d.testo).toContain('Perché gli serve: le correzioni sono pronte')
-    expect(d.testo).toContain('• Sì (consigliata) → la pubblico ora')
-    expect(d.testo).not.toContain('coordino gli specialisti')
-    server!.controllaChatFerme()
-    expect(domande.aperte(autopilota)).toHaveLength(1)
-    avanti += DOMANDA_VECCHIA_MS + 60_000
-    server!.controllaChatFerme()
-    expect(domande.aperte(autopilota)).toHaveLength(0)
-    await attendi(() => p0.scritte.some((x) => testoScritto(x).includes('domanda scaduta')), { cosa: 'evento della domanda scaduta' })
+
+    it('non rischiosa: dopo un’ora il programma sceglie la consigliata, lo scrive a Nicholas e lo passa all’autopilota', async () => {
+      const { p0, chiedi, autopilota, avanza } = await preparo()
+      expect(await chiedi({ domanda: 'Tengo il colore verde per la barra?', perche: 'cambia il resto della pagina', scelte: ['Sì, verde → la barra resta verde', 'No → la faccio blu'] })).toContain('il programma sceglie la consigliata')
+      const d = domande.aperte(autopilota)[0]!
+      expect(d.contesto?.rischiosa).toBe(false)
+      expect(d.testo).toContain('Se non rispondi: intanto porto avanti il resto; se entro un’ora non rispondi scelgo io «Sì, verde» e te lo scrivo')
+      avanza(ORA - 2 * 60_000)
+      server!.controllaChatFerme()
+      expect(domande.aperte(autopilota)).toHaveLength(1)
+      avanza(3 * 60_000)
+      server!.controllaChatFerme()
+      expect(domande.aperte(autopilota)).toHaveLength(0)
+      // Una riga a Nicholas, detta dall'autopilota: non «Hai risposto», perché non ha risposto.
+      const dialogo = archivio.leggi(autopilota)!.dialogo
+      expect(dialogo.at(-1)).toMatchObject({ da: 'lui', testo: 'Non hai risposto a «Tengo il colore verde per la barra?»: ho scelto «Sì, verde», la scelta consigliata. Se non va bene scrivimelo e cambio strada.' })
+      expect(dialogo.some((r) => r.da === 'tu' && r.testo.startsWith('Hai risposto'))).toBe(false)
+      // All'autopilota arriva come evento, con la scelta; in coda entra come lavoro, senza il nome di Nicholas.
+      await attendi(() => p0.scritte.some((x) => testoScritto(x).includes('domanda scaduta') && testoScritto(x).includes('ha scelto la consigliata, «Sì, verde»')), { cosa: 'la scelta del programma all’autopilota' })
+      expect(p0.scritte.some((x) => testoScritto(x).includes('Risposta alla tua domanda'))).toBe(false)
+      expect(JSON.stringify(code.leggi('Lavoro').richieste)).toContain('Scelta consigliata, presa dal programma senza risposta di Nicholas, a «Tengo il colore verde per la barra?»: Sì, verde')
+    })
+
+    it('non rischiosa a risposta libera: dopo un’ora si chiude e decide l’autopilota', async () => {
+      const { p0, chiedi, autopilota, avanza } = await preparo()
+      await chiedi({ domanda: 'Che nome do alla nuova sezione del menu?', perche: 'lo vedi ogni giorno' })
+      expect(domande.aperte(autopilota)[0]!.testo).toContain('decido io la strada più prudente')
+      avanza(ORA + 60_000)
+      server!.controllaChatFerme()
+      expect(domande.aperte(autopilota)).toHaveLength(0)
+      await attendi(() => p0.scritte.some((x) => testoScritto(x).includes('decidi tu la strada più prudente')), { cosa: 'evento della domanda scaduta' })
+    })
+
+    it('«rischiosa» detto dall’autopilota vale anche senza parole di rischio', async () => {
+      const { chiedi, autopilota, avanza } = await preparo()
+      await chiedi({ domanda: 'Tengo il colore verde per la barra?', perche: 'cambia il resto della pagina', scelte: ['Sì → verde', 'No → blu'], rischiosa: true })
+      expect(domande.aperte(autopilota)[0]!.contesto?.rischiosa).toBe(true)
+      avanza(2 * DOMANDA_VECCHIA_MS)
+      server!.controllaChatFerme()
+      expect(domande.aperte(autopilota)).toHaveLength(1)
+    })
+
+    it('«mai da sola»: una domanda aperta dal programma con quel segno non scade e non si chiude se Nicholas scrive', async () => {
+      const { autopilota, avanza } = await preparo()
+      const d = domande.apri({ autopilotaId: autopilota, testo: 'Nella cartella ci sono due file non salvati. Li salvo e unisco?', scadenzaMs: 60_000, opzioni: ['Salvali e unisci', 'Lascia stare'] })
+      domande.ricorda(d.id, { autopilotaId: autopilota, testo: d.testo, maiDaSola: true })
+      avanza(3 * DOMANDA_VECCHIA_MS)
+      server!.controllaChatFerme()
+      expect(domande.aperte(autopilota).map((q) => q.id)).toEqual([d.id])
+      await posta('/orchestratore/messaggio', { ws: 'Lavoro', testo: 'a che punto siamo?' })
+      expect(domande.aperte(autopilota).map((q) => q.id)).toEqual([d.id])
+    })
+
+    it('una domanda di prima (senza il segno del rischio) si chiude dopo un giorno, senza decidere niente, e l’autopilota lo sa', async () => {
+      const { p0, autopilota, avanza } = await preparo()
+      domande.apri({ autopilotaId: autopilota, testo: 'Una chat vuole cancellare questi percorsi: li cancello?', scadenzaMs: 60_000, opzioni: ['No, non cancellare', 'Sì, cancella'] })
+      avanza(2 * ORA)
+      server!.controllaChatFerme()
+      expect(domande.aperte(autopilota)).toHaveLength(1)
+      avanza(DOMANDA_VECCHIA_MS)
+      server!.controllaChatFerme()
+      expect(domande.aperte(autopilota)).toHaveLength(0)
+      await attendi(() => p0.scritte.some((x) => testoScritto(x).includes('domanda scaduta') && testoScritto(x).includes('senza risposta per un giorno')), { cosa: 'evento della domanda scaduta' })
+      expect(archivio.leggi(autopilota)!.dialogo.some((r) => r.testo.includes('ho scelto'))).toBe(false)
+    })
   })
 
   it('0.92.1: l’autopilota vede le sue domande aperte e ritira quelle superate; quelle di un autopilota che non c’è più si chiudono', async () => {
@@ -639,6 +806,32 @@ describe('il motore non si ferma (0.89.4)', () => {
       expect(domande.aperte(id)).toHaveLength(0)
       expect(domande.risolte(id).length).toBeGreaterThan(0)
       await attendi(() => processi.some((p) => p.scritte.some((s) => testoScritto(s).includes('chiuso una tua domanda aperta'))), { cosa: 'avviso all’autopilota' })
+    })
+
+    // 11/11: 45 dei 109 messaggi «tu» erano del programma, e ognuno chiudeva le domande aperte (poi rifatte).
+    it('11/11: un messaggio del programma (controllo dei PC, errori arrivati) non chiude le domande aperte', async () => {
+      const id = await preparo()
+      domande.apri({ autopilotaId: id, testo: 'Tengo il verde?', scadenzaMs: 60_000 })
+      const r = await posta('/orchestratore/messaggio', { ws: 'Lavoro', testo: 'Controllo di tutti i PC: 2 criticità. Il rapporto è nel progetto.', daProgramma: true })
+      expect(r.status).toBe(200)
+      expect(domande.aperte(id)).toHaveLength(1)
+      expect(domande.risolte(id)).toHaveLength(0)
+      // Il messaggio arriva lo stesso: in coda e all'autopilota, senza «ho chiuso una tua domanda».
+      expect(code.leggi('Lavoro').richieste.some((q) => q.testo.includes('Controllo di tutti i PC'))).toBe(true)
+      await attendi(() => processi.some((p) => p.scritte.some((s) => testoScritto(s).includes('Controllo di tutti i PC'))), { cosa: 'il messaggio all’autopilota' })
+      expect(processi.some((p) => p.scritte.some((s) => testoScritto(s).includes('chiuso una tua domanda aperta')))).toBe(false)
+    })
+
+    it('11/11: il lavoro in coda tutto finito non chiude più da solo le domande', async () => {
+      const id = await preparo()
+      await posta('/orchestratore/messaggio', { ws: 'Lavoro', testo: 'libera spazio sul disco' })
+      const d = domande.apri({ autopilotaId: id, testo: 'Cancello le copie vecchie o le tengo un mese?', scadenzaMs: 60_000 })
+      // Tutte le richieste fatte, dopo la domanda: prima bastava questo per chiuderla senza risposta.
+      const dopo = new Date(d.apertaIl + 60_000).toISOString()
+      code.cambia('Lavoro', (c) => ({ coda: { ...c, richieste: c.richieste.map((q) => ({ ...q, stato: 'fatta' as const, fattaIl: dopo })) }, eventi: [] }))
+      expect(code.leggi('Lavoro').richieste.every((q) => q.stato === 'fatta')).toBe(true)
+      server!.controllaChatFerme()
+      expect(domande.aperte(id)).toHaveLength(1)
     })
 
     it('l’autopilota finito o archiviato non lascia domande aperte', async () => {

@@ -3961,7 +3961,8 @@ if (!app.requestSingleInstanceLock()) {
             }
           }
           // Un messaggio all'autopilota del workspace: va nella sua coda.
-          await clientAutopilota.crea({ obiettivo: p.testo, cwd: p.cwd, workspace: ws })
+          // 11/11: è del programma, non di Nicholas: non deve chiudere le domande che aspettano lui.
+          await clientAutopilota.crea({ obiettivo: p.testo, cwd: p.cwd, workspace: ws, daProgramma: true })
         }
         const giro = async (): Promise<void> => {
           if (inCorso) return

@@ -23,19 +23,20 @@ import {
 import { comandoDelCriterio } from '@shared/piano-orchestratore'
 import { esaminaComando } from '@shared/controllo-comandi'
 import type { Archivio } from './archivio'
-import type { Esecutore } from './verifiche'
+import { interrottoPerTempo, type Esecutore } from './verifiche'
+import { conScadenza, PROVA_MAX_MS } from './tempi-unione'
 import { improntaCodiceAsincrona, misuraCriteri, type MemoriaCriteri } from './criteri-veloci'
-import { peggioratiDelRamo } from './ambiente-copia'
+import { motivoProveRotte, peggioratiDelRamo, preparaCopia, radiceDellaCopia } from './ambiente-copia'
 import { criteriPerLaProva } from './criteri-prova'
 import { TURNI_PC, TurnoScaduto, type TurniCriteri } from './turni-criteri'
-import { giudicaPesanteAspettando, giudicaPesanteDellaChat, idAgente, rendiTurnoDopoComando, type GuardiaPc } from './guardia-pc'
+import { giudicaPesanteAspettando, idAgente, rendiTurnoDopoComando, type GuardiaPc } from './guardia-pc'
 import { giudicaRuolo, giudicaStrumento, rispostaPreTool } from './divieti'
 import { creaConsensi, testoDomandaCancellazione, DURATA_CONSENSO_MS, SCELTA_NO, SCELTA_SI } from './consenso-cancellazione'
 import { ultimoRapportoDa } from './trascrizione'
 import { apriMemoria, type Memoria } from './memoria'
 import { aperteSulloStesso } from './domande-doppie'
 import type { RegistroDomande, ContestoDomanda } from './domande'
-import { rispostaScritta, scelteDaToccare } from './domande-in-chat'
+import { decisioneDaRicordare, domandaRispostaInChat, rispostaScritta, scelteDaToccare } from './domande-in-chat'
 import type { TipoAvviso } from './telegram'
 import { avanzaFine, inizioFine } from './fine-chat'
 import { chatAlLavoroSulPc, daChiudereDaSole, RICHIUDI_DOPO_MS } from './posti'
@@ -45,6 +46,7 @@ import {
   comeAsincrono, iniziaProvaAsincrono, chiudiProvaAsincrono, ripulisciProvaAsincrono, MOTIVO_CARTELLA_SPORCA, salvaLavoroAsincrono, togliWorktreeAsincrono,
   type Git, type GitAsincrono
 } from './worktree'
+import { prendiDalRemotoAsincrono, riallineaAsincrono, type EsitoRiallineo } from './worktree'
 import { cartellaWorkspace, type ArchivioCode } from './coda-store'
 import { annullaRiparazioneServizio, riparaServizio, type DipendenzeRiparazioneServizio } from './autoriparazione'
 import type { ArchivioOrchestratori } from './orchestratore-store'
@@ -58,8 +60,8 @@ import { apriAttesa, type ArchivioAttesa } from './attesa-store'
 import { apriRecuperoPasso } from '../main/riassetto/recupero'
 import { leggiRichiestaDoppioni } from '@shared/autopiloti-doppioni'
 
-/** 06/11: tempo massimo di un'unione di prova nel principale (misure comprese). Sta fra il turno (UNIONE_TURNO_MAX_MS) e la fila (UNIONE_MAX_MS). */
-export const PROVA_MAX_MS = 15 * 60_000
+/** 06/11: tempo massimo di un'unione di prova nel principale (misure comprese). Sta fra il turno (UNIONE_TURNO_MAX_MS) e la fila (UNIONE_MAX_MS). 11/11: 45 minuti, in `tempi-unione.ts`. */
+export { PROVA_MAX_MS }
 
 /**
  * **Il servizio degli autopiloti** (P4): un solo autopilota per workspace,
@@ -116,6 +118,8 @@ export type Dipendenze = {
   misuraPc?: () => MisuraPc
   /** La guardia del PC (0.85.1): con il PC al limite niente comandi pesanti. */
   guardiaPc?: GuardiaPc
+  /** 11/11, per i test: i tetti dell'attesa di un comando pesante dentro l'hook (PC carico, turno) e ogni quanto si riguarda. */
+  attesaPesante?: { tettoMs?: number; tettoTurnoMs?: number; riprovaMs?: number }
   /** Chiude una chat adottata finita (0.82.0): il riquadro si chiude; con `alRecupero` esce dall'elenco (P2). */
   chiudiChat?: (autopilotaId: string, chatId: string | undefined, chi: { sessionId: string; workspace?: string; alRecupero?: boolean; fine?: 'unita' | 'abbandonata' }) => void
   /** L'autopulizia (0.85.2), per «Pulisci adesso». */
@@ -136,12 +140,17 @@ export type Dipendenze = {
   inattivoOrchestratoreMs?: number
   /** Per i test di `unisci` chiamato a mano: `false` spegne l'unione da sola alla fine di uno specialista (0.89.4). */
   unioneDaSola?: boolean
-  /** 06/11: dopo quanto un'unione di prova nel principale si chiude e si rimette in fila (di serie 15 minuti). */
+  /** 06/11: dopo quanto un'unione di prova nel principale si chiude e si rimette in fila (di serie 45 minuti, `tempi-unione.ts`). */
   provaMaxMs?: number
+  /** 11/11: quanto si aspetta, al più, la risposta del remoto prima di andare avanti senza (di serie 20 secondi). */
+  remotoTempoMs?: number
   /** 06/11, per i test: tempi della fila delle unioni (vedi `ContestoUnico`). */
   unioneMaxMs?: number
   unioneRiprovaMs?: number
   unioneTentativiMax?: number
+  /** 11/11, per i test: i tempi dei file non salvati nella principale (vedi `ContestoUnico`). */
+  chiediSalvaDopoMs?: number
+  sporcaInFondoDopoMs?: number
   /** 31/10: gli autopiloti archiviati come doppioni. Assente: `servizio/doppioni-archiviati.json` accanto agli autopiloti. */
   doppioni?: ArchivioDoppioni
   /** k-48: la lista d'attesa degli specialisti. Assente: `servizio/attesa-specialisti.json` accanto agli autopiloti. */
@@ -161,6 +170,9 @@ export type ServerAutopiloti = Server & {
   migraVecchi: () => number
   /** 0.89.0: per l’autopulizia, le copie degli specialisti di quella cartella sono in uso? */
   agentiAlLavoro: (cartella: string) => boolean
+  /** 11/11: per l'autopulizia, le copie degli specialisti al lavoro adesso e i rami che servono ancora (`ServizioUnico`). */
+  copieVive: (cartella: string) => Set<string>
+  ramiCitati: (cartella: string) => Set<string>
 }
 
 /** Ogni quanto, al più, si rilegge la trascrizione di una chat per il suo rapporto (0.85.1). */
@@ -437,6 +449,30 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     `${a.cwd}.sierradeck-wt`,
     ...a.chats.flatMap((c) => (c.cartella !== undefined ? [c.cartella] : []))
   ]
+  /**
+   * **La copia dello specialista pronta al primo comando** (11/11). La CLI apre
+   * la copia con i soli file tracciati: niente `node_modules`, niente
+   * `android/local.properties`. Ogni specialista doveva crearsi la giunzione a
+   * mano (e `mklink` da Bash la CLI lo rifiuta). Qui la mette il programma, una
+   * volta per specialista, al suo primo strumento (`preparaCopia`); dopo
+   * l'unione la stacca `togliCopiaUnita`, prima di togliere la copia.
+   */
+  const copiePreparate = new Set<string>()
+  const preparaCopiaDelloSpecialista = (a: Autopilota, corpo: Record<string, unknown>): void => {
+    const agente = idAgente(corpo)
+    if (agente === undefined || copiePreparate.has(agente) || typeof corpo.cwd !== 'string' || corpo.cwd === '') return
+    const copia = radiceDellaCopia(corpo.cwd, a.cwd)
+    if (copia === undefined) return
+    copiePreparate.add(agente)
+    if (copiePreparate.size > 500) copiePreparate.delete(copiePreparate.values().next().value as string)
+    try {
+      const r = preparaCopia(copia, a.cwd)
+      if (r.messi.length > 0) console.info(`[autopilota] ${a.id}::${agente} — copia preparata: ${r.messi.join(', ')}`)
+      if (r.mancano.length > 0) console.warn(`[autopilota] ${a.id}::${agente} — nella copia manca ${r.mancano.join(', ')}`)
+    } catch (err) {
+      console.warn(`[autopilota] ${a.id}::${agente} — copia non preparata:`, err)
+    }
+  }
   /** I segnali veri di un autopilota, chat per chat. */
   const segniVeriDi = (a: Autopilota): Record<string, SegnaleVero> => {
     const segniVeri: Record<string, SegnaleVero> = {}
@@ -611,7 +647,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       const ap = deps.archivio.leggi(chiesta.autopilotaId)
       const laDomanda = chiesta.parti?.domanda ?? chiesta.contesto?.grezza ?? chiesta.testo
       memoria.ricordaRisposta(chiesta.autopilotaId, laDomanda, testo, deps.adesso(), chiesta.contesto?.chatId ?? contesto.get(chiesta.id)?.chatId)
-      if (ap !== undefined) memoria.ricordaDecisione(ap.cwd, `«${laDomanda.slice(0, 200)}» → ${testo}`, deps.adesso())
+      // 11/11: fra le decisioni del quaderno non vanno i permessi, i consensi a cancellare e i «no» senza lavoro.
+      if (ap !== undefined && decisioneDaRicordare({ domanda: laDomanda, risposta: testo, diConsenso: consensiCancella.riguarda(idDomanda) })) memoria.ricordaDecisione(ap.cwd, `«${laDomanda.slice(0, 200)}» → ${testo}`, deps.adesso())
       console.info(`[domande] ${chiesta.autopilotaId} — la tua risposta «${breveRisposta(testo)}» (${da}): ricevuta`)
     }
     if (!deps.domande.rispondi(idDomanda, testo, da)) return false
@@ -670,10 +707,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     const diff = await gitA(git)(['diff', '--name-only', `${base}...${ramo}`], a.cwd).catch(() => undefined)
     const cambiati = diff !== undefined && diff.codice === 0 ? diff.uscita.split(/\r?\n/).map((r) => r.trim()).filter((r) => r !== '') : undefined
     const criteri = criteriPerLaProva(tutti, cambiati)
-    const misura = async (criteri: Criterio[]) => {
+    const misura = async (criteri: Criterio[], segnale: AbortSignal) => {
       if (criteri.length === 0) return []
       const impronta = await improntaCodiceAsincrona(gitA(git), a.cwd)
-      return (await misuraCriteri(criteri, a.cwd, deps.esegui, { memoria: memoriaCriteri, adesso: orologio, tutti: true, ...(impronta !== undefined ? { impronta } : {}) })).esiti
+      return (await misuraCriteri(criteri, a.cwd, deps.esegui, { memoria: memoriaCriteri, adesso: orologio, tutti: true, segnale, ...(impronta !== undefined ? { impronta } : {}) })).esiti
     }
     await aspettaProve(a.cwd)
     let fine = (): void => {}
@@ -681,7 +718,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // 06/11: la prova ha un tempo massimo. Scaduto, si chiude (la cartella si ripulisce da sola)
     // e l'unione si rimette in fila: mai appesa, mai un riavvio del servizio per sbloccarla.
     const stato = { scaduta: false }
-    const corpo = async (): Promise<EsitoProvaPrincipale> => {
+    const corpo = async (segnale: AbortSignal, iniziata: () => void): Promise<EsitoProvaPrincipale> => {
+      const eScaduta = (): boolean => stato.scaduta || segnale.aborted
+      const PER_TEMPO = 'una misura è scaduta per tempo (PC carico), non è colpa del ramo'
       const unisci = async (): Promise<EsitoProvaPrincipale | undefined> => {
         const inizio = await turni.unione(a.cwd, () => iniziaProvaAsincrono(gitA(git), { cwd: a.cwd, ramo, base }))
         if (inizio.ok) return undefined
@@ -690,39 +729,84 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       }
       const fallita = await unisci()
       if (fallita !== undefined) return fallita
+      iniziata()
+      // 11/11: scaduta mentre git univa: l'unione appena aperta si richiude qui, non al tentativo dopo.
+      if (eScaduta()) {
+        try { await ripulisciProvaAsincrono(gitA(git), { cwd: a.cwd }) } catch { /* la prossima prova la ripulisce */ }
+        return { unito: false, motivo: 'prova scaduta', ritenta: 'scaduta' }
+      }
       // 0.96.1: prima si misura con il ramo dentro. Solo quello che non passa si
       // rimisura senza il ramo: se non passava già, non è colpa del ramo.
       let peggiorati: string[] = []
       try {
-        const rossi = (await misura(criteri)).filter((e) => !e.passato)
-        if (stato.scaduta) return { unito: false, motivo: 'prova scaduta', ritenta: 'scaduta' }
+        const rossi = (await misura(criteri, segnale)).filter((e) => !e.passato)
+        if (eScaduta()) return { unito: false, motivo: 'prova scaduta', ritenta: 'scaduta' }
+        // 11/11: una misura interrotta per tempo non dice niente sul ramo (07/11: rami respinti
+        // a PC carico). La prova si chiude e l'unione torna in fila.
+        if (rossi.some((e) => interrottoPerTempo(e.uscita))) {
+          await turni.unione(a.cwd, () => chiudiProvaAsincrono(gitA(git), { cwd: a.cwd, tieni: false }))
+          return { unito: false, motivo: PER_TEMPO, ritenta: 'scaduta' }
+        }
         if (rossi.length > 0) {
           await turni.unione(a.cwd, () => chiudiProvaAsincrono(gitA(git), { cwd: a.cwd, tieni: false }))
-          const prima = await misura(criteri.filter((c) => rossi.some((r) => r.descrizione === c.descrizione)))
+          const prima = await misura(criteri.filter((c) => rossi.some((r) => r.descrizione === c.descrizione)), segnale)
+          if (eScaduta()) return { unito: false, motivo: 'prova scaduta', ritenta: 'scaduta' }
+          if (prima.some((e) => !e.passato && interrottoPerTempo(e.uscita))) return { unito: false, motivo: PER_TEMPO, ritenta: 'scaduta' }
           peggiorati = peggioratiDelRamo(prima, rossi, true).delRamo
-          if (peggiorati.length > 0) return { unito: false, motivo: `anche nella cartella principale non passa: ${peggiorati.join('; ')}` }
-          if (stato.scaduta) return { unito: false, motivo: 'prova scaduta', ritenta: 'scaduta' }
+          // 11/11: il motivo dice il vero (sul principale passano: le rompe il ramo) e porta la coda dell'uscita.
+          if (peggiorati.length > 0) return { unito: false, motivo: motivoProveRotte(peggiorati, rossi) }
+          if (eScaduta()) return { unito: false, motivo: 'prova scaduta', ritenta: 'scaduta' }
           const ancora = await unisci()
           if (ancora !== undefined) return ancora
         }
       } catch (err) {
+        // 11/11: il turno scaduto non è un rosso del ramo: esce come «scaduta» e l'unione torna in fila.
+        if (err instanceof TurnoScaduto) throw err
         peggiorati = [`misura non riuscita: ${err instanceof Error ? err.message : String(err)}`]
       }
-      if (stato.scaduta) return { unito: false, motivo: 'prova scaduta', ritenta: 'scaduta' }
+      if (eScaduta()) return { unito: false, motivo: 'prova scaduta', ritenta: 'scaduta' }
       const tenuta = await turni.unione(a.cwd, () => chiudiProvaAsincrono(gitA(git), { cwd: a.cwd, tieni: peggiorati.length === 0 }))
-      if (peggiorati.length > 0) return { unito: false, motivo: `anche nella cartella principale non passa: ${peggiorati.join('; ')}` }
+      // Qui arriva solo una misura che non è riuscita (un errore del programma): non dice che il ramo rompe qualcosa.
+      if (peggiorati.length > 0) return { unito: false, motivo: `l’unione di prova non si è potuta misurare (${peggiorati.join('; ')}): non è detto che sia colpa del ramo` }
       return tenuta ? { unito: true } : { unito: false, motivo: 'i criteri passavano, ma il commit dell’unione non è riuscito' }
     }
-    let timer: ReturnType<typeof setTimeout> | undefined
     try {
-      const scadenza = new Promise<'scaduta'>((ris) => { timer = setTimeout(() => ris('scaduta'), deps.provaMaxMs ?? PROVA_MAX_MS); timer.unref?.() })
-      const r = await Promise.race([corpo().catch((err: unknown) => { if (err instanceof TurnoScaduto) return 'scaduta' as const; throw err }), scadenza])
-      if (r !== 'scaduta') return r
+      // 11/11: alla scadenza il segnale ferma davvero il comando figlio (e rende il turno dei
+      // pesanti): il tentativo dopo non aspetta una suite fantasma. I tempi vanno nel registro.
+      const r = await conScadenza(
+        (segnale, iniziata) => corpo(segnale, iniziata).catch((err: unknown) => { if (err instanceof TurnoScaduto) return 'scaduta' as const; throw err }),
+        deps.provaMaxMs ?? PROVA_MAX_MS,
+        { scrivi: (t) => { console.info(`[unione di prova] ${ramo}: attesa del turno ${Math.round(t.attesaMs / 1000)} s, prova ${Math.round(t.esecuzioneMs / 1000)} s${t.scaduta ? ' (scaduta)' : ''}`) } }
+      )
+      if (!r.scaduta && r.valore !== 'scaduta') return r.valore
       stato.scaduta = true
       try { await ripulisciProvaAsincrono(gitA(git), { cwd: a.cwd }) } catch { /* la prossima prova la ripulisce */ }
       return { unito: false, motivo: 'l’unione di prova ha superato il tempo massimo: chiusa, la cartella è stata ripulita', ritenta: 'scaduta' }
     } finally {
-      if (timer !== undefined) clearTimeout(timer)
+      proveInCorso.delete(chiaveProva(a.cwd))
+      fine()
+    }
+  }
+
+  /**
+   * 11/11: il ramo principale di qui raggiunge quello del remoto (`riallineaAsincrono`). Il remoto si
+   * chiede fuori da ogni turno (rete assente o lenta non ferma le unioni); il resto gira come una prova:
+   * mai insieme a un'unione di prova nella stessa cartella, e nel turno delle unioni del PC.
+   */
+  const riallineaPrincipale = async (a: Autopilota): Promise<EsitoRiallineo> => {
+    const git = deps.git
+    if (git === undefined || a.ramoBase === undefined) return { esito: 'senza-remoto' }
+    const base = a.ramoBase
+    const preso = await prendiDalRemotoAsincrono(gitA(git), { cwd: a.cwd, base }, { ...(deps.remotoTempoMs !== undefined ? { tempoMs: deps.remotoTempoMs } : {}) })
+    if (preso.esito !== 'preso') return preso
+    await aspettaProve(a.cwd)
+    let fine = (): void => {}
+    proveInCorso.set(chiaveProva(a.cwd), new Promise<void>((r) => { fine = r }))
+    try {
+      return await (deps.turni ?? TURNI_PC).unione(a.cwd, () => riallineaAsincrono(gitA(git), { cwd: a.cwd, base }))
+    } catch (err) {
+      return { esito: 'occupata', perche: err instanceof Error ? err.message : String(err) }
+    } finally {
       proveInCorso.delete(chiaveProva(a.cwd))
       fine()
     }
@@ -867,7 +951,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     if (ws === '') return { stato: 400, corpo: { errore: 'manca il workspace' } }
     const gia = servizio().unicoDi(ws)
     if (gia === undefined && (cwd === '' || !existsSync(cwd) || !statSync(cwd).isDirectory())) return { stato: 400, corpo: { errore: `cartella non utilizzabile: ${cwd}` } }
-    const e = servizio().assicura(ws, { ...(cwd !== '' ? { cwd } : {}), obiettivo: testo })
+    // 11/11: un messaggio del programma (controllo dei PC, errori arrivati) non conta come «Nicholas ha scritto».
+    const e = servizio().assicura(ws, { ...(cwd !== '' ? { cwd } : {}), obiettivo: testo, ...(corpo?.daProgramma === true ? { daProgramma: true } : {}) })
     return e.ok ? { stato: 200, corpo: e.unico } : { stato: 400, corpo: { errore: e.motivo } }
   }
 
@@ -1190,7 +1275,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
               if (dialoghiRicevuti.size > 500) dialoghiRicevuti.delete(dialoghiRicevuti.values().next().value as string)
             }
             // 0.96.0: con una sua domanda nata in chat ancora aperta, quello che scrivi è la risposta.
-            const inChat = deps.domande.aperte(a.id).filter((d) => d.inChat !== undefined).sort((p, q) => p.apertaIl - q.apertaIl)[0]
+            // 11/11: non più sempre, e non più alla più vecchia. Un numero o una scelta sì; un testo libero solo
+            // entro mezz'ora dalla domanda, e sempre per la più recente (`domandaRispostaInChat`). Il resto è
+            // un messaggio nuovo, non la risposta a una domanda vecchia.
+            const inChat = domandaRispostaInChat(testo, deps.domande.aperte(a.id).filter((d) => d.inChat !== undefined), Date.parse(deps.adesso()))
             if (inChat !== undefined && rispondiAllaDomanda(inChat.id, rispostaScritta(testo, scelteDaToccare(inChat)), 'modale')) {
               ricorda()
               rispondi(res, 202, { ricevuto: true, autopilota: deps.archivio.leggi(a.id) ?? a })
@@ -1343,6 +1431,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           const a = leggiUnico(idAp)
           if (a === undefined) { rispondi(res, 200, {}); return }
           if (chatPre !== undefined && chatPre !== idAp && ID_VALIDO.test(chatPre)) segnaPartenza(idAp, chatPre)
+          preparaCopiaDelloSpecialista(a, corpo)
           const ruoloPre = chatPre !== undefined ? a.chats.find((c) => c.id === chatPre)?.ruolo : undefined
           const gRuolo = giudicaRuolo(corpo, ruoloPre)
           let g = gRuolo.ok ? giudicaStrumento(corpo, cartelleDi(a), { consenso: consensiCancella.per(idAp) }) : gRuolo
@@ -1361,7 +1450,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           if (g.ok) {
             const pesante = { chi: chiPre, cwd: typeof corpo.cwd === 'string' && corpo.cwd !== '' ? corpo.cwd : a.cwd, turni: deps.turni ?? TURNI_PC, ...(deps.guardiaPc !== undefined ? { guardia: deps.guardiaPc } : {}) }
             // Lo specialista non sa aspettare (sleep bloccato): aspetta il programma, nell'hook, fino al tetto.
-            g = idAgente(corpo) !== undefined ? await giudicaPesanteAspettando(corpo, pesante) : giudicaPesanteDellaChat(corpo, pesante)
+            // 11/11: anche le chat adottate aspettano qui invece di ricevere il «no» (il loro hook ha il tempo per farlo,
+            // `TIMEOUT_PRETOOL_CHAT_S`); per gli specialisti niente «appena liberato»: il turno li mette già in fila.
+            g = await giudicaPesanteAspettando(corpo, { ...pesante, ...(idAgente(corpo) !== undefined ? { senzaQuiete: true } : {}), ...(deps.attesaPesante ?? {}) })
           }
           if (!g.ok && g.pcCarico === true) console.info(`[guardia-pc] ${chiPre} comando pesante rimandato: ${g.motivo}`)
           else if (!g.ok) {
@@ -1451,8 +1542,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     avanzaFinite: () => { void avanzaFiniteDaSole() },
     posti: postiAdesso,
     postiScelti: () => scelteUsate,
+    limitiPiano: () => statoProgramma?.limiti,
     chatAlLavoroSulPc: () => alLavoroSulPc(),
     provaNelPrincipale,
+    riallinea: riallineaPrincipale,
     memoriaCriteri,
     ricordaContesto,
     ultimoSegnale: (id, chat) => ultimoSegnale(chiaveTurno(id, chat)),
@@ -1462,6 +1555,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     ...(deps.unioneMaxMs !== undefined ? { unioneMaxMs: deps.unioneMaxMs } : {}),
     ...(deps.unioneRiprovaMs !== undefined ? { unioneRiprovaMs: deps.unioneRiprovaMs } : {}),
     ...(deps.unioneTentativiMax !== undefined ? { unioneTentativiMax: deps.unioneTentativiMax } : {}),
+    ...(deps.chiediSalvaDopoMs !== undefined ? { chiediSalvaDopoMs: deps.chiediSalvaDopoMs } : {}),
+    ...(deps.sporcaInFondoDopoMs !== undefined ? { sporcaInFondoDopoMs: deps.sporcaInFondoDopoMs } : {}),
     doppioni: deps.doppioni ?? apriDoppioni(join(deps.archivio.cartella, 'servizio', 'doppioni-archiviati.json')),
     attesa: deps.attesa ?? apriAttesa(join(deps.archivio.cartella, 'servizio', 'attesa-specialisti.json')),
     // Nel recupero del riassetto (30 giorni, «Annulla» lo rimette), come gli altri passi del servizio.
@@ -1481,6 +1576,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     riprendiLavori,
     riportaInCoda,
     migraVecchi: () => servizio().migraVecchi(),
-    agentiAlLavoro: (cartella: string) => servizio().agentiAlLavoro(cartella)
+    agentiAlLavoro: (cartella: string) => servizio().agentiAlLavoro(cartella),
+    copieVive: (cartella: string) => servizio().copieVive(cartella),
+    ramiCitati: (cartella: string) => servizio().ramiCitati(cartella)
   })
 }

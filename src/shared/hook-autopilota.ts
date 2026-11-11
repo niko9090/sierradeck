@@ -34,6 +34,15 @@ export const TIMEOUT_HOOK_S = 900
 export const TETTO_RISPOSTA_STOP_MS = (TIMEOUT_HOOK_S - 60) * 1000
 
 /**
+ * Il tetto dell'hook PreToolUse delle chat adottate, in secondi (11/11). Era
+ * 30: bastava per un sì o un no. Adesso un comando pesante non riceve più il
+ * «riprova fra qualche minuto»: aspetta dentro l'hook che il turno sia libero
+ * (al più cinque minuti, `ATTESA_TURNO_IN_UN_HOOK_MS` nel servizio), e l'hook
+ * deve durare un poco di più. Lo stesso tempo degli specialisti.
+ */
+export const TIMEOUT_PRETOOL_CHAT_S = 330
+
+/**
  * L'id dell'autopilota viaggia **nell'URL**, non nel corpo: al primo `Stop` il
  * `session_id` non è ancora noto a nessuno, quindi cercare per sessione
  * lascerebbe il primo evento senza padrone.
@@ -58,7 +67,7 @@ export function componiImpostazioni(id: string, porta: number, chatId?: string):
   // cartelle, bussare alle rotte vietate. Solo sui comandi di shell.
   const divieti = {
     matcher: 'Bash|PowerShell',
-    hooks: [{ type: 'http', url: `http://127.0.0.1:${porta}/hook/pretool?ap=${id}${perChat}`, timeout: 30 }]
+    hooks: [{ type: 'http', url: `http://127.0.0.1:${porta}/hook/pretool?ap=${id}${perChat}`, timeout: TIMEOUT_PRETOOL_CHAT_S }]
   }
   // PostToolUse (0.85.1): il rapporto a ogni passo. Il servizio risponde
   // subito e legge la riga `RAPPORTO:` dalla trascrizione dopo: la chat non

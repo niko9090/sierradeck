@@ -25,7 +25,8 @@ export function dipendenzeNonUnite(piano: Piano, id: string, chiuse?: ReadonlySe
   if (k === undefined) return []
   return k.dopo.filter((d) => {
     const c = piano.compiti.find((y) => y.id === d)
-    return c !== undefined && !unito(c) && chiuse?.has(c.richiesta) !== true
+    // 11/11: neanche un compito chiuso senza unirlo (superato, annullato) si aspetta.
+    return c !== undefined && !unito(c) && c.chiuso === undefined && chiuse?.has(c.richiesta) !== true
   })
 }
 
@@ -61,7 +62,7 @@ export function compitiSbloccati(
   const daCorreggere: { compito: CompitoPiano; rossi: string[] }[] = []
   const daMisurare: { compito: CompitoPiano; ignote: string[] }[] = []
   for (const c of piano.compiti) {
-    if (c.stato !== 'da-fare' || (tra !== undefined && !tra.has(c.id)) || escludi?.has(c.id) === true) continue
+    if (c.stato !== 'da-fare' || c.chiuso !== undefined || (tra !== undefined && !tra.has(c.id)) || escludi?.has(c.id) === true) continue
     if (dipendenzeNonUnite(piano, c.id, chiuse).length > 0) continue
     const dip = c.dopo.map((d) => piano.compiti.find((y) => y.id === d)).filter((y): y is CompitoPiano => y !== undefined && unito(y) && chiuse?.has(y.richiesta) !== true)
     const rossi = dip.filter((y) => y.criterioVerde === false).map((y) => y.id)

@@ -5,12 +5,12 @@ import { tmpdir } from 'node:os'
 import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/server'
 import { apriArchivio, type Archivio } from '../../src/autopilot-host/archivio'
 import { creaRegistroDomande, soloInChat, type DomandaAperta, type RegistroDomande } from '../../src/autopilot-host/domande'
-import { apriMemoria } from '../../src/autopilot-host/memoria'
+import { apriMemoria, type Memoria } from '../../src/autopilot-host/memoria'
 import { apriCode, type ArchivioCode } from '../../src/autopilot-host/coda-store'
 import { apriOrchestratori, type ArchivioOrchestratori } from '../../src/autopilot-host/orchestratore-store'
 import type { AvviaProcesso, ProcessoClaude } from '../../src/autopilot-host/orchestratore'
 import {
-  devePassareAlleDomande, DOMANDA_IN_CHAT_MS, DOMANDA_VISTA_SENZA_RISPOSTA_MS, richiestaChiusa, richiestaDellaDomanda, rispostaInCoda, rispostaScritta, rispostaSenzaLavoro, scelteDaToccare
+  chiusaDopoLaDomanda, decisioneDaRicordare, devePassareAlleDomande, domandaRispostaInChat, eRispostaInChat, RISPOSTA_LIBERA_ENTRO_MS, DOMANDA_DECIDO_IO_MS, DOMANDA_IN_CHAT_MS, DOMANDA_VISTA_SENZA_RISPOSTA_MS, domandaRischiosa, richiestaChiusa, scadenzaDomanda, seNonRispondi, richiestaDellaDomanda, rispostaInCoda, rispostaScritta, rispostaSenzaLavoro, scelteDaToccare, scelteProposte
 } from '../../src/autopilot-host/domande-in-chat'
 import { leggiStatoProgramma } from '../../src/autopilot-host/stato-programma'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
@@ -54,6 +54,44 @@ describe('la risposta scritta e i tasti (puro)', () => {
     expect(rispostaScritta('3', scelte)).toBe('3')
     expect(rispostaScritta('meglio domani', scelte)).toBe('meglio domani')
   })
+  // 08/11: uno sfogo registrato come risposta a «Pubblico adesso la 0.97.1?» di tre ore e mezza prima.
+  it('11/11: un numero o una scelta è sempre una risposta; un testo libero solo entro mezz’ora dalla domanda', () => {
+    expect(RISPOSTA_LIBERA_ENTRO_MS).toBe(30 * MIN)
+    const tardi = INIZIO + 3 * 60 * MIN
+    expect(eRispostaInChat('1', scelte, INIZIO, tardi)).toBe(true)
+    expect(eRispostaInChat(' no ', scelte, INIZIO, tardi)).toBe(true)
+    expect(eRispostaInChat('Sì', scelte, INIZIO, tardi)).toBe(true)
+    expect(eRispostaInChat('anche negli altri pc gli autopiloti continuano a fermarsi', scelte, INIZIO, tardi)).toBe(false)
+    expect(eRispostaInChat('3', scelte, INIZIO, tardi)).toBe(false)
+    expect(eRispostaInChat('meglio un verde più scuro', scelte, INIZIO, INIZIO + 29 * MIN)).toBe(true)
+    expect(eRispostaInChat('meglio un verde più scuro', scelte, INIZIO, INIZIO + 30 * MIN)).toBe(false)
+    expect(eRispostaInChat('un nome a piacere', [], INIZIO, INIZIO + 5 * MIN)).toBe(true)
+  })
+  // Una domanda rischiosa non scade più: un «1» scritto per la domanda nuova non deve finire a lei.
+  it('11/11: fra più domande aperte in chat, un numero o un testo libero rispondono alla più recente; il nome di una scelta alla sua', () => {
+    const vecchia = { id: 'd-vecchia', apertaIl: INIZIO, opzioni: ['Cancellale subito', 'Tienile un mese'] }
+    const nuova = { id: 'd-nuova', apertaIl: INIZIO + 2 * 60 * MIN, opzioni: ['Sì', 'No'] }
+    const adesso = INIZIO + 2 * 60 * MIN + 5 * MIN
+    expect(domandaRispostaInChat('1', [vecchia, nuova], adesso)?.id).toBe('d-nuova')
+    expect(domandaRispostaInChat('no', [vecchia, nuova], adesso)?.id).toBe('d-nuova')
+    expect(domandaRispostaInChat('meglio un verde più scuro', [vecchia, nuova], adesso)?.id).toBe('d-nuova')
+    expect(domandaRispostaInChat('tienile un mese', [vecchia, nuova], adesso)?.id).toBe('d-vecchia')
+    // Dopo mezz'ora un testo libero non risponde più a nessuna; un numero sì, alla più recente.
+    expect(domandaRispostaInChat('a che punto siamo?', [vecchia, nuova], adesso + 40 * MIN)).toBeUndefined()
+    expect(domandaRispostaInChat('2', [vecchia, nuova], adesso + 40 * MIN)?.id).toBe('d-nuova')
+    expect(domandaRispostaInChat('1', [], adesso)).toBeUndefined()
+    // Nate nello stesso istante: vale quella aperta dopo.
+    expect(domandaRispostaInChat('1', [{ ...vecchia, apertaIl: INIZIO }, { ...nuova, apertaIl: INIZIO }], INIZIO + MIN)?.id).toBe('d-nuova')
+  })
+  // 06/11: «Uno specialista chiede il permesso per Monitor: {…}» → Consenti, due volte, nel quaderno.
+  it('11/11: fra le decisioni del quaderno non vanno permessi, consensi a cancellare e risposte senza lavoro', () => {
+    expect(decisioneDaRicordare({ domanda: 'Le chat sul Drive: le teniamo tutte per sempre o solo quelle recenti?', risposta: 'Solo quelle usate', diConsenso: false })).toBe(true)
+    expect(decisioneDaRicordare({ domanda: 'Uno specialista chiede il permesso per Monitor: {"description":"fine attesa 90 s"}. Lo permetto?', risposta: 'Consenti', diConsenso: false })).toBe(false)
+    expect(decisioneDaRicordare({ domanda: 'Una chat vuole cancellare questi percorsi', risposta: 'Sì, cancella', diConsenso: true })).toBe(false)
+    expect(decisioneDaRicordare({ domanda: 'Tengo il colore verde per la barra?', risposta: 'no', diConsenso: false })).toBe(false)
+    expect(decisioneDaRicordare({ domanda: 'Tengo il colore verde per la barra?', risposta: 'Lascia stare', diConsenso: false })).toBe(false)
+    expect(decisioneDaRicordare({ domanda: 'Tengo il colore verde per la barra?', risposta: 'No, fai invece il blu', diConsenso: false })).toBe(true)
+  })
   it('i tasti sono le scelte, senza il campo «scrivo io»', () => {
     const parti = { staFacendo: 'a', domanda: 'b', perche: 'c', seNonRispondi: 'd', scelte: [{ scelta: 'Sì', conseguenza: 'x' }, { scelta: 'Ti scrivo io cosa provare', conseguenza: '', libera: true as const }] }
     expect(scelteDaToccare({ parti })).toEqual(['Sì'])
@@ -77,6 +115,25 @@ describe('la richiesta da cui nasce una domanda (puro)', () => {
     expect(richiestaDellaDomanda(codaCon([richiesta('r-1'), richiesta('r-2', { stato: 'fatta' })]), undefined, 'verde?')).toBe('r-1')
     expect(richiestaDellaDomanda(codaCon([richiesta('r-1', { chiusa: { come: 'risposta', perche: 'x', il: 'a' } }), richiesta('r-2')]), undefined, 'verde?')).toBe('r-2')
   })
+  // 08/11: «Correggo le tre cose…?» legata a un'analisi appena finita, ritirata dopo 0,3 secondi e rifatta.
+  it('11/11: una richiesta già chiusa non lega la domanda, né dichiarata né citata', () => {
+    const fatta = codaCon([richiesta('r-1', { stato: 'fatta', fattaIl: '2026-11-06T08:30:00.000Z' }), richiesta('r-2')])
+    expect(richiestaDellaDomanda(fatta, 'r-1', 'correggo le tre cose?')).toBeUndefined()
+    expect(richiestaDellaDomanda(fatta, undefined, 'dopo la r-1, correggo?')).toBeUndefined()
+    expect(richiestaDellaDomanda(fatta, 'r-2', 'correggo?')).toBe('r-2')
+    const senzaLavoro = codaCon([richiesta('r-1', { chiusa: { come: 'risposta', perche: 'x', il: 'a' } })])
+    expect(richiestaDellaDomanda(senzaLavoro, 'r-1', 'e adesso?')).toBeUndefined()
+    expect(richiestaDellaDomanda(codaCon([], [{ id: 'r-1', titolo: 't', fattaIl: 'a' }]), 'r-1', 'e adesso?')).toBeUndefined()
+  })
+  it('11/11: la chiusura conta solo se arriva dopo la domanda; senza data vale dopo', () => {
+    const aperta = Date.parse('2026-11-06T09:00:00.000Z')
+    expect(chiusaDopoLaDomanda({ il: '2026-11-06T08:40:00.000Z' }, aperta)).toBe(false)
+    expect(chiusaDopoLaDomanda({ il: '2026-11-06T09:00:00.000Z' }, aperta)).toBe(true)
+    expect(chiusaDopoLaDomanda({ il: '2026-11-06T09:05:00.000Z' }, aperta)).toBe(true)
+    expect(chiusaDopoLaDomanda({}, aperta)).toBe(true)
+    expect(chiusaDopoLaDomanda({ il: 'non è una data' }, aperta)).toBe(true)
+    expect(richiestaChiusa(codaCon([richiesta('r-1', { stato: 'fatta', fattaIl: '2026-11-06T09:05:00.000Z' })]), 'r-1').il).toBe('2026-11-06T09:05:00.000Z')
+  })
   it('chiusa se fatta, chiusa senza lavoro, nello storico o unita a una che lo è; ignota o aperta no', () => {
     expect(richiestaChiusa(codaCon([richiesta('r-1')]), 'r-1')).toEqual({ chiusa: false })
     expect(richiestaChiusa(codaCon([richiesta('r-1', { stato: 'fatta' })]), 'r-1')).toMatchObject({ chiusa: true, come: 'fatta' })
@@ -87,6 +144,63 @@ describe('la richiesta da cui nasce una domanda (puro)', () => {
     expect(richiestaChiusa(codaCon([unita]), 'r-1')).toMatchObject({ chiusa: true, come: 'unita a r-2, fatta' })
     const apertaUnita = richiesta('r-2', { unioni: [{ il: 'a', fonti: ['r-1', 'r-2'], perche: 'x' }] })
     expect(richiestaChiusa(codaCon([apertaUnita]), 'r-1')).toEqual({ chiusa: false })
+  })
+})
+
+// 11/11: «un giorno di attesa è troppo se la scelta consigliata non è rischiosa», e «decido io» è
+// sbagliato per una cosa che spetta a Nicholas. Le frasi sono domande vere dal 06 all'11/11.
+describe('11/11: la scadenza dipende dal rischio (puro)', () => {
+  it('rischiosa: cancellare, spegnere, dati sul Drive, pubblicare, installare, soldi, e i fatti che sa solo lui', () => {
+    for (const t of [
+      'Con il Drive pieno, le chat vecchie le cancello subito dal Drive, oppure le tengo nel recupero di 30 giorni?',
+      'La macchina virtuale di Linux occupa 15 GB di memoria. Posso spegnerla?',
+      'Linux non ripartiva da solo: lo usa una chat che ci sta lavorando adesso. Lo tolgo lo stesso?',
+      'Le chat sul Drive: le teniamo tutte per sempre o solo quelle recenti?',
+      'Quando il Drive è pieno, SierraDeck può togliere da solo le versioni vecchie dei suoi file?',
+      'Pubblico la versione 2.0.0 adesso?',
+      'Compro il certificato per firmare il programma?',
+      'Quando il telefono non si è collegato, eri sul wifi di casa o fuori?',
+      'Fermo la chat che compila l’altro progetto?'
+    ]) expect(domandaRischiosa(t), t).toBe(true)
+  })
+  it('non rischiosa: una preferenza sul prodotto, che si può sempre cambiare dopo', () => {
+    for (const t of [
+      'Scheda video: faccio disegnare i terminali con la scheda video e aggiungo nella Salute se è attiva? Sì, tutte e due → terminali con la scheda video Solo la Salute → i terminali restano come sono',
+      'Tengo il colore verde per la barra? Sì → verde No → blu',
+      'Che nome do alla nuova sezione del menu?',
+      'Il menu va a sinistra o a destra?',
+      // Parole che somigliano a quelle di rischio ma non lo sono.
+      'Lascio il valore costante nella pagina dei driver?'
+    ]) expect(domandaRischiosa(t), t).toBe(false)
+  })
+  it('«Se non rispondi» dice la verità nei due casi, e non promette più «fra un giorno decido io»', () => {
+    expect(DOMANDA_DECIDO_IO_MS).toBe(60 * MIN)
+    expect(seNonRispondi({ rischiosa: true, consigliata: 'Sì' })).toBe('non decido io al posto tuo: la domanda resta qui finché non rispondi, e intanto porto avanti il resto')
+    expect(seNonRispondi({ rischiosa: false, consigliata: 'Sì, tutte e due' })).toBe('intanto porto avanti il resto; se entro un’ora non rispondi scelgo io «Sì, tutte e due» e te lo scrivo')
+    expect(seNonRispondi({ rischiosa: false })).toBe('intanto porto avanti il resto; se entro un’ora non rispondi decido io la strada più prudente e te lo scrivo')
+  })
+  it('cosa fa la scadenza: resta, decide con la consigliata, o chiude dopo un giorno le domande senza il segno', () => {
+    const GIORNO = 24 * 60 * MIN
+    const parti = { staFacendo: 'a', domanda: 'b?', perche: 'c', seNonRispondi: 'd', scelte: [{ scelta: 'Sì', conseguenza: 'x', consigliata: true }, { scelta: 'No', conseguenza: 'y' }] }
+    const con = (contesto: Record<string, unknown> | undefined, altro: Record<string, unknown> = {}): Parameters<typeof scadenzaDomanda>[0] => ({ apertaIl: INIZIO, parti, ...(contesto !== undefined ? { contesto: { autopilotaId: 'ap-1', testo: 't', ...contesto } } : {}), ...altro })
+    // Rischiosa e «mai da sola»: mai, nemmeno dopo una settimana.
+    expect(scadenzaDomanda(con({ rischiosa: true }), INIZIO + 7 * GIORNO, GIORNO)).toEqual({ cosa: 'resta' })
+    expect(scadenzaDomanda(con({ maiDaSola: true }), INIZIO + 7 * GIORNO, GIORNO)).toEqual({ cosa: 'resta' })
+    expect(scadenzaDomanda(con({ rischiosa: false, maiDaSola: true }), INIZIO + 7 * GIORNO, GIORNO)).toEqual({ cosa: 'resta' })
+    // Non rischiosa: un'ora.
+    expect(scadenzaDomanda(con({ rischiosa: false }), INIZIO + 59 * MIN, GIORNO)).toEqual({ cosa: 'resta' })
+    expect(scadenzaDomanda(con({ rischiosa: false }), INIZIO + 60 * MIN, GIORNO)).toEqual({ cosa: 'decide', scelta: 'Sì' })
+    expect(scadenzaDomanda(con({ rischiosa: false }, { parti: { ...parti, scelte: [] } }), INIZIO + 60 * MIN, GIORNO)).toEqual({ cosa: 'decide' })
+    // Senza il segno (di prima dell'11/11, o il consenso a cancellare): un giorno, e si chiude soltanto.
+    expect(scadenzaDomanda(con(undefined), INIZIO + 2 * 60 * MIN, GIORNO)).toEqual({ cosa: 'resta' })
+    expect(scadenzaDomanda(con(undefined), INIZIO + GIORNO, GIORNO)).toEqual({ cosa: 'chiude' })
+    expect(scadenzaDomanda(con({}), INIZIO + GIORNO, GIORNO)).toEqual({ cosa: 'chiude' })
+  })
+  it('la scelta del programma entra in coda senza dire che ha risposto Nicholas', () => {
+    const base: Coda = { ...codaVuota('Lavoro'), prossimo: { r: 10, p: 20 }, richieste: [richiesta('r-1')] }
+    const e = rispostaInCoda(base, { domanda: 'Tengo il verde?', risposta: 'Sì', richiestaId: 'r-1', quando: '2026-11-06T10:00:00.000Z', chi: 'programma' })
+    expect(e.esito).toBe('punto')
+    expect(e.coda.richieste[0]!.punti[0]!.testo).toBe('Scelta consigliata, presa dal programma senza risposta di Nicholas, a «Tengo il verde?»: Sì')
   })
 })
 
@@ -153,6 +267,7 @@ let domande: RegistroDomande
 let processi: Finto[] = []
 let ora = INIZIO
 let avvisi: { tipo: string; testo?: string | undefined }[] = []
+let memoria: Memoria
 
 const avvia: AvviaProcesso = ({ args }) => {
   const righe: ((r: string) => void)[] = []
@@ -182,9 +297,10 @@ async function avviaServizio(): Promise<void> {
   orch = apriOrchestratori(cartella)
   domande = creaRegistroDomande({ adesso: () => ora })
   processi = []
+  memoria = apriMemoria(mkdtempSync(join(tmpdir(), 'ap-domchat-mem-')))
   const s = creaServer({
     archivio,
-    memoria: apriMemoria(mkdtempSync(join(tmpdir(), 'ap-domchat-mem-'))),
+    memoria,
     versione: '0.96.0',
     esegui: () => Promise.resolve({ codice: 1, uscita: 'non ancora' }),
     avviaLavoro: () => Promise.resolve(),
@@ -260,17 +376,114 @@ describe('una domanda nuova appare nella chat, non nelle Domande', () => {
     expect(battuta.domanda?.scelte).toEqual(['Sì', 'No'])
   })
 
-  it('i permessi non passano dalla chat: uno specialista li aspetta, vanno subito nelle Domande', async () => {
+  // 11/11: prima «i permessi… vanno subito nelle Domande». Adesso un permesso non è mai una domanda:
+  // né in chat, né nelle Domande, né una notifica; il programma nega e chi ha chiesto cambia strada.
+  it('11/11: un permesso non è una domanda, da nessuna parte: lo nega il programma con il motivo', async () => {
     zitto()
     await avviaServizio()
     const { mcp } = await conStrumenti()
-    const attesa = mcp('permesso', { tool_name: 'Bash', input: { command: 'rm -rf cartella-importante' } })
-    await attendi(() => domande.aperte(idUnico()).length === 1, { cosa: 'la domanda del permesso' })
-    expect(domande.visibili(idUnico())).toHaveLength(1)
-    expect(avvisi.filter((v) => v.tipo === 'domanda')).toHaveLength(1)
+    const esito = await mcp('permesso', { tool_name: 'Bash', input: { command: 'rm -rf cartella-importante' } })
+    expect(esito).toContain('deny')
+    expect(domande.aperte(idUnico())).toHaveLength(0)
+    expect(domande.visibili(idUnico())).toHaveLength(0)
+    expect(avvisi.filter((v) => v.tipo === 'domanda')).toHaveLength(0)
     expect(archivio.leggi(idUnico())!.dialogo.some((r) => r.domanda !== undefined)).toBe(false)
-    domande.rispondi(domande.aperte(idUnico())[0]!.id, 'Nega', 'modale')
-    await attesa
+  })
+})
+
+// 11/11: «(consigliata) (consigliata)» su 6 domande su 13, «⚠ Domanda incompleta anche dopo la riscrittura» su 2.
+describe('11/11: il testo della domanda si controlla prima di aprirla', () => {
+  const LUNGA = `${'Nel controllo dei PC ho trovato dei piccoli difetti nei messaggi. '.repeat(4)}Li guardo adesso?`
+
+  it('«(consigliata)» scritto anche dal modello non si ripete, né nel testo né nel tasto', async () => {
+    expect(scelteProposte(['Sì, tutte e tre (consigliata) → le faccio adesso (consigliata)', 'No → resta com’è'])).toEqual([
+      { scelta: 'Sì, tutte e tre', conseguenza: 'le faccio adesso', consigliata: true },
+      { scelta: 'No', conseguenza: 'resta com’è' }
+    ])
+    zitto()
+    await avviaServizio()
+    const { mcp } = await conStrumenti()
+    await mcp('chiedi_utente', { domanda: 'Tengo il colore verde per la barra?', perche: 'cambia il resto', scelte: ['Sì, verde (consigliata) → la barra resta verde (consigliata)', 'No → la faccio blu'] })
+    const d = domande.aperte(idUnico())[0]!
+    expect(d.testo).toContain('• Sì, verde (consigliata) → la barra resta verde')
+    expect(d.testo).not.toMatch(/\(consigliata\).*\(consigliata\)/su)
+    expect(scelteDaToccare(d)).toEqual(['Sì, verde', 'No'])
+  })
+
+  it('una domanda troppo lunga torna indietro con il motivo; la seconda passa, con l’avvertenza', async () => {
+    zitto()
+    await avviaServizio()
+    const { mcp } = await conStrumenti()
+    const prima = await mcp('chiedi_utente', { domanda: LUNGA, perche: 'cambia il resto', scelte: ['Sì → li guardo', 'No → restano'] })
+    expect(prima).toContain('Rifiutato')
+    expect(prima).toContain('la domanda non si capisce abbastanza')
+    expect(prima).toContain('in una frase')
+    expect(domande.aperte(idUnico())).toHaveLength(0)
+    expect(archivio.leggi(idUnico())!.dialogo.some((r) => r.domanda !== undefined)).toBe(false)
+    // Ancora lunga: non si rimanda due volte, una domanda zoppa è meglio di un lavoro fermo.
+    const seconda = await mcp('chiedi_utente', { domanda: LUNGA, perche: 'cambia il resto', scelte: ['Sì → li guardo', 'No → restano'] })
+    expect(seconda).toContain('Domanda aperta per Nicholas')
+    expect(domande.aperte(idUnico())[0]!.testo).toContain('⚠ Domanda incompleta')
+  })
+
+  it('riscritta bene dopo il rifiuto: si apre senza avvertenza; e il rifiuto dopo vale di nuovo', async () => {
+    zitto()
+    await avviaServizio()
+    const { mcp } = await conStrumenti()
+    expect(await mcp('chiedi_utente', { domanda: LUNGA, perche: 'cambia il resto' })).toContain('Rifiutato')
+    expect(await mcp('chiedi_utente', DOMANDA)).toContain('Domanda aperta per Nicholas')
+    expect(domande.aperte(idUnico())[0]!.testo).not.toContain('⚠')
+    expect(domande.aperte(idUnico())[0]!.avvertenza).toBeUndefined()
+    expect(await mcp('chiedi_utente', { domanda: 'Faccio come prima anche per il menu?', perche: 'cambia il resto' })).toContain('Rifiutato')
+    // «La seconda passa» vale per lo stesso tentativo: dieci minuti dopo un'altra domanda che non va torna indietro.
+    ora += 11 * MIN
+    expect(await mcp('chiedi_utente', { domanda: LUNGA, perche: 'cambia il resto' })).toContain('Rifiutato')
+    expect(domande.aperte(idUnico())).toHaveLength(1)
+  })
+
+  it('una risposta libera o scelte senza conseguenza non portano più l’avvertenza a Nicholas', async () => {
+    zitto()
+    await avviaServizio()
+    const { mcp } = await conStrumenti()
+    expect(await mcp('chiedi_utente', { domanda: 'Che nome do alla nuova sezione del menu?', perche: 'lo vedi ogni giorno' })).toContain('Domanda aperta per Nicholas')
+    const d = domande.aperte(idUnico())[0]!
+    expect(d.testo).not.toContain('⚠')
+    expect(d.avvertenza).toBeUndefined()
+  })
+})
+
+// 11/11: «La 0.99.3 è pronta… Quando la installi?» con «fra un giorno decido io con la scelta consigliata».
+describe('11/11: l’installazione è un avviso, non una domanda', () => {
+  const INSTALLA = { domanda: 'La 0.99.3 è pronta e una prova conferma che il lavoro riparte. Quando la installi?', perche: 'senza l’installazione le correzioni restano fuori', scelte: ['La installo adesso → il lavoro riparte', 'Più tardi → resta fermo'] }
+
+  it('nessuna domanda aperta: nella chat resta una riga sola, senza tasti, e non si ripete', async () => {
+    zitto()
+    await avviaServizio()
+    const { mcp } = await conStrumenti()
+    const esito = await mcp('chiedi_utente', INSTALLA)
+    expect(esito).toContain('Rifiutato')
+    expect(esito).toContain('L’ho scritto io a Nicholas come avviso')
+    expect(domande.aperte(idUnico())).toHaveLength(0)
+    expect(avvisi.filter((v) => v.tipo === 'domanda')).toHaveLength(0)
+    const righe = (): { testo: string; domanda?: unknown }[] => archivio.leggi(idUnico())!.dialogo.filter((r) => r.da === 'lui' && r.testo.includes('Installala quando vuoi'))
+    expect(righe()).toHaveLength(1)
+    expect(righe()[0]!.testo).toBe('La 0.99.3 è pronta e una prova conferma che il lavoro riparte. Installala quando vuoi: non serve rispondere, intanto vado avanti con il resto.')
+    expect(righe()[0]!.domanda).toBeUndefined()
+    await mcp('chiedi_utente', INSTALLA)
+    expect(righe()).toHaveLength(1)
+    // Non ha consumato il tetto delle domande all'ora.
+    expect(orch.impostazioni('Lavoro').domande ?? []).toHaveLength(0)
+  })
+
+  it('una versione già installata: «Già fatto», senza domanda e senza avviso', async () => {
+    zitto()
+    await avviaServizio()
+    const { mcp } = await conStrumenti()
+    // Il servizio di questa prova è alla 0.96.0.
+    const esito = await mcp('chiedi_utente', { domanda: 'Installi tu la 0.95.2 su questo PC?', perche: 'serve per chiudere il lavoro' })
+    expect(esito).toContain('Già fatto: su questo PC è già installata la 0.96.0')
+    expect(domande.aperte(idUnico())).toHaveLength(0)
+    expect(archivio.leggi(idUnico())!.dialogo.some((r) => r.testo.includes('Quando vuoi puoi installare'))).toBe(false)
   })
 })
 
@@ -372,6 +585,77 @@ describe('rispondere nella chat vale come risposta', () => {
     expect(code.leggi('Lavoro').richieste.length).toBe(prima + 1)
   })
 
+  // 11/11: l'08/11 uno sfogo scritto tre ore e mezza dopo è diventato la «risposta» a «Pubblico adesso la 0.97.1?».
+  it('11/11: un testo libero scritto più di mezz’ora dopo è un messaggio nuovo, non la risposta alla domanda vecchia', async () => {
+    zitto()
+    await avviaServizio()
+    const { mcp, p0 } = await conStrumenti()
+    await mcp('chiedi_utente', DOMANDA)
+    const prima = code.leggi('Lavoro').richieste.length
+    ora += 31 * MIN
+    await posta(`/autopiloti/${idUnico()}/dialogo`, { testo: 'anche negli altri pc gli specialisti continuano a fermarsi' })
+    // In coda come richiesta sua, con le sue parole; non «Risposta di Nicholas a «Tengo il colore…»».
+    const dopo = code.leggi('Lavoro').richieste
+    expect(dopo).toHaveLength(prima + 1)
+    expect(dopo.at(-1)!.testo).toBe('anche negli altri pc gli specialisti continuano a fermarsi')
+    expect(JSON.stringify(dopo)).not.toContain('Risposta di Nicholas a')
+    await attendi(() => p0.scritte.some((x) => testoScritto(x).includes('continuano a fermarsi')), { cosa: 'il messaggio all’autopilota' })
+    expect(p0.scritte.some((x) => testoScritto(x).includes('Risposta alla tua domanda'))).toBe(false)
+    // La domanda (non rischiosa) si chiude come superata, e l'autopilota lo sa; niente fra le decisioni.
+    expect(domande.aperte(idUnico())).toHaveLength(0)
+    expect(p0.scritte.some((x) => testoScritto(x).includes('chiuso una tua domanda aperta'))).toBe(true)
+    expect(memoria.decisioni(process.cwd())).toHaveLength(0)
+  })
+
+  it('11/11: un numero o una scelta rispondono anche dopo ore, e la risposta va fra le decisioni; un «no» no', async () => {
+    zitto()
+    await avviaServizio()
+    const { mcp, p0 } = await conStrumenti()
+    await mcp('chiedi_utente', DOMANDA)
+    ora += 3 * 60 * MIN
+    // Dopo un'ora una domanda non rischiosa la decide il programma: qui il giro di guardia non è passato.
+    await posta(`/autopiloti/${idUnico()}/dialogo`, { testo: '1' })
+    expect(domande.aperte(idUnico())).toHaveLength(0)
+    await attendi(() => p0.scritte.some((x) => testoScritto(x).includes('Risposta alla tua domanda') && testoScritto(x).includes('Sì')), { cosa: 'la risposta' })
+    expect(memoria.decisioni(process.cwd()).map((d) => d.testo)).toEqual(['«Tengo il colore verde per la barra?» → Sì'])
+    await mcp('chiedi_utente', { domanda: 'Il menu va a sinistra o a destra?', perche: 'cambia il resto', scelte: ['Sinistra → a sinistra', 'Destra → a destra'] })
+    await posta(`/autopiloti/${idUnico()}/dialogo`, { testo: 'lascia stare' })
+    expect(domande.aperte(idUnico())).toHaveLength(0)
+    expect(memoria.decisioni(process.cwd())).toHaveLength(1)
+  })
+
+  it('11/11: una domanda rischiosa resta aperta se Nicholas scrive altro in chat, e l’autopilota sa che c’è', async () => {
+    zitto()
+    await avviaServizio()
+    const { mcp, p0 } = await conStrumenti()
+    await mcp('chiedi_utente', { domanda: 'Le copie vecchie le cancello subito o le tengo un mese?', perche: 'sono dati tuoi', scelte: ['Cancellale subito → lo spazio si libera adesso', 'Tienile un mese → lo spazio si libera dopo'] })
+    expect(domande.aperte(idUnico())[0]!.contesto?.rischiosa).toBe(true)
+    ora += 45 * MIN
+    await posta(`/autopiloti/${idUnico()}/dialogo`, { testo: 'a che punto siamo con la barra?' })
+    expect(domande.aperte(idUnico())).toHaveLength(1)
+    await attendi(() => p0.scritte.some((x) => testoScritto(x).includes('a che punto siamo con la barra?') && testoScritto(x).includes('Resta aperta una tua domanda a Nicholas')), { cosa: 'il messaggio con la nota' })
+    expect(p0.scritte.some((x) => testoScritto(x).includes('chiuso una tua domanda aperta'))).toBe(false)
+    // La scelta scritta per intero vale ancora come risposta.
+    await posta(`/autopiloti/${idUnico()}/dialogo`, { testo: 'cancellale subito' })
+    expect(domande.aperte(idUnico())).toHaveLength(0)
+  })
+
+  it('11/11: con una domanda rischiosa aperta da ore, «1» risponde alla domanda nuova e non a lei', async () => {
+    zitto()
+    await avviaServizio()
+    const { mcp, p0 } = await conStrumenti()
+    await mcp('chiedi_utente', { domanda: 'Le copie vecchie le cancello subito o le tengo un mese?', perche: 'sono dati tuoi', scelte: ['Cancellale subito → lo spazio si libera adesso', 'Tienile un mese → lo spazio si libera dopo'] })
+    const rischiosa = domande.aperte(idUnico())[0]!
+    ora += 3 * 60 * MIN
+    await mcp('chiedi_utente', DOMANDA)
+    expect(domande.aperte(idUnico())).toHaveLength(2)
+    await posta(`/autopiloti/${idUnico()}/dialogo`, { testo: '1' })
+    // Chiusa la nuova («Sì»), la cancellazione aspetta ancora la sua risposta.
+    expect(domande.aperte(idUnico()).map((d) => d.id)).toEqual([rischiosa.id])
+    await attendi(() => p0.scritte.some((x) => testoScritto(x).includes('Risposta alla tua domanda «Tengo il colore verde per la barra?»: Sì')), { cosa: 'la risposta alla domanda nuova' })
+    expect(p0.scritte.some((x) => testoScritto(x).includes('Cancellale subito') && testoScritto(x).includes('Risposta alla tua domanda'))).toBe(false)
+  })
+
   it('lo stesso messaggio ripetuto (stesso idMessaggio) non risponde due volte: la seconda domanda resta aperta', async () => {
     zitto()
     await avviaServizio()
@@ -407,8 +691,10 @@ describe('la richiesta chiusa ritira la domanda', () => {
   const duePerCoda = async (): Promise<void> => {
     await posta('/orchestratore/messaggio', { ws: 'Lavoro', testo: 'la seconda cosa, un lavoro diverso' })
   }
-  const chiudi = (id: string): void => {
-    code.cambia('Lavoro', (c) => ({ coda: { ...c, richieste: c.richieste.map((r) => (r.id === id ? { ...r, stato: 'fatta' as const, fattaIl: new Date(ora - 20 * MIN).toISOString() } : r)) }, eventi: [] }))
+  // 11/11: la chiusura porta l'ora di adesso (prima «20 minuti fa»): la domanda si ritira solo se la
+  // richiesta si chiude dopo che è nata. `quando` serve a provare il caso contrario.
+  const chiudi = (id: string, quando: number = ora): void => {
+    code.cambia('Lavoro', (c) => ({ coda: { ...c, richieste: c.richieste.map((r) => (r.id === id ? { ...r, stato: 'fatta' as const, fattaIl: new Date(quando).toISOString() } : r)) }, eventi: [] }))
   }
 
   it('con richiesta dichiarata: fatta lei, la domanda sparisce (ancora in chat: senza traccia fra le risolte) e i tasti vanno via', async () => {
@@ -445,6 +731,33 @@ describe('la richiesta chiusa ritira la domanda', () => {
     server!.controllaChatFerme()
     expect(await visibiliNelServizio()).toHaveLength(0)
     expect(domande.risolte(idUnico())[0]?.risposta).toContain(`la richiesta ${ids[0]} è fatta`)
+  })
+
+  it('11/11: dichiarata una richiesta già fatta, la domanda nasce senza richiesta e nessuno la ritira', async () => {
+    zitto()
+    await avviaServizio()
+    const { mcp } = await conStrumenti()
+    await duePerCoda()
+    const ids = code.leggi('Lavoro').richieste.map((r) => r.id)
+    chiudi(ids[0]!, ora - 20 * MIN)
+    expect(await mcp('chiedi_utente', { ...DOMANDA, richiesta: ids[0] })).toContain('Domanda aperta per Nicholas')
+    expect(domande.aperte(idUnico())[0]!.contesto?.richiestaId).toBeUndefined()
+    server!.controllaChatFerme()
+    ora += 2 * MIN
+    server!.controllaChatFerme()
+    expect(domande.aperte(idUnico())).toHaveLength(1)
+  })
+
+  it('11/11: una domanda legata (da prima) a una richiesta chiusa prima che nascesse non si ritira', async () => {
+    zitto()
+    await avviaServizio()
+    const { mcp } = await conStrumenti()
+    await duePerCoda()
+    const ids = code.leggi('Lavoro').richieste.map((r) => r.id)
+    await mcp('chiedi_utente', { ...DOMANDA, richiesta: ids[0] })
+    chiudi(ids[0]!, ora - 20 * MIN)
+    server!.controllaChatFerme()
+    expect(domande.aperte(idUnico())).toHaveLength(1)
   })
 
   it('senza dichiarazione, con una sola richiesta aperta, la ricava dalla coda', async () => {

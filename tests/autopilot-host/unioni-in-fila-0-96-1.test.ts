@@ -11,6 +11,7 @@ import { apriOrchestratori, type ArchivioOrchestratori } from '../../src/autopil
 import type { AvviaProcesso, ProcessoClaude } from '../../src/autopilot-host/orchestratore'
 import type { Git, GitAsincrono } from '../../src/autopilot-host/worktree'
 import { creaTurni } from '../../src/autopilot-host/turni-criteri'
+import { annullato, type Esecutore } from '../../src/autopilot-host/verifiche'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
 import { attendi } from '../setup/attendi'
 import { orologioDa } from '../setup/orologio'
@@ -49,7 +50,7 @@ const ap = (): Autopilota => ({
   chats: [{ id: 'c-1', compito: 'la barra delle chat', stato: 'lavoro', cicli: 1, sessionId: 's-1' }]
 })
 
-type Tempi = { provaMaxMs?: number; unioneRiprovaMs?: number; unioneTentativiMax?: number; turniMaxMs?: number }
+type Tempi = { provaMaxMs?: number; unioneRiprovaMs?: number; unioneTentativiMax?: number; turniMaxMs?: number; esegui?: Esecutore }
 
 async function avviaServizio(git: Git, asinc: GitAsincrono, tempi: Tempi): Promise<void> {
   const orologio = orologioDa('2026-10-30T08:00:00.000Z')
@@ -62,7 +63,7 @@ async function avviaServizio(git: Git, asinc: GitAsincrono, tempi: Tempi): Promi
     archivio,
     memoria: apriMemoria(mkdtempSync(join(tmpdir(), 'ap-fila-mem-'))),
     versione: '0.96.1',
-    esegui: () => Promise.resolve({ codice: 1, uscita: 'non ancora' }),
+    esegui: tempi.esegui ?? (() => Promise.resolve({ codice: 1, uscita: 'non ancora' })),
     avviaLavoro: () => Promise.resolve(),
     avvisa: () => Promise.resolve(),
     domande: creaRegistroDomande({ adesso: orologio.ms }),
@@ -98,7 +99,8 @@ const R1 = 'worktree-agent-a1111111111111111'
 const R2 = 'worktree-agent-a2222222222222222'
 const radice = process.cwd()
 
-type Porte = { sporca: boolean; blocca?: Promise<void>; appesa: number | 'sempre'; merge: string[] }
+/** `appesi` (11/11): i rami la cui unione di prova non finisce mai, finché restano nell'elenco. */
+type Porte = { sporca: boolean; blocca?: Promise<void>; appesa: number | 'sempre'; merge: string[]; appesi?: string[] }
 
 function gitDiProva(porte: Porte): { git: Git; asinc: GitAsincrono } {
   const rami: Record<string, number> = { [R1]: 1, [R2]: 1 }
@@ -125,7 +127,7 @@ function gitDiProva(porte: Porte): { git: Git; asinc: GitAsincrono } {
   const asinc: GitAsincrono = async (args, cwd) => {
     if (args.includes('merge') && args.includes('--no-commit')) {
       porte.merge.push(args.at(-1)!)
-      if (porte.appesa === 'sempre' || (typeof porte.appesa === 'number' && porte.merge.length <= porte.appesa)) return new Promise(() => {})
+      if (porte.appesa === 'sempre' || porte.appesi?.includes(args.at(-1)!) === true || (typeof porte.appesa === 'number' && porte.merge.length <= porte.appesa)) return new Promise(() => {})
       if (porte.blocca !== undefined) await porte.blocca
     }
     return git(args, cwd)
@@ -207,18 +209,132 @@ describe('la fila delle unioni (06/11)', () => {
     await strumento('unisci', { compito: 'k-1' })
     await attendi(() => unitoK('k-1'), { cosa: 'k-1 unito al secondo tentativo', timeout: 8000 })
     expect(porte.merge).toEqual([R1, R1])
-    expect(await statoTesto()).toContain('la rimetto in fila (tentativo 2 di 3)')
+    // 11/11: non c'è più un tetto di tentativi, quindi niente «di 3».
+    expect(await statoTesto()).toContain('la rimetto in fila (tentativo 2)')
   })
 
-  it('un’unione che scade sempre si ferma al tetto di tentativi e dice com’è andata: la fila si libera', async () => {
+  // 11/11: prima, al tetto di tentativi, l'unione usciva dalla fila («unione NON fatta») e il
+  // lavoro finito restava fuori dal principale (07/11, sette lavori per cinque ore).
+  it('un’unione che scade sempre non esce dalla fila: lo dice una volta, le altre passano, e quando può entra da sola', async () => {
     zitto()
-    const porte: Porte = { sporca: false, appesa: 'sempre', merge: [] }
+    const porte: Porte = { sporca: false, appesa: 0, merge: [], appesi: [R1] }
     await prepara(porte, { provaMaxMs: 150, turniMaxMs: 40, unioneTentativiMax: 2 })
     await strumento('unisci', { compito: 'k-1' })
-    await attendi(() => orch.piano('Lavoro').compiti[0]!.esito?.includes('scaduta 2 volte') === true, { cosa: 'il tetto di tentativi', timeout: 8000 })
-    expect(porte.merge).toHaveLength(2)
+    await attendi(() => orch.piano('Lavoro').compiti[0]!.esito?.includes('scaduta 2 volte') === true, { cosa: 'detto dopo due scadenze', timeout: 8000 })
+    expect(orch.piano('Lavoro').compiti[0]!.esito).toContain('il programma riprova da solo')
+    expect(orch.piano('Lavoro').compiti[0]!.esito).not.toContain('NON fatta')
     expect(unitoK('k-1')).toBe(false)
-    // Nessuna unione appesa: la prossima parte subito.
-    expect(await strumento('unisci', { compito: 'k-2' })).toContain('Unione avviata')
+    // La fila non è ferma dietro di lei: un'altra unione parte ed entra.
+    expect(await strumento('unisci', { compito: 'k-2' })).toMatch(/Unione (avviata|in fila)/u)
+    await attendi(() => unitoK('k-2'), { cosa: 'k-2 unito mentre k-1 continua a scadere', timeout: 8000 })
+    expect(unitoK('k-1')).toBe(false)
+    // È ancora in fila, e l'evento del tetto è stato detto una volta sola.
+    await new Promise((ris) => setTimeout(ris, 400))
+    const testo = await statoTesto()
+    expect(testo.match(/resta in fondo alla fila e riprova da sola/gu)).toHaveLength(1)
+    expect(await strumento('unisci', { compito: 'k-1' })).toContain('già in corso o in fila')
+    // Appena l'unione di prova riesce, entra da sola: nessuno la deve rilanciare.
+    porte.appesi = []
+    await attendi(() => unitoK('k-1'), { cosa: 'k-1 unito da solo, senza rilanciarlo', timeout: 8000 })
+    expect(porte.merge.filter((r) => r === R1).length).toBeGreaterThanOrEqual(3)
+  })
+
+  const conCriterioGiaVerde = (): void => {
+    orch.scriviPiano('Lavoro', { versione: 1, compiti: [
+      { ...compito('k-0'), stato: 'unito', criterioVerde: true, criterio: 'le prove passano: `npx vitest run tests/x.test.ts`' },
+      compito('k-1'), compito('k-2')
+    ] })
+  }
+
+  // 11/11: a PC carico una suite interrotta per tempo faceva respingere il ramo
+  // («anche nella cartella principale non passa») senza che il ramo c'entrasse.
+  it('una misura interrotta per tempo non respinge il ramo: la prova si chiude e l’unione torna in fila', async () => {
+    zitto()
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    let chiamate = 0
+    const esegui: Esecutore = () => {
+      chiamate += 1
+      // Le prime due (la misura e la sua rimisura) scadono per tempo; poi passa.
+      return Promise.resolve(chiamate <= 2 ? { codice: 1, uscita: 'RUN v2\n[comando interrotto dopo 1200s]' } : { codice: 0, uscita: 'ok' })
+    }
+    const porte: Porte = { sporca: false, appesa: 0, merge: [] }
+    await prepara(porte, { esegui })
+    conCriterioGiaVerde()
+    await strumento('unisci', { compito: 'k-1' })
+    await attendi(() => unitoK('k-1'), { cosa: 'k-1 unito al secondo tentativo', timeout: 8000 })
+    expect(porte.merge).toEqual([R1, R1])
+    expect(chiamate).toBe(3)
+    const testo = await statoTesto()
+    expect(testo).toContain('scaduta per tempo')
+    expect(testo).not.toContain('non passa')
+  })
+
+  it('alla scadenza della prova il comando in corso viene fermato, e il tentativo dopo misura davvero', async () => {
+    zitto()
+    const segnali: (AbortSignal | undefined)[] = []
+    const esegui: Esecutore = (_c, _d, _t, segnale) => {
+      segnali.push(segnale)
+      // Il primo comando non finisce mai da solo: lo ferma il segnale della prova scaduta.
+      if (segnali.length === 1) return new Promise((ris) => { segnale?.addEventListener('abort', () => ris({ codice: 1, uscita: '[comando annullato: prova scaduta]' }), { once: true }) })
+      return Promise.resolve({ codice: 0, uscita: 'ok' })
+    }
+    const porte: Porte = { sporca: false, appesa: 0, merge: [] }
+    await prepara(porte, { esegui, provaMaxMs: 120 })
+    conCriterioGiaVerde()
+    await strumento('unisci', { compito: 'k-1' })
+    await attendi(() => unitoK('k-1'), { cosa: 'k-1 unito dopo la prova scaduta', timeout: 8000 })
+    expect(segnali[0]).toBeDefined()
+    expect(segnali[0]!.aborted).toBe(true)
+    expect(annullato('RUN\n[comando annullato: prova scaduta]')).toBe(true)
+    expect(segnali.length).toBe(2)
+    expect(porte.merge).toEqual([R1, R1])
+  })
+
+  // 11/11 (voce 8): il motivo diceva «anche nella cartella principale non passa», il contrario del vero, e senza l'uscita.
+  it('un ramo che rompe una prova che sul principale passa: respinto con il motivo vero e la coda dell’uscita', async () => {
+    zitto()
+    let chiamate = 0
+    const esegui: Esecutore = () => {
+      chiamate += 1
+      // Con il ramo dentro è rossa; senza il ramo (la rimisura) passa.
+      return Promise.resolve(chiamate === 1 ? { codice: 1, uscita: 'RUN v4\n FAIL  tests/x.test.ts > somma\nAssertionError: expected 1 to be 2\n Tests  1 failed | 9 passed' } : { codice: 0, uscita: 'ok' })
+    }
+    const porte: Porte = { sporca: false, appesa: 0, merge: [] }
+    await prepara(porte, { esegui })
+    conCriterioGiaVerde()
+    await strumento('unisci', { compito: 'k-1' })
+    await attendi(() => orch.piano('Lavoro').compiti[1]!.esito?.startsWith('unione non fatta') === true, { cosa: 'k-1 respinto', timeout: 8000 })
+    const esito = orch.piano('Lavoro').compiti[1]!.esito!
+    // La descrizione da sola («le prove vitest dei compiti già uniti») non dice quale test: lo dice la coda dell'uscita.
+    expect(esito).toMatch(/^unione non fatta: il ramo rompe prove che sul principale passano: le prove vitest dei compiti già uniti[^—]* — RUN v4 \| FAIL {2}tests\/x\.test\.ts > somma \| AssertionError: expected 1 to be 2 \| Tests {2}1 failed \| 9 passed$/u)
+    expect(esito).not.toContain('anche nella cartella principale')
+    expect(chiamate).toBe(2)
+    expect(porte.merge).toEqual([R1])
+    expect(unitoK('k-1')).toBe(false)
+  })
+
+  // 11/11: il turno scaduto in mezzo alla prova finiva nel «catch» delle misure e il ramo veniva respinto
+  // («misura non riuscita: l'unione ha superato il tempo massimo»), senza tornare in fila.
+  it('il turno che scade mentre la prova rimette il ramo non respinge il ramo: l’unione torna in fila ed entra', async () => {
+    zitto()
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    let chiamate = 0
+    const porte: Porte = { sporca: false, appesa: 0, merge: [] }
+    const esegui: Esecutore = () => {
+      chiamate += 1
+      // Primo giro: rossa con il ramo e rossa anche senza (non è colpa del ramo), e il ramo rimesso resta appeso.
+      if (chiamate === 1) porte.appesi = [R1]
+      return Promise.resolve(chiamate <= 2 ? { codice: 1, uscita: 'già rossa sul principale' } : { codice: 0, uscita: 'ok' })
+    }
+    await prepara(porte, { esegui, turniMaxMs: 40 })
+    conCriterioGiaVerde()
+    await strumento('unisci', { compito: 'k-1' })
+    await attendi(() => porte.merge.length >= 2, { cosa: 'il ramo rimesso dentro, appeso' })
+    porte.appesi = []
+    await attendi(() => unitoK('k-1'), { cosa: 'k-1 unito dopo il turno scaduto', timeout: 8000 })
+    const testo = await statoTesto()
+    expect(testo).not.toContain('misura non riuscita')
+    expect(testo).not.toContain('NON fatta')
+    expect(testo).toContain('la rimetto in fila')
   })
 })

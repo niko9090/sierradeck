@@ -100,6 +100,9 @@ describe('creaClientAutopilota', () => {
     expect(a.id).toBe('ap-9')
     expect(rotte[0]).toBe('/orchestratore/messaggio')
     expect(visti[0]).toEqual({ testo: 'O', cwd: 'C:\\p', workspace: 'W' })
+    // 11/11: un messaggio del programma lo dice, così il servizio non lo conta come «Nicholas ha scritto».
+    await client.crea({ obiettivo: 'Controllo di tutti i PC', cwd: 'C:\\p', workspace: 'W', daProgramma: true })
+    expect(visti[1]).toEqual({ testo: 'Controllo di tutti i PC', cwd: 'C:\\p', workspace: 'W', daProgramma: true })
   })
 
   it('un servizio spento produce un errore leggibile, non un blocco', async () => {

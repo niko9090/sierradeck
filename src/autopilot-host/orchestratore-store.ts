@@ -45,10 +45,23 @@ export type ImpostazioniOrchestratore = {
   domande?: string[]
   /** Gli autopiloti di prima già passati a lui (P4): non si riassorbono e vanno nel recupero. */
   assorbiti?: string[]
+  /** 11/11: i rami degli specialisti già guardati (`ramo@commit`): quelli con lavoro mai unito si dicono all'autopilota una volta sola. */
+  ramiSegnalati?: string[]
+  /**
+   * 11/11: le sveglie chieste dall'autopilota («riprendo stasera alle 19»). Stanno sul disco: prima il promemoria
+   * viveva nella sessione di `claude`, che si spegne dopo 10 minuti di quiete, e non suonava mai.
+   */
+  sveglie?: Sveglia[]
 }
+
+export type Sveglia = { il: string; perche: string; chiesta: string }
+/** Quante sveglie in attesa per workspace, al più. */
+export const SVEGLIE_MAX = 10
 
 export const TETTO_SPECIALISTI = 3
 export const TETTO_SPECIALISTI_MAX = 4
+/** Quanti rami già guardati si ricordano, al più. */
+export const RAMI_SEGNALATI_MAX = 300
 
 export function impostazioniPredefinite(): ImpostazioniOrchestratore {
   return { modello: 'opus', tettoSpecialisti: TETTO_SPECIALISTI }
@@ -81,11 +94,22 @@ export function leggiImpostazioni(x: unknown): ImpostazioniOrchestratore {
     ...(o.daSeminare === true ? { daSeminare: true } : {}),
     ...(percento !== undefined ? { percento } : {}),
     ...(Array.isArray(o.domande) ? { domande: o.domande.filter((q): q is string => typeof q === 'string').slice(-20) } : {}),
-    ...(Array.isArray(o.assorbiti) ? { assorbiti: o.assorbiti.filter((q): q is string => typeof q === 'string') } : {})
+    ...(Array.isArray(o.assorbiti) ? { assorbiti: o.assorbiti.filter((q): q is string => typeof q === 'string') } : {}),
+    ...(Array.isArray(o.ramiSegnalati) ? { ramiSegnalati: o.ramiSegnalati.filter((q): q is string => typeof q === 'string').slice(-RAMI_SEGNALATI_MAX) } : {}),
+    ...(leggiSveglie(o.sveglie).length > 0 ? { sveglie: leggiSveglie(o.sveglie) } : {})
   }
 }
 
-export type RigaDialogo = { quando: string; da: 'tu' | 'lui' | 'evento'; testo: string; domanda?: { id: string; scelte: string[] } }
+function leggiSveglie(x: unknown): Sveglia[] {
+  if (!Array.isArray(x)) return []
+  return x.flatMap((v): Sveglia[] => {
+    const q = (typeof v === 'object' && v !== null ? v : {}) as Record<string, unknown>
+    if (typeof q.il !== 'string' || Number.isNaN(Date.parse(q.il)) || typeof q.perche !== 'string') return []
+    return [{ il: q.il, perche: q.perche.slice(0, 300), chiesta: typeof q.chiesta === 'string' ? q.chiesta : q.il }]
+  }).slice(0, SVEGLIE_MAX)
+}
+
+export type RigaDialogo ={ quando: string; da: 'tu' | 'lui' | 'evento'; testo: string; domanda?: { id: string; scelte: string[] } }
 
 export type ArchivioOrchestratori = {
   impostazioni: (ws: string) => ImpostazioniOrchestratore
