@@ -256,4 +256,14 @@ describe('nel servizio: Nicholas cambia un limite e vale subito', () => {
     const w = await posta<VistaOrchestratore>('/orchestratore/impostazioni', { ws: 'Lavoro', tettoSpecialisti: 2 })
     expect(w.permessi).toEqual({ sottofondo: 'sempre' })
   })
+
+  it('la rotta dei limiti dice anche in quali progetti Nicholas ha tolto un permesso con «sempre»', async () => {
+    await avviaServizio()
+    expect(((await (await fetch(url('/limiti'))).json()) as { sempre: unknown[] }).sempre).toEqual([])
+    await posta('/orchestratore/impostazioni', { ws: 'Lavoro', permessi: { 'posti-protetti': 'sempre' } })
+    const v = (await (await fetch(url('/limiti'))).json()) as { sempre: { ws: string; nome: string; permessi: unknown }[] }
+    expect(v.sempre).toEqual([{ ws: 'Lavoro', nome: expect.any(String), permessi: { 'posti-protetti': 'sempre' } }])
+    // Anche la risposta a un cambio dei limiti li porta.
+    expect((await posta<{ sempre: unknown[] }>('/limiti', { domandeOra: 6 })).sempre).toHaveLength(1)
+  })
 })

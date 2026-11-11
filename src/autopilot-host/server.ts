@@ -1160,14 +1160,16 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
 
         // 11/11: i limiti del PC (tetti e interruttori). Li legge e li cambia Nicholas dalla pagina delle impostazioni.
         if (percorso === '/limiti' && (metodo === 'GET' || metodo === 'POST')) {
-          if (deps.limiti === undefined) { rispondi(res, 200, { limiti: LIMITI_DI_SERIE, fissi: true }); return }
+          // Con i limiti, i progetti dove Nicholas ha tolto una classe di permessi («Sì, sempre»): la pagina li mostra e li rimette.
+          const sempre = unici().filter((a) => a.archiviato !== true).map((a) => ({ ws: chiaveWorkspace(a), nome: a.nome, permessi: permessiDi(a) ?? {} })).filter((v) => Object.keys(v.permessi).length > 0)
+          if (deps.limiti === undefined) { rispondi(res, 200, { limiti: LIMITI_DI_SERIE, fissi: true, sempre }); return }
           if (metodo === 'POST') {
             const prima = deps.limiti.leggi()
             const dopo = deps.limiti.cambia(await leggiCorpo(req))
             const cambiati = (Object.keys(dopo) as (keyof LimitiPc)[]).filter((k) => dopo[k] !== prima[k])
             if (cambiati.length > 0) console.info(`[limiti] cambiati da Nicholas: ${cambiati.map((k) => `${k} ${String(prima[k])} → ${String(dopo[k])}`).join(', ')}`)
           }
-          rispondi(res, 200, { limiti: deps.limiti.leggi() })
+          rispondi(res, 200, { limiti: deps.limiti.leggi(), sempre })
           return
         }
         // L'autopilota del workspace: la vista, le impostazioni, il messaggio.

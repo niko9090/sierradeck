@@ -91,6 +91,13 @@ export function conLimiti(prima: LimitiPc, cambio: unknown): LimitiPc {
   return leggiLimiti({ ...prima, ...dati })
 }
 
+/**
+ * Quello che la pagina delle impostazioni riceve dal servizio: i limiti, se
+ * sono fissi (un servizio senza il suo file), e i progetti dove Nicholas ha
+ * tolto una classe di permessi con «Sì, sempre».
+ */
+export type VistaLimiti = { limiti: LimitiPc; fissi?: boolean; sempre: { ws: string; nome: string; permessi: import('./permessi-nicholas').PermessiScelti }[] }
+
 /** Quello che Nicholas ha cambiato rispetto ai valori di serie (per dirlo in una riga). */
 export function limitiCambiati(l: LimitiPc): (ChiaveNumero | ChiaveInterruttore)[] {
   return (Object.keys(LIMITI_DI_SERIE) as (ChiaveNumero | ChiaveInterruttore)[]).filter((k) => l[k] !== LIMITI_DI_SERIE[k])
