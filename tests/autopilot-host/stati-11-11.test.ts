@@ -301,6 +301,25 @@ describe('un Agent rifiutato o rilanciato non azzera un compito (11/11, k-133)',
   })
 })
 
+describe('l’autopilota rimasto senza ramo principale lo ricava quando serve (11/11)', () => {
+  it('prima ogni unione rispondeva «senza ramo principale non si può unire», per sempre', async () => {
+    zitto()
+    const porte: Porte = { merge: [], rami: { [R1]: 1 } }
+    await avviaServizio(porte)
+    const unico = orch.impostazioni(WS).autopilota!
+    // Nato quando la cartella non era ancora un repository: il ramo principale non c'è.
+    const { ramoBase: _via, ...senza } = archivio.leggi(unico)!
+    archivio.scrivi(senza)
+    expect(archivio.leggi(unico)!.ramoBase).toBeUndefined()
+    orch.scriviPiano(WS, { versione: 1, compiti: [compito('k-5', { stato: 'in-revisione', rami: [R1] })] })
+    await strumento('unisci', { compito: 'k-5' })
+    await attendi(() => k('k-5')?.stato === 'unito', { cosa: 'k-5 unito' })
+    expect(porte.merge).toEqual([R1])
+    expect(archivio.leggi(unico)!.ramoBase).toBe('main')
+    expect(processi[0]!.scritte.join('\n')).not.toContain('senza ramo principale')
+  })
+})
+
 describe('la sveglia sopravvive alla sessione e al riavvio (11/11, «riprendo stasera alle 19»)', () => {
   it('si salva sul disco, si vede nello stato, e all’ora suona come evento anche dopo un riavvio del servizio', async () => {
     zitto()

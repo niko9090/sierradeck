@@ -28,6 +28,7 @@ import type { Memoria } from './memoria'
 import type { TipoAvviso } from './telegram'
 import { comeAsincrono, ramoCorrente, ramoGiaChiusoAsincrono, ramoSenzaNovitaAsincrono, salvaLavoroAsincrono, type Git, type GitAsincrono } from './worktree'
 import type { EsitoRiallineo } from './worktree'
+import { ramoBaseDi } from './fine-chat'
 import {
   creaGettoniOrchestratore, configMcpOrchestratore, rispondiMcpOrchestratore, specialistiVivi, SPECIALISTI_PC_MAX, ATTESA_PERMESSO_MS,
   type AmbienteOrchestratore, type EsitoAmbiente
@@ -1091,6 +1092,26 @@ ${NOTA_SENZA_GIT}`,
       await dormi(riprova)
     }
   }
+  /**
+   * 11/11: l'autopilota di un workspace nato quando la cartella non era ancora un repository (o era su un commit
+   * staccato) restava senza ramo principale per sempre: `assicura` lo ricava solo alla nascita, e ogni unione
+   * rispondeva «senza ramo principale non si può unire». Qui lo si ricava quando serve (quello del remoto, o
+   * quello della cartella principale), solo se è un ramo che c'è davvero qui, e si salva.
+   */
+  const conRamoBase = async (a: Autopilota): Promise<Autopilota> => {
+    const g = gitA()
+    if (a.ramoBase !== undefined || g === undefined || !conGit(a.cwd)) return a
+    const trovato = await ramoBaseDi(a, g, a.cwd).catch(() => undefined)
+    if (trovato === undefined || trovato === '' || /^(worktree-agent-|ap\/)/u.test(trovato)) return a
+    if ((await g(['rev-parse', '--verify', '--quiet', `refs/heads/${trovato}`], a.cwd)).codice !== 0) return a
+    const fresco = x.archivio.leggi(a.id) ?? a
+    if (fresco.ramoBase !== undefined) return fresco
+    const dopo: Autopilota = { ...fresco, ramoBase: trovato }
+    x.archivio.scrivi(dopo)
+    x.salva(dopo)
+    console.info(`[orchestratore] ${wsDi(a)} — mancava il ramo principale: ricavato adesso (${trovato})`)
+    return dopo
+  }
   /** 11/11: i rami ricordati di un compito, nella forma che il cancello usa per quelli degli specialisti in memoria. */
   const comeRamiConLavoro = (c: CompitoPiano, rami: string[]): RamoConLavoro[] => rami.map((r) => ({
     sub: { id: r, ruolo: c.ruolo ?? 'sviluppatore', descrizione: c.titolo, compito: c.id, stato: 'finito', inizio: c.creato, ramo: r }, ramo: r, avanti: 1
@@ -1114,8 +1135,9 @@ ${NOTA_SENZA_GIT}`,
         : []
       if (fuori.length === 0) return `${giaUnito.id} è già unito con il criterio verde: non c’è altro da unire.`
     }
-    const a = unicoDi(ws)
-    if (a === undefined) return 'l’autopilota unico non c’è più'
+    const a0 = unicoDi(ws)
+    if (a0 === undefined) return 'l’autopilota unico non c’è più'
+    const a = await conRamoBase(a0)
     const g = gitA()
     const scelto = daUnire(ws, p)
     let sub = scelto.sub
