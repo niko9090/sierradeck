@@ -1,8 +1,8 @@
-import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, rmdirSync, statSync, unlinkSync } from 'node:fs'
+import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, rmdirSync, statSync, unlinkSync, type Dirent } from 'node:fs'
 import { lstat, readdir, stat } from 'node:fs/promises'
 import { basename, join, resolve, sep } from 'node:path'
 import type { Autopilota, ChatGovernata } from '@shared/autopilota'
-import { cancellaSicura } from '@shared/cancella-sicura'
+import { cancellaSicuraAsincrona, eBloccoTemporaneo } from '@shared/cancella-sicura'
 import { scriviAtomico } from '@shared/scrittura-atomica'
 import type { Archivio } from './archivio'
 import { cartellaWorktreeDi, type GitAsincrono } from './worktree'
@@ -302,19 +302,20 @@ export async function staccaCollegamenti(cartella: string): Promise<{ staccati: 
   let staccati = 0
   const falliti: string[] = []
   const giro = async (dir: string): Promise<void> => {
-    let nomi: string[]
-    try { nomi = await readdir(dir) } catch { return }
-    for (const n of nomi) {
-      const p = join(dir, n)
-      let st
-      try { st = await lstat(p) } catch { continue }
-      if (st.isSymbolicLink()) {
+    // 11/11: il tipo lo dice l'elenco della cartella (`Dirent`), senza un `lstat` per voce. Nel
+    // servizio (Electron in modalità Node) `lstat` su un file `.asar` lo apre come archivio e lo
+    // tiene aperto: la copia con dentro `…/resources/app.asar` non si cancellava più (EPERM a ogni giro).
+    let voci: Dirent[]
+    try { voci = await readdir(dir, { withFileTypes: true }) } catch { return }
+    for (const v of voci) {
+      const p = join(dir, v.name)
+      if (v.isSymbolicLink()) {
         // Una giunzione o un collegamento a una cartella si toglie con rmdir
         // o unlink a seconda del sistema: tutti e due tolgono solo il collegamento.
         try { unlinkSync(p); staccati += 1 } catch {
           try { rmdirSync(p); staccati += 1 } catch (err) { falliti.push(`${p}: ${String(err).slice(0, 80)}`) }
         }
-      } else if (st.isDirectory()) {
+      } else if (v.isDirectory()) {
         await giro(p)
       }
     }
@@ -324,28 +325,33 @@ export async function staccaCollegamenti(cartella: string): Promise<{ staccati: 
   return { staccati, falliti }
 }
 
-/** Quanto pesa una cartella, senza seguire i collegamenti. */
+/** Un archivio di Electron: nel servizio non si guarda mai con `lstat` (vedi `staccaCollegamenti`). */
+const eAsar = (nome: string): boolean => /\.asar$/iu.test(nome)
+
+/** Quanto pesa una cartella, senza seguire i collegamenti. Un file `.asar` conta zero (11/11): pesarlo vorrebbe dire aprirlo. */
 export async function pesoCartella(cartella: string): Promise<number> {
   let tot = 0
   const giro = async (dir: string): Promise<void> => {
-    let nomi: string[]
-    try { nomi = await readdir(dir) } catch { return }
-    for (const n of nomi) {
-      const p = join(dir, n)
-      try {
-        const st = await lstat(p)
-        if (st.isSymbolicLink()) continue
-        if (st.isDirectory()) await giro(p)
-        else tot += st.size
-      } catch { /* sparito nel frattempo */ }
+    let voci: Dirent[]
+    try { voci = await readdir(dir, { withFileTypes: true }) } catch { return }
+    for (const v of voci) {
+      if (v.isSymbolicLink()) continue
+      const p = join(dir, v.name)
+      if (v.isDirectory()) { await giro(p); continue }
+      if (eAsar(v.name)) continue
+      try { tot += (await lstat(p)).size } catch { /* sparito nel frattempo */ }
     }
   }
   await giro(cartella)
   return tot
 }
 
-/** Toglie una cartella delle copie: prima i collegamenti, poi la cancellazione dalla guardia, solo dentro `cartellaCopie`. */
-export async function togliCartellaCopia(cartella: string, cartellaCopie: string): Promise<{ ok: boolean; byte: number; motivo?: string }> {
+/**
+ * Toglie una cartella delle copie: prima i collegamenti, poi la cancellazione dalla guardia, solo dentro `cartellaCopie`.
+ * 11/11: la cancellazione non ferma il servizio (`cancellaSicuraAsincrona`); `temporaneo` dice che
+ * non è riuscita per un file in uso o simili (`eBloccoTemporaneo`), e che al giro dopo può riuscire.
+ */
+export async function togliCartellaCopia(cartella: string, cartellaCopie: string): Promise<{ ok: boolean; byte: number; motivo?: string; temporaneo?: true }> {
   if (!dentroOUguale(cartella, cartellaCopie) || chiavePercorso(cartella) === chiavePercorso(cartellaCopie)) {
     return { ok: false, byte: 0, motivo: 'fuori dalla cartella delle copie' }
   }
@@ -354,10 +360,11 @@ export async function togliCartellaCopia(cartella: string, cartellaCopie: string
   if (falliti.length > 0) return { ok: false, byte: 0, motivo: `collegamenti non staccati: ${falliti[0]}` }
   const byte = await pesoCartella(cartella)
   try {
-    cancellaSicura(cartella, { dentro: [cartellaCopie] })
+    await cancellaSicuraAsincrona(cartella, { dentro: [cartellaCopie] })
     return { ok: true, byte }
   } catch (err) {
-    return { ok: false, byte: 0, motivo: String(err).slice(0, 160) }
+    const motivo = String(err).slice(0, 160)
+    return { ok: false, byte: 0, motivo, ...(eBloccoTemporaneo(motivo) ? { temporaneo: true as const } : {}) }
   }
 }
 
@@ -440,6 +447,8 @@ export function decidiCartellaAp(c: CartellaApVecchia): DecisioneCartellaAp {
 async function alberoSenzaSeguire(cartella: string): Promise<{ file: number; collegamento: boolean; ultimaMs: number; dalFondo: string[] }> {
   const m = { file: 0, collegamento: false, ultimaMs: 0, dalFondo: [] as string[] }
   const giro = async (p: string): Promise<void> => {
+    // 11/11: un `.asar` è un file e basta, senza `lstat` (nel servizio lo aprirebbe e lo terrebbe aperto).
+    if (p !== cartella && eAsar(basename(p))) { m.file += 1; return }
     let st
     try { st = await lstat(p) } catch { return }
     m.ultimaMs = Math.max(m.ultimaMs, st.mtimeMs, p === cartella && st.birthtimeMs > 0 ? st.birthtimeMs : 0)
@@ -616,7 +625,7 @@ async function pulisciTrascrizioni(o: OpzioniAutopulizia, radice: string, base: 
     if (falliti.length > 0) { e.errori.push(`${nome}: ${falliti[0]}`); continue }
     const byte = await pesoCartella(dir)
     try {
-      cancellaSicura(dir, { dentro: [projects] })
+      await cancellaSicuraAsincrona(dir, { dentro: [projects] })
       e.trascrizioniTolte = (e.trascrizioniTolte ?? 0) + 1
       e.byteLiberati += byte
     } catch (err) {
@@ -635,6 +644,22 @@ function ramoPrincipale(autopiloti: Autopilota[]): string {
   let n = 0
   for (const [r, c] of conti) if (c > n) { migliore = r; n = c }
   return migliore
+}
+
+/** Perché resta una copia che non si è potuta togliere per un blocco che passa da solo. */
+export const TENUTA_FILE_IN_USO = 'file in uso, riprovo al prossimo giro'
+
+/**
+ * Una copia che non si è potuta togliere (k-165 del 07/11, riportata l'11/11).
+ * Se la cancellazione si è fermata su un file tenuto da un programma vivo o
+ * simili (`temporaneo`), non è un errore: la copia resta fra le «tenute» e si
+ * riprova al giro dopo. Il resto (la guardia che rifiuta, un collegamento non
+ * staccato) resta un errore.
+ */
+function segnalaNonTolta(e: EsitoAutopulizia, nome: string, t: { motivo?: string; temporaneo?: true }, testo: string): void {
+  if (t.temporaneo !== true) { e.errori.push(`${nome}: ${testo}`); return }
+  e.tenute.push({ cosa: nome, perche: TENUTA_FILE_IN_USO })
+  console.info(`[autopulizia] tengo ${nome}: file in uso (${(t.motivo ?? '').replace(/\s+/gu, ' ').slice(0, 100)})`)
 }
 
 /** Un progetto: le copie, poi i rami. */
@@ -729,13 +754,13 @@ async function pulisciProgetto(o: OpzioniAutopulizia, radice: string, autopiloti
       // o non toglierla affatto («Filename too long», 07/11): la toglie la guardia.
       if (existsSync(cartella)) {
         const t = await togliCartellaCopia(cartella, dentro)
-        if (!t.ok) { e.errori.push(`${n}: ${r.codice !== 0 ? r.uscita.slice(0, 120) : (t.motivo ?? 'non tolta')}`); continue }
+        if (!t.ok) { segnalaNonTolta(e, n, t, r.codice !== 0 ? r.uscita.slice(0, 120) : (t.motivo ?? 'non tolta')); continue }
       }
       e.copieTolte += 1
       e.byteLiberati += byte
     } else {
       const t = await togliCartellaCopia(cartella, dentro)
-      if (!t.ok) { e.errori.push(`${n}: ${t.motivo ?? 'non tolta'}`); continue }
+      if (!t.ok) { segnalaNonTolta(e, n, t, t.motivo ?? 'non tolta'); continue }
       e.copieTolte += 1
       e.byteLiberati += t.byte
     }

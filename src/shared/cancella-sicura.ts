@@ -1,5 +1,6 @@
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, realpathSync, renameSync, rmSync, mkdirSync } from 'node:fs'
+import { rm } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { basename, dirname, isAbsolute, join, parse, resolve } from 'node:path'
 
@@ -243,6 +244,79 @@ export function cancellaSicura(
     if (existsSync(esito.percorso)) throw err
   }
   return 'cancellata'
+}
+
+/**
+ * Il `rm` di Node che Electron non ha toccato, se c'è (11/11). In Electron,
+ * anche in modalità Node, `fs` vede un file `.asar` come una cartella e, una
+ * volta guardato, lo tiene aperto finché il processo vive: `fs.promises.rm`
+ * su una copia con dentro `…/resources/app.asar` falliva con EBUSY e lasciava
+ * il file bloccato anche per `rd`. `original-fs` è lo stesso modulo senza quel
+ * trucco; fuori da Electron (prove, script) non esiste e vale `rm`.
+ */
+function rmVero(): typeof rm {
+  const originale = typeof process.getBuiltinModule === 'function'
+    ? process.getBuiltinModule('original-fs') as { promises?: { rm?: typeof rm } } | undefined
+    : undefined
+  return originale?.promises?.rm ?? rm
+}
+
+/** `rd /s /q` di cmd senza fermare chi chiama: finisce comunque, anche se cmd non parte. */
+function rdSenzaFermare(percorso: string): Promise<void> {
+  return new Promise((fatto) => {
+    try {
+      const p = spawn('cmd.exe', ['/d', '/s', '/c', `"rd /s /q "\\\\?\\${percorso}""`], { stdio: 'ignore', windowsHide: true, windowsVerbatimArguments: true, timeout: 10 * 60_000 })
+      p.once('error', () => { fatto() })
+      p.once('close', () => { fatto() })
+    } catch {
+      fatto()
+    }
+  })
+}
+
+/**
+ * `cancellaSicura` **senza fermare il processo** (11/11): gli stessi
+ * controlli, nello stesso ordine, poi la cancellazione che lascia girare il
+ * resto. Serve al servizio, che ha un filo solo: con `rmSync` e `spawnSync`
+ * togliere una copia grande lo teneva fermo 8-10 secondi (registro del 10/11
+ * e dell'11/11). Lo spostamento nel recupero è una rinomina: resta com'è.
+ */
+export async function cancellaSicuraAsincrona(
+  percorso: string,
+  opzioni: { dentro: string[]; come?: ComeCancellare; ambiente?: AmbienteCancellazione; force?: boolean }
+): Promise<'cancellata' | 'spostata' | 'non-c-era'> {
+  const esito = controllaCancellazione(percorso, opzioni)
+  if (!esito.ok) throw new CancellazioneRifiutata(esito.motivo)
+  if (!existsSync(esito.percorso)) return 'non-c-era'
+  const come = opzioni.come ?? { modo: 'cancella' }
+  if (come.modo === 'recupero') {
+    mkdirSync(come.cartella, { recursive: true })
+    const stampo = new Date().toISOString().replace(/[:.]/g, '-')
+    renameSync(esito.percorso, join(come.cartella, `${basename(esito.percorso)}.${stampo}`))
+    return 'spostata'
+  }
+  try {
+    await rmVero()(esito.percorso, { recursive: true, force: opzioni.force ?? true })
+  } catch (err) {
+    // Come in `cancellaSicura`: su Windows, se resta qualcosa, ci prova `rd`. Un `%` nel
+    // percorso no: cmd lo leggerebbe come una variabile e cancellerebbe un altro percorso.
+    if (!(opzioni.ambiente ?? ambienteVero()).windows || !existsSync(esito.percorso) || esito.percorso.includes('%')) throw err
+    await rdSenzaFermare(esito.percorso)
+    if (existsSync(esito.percorso)) throw err
+  }
+  return 'cancellata'
+}
+
+/**
+ * Un errore di cancellazione che passa da solo (k-165, 07/11): un file tenuto
+ * da un programma ancora vivo (EPERM, EBUSY, EACCES, «Permission denied»,
+ * ENOTEMPTY) o un percorso troppo lungo per git («Filename too long»). Non è
+ * una criticità: si riprova al giro dopo. Un rifiuto della guardia non passa
+ * mai da solo. Pura.
+ */
+export function eBloccoTemporaneo(messaggio: string): boolean {
+  if (/cancellazione rifiutata/i.test(messaggio)) return false
+  return /\b(EPERM|EBUSY|EACCES|ENOTEMPTY)\b|permission denied|used by another process|being used|filename too long|file name too long|ENAMETOOLONG/i.test(messaggio)
 }
 
 /**
