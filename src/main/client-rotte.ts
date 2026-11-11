@@ -39,6 +39,7 @@ import { testoCartellaNonQui, voceFileDi, type DoveCartella } from '@shared/apri
 import { cartellaDiProva, PREFISSO_CARTELLA_PROVA } from '@shared/chat-di-prova'
 import { chiaveWorkspace, type VistaCoda } from '@shared/coda-richieste'
 import type { VistaOrchestratore } from '@shared/piano-orchestratore'
+import { creaStatoTelefono, criteriInPercento } from './stato-telefono-rotta'
 import {
   bozzaDaCorpo, controllaBozzaAutopilota, controllaNomeWorkspace, ULTIMO_WORKSPACE,
   type AzioneFinestra, type EsitoAzioneFinestra, type RichiestaAutopilota
@@ -218,6 +219,8 @@ export type DipendenzeRotte = {
    * non le conosce, o il workspace non ha ancora un autopilota.
    */
   avanzamentoAutopilota?: (ws: string) => Promise<{ orchestratore?: VistaOrchestratore; coda?: VistaCoda }>
+  /** 11/11: solo la vista dell'orchestratore di un workspace, per lo stato del telefono in `/api/stato` (`stato-telefono-rotta.ts`). */
+  orchestratoreWorkspace?: (ws: string) => Promise<VistaOrchestratore | undefined>
   /** 0.95.1: la conversazione di uno specialista, da guardare dal telefono (come a destra sul PC). */
   specialistaAutopilota?: (ws: string, id: string) => Promise<unknown>
   /** k-48: la lista d'attesa degli specialisti (chi lavora, chi aspetta), la priorità di una voce, togliere una voce. */
@@ -806,6 +809,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
   const g = deps.pin
   // Da quando ogni chat della Panoramica è nel suo stato (0.79.0): il «da quanto» del riassunto sul telefono.
   const statoDal = new Map<string, { stato: StatoScheda; dal: number }>()
+  // 11/11: adesso, avanzamento, ruoli e domande di ogni autopilota per le schermate del telefono.
+  const statoTelefonoDi = creaStatoTelefono({ orchestratore: deps.orchestratoreWorkspace, attesa: deps.attesaSpecialisti, adesso })
   /** Chi guarda, per gli sblocchi: questo schermo, un altro PC (anche il ponte), un telefono. */
   const visoreDi = (dispositivo: string | undefined): string =>
     dispositivo === undefined || dispositivo === 'locale' ? 'locale' : daAltroPc(dispositivo) ? dispositivo : `tel:${dispositivo}`
@@ -1256,6 +1261,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         }),
         autopiloti
       }))
+      const telefono = await statoTelefonoDi(autopiloti.map((a) => ({ a, vista: vistaAutopilota({ ...a, ...(haDomandaAperta(a) !== undefined ? { domanda: haDomandaAperta(a) } : {}) }, adesso(), segnoDi(a)) })), domande)
       return OK({
         domandeInAttesa,
         // 0.82.0: «N di M chat» su questo PC, con il perché per il «?».
@@ -1300,7 +1306,9 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
           // azione», e «nessun segno da 10 min». Le parole le decide il PC.
           dalVivo: statoAutopilotaDalVivo({ ...a, ...(haDomandaAperta(a) !== undefined ? { domanda: haDomandaAperta(a) } : {}) }, adesso(), segnoDi(a)),
           // Lo stato in una parola, i criteri, il verbo (0.70.0): le parole le decide il PC.
-          vista: vistaAutopilota({ ...a, ...(haDomandaAperta(a) !== undefined ? { domanda: haDomandaAperta(a) } : {}) }, adesso(), segnoDi(a)),
+          vista: criteriInPercento(vistaAutopilota({ ...a, ...(haDomandaAperta(a) !== undefined ? { domanda: haDomandaAperta(a) } : {}) }, adesso(), segnoDi(a)), telefono.get(a.id)),
+          // 11/11: per le schermate nuove del telefono (`stato-telefono.ts`): adesso, avanzamento, ruoli, domande.
+          ...telefono.get(a.id),
           cicli: a.cicli,
           // P4: i criteri stanno nel piano dell'orchestratore. Zero e zero
           // perché un PC di prima che legge questo stato li trovi ancora.
