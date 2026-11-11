@@ -198,6 +198,28 @@ describe('autopilota unico nel servizio', () => {
     expect(avviso.mock.calls.some((c) => String(c[0]).includes('turno non riuscito') && String(c[0]).includes('ENOTFOUND'))).toBe(true)
   })
 
+  it('11/11: il limite del piano non è un ERRORE: un avviso nel registro e una riga sola nel dialogo, in italiano, con l’ora', async () => {
+    zitto()
+    const avviso = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await avviaServizio([ap()])
+    const { autopilota } = migra()
+    const limite = { type: 'result', is_error: true, result: "You've hit your weekly limit · resets 1am (Europe/Rome)", total_cost_usd: 0, session_id: 'sess-1', usage: { input_tokens: 5 } }
+    const righe = (): string[] => archivio.leggi(autopilota!)!.dialogo.filter((r) => r.testo.startsWith('Limite del piano raggiunto')).map((r) => r.testo)
+    processi[0]!.emetti(limite)
+    expect(vi.mocked(console.error).mock.calls.some((c) => /turno non riuscito|limite|limit/i.test(String(c[0])))).toBe(false)
+    expect(avviso.mock.calls.filter((c) => String(c[0]).includes('limite del piano raggiunto'))).toHaveLength(1)
+    expect(righe()).toHaveLength(1)
+    expect(righe()[0]).toMatch(/^Limite del piano raggiunto: riparto da solo (domani |[a-z]{3} \d\d\/\d\d )?alle \d\d:\d\d\. I tuoi messaggi restano in attesa/u)
+    expect(archivio.leggi(autopilota!)!.dialogo.at(-1)!.da).toBe('lui')
+    // Niente «turno non riuscito» nel dialogo del workspace: non è un guasto.
+    expect(orch.ultimeDialogo('Lavoro', 50).some((r) => r.testo.includes('turno non riuscito'))).toBe(false)
+    // Un altro tentativo che trova ancora il limite: l'avviso sì, la riga no.
+    processi[0]!.emetti(limite)
+    expect(avviso.mock.calls.filter((c) => String(c[0]).includes('limite del piano raggiunto'))).toHaveLength(2)
+    expect(righe()).toHaveLength(1)
+    expect(vi.mocked(console.error).mock.calls.some((c) => /turno non riuscito|limite|limit/i.test(String(c[0])))).toBe(false)
+  })
+
   it('lo Stop con gli id di prima arriva alla chat adottata: evento, niente modello', async () => {
     zitto()
     await avviaServizio([ap()])

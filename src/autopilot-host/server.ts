@@ -1451,6 +1451,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     avanzaFinite: () => { void avanzaFiniteDaSole() },
     posti: postiAdesso,
     postiScelti: () => scelteUsate,
+    limitiPiano: () => statoProgramma?.limiti,
     chatAlLavoroSulPc: () => alLavoroSulPc(),
     provaNelPrincipale,
     memoriaCriteri,

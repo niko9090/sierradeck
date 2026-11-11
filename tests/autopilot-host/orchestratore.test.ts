@@ -283,6 +283,104 @@ describe('il motore', () => {
     expect(processi[0]!.scritte).toHaveLength(4)
   })
 
+  describe('11/11: il limite del piano non è un guasto', () => {
+    const limite = { type: 'result', is_error: true, result: "You've hit your weekly limit · resets 1am (Europe/Rome)", total_cost_usd: 0, session_id: 'sess-x', usage: { input_tokens: 10, output_tokens: 0 } }
+    type Detto = { primo: boolean; riprovoIl: number; azzeraIl?: number }
+    const conLimite = (over: Partial<DipendenzeOrchestratore> = {}): ReturnType<typeof motore> & { detti: Detto[]; scritte: () => number } => {
+      const detti: Detto[] = []
+      const m = motore({ limite: (_ws, p) => { detti.push({ primo: p.primo, riprovoIl: p.riprovoIl, ...(p.azzeraIl !== undefined ? { azzeraIl: p.azzeraIl } : {}) }) }, ...over })
+      return { ...m, detti, scritte: () => m.processi.reduce((n, p) => n + p.scritte.length, 0) }
+    }
+
+    it('niente riprova subito e niente errore: si aspetta l’azzeramento, al più un’ora per volta, e lo si dice una volta per episodio', () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-11-09T16:09:06.000Z'))
+      const { o, processi, errori, risposte, detti, scritte } = conLimite()
+      o.messaggio('ws', { quando: '2026-11-09T16:09:00.000Z', testo: 'da non perdere' })
+      processi[0]!.emetti(limite)
+      expect(errori).toEqual([])
+      expect(scritte()).toBe(1)
+      // L'una di Roma è mezzanotte UTC: mancano quasi otto ore, si riguarda fra un'ora.
+      expect(detti).toEqual([{ primo: true, azzeraIl: Date.parse('2026-11-10T00:00:00.000Z'), riprovoIl: Date.parse('2026-11-09T17:09:06.000Z') }])
+      // Un messaggio arrivato durante l'attesa non anticipa il turno e non si perde.
+      o.messaggio('ws', { quando: '2026-11-09T16:20:00.000Z', testo: 'nel frattempo' })
+      vi.advanceTimersByTime(60 * 60_000 - 1)
+      expect(scritte()).toBe(1)
+      vi.advanceTimersByTime(1)
+      expect(scritte()).toBe(2)
+      expect(testoScritto(processi.at(-1)!.scritte.at(-1)!)).toContain('da non perdere')
+      expect(testoScritto(processi.at(-1)!.scritte.at(-1)!)).toContain('nel frattempo')
+      // Ancora il limite: è lo stesso episodio, non si ridice.
+      processi.at(-1)!.emetti(limite)
+      expect(detti).toHaveLength(2)
+      expect(detti[1]!.primo).toBe(false)
+      expect(errori).toEqual([])
+      vi.advanceTimersByTime(60 * 60_000)
+      expect(scritte()).toBe(3)
+      // Il limite si è azzerato: il turno riesce, niente è andato perso, l'episodio è chiuso.
+      processi.at(-1)!.emetti(result(1000, 'eccomi'))
+      expect(risposte).toEqual(['eccomi'])
+      expect(o.inAttesa('ws')).toEqual({ messaggi: 0, eventi: 0 })
+      o.messaggio('ws', { quando: '2026-11-10T09:00:00.000Z', testo: 'un altro giorno' })
+      processi.at(-1)!.emetti(limite)
+      expect(detti.at(-1)!.primo).toBe(true)
+    })
+
+    it('vicino all’azzeramento si riparte un minuto dopo', () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-11-09T23:40:00.000Z'))
+      const { o, processi, detti, scritte } = conLimite()
+      o.messaggio('ws', { quando: '2026-11-09T23:40:00.000Z', testo: 'x' })
+      processi[0]!.emetti(limite)
+      expect(detti[0]!.riprovoIl).toBe(Date.parse('2026-11-10T00:01:00.000Z'))
+      vi.advanceTimersByTime(21 * 60_000 - 1)
+      expect(scritte()).toBe(1)
+      vi.advanceTimersByTime(1)
+      expect(scritte()).toBe(2)
+    })
+
+    it('se il messaggio non dice l’ora vale quella del programma; senza nemmeno quella, un quarto d’ora', () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-11-09T16:00:00.000Z'))
+      const senzaOra = { ...limite, result: "You've hit your weekly limit" }
+      const fra40 = Date.parse('2026-11-09T16:40:00.000Z')
+      const a = conLimite({ azzeramentoLimite: () => fra40 })
+      a.o.messaggio('ws', { quando: '2026-11-09T16:00:00.000Z', testo: 'x' })
+      a.processi[0]!.emetti(senzaOra)
+      expect(a.detti).toEqual([{ primo: true, azzeraIl: fra40, riprovoIl: fra40 + 60_000 }])
+      const b = conLimite()
+      b.o.messaggio('ws', { quando: '2026-11-09T16:00:00.000Z', testo: 'x' })
+      b.processi[0]!.emetti(senzaOra)
+      expect(b.detti).toEqual([{ primo: true, riprovoIl: Date.parse('2026-11-09T16:15:00.000Z') }])
+      vi.advanceTimersByTime(15 * 60_000)
+      expect(b.scritte()).toBe(2)
+    })
+
+    it('anche quando la CLI esce con quel messaggio: nessun processo nuovo fino all’ora', () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-11-09T16:00:00.000Z'))
+      const { o, processi, errori, detti } = conLimite()
+      o.messaggio('ws', { quando: '2026-11-09T16:00:00.000Z', testo: 'x' })
+      processi[0]!.muori(1, "You've hit your weekly limit · resets 1am (Europe/Rome)")
+      expect(processi).toHaveLength(1)
+      expect(errori).toEqual([])
+      expect(detti).toHaveLength(1)
+      vi.advanceTimersByTime(60 * 60_000)
+      expect(processi).toHaveLength(2)
+      expect(testoScritto(processi[1]!.scritte[0]!)).toContain('x')
+    })
+
+    it('chi non ascolta il limite lo riceve fra gli errori, con l’attesa scritta', () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-11-09T16:00:00.000Z'))
+      const { o, processi, errori } = motore()
+      o.messaggio('ws', { quando: '2026-11-09T16:00:00.000Z', testo: 'x' })
+      processi[0]!.emetti({ ...limite, result: "You've hit your weekly limit" })
+      expect(errori).toEqual(["You've hit your weekly limit — riprovo fra 15 min"])
+      expect(processi[0]!.scritte).toHaveLength(1)
+    })
+  })
+
   it('spento l’interruttore, il processo si spegne e niente aspetta più', () => {
     const { o, processi } = motore()
     o.messaggio('ws', { quando: '2026-10-30T09:00:00.000Z', testo: 'uno' })

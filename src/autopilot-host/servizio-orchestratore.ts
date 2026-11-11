@@ -16,6 +16,8 @@ import { modelloAutopilotaAmmesso } from '@shared/modelli'
 import { righeLezioni } from '@shared/lezioni-chat'
 import { esaminaComando, principaleSporca } from '@shared/controllo-comandi'
 import { domandaControllataSubito, domandaPerRegistro } from '@shared/domanda-strutturata'
+import { azzeramentoDaiLimiti, fraseLimite, quandoInParole } from '@shared/limite-del-piano'
+import type { LimitiPiano } from '@shared/harness'
 import type { ArchivioCode } from './coda-store'
 import { migraAutopiloti, misuraDaAutopiloti } from './coda-autopiloti'
 import { soloInChat, type ContestoDomanda, type RegistroDomande } from './domande'
@@ -134,6 +136,8 @@ export type ContestoUnico = {
   posti: () => number
   /** k-57: il numero massimo scelto da Nicholas (vince sul tetto di serie degli specialisti); assente = automatico. */
   postiScelti?: () => number | undefined
+  /** 11/11: i limiti del piano letti dal programma (`resettaIl`), per sapere quando riparte un autopilota fermo sul limite. */
+  limitiPiano?: () => LimitiPiano | undefined
   chatAlLavoroSulPc: () => number
   /** L'unione di prova nel principale con i criteri dell'autopilota (`provaNelPrincipale`). */
   provaNelPrincipale: (a: Autopilota, ramo: string) => Promise<EsitoProvaPrincipale>
@@ -792,6 +796,25 @@ ${NOTA_SENZA_GIT}`,
     }
   }
 
+  /**
+   * 11/11: il piano ha finito la quota («You've hit your weekly limit · resets 1am»). Non è un guasto:
+   * nel registro un avviso (mai un ERRORE, mai fra gli errori arrivati), e a Nicholas una riga sola per
+   * episodio, in italiano, con l'ora in cui si riparte. I tentativi dopo non dicono più niente.
+   */
+  const limiteRaggiunto = (ws: string, p: { motivo: string; primo: boolean; riprovoIl: number; azzeraIl?: number }): void => {
+    const letto = Date.parse(x.adesso())
+    const ora = Number.isNaN(letto) ? Date.now() : letto
+    console.warn(`[orchestratore] ${ws} — limite del piano raggiunto${p.azzeraIl !== undefined ? `, si azzera ${quandoInParole(p.azzeraIl, ora)}` : ''}: riprovo ${quandoInParole(p.riprovoIl, ora)} (${p.motivo.replace(/\s+/gu, ' ').slice(0, 120)})`)
+    if (!p.primo) return
+    const frase = fraseLimite({ ...(p.azzeraIl !== undefined ? { azzeraIl: p.azzeraIl } : {}), adesso: ora })
+    const u = unicoDi(ws)
+    if (u === undefined) return
+    const dopo = { ...u }
+    x.annota(dopo, frase)
+    x.salva(dopo)
+    nelDialogo(ws, { quando: x.adesso(), da: 'lui', testo: frase })
+  }
+
   const orchestratore = creaOrchestratore({
     avvia: x.avviaProcesso,
     impostazioni: imp,
@@ -818,7 +841,9 @@ ${NOTA_SENZA_GIT}`,
     ...(x.raccoltaEventiMs !== undefined ? { raccoltaMs: x.raccoltaEventiMs } : {}),
     ...(x.chiamateMax !== undefined ? { globaliMax: x.chiamateMax } : {}),
     ...(x.inattivoMs !== undefined ? { inattivoMs: x.inattivoMs } : {}),
-    attendeNicholas: (ws) => (permessiInAttesa.get(ws) ?? 0) > 0
+    attendeNicholas: (ws) => (permessiInAttesa.get(ws) ?? 0) > 0,
+    limite: limiteRaggiunto,
+    azzeramentoLimite: (_ws, motivo) => azzeramentoDaiLimiti(x.limitiPiano?.(), motivo, Date.parse(x.adesso()))
   })
 
   // ---------------------------------------------------------------- il cancello

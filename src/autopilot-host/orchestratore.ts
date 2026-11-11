@@ -8,6 +8,7 @@ import { POSTI_MAX } from '@shared/posti-chat'
 import { uccidiAlberi } from '@shared/uccidi-alberi'
 import { separaAvvisiNode } from '@shared/avvisi-node'
 import { eErroreDiRete } from '@shared/errori-rete'
+import { attesaLimiteMs, azzeramentoDalTesto, eLimiteDelPiano } from '@shared/limite-del-piano'
 import { NON_EREDITATE } from '../pty-host/pty-manager'
 import { applicaRiga, flussoVuoto, specialistiAlLavoro, type EffettoFlusso, type StatoFlusso } from '@shared/flusso-orchestratore'
 import type { ImpostazioniOrchestratore, RigaDialogo } from './orchestratore-store'
@@ -282,6 +283,13 @@ export type DipendenzeOrchestratore = {
   riprovaGuastoMs?: (n: number) => number
   /** Nicholas sta decidendo un permesso per questo workspace: il silenzio è giusto, il cane aspetta. */
   attendeNicholas?: (ws: string) => boolean
+  /**
+   * 11/11: il piano ha finito la quota. Non è un guasto: si aspetta l'azzeramento e si riparte da soli.
+   * `primo` è vero una volta per episodio (fino al prossimo turno riuscito). Assente: passa da `errore`.
+   */
+  limite?: (ws: string, p: { motivo: string; primo: boolean; riprovoIl: number; azzeraIl?: number }) => void
+  /** Quando si azzera il limite secondo il programma (ms), se il messaggio della CLI non lo dice. */
+  azzeramentoLimite?: (ws: string, motivo: string) => number | undefined
 }
 
 export type Orchestratore = {
@@ -328,6 +336,8 @@ type StatoWs = {
   riprova?: ReturnType<typeof setTimeout>
   /** La sessione persa si è già rifatta una volta. */
   persa: boolean
+  /** 11/11: il limite del piano è già stato detto; vale finché un turno non riesce. */
+  limite?: boolean
   /** Il cane da guardia del turno: riparte a ogni riga. */
   cane?: ReturnType<typeof setTimeout>
 }
@@ -385,11 +395,31 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
     avanza()
   }
   /**
+   * 11/11: il turno è fallito perché il piano ha finito la quota («You've hit your weekly limit · resets 1am»).
+   * Non è un guasto e non si conta: fino all'azzeramento riprovare ogni 5 minuti non serve a niente. Si aspetta
+   * fino a lì (al più un'ora per volta; un quarto d'ora se l'ora non si sa) e lo si dice una volta per episodio.
+   */
+  const limiteDelPiano = (ws: string, s: StatoWs, motivo: string): void => {
+    const letto = Date.parse(adesso())
+    const ora = Number.isNaN(letto) ? Date.now() : letto
+    let azzeraIl = azzeramentoDalTesto(motivo, ora)
+    if (azzeraIl === undefined) { try { azzeraIl = d.azzeramentoLimite?.(ws, motivo) } catch { azzeraIl = undefined } }
+    const attesa = attesaLimiteMs(azzeraIl, ora)
+    const primo = s.limite !== true
+    s.limite = true
+    if (d.limite !== undefined) d.limite(ws, { motivo, primo, riprovoIl: ora + attesa, ...(azzeraIl !== undefined && azzeraIl > ora ? { azzeraIl } : {}) })
+    else d.errore(ws, `${motivo} — riprovo fra ${tra(attesa)}`)
+    if (s.riprova !== undefined) clearTimeout(s.riprova)
+    s.riprova = setTimeout(() => { s.riprova = undefined; metti(ws) }, attesa)
+    s.riprova.unref?.()
+  }
+  /**
    * Un turno è fallito (messaggi già rimessi in attesa): si conta il guasto e si riparte da soli.
    * Il primo guasto non di rete riprova subito; poi l'attesa cresce (con un tetto), mai uno stop.
    * Nicholas ne vede una riga sola («riprovo fra N min»), senza domande.
    */
   const guasto = (ws: string, s: StatoWs, motivo: string, rete: boolean): void => {
+    if (eLimiteDelPiano(motivo)) { limiteDelPiano(ws, s, motivo); return }
     s.tentativi += 1
     const attesa = rete ? riprovaReteMs(s.tentativi) : s.tentativi < 2 ? 0 : riprovaGuastoMs(s.tentativi)
     d.errore(ws, attesa > 0 ? `${motivo} — riprovo fra ${tra(attesa)}` : motivo)
@@ -462,6 +492,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
           s.inviati = undefined
           s.tentativi = 0
           s.persa = false
+          s.limite = false
           if (e.testo !== '') d.risposta(ws, e.testo)
         }
       }
@@ -591,6 +622,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
       if (s.riprova !== undefined) clearTimeout(s.riprova)
       s.riprova = undefined
       s.tentativi = 0
+      s.limite = false
       s.messaggi = []
       s.eventi = []
       s.eventiPronti = false
