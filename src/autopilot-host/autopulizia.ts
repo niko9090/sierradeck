@@ -659,7 +659,21 @@ export const TENUTA_FILE_IN_USO = 'file in uso, riprovo al prossimo giro'
 function segnalaNonTolta(e: EsitoAutopulizia, nome: string, t: { motivo?: string; temporaneo?: true }, testo: string): void {
   if (t.temporaneo !== true) { e.errori.push(`${nome}: ${testo}`); return }
   e.tenute.push({ cosa: nome, perche: TENUTA_FILE_IN_USO })
-  console.info(`[autopulizia] tengo ${nome}: file in uso (${(t.motivo ?? '').replace(/\s+/gu, ' ').slice(0, 100)})`)
+  tengoUnaVolta(`${nome}|${TENUTA_FILE_IN_USO}`, `[autopulizia] tengo ${nome}: file in uso (${(t.motivo ?? '').replace(/\s+/gu, ' ').slice(0, 100)})`)
+}
+
+/**
+ * Le copie tenute già scritte nel registro, per cartella e motivo (11/11). La riga «tengo …» usciva per
+ * ogni copia a ogni giro (all'avvio e ogni 6 ore): 324 righe in 4 giorni, sempre le stesse. Ora una copia
+ * tenuta si scrive una volta per motivo, finché il servizio vive; il conto di ogni giro resta nella riga
+ * del riepilogo («tenute N perché …»).
+ */
+const tenuteDette = new Set<string>()
+function tengoUnaVolta(chiave: string, riga: string): void {
+  if (tenuteDette.has(chiave)) return
+  if (tenuteDette.size >= 2000) tenuteDette.clear()
+  tenuteDette.add(chiave)
+  console.info(riga)
 }
 
 /** Un progetto: le copie, poi i rami. */
@@ -740,7 +754,7 @@ async function pulisciProgetto(o: OpzioniAutopulizia, radice: string, autopiloti
     if (d.togli && (copia.conGit === true || copia.registrata)) d =decidiCopia(copia, chatAdesso(), verifica)
     if (!d.togli) {
       if (d.perche === 'modifiche non salvate' || d.perche === 'commit non uniti' || (d.perche === 'stato non letto' && !copia.registrata)) {
-        console.info(`[autopulizia] tengo ${cartella}${copia.registrata ? '' : ' (non registrata, con .git)'}: ${d.perche}`)
+        tengoUnaVolta(`${cartella}|${d.perche}`, `[autopulizia] tengo ${cartella}${copia.registrata ? '' : ' (non registrata, con .git)'}: ${d.perche}`)
       }
       e.tenute.push({ cosa: n, perche: d.perche })
       continue

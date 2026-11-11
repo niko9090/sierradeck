@@ -408,6 +408,27 @@ describe('su disco, con un git finto', () => {
     expect(a.copieTolte).toBe(1)
   })
 
+  it('11/11: «tengo …» si scrive una volta per copia e motivo, non a ogni giro; il riepilogo le conta sempre', async () => {
+    const sporca = join(copie, 'ap-1-c-1')
+    mkdirSync(sporca)
+    writeFileSync(join(sporca, '.git'), 'gitdir: x\n')
+    archivio.scrivi(autopilota({ id: 'ap-1', cwd: progetto, chats: [chat('c-1', 'finita', { ramo: 'ap/ap-1/c-1' })] }))
+    const { git } = gitFinto({ registrati: [{ cartella: sporca, ramo: 'ap/ap-1/c-1' }], sporche: [sporca] })
+    const dette: string[] = []
+    const prima = console.info
+    console.info = (...a: unknown[]): void => { dette.push(String(a[0])) }
+    try {
+      for (let i = 0; i < 3; i += 1) {
+        const e = await autopulizia({ archivio, git: comeAsincrono(git), ora: DOPO })
+        expect(e.tenute).toEqual([{ cosa: 'ap-1-c-1', perche: 'modifiche non salvate' }])
+        expect(rigaRiepilogo(e)).toContain('modifiche non salvate (1)')
+      }
+    } finally {
+      console.info = prima
+    }
+    expect(dette.filter((r) => r.startsWith('[autopulizia] tengo') && r.includes('ap-1-c-1'))).toEqual([`[autopulizia] tengo ${sporca}: modifiche non salvate`])
+  })
+
   it('11/11: una copia con dentro un archivio .asar (una build dello specialista) se ne va come le altre', async () => {
     const d = join(copie, 'ap-0123abcd-c-7')
     mkdirSync(join(d, 'dist', 'win-unpacked', 'resources'), { recursive: true })

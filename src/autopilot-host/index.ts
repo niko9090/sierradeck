@@ -268,6 +268,10 @@ export function consoleNelRegistro(registro: Pick<Registro, 'info' | 'errore'>):
   let dentro = false
   const scrivi = (livello: 'info' | 'errore', a: unknown[]): void => {
     if (dentro) return
+    // 11/11: l'eco che il registro fa di ogni riga appena scritta («[registro] …») non è una riga nuova.
+    // Chi scriveva nel registro senza passare dalla console (l'avviso di Node, un'eccezione non gestita)
+    // usciva due volte, la seconda con «[registro]» davanti.
+    if (a.length === 1 && typeof a[0] === 'string' && a[0].startsWith('[registro] ')) return
     dentro = true
     try {
       const testo = format(...a)
