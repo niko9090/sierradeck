@@ -56,6 +56,21 @@ export function cartellaEsclusa(rel: string): boolean {
   return CARTELLE_ESCLUSE.some((c) => rel === c || rel.endsWith(`/${c}`))
 }
 
+/**
+ * I file di `.git` che vivono il tempo di un'operazione (11/11): i segni di
+ * un'unione a metà (`MERGE_HEAD`, `MERGE_MSG`, `MERGE_MODE`, `AUTO_MERGE`…), il
+ * segno della prova del programma (`sierradeck-prova.json`) e i lucchetti
+ * (`index.lock`, `HEAD.lock`…). A ogni unione di prova salivano sul Drive e
+ * subito dopo ne venivano tolti («conflitto… vince questo PC», «rimossi dal
+ * Drive»), e su un altro PC avrebbero fatto sembrare il progetto fermo a metà
+ * di un'unione o bloccato. Il resto di `.git` (la storia, i rami) viene come prima.
+ */
+export function transitorioDiGit(rel: string): boolean {
+  const dentro = /(?:^|\/)\.git\/(.+)$/.exec(rel)?.[1]
+  if (dentro === undefined) return false
+  return /^(?:MERGE_[A-Z_]+|AUTO_MERGE|sierradeck-prova\.json)$/.test(dentro) || /(?:^|\/)[^/]+\.lock$/.test(dentro)
+}
+
 /** Oltre questo un file non e' un sorgente: e' un binario che si scarica, non si sincronizza. */
 // 0.69.0: era 100 MB. Un file di progetto oltre 50 MB è quasi sempre un
 // binario che si rigenera o si scarica (APK, installer, video, archivi).
@@ -110,7 +125,7 @@ export async function elencaFileProgetto(
     const relDi = (nome: string): string => (rel === '' ? nome : `${rel}/${nome}`)
     // I file di questa cartella si misurano insieme, sedici alla volta (0.80.0):
     // uno alla volta il salvataggio passava minuti sui progetti grandi.
-    const daMisurare = voci.filter((v) => !v.isSymbolicLink() && v.isFile() && !ESCLUSI_SEMPRE.has(v.name) && !(binarioEscluso(v.name) && !dentroGit(relDi(v.name))) && !ignorato(qui, relDi(v.name), false))
+    const daMisurare = voci.filter((v) => !v.isSymbolicLink() && v.isFile() && !ESCLUSI_SEMPRE.has(v.name) && !(binarioEscluso(v.name) && !dentroGit(relDi(v.name))) && !transitorioDiGit(relDi(v.name)) && !ignorato(qui, relDi(v.name), false))
     const misure = await statInParallelo(daMisurare.map((v) => join(dir, v.name)))
     const dimensione = new Map(daMisurare.map((v, i) => [v.name, misure[i]?.size]))
     for (const v of voci) {
