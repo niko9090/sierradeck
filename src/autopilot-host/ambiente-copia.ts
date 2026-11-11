@@ -1,5 +1,5 @@
 import { copyFileSync, existsSync, lstatSync, rmdirSync, symlinkSync, unlinkSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { join, resolve, sep } from 'node:path'
 import type { EsitoVerifica } from './verifiche'
 
 /**
@@ -41,6 +41,25 @@ const eCollegamento = (p: string): boolean => {
 
 const esiste = (p: string): boolean => {
   try { lstatSync(p); return true } catch { return false }
+}
+
+/** Dove la CLI mette le copie dei subagenti, dentro la cartella principale. */
+const COPIE_SPECIALISTI = ['.claude', 'worktrees']
+
+/**
+ * **La radice della copia di uno specialista** (11/11), dal `cwd` del suo hook:
+ * `<principale>/.claude/worktrees/<nome>`, anche se lo specialista è sceso in
+ * una sottocartella. `undefined` se il `cwd` non sta lì dentro (la cartella
+ * principale, un'altra cartella, la cartella delle copie stessa): allora non
+ * c'è niente da preparare.
+ */
+export function radiceDellaCopia(cwd: string, principale: string): string | undefined {
+  const copie = resolve(principale, ...COPIE_SPECIALISTI)
+  const qui = resolve(cwd)
+  const minuscolo = (p: string): string => (process.platform === 'win32' ? p.toLowerCase() : p)
+  if (!minuscolo(qui).startsWith(minuscolo(copie) + sep)) return undefined
+  const nome = qui.slice(copie.length + 1).split(/[\\/]/)[0] ?? ''
+  return nome === '' || nome === '.' || nome === '..' ? undefined : join(copie, nome)
 }
 
 /**

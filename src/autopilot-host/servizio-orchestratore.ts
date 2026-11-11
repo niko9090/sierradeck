@@ -720,7 +720,7 @@ Il posto è tuo per 5 minuti.` })
       riassunto: git ? riassunto(ws) : `${riassunto(ws)}
 ${NOTA_SENZA_GIT}`,
       indice,
-      agenti: x.orchestratori.scriviFile(ws, 'agenti.json', fileAgenti(git)),
+      agenti: x.orchestratori.scriviFile(ws, 'agenti.json', fileAgenti(git, u.ramoBase)),
       impostazioniCli: x.orchestratori.scriviFile(ws, 'impostazioni-cli.json', fileImpostazioniCli(x.porta, u.id)),
       mcpConfig: x.orchestratori.scriviFile(ws, 'mcp.json', configMcpOrchestratore(x.porta, ws, gettoni.di(ws))),
       // Il tetto del workspace, dentro i posti del PC; senza git uno solo (lavorano nella stessa cartella).

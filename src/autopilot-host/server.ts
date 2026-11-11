@@ -26,7 +26,7 @@ import type { Archivio } from './archivio'
 import { interrottoPerTempo, type Esecutore } from './verifiche'
 import { conScadenza, PROVA_MAX_MS } from './tempi-unione'
 import { improntaCodiceAsincrona, misuraCriteri, type MemoriaCriteri } from './criteri-veloci'
-import { peggioratiDelRamo } from './ambiente-copia'
+import { peggioratiDelRamo, preparaCopia, radiceDellaCopia } from './ambiente-copia'
 import { criteriPerLaProva } from './criteri-prova'
 import { TURNI_PC, TurnoScaduto, type TurniCriteri } from './turni-criteri'
 import { giudicaPesanteAspettando, giudicaPesanteDellaChat, idAgente, rendiTurnoDopoComando, type GuardiaPc } from './guardia-pc'
@@ -441,6 +441,30 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     `${a.cwd}.sierradeck-wt`,
     ...a.chats.flatMap((c) => (c.cartella !== undefined ? [c.cartella] : []))
   ]
+  /**
+   * **La copia dello specialista pronta al primo comando** (11/11). La CLI apre
+   * la copia con i soli file tracciati: niente `node_modules`, niente
+   * `android/local.properties`. Ogni specialista doveva crearsi la giunzione a
+   * mano (e `mklink` da Bash la CLI lo rifiuta). Qui la mette il programma, una
+   * volta per specialista, al suo primo strumento (`preparaCopia`); dopo
+   * l'unione la stacca `togliCopiaUnita`, prima di togliere la copia.
+   */
+  const copiePreparate = new Set<string>()
+  const preparaCopiaDelloSpecialista = (a: Autopilota, corpo: Record<string, unknown>): void => {
+    const agente = idAgente(corpo)
+    if (agente === undefined || copiePreparate.has(agente) || typeof corpo.cwd !== 'string' || corpo.cwd === '') return
+    const copia = radiceDellaCopia(corpo.cwd, a.cwd)
+    if (copia === undefined) return
+    copiePreparate.add(agente)
+    if (copiePreparate.size > 500) copiePreparate.delete(copiePreparate.values().next().value as string)
+    try {
+      const r = preparaCopia(copia, a.cwd)
+      if (r.messi.length > 0) console.info(`[autopilota] ${a.id}::${agente} — copia preparata: ${r.messi.join(', ')}`)
+      if (r.mancano.length > 0) console.warn(`[autopilota] ${a.id}::${agente} — nella copia manca ${r.mancano.join(', ')}`)
+    } catch (err) {
+      console.warn(`[autopilota] ${a.id}::${agente} — copia non preparata:`, err)
+    }
+  }
   /** I segnali veri di un autopilota, chat per chat. */
   const segniVeriDi = (a: Autopilota): Record<string, SegnaleVero> => {
     const segniVeri: Record<string, SegnaleVero> = {}
@@ -1366,6 +1390,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           const a = leggiUnico(idAp)
           if (a === undefined) { rispondi(res, 200, {}); return }
           if (chatPre !== undefined && chatPre !== idAp && ID_VALIDO.test(chatPre)) segnaPartenza(idAp, chatPre)
+          preparaCopiaDelloSpecialista(a, corpo)
           const ruoloPre = chatPre !== undefined ? a.chats.find((c) => c.id === chatPre)?.ruolo : undefined
           const gRuolo = giudicaRuolo(corpo, ruoloPre)
           let g = gRuolo.ok ? giudicaStrumento(corpo, cartelleDi(a), { consenso: consensiCancella.per(idAp) }) : gRuolo

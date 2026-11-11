@@ -31,9 +31,33 @@ const LETTURA = ['Read', 'Grep', 'Glob']
 const SHELL = ['Bash', 'PowerShell']
 const SCRITTURA = ['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'TodoWrite']
 
+/** La copia può nascere indietro rispetto al ramo principale (lezioni dell'08–10/11): la prima mossa è allinearla. */
+const rigaAllinea = (base: string): string => `Per prima cosa allinea la tua copia, che può nascere indietro: \`git merge --ff-only ${base}\` (${base} è il ramo principale, ed è già un ramo locale della tua copia).`
+
+/**
+ * **Le regole fisse dei comandi nella copia** (11/11). A uno specialista
+ * isolato la CLI rifiuta ogni comando di cui non sa provare che resta nella
+ * sua copia («too complex to verify that it stays inside the worktree»): git
+ * dentro catene, heredoc, `$(…)`, `cmd /c`, `git -C` verso la principale. In
+ * tre giorni 82 rifiuti, ognuno riscoperto da capo: gli specialisti non
+ * ricevono il quaderno. Le regole non le possiamo togliere (sono della CLI):
+ * le diciamo prima. `node_modules` lo collega il programma (`preparaCopia`).
+ */
+const REGOLE_COPIA = [
+  'Regole dei comandi nella tua copia (la CLI rifiuta il resto; un comando rifiutato non si ripete uguale, si spezza):',
+  'un solo comando git per chiamata, semplice, senza `&&`, `;`, pipe, heredoc, `$(…)` o variabili intorno;',
+  'mai `cd` né `git -C` verso la cartella principale (per leggerla usa Read e Grep con il percorso assoluto; il ramo principale lo leggi da qui, per esempio `git diff main...HEAD`);',
+  'niente `cmd /c` e niente `powershell` lanciati da Bash (c’è lo strumento PowerShell);',
+  'ai test passa i file scritti per esteso, non `$(cat elenco)`;',
+  'i file si cambiano con Edit e Write, non con heredoc o sed.',
+  '`node_modules` è già collegato dal programma alla cartella vera: non creare giunzioni, non cancellarlo, non lanciare `npm install`.',
+  'Niente comandi in sottofondo e niente attese con sleep: se il PC è carico l’attesa la fa il programma, tu aspetti la fine del comando.'
+].join(' ')
+
 const COMUNE = [
   'Lavori per l’autopilota di SierraDeck, che coordina il workspace e parla con Nicholas: il compito, il criterio e i vincoli sono nel messaggio che ricevi.',
   'Lavori nella tua copia del progetto (un worktree tuo, su un ramo tuo). Fai commit quando un pezzo è compiuto. Non cambiare ramo, non toccare la cartella principale e non installare mai SierraDeck (scaricare e installare pacchetti, programmi e servizi su server o Synology sì, se il compito li chiede): il ramo lo prova e lo unisce l’autopilota, che misura il criterio. Se il compito è pubblicare, pubblichi tu dalla tua copia: push del ramo principale già unito (git push origin <ramo principale>), tag, release e file allegati. Per i file usa percorsi relativi alla tua copia (la cartella in cui parti), non quelli della cartella principale.',
+  `${rigaAllinea('main')} ${REGOLE_COPIA}`,
   'Se ti manca una decisione che non puoi prendere tu, fermati e dillo nel riepilogo finale («bloccato: …»): l’autopilota risponde, o chiede a Nicholas.',
   '',
   'Il tuo messaggio finale è il riepilogo che l’autopilota legge: cosa hai fatto, i file toccati, come l’hai verificato, cosa resta. In fondo le righe:',
@@ -91,6 +115,8 @@ export const RUOLI_AGENTI = Object.keys(AGENTI_ORCHESTRATORE)
 /** Al posto della riga sulla copia, quando il progetto non è un repository git. */
 const SENZA_GIT_RIGA = 'Il progetto non è un repository git: lavori direttamente nella cartella del progetto, e sei l’unico specialista al lavoro. Niente git (niente commit, niente init): tocca solo i file del tuo compito, e nel riepilogo elenca ogni file cambiato.'
 const RIGA_COPIA = COMUNE.split('\n')[1] as string
+/** La riga con l'allineamento e le regole dei comandi nella copia: senza git non c'è una copia, e la riga se ne va. */
+const RIGA_REGOLE_COPIA = COMUNE.split('\n')[2] as string
 
 /**
  * Gli specialisti per un progetto **senza git** (31/10/2026, GLOS: una
@@ -101,13 +127,21 @@ const RIGA_COPIA = COMUNE.split('\n')[1] as string
 export function agentiSenzaGit(): Record<string, DefinizioneAgente> {
   return Object.fromEntries(Object.entries(AGENTI_ORCHESTRATORE).map(([k, a]) => {
     const { isolation: _i, ...resto } = a
-    return [k, { ...resto, prompt: a.prompt.replace(RIGA_COPIA, SENZA_GIT_RIGA) }]
+    return [k, { ...resto, prompt: a.prompt.replace(RIGA_COPIA, SENZA_GIT_RIGA).replace(`\n${RIGA_REGOLE_COPIA}`, '') }]
   }))
 }
 
-/** Il contenuto di `agenti.json` per `--agents`. */
-export function fileAgenti(conGit = true): string {
-  return JSON.stringify(conGit ? AGENTI_ORCHESTRATORE : agentiSenzaGit(), null, 2)
+/**
+ * Il contenuto di `agenti.json` per `--agents`. `ramoBase` (11/11): il nome
+ * del ramo principale del progetto, per la riga che fa allineare la copia
+ * (di serie `main`).
+ */
+export function fileAgenti(conGit = true, ramoBase?: string): string {
+  if (!conGit) return JSON.stringify(agentiSenzaGit(), null, 2)
+  const base = ramoBase !== undefined && /^[\w./-]{1,100}$/u.test(ramoBase) && !ramoBase.startsWith('-') ? ramoBase : 'main'
+  if (base === 'main') return JSON.stringify(AGENTI_ORCHESTRATORE, null, 2)
+  const conBase = Object.fromEntries(Object.entries(AGENTI_ORCHESTRATORE).map(([k, a]) => [k, { ...a, prompt: a.prompt.replace(rigaAllinea('main'), rigaAllinea(base)).replace('`git diff main...HEAD`', `\`git diff ${base}...HEAD\``) }]))
+  return JSON.stringify(conBase, null, 2)
 }
 
 /** Il contenuto di `impostazioni-cli.json` per `--settings`: i divieti sui comandi, dal servizio. */
