@@ -58,12 +58,28 @@ const ap = (): Autopilota => ({
   chats: [{ id: 'c-1', compito: 'la release', stato: 'lavoro', cicli: 1, sessionId: 's-1' }]
 })
 
-/** `chiamate`: ogni comando git asincrono come «cartella|argomenti»; `cancello`: tiene ferma la prima lettura della radice della cartella principale (la pulizia della prova); `fallisci`: l'unione di prova non entra. */
-type Porte = { blocca?: Promise<void>; merge: string[]; chiamate?: string[]; cancello?: Promise<void>; fallisci?: boolean }
+/**
+ * `chiamate`: ogni comando git asincrono come «cartella|argomenti»; `cancello`: tiene ferma la prima lettura della radice della cartella principale (la pulizia della prova); `fallisci`: l'unione di prova non entra.
+ * `nonSalvati` (11/11): i file che lo specialista ha lasciato fuori dai commit nella sua copia; `salvati` diventa vero quando il programma li mette in un commit.
+ */
+type Porte = { blocca?: Promise<void>; merge: string[]; chiamate?: string[]; cancello?: Promise<void>; fallisci?: boolean; nonSalvati?: string[]; salvati?: boolean }
+
+/** La copia di lavoro dello specialista di R1, come la scrive `git worktree list`. */
+const COPIA_R1 = join(radice, '.claude', 'worktrees', R1.replace(/^worktree-/u, ''))
+const stessa = (a: string, b: string): boolean => a.replace(/\\/gu, '/').toLowerCase() === b.replace(/\\/gu, '/').toLowerCase()
 
 function gitDiProva(porte: Porte): { git: Git; asinc: GitAsincrono } {
-  const git: Git = (args) => {
+  const git: Git = (args, cwd) => {
     const a = args.join(' ')
+    if (porte.nonSalvati !== undefined && stessa(cwd, COPIA_R1)) {
+      // Dentro la copia dello specialista: è un worktree suo, sul suo ramo, con dei file non salvati.
+      if (a === 'rev-parse --show-toplevel') return { codice: 0, uscita: COPIA_R1.replace(/\\/gu, '/') }
+      if (a === 'rev-parse --abbrev-ref HEAD') return { codice: 0, uscita: R1 }
+      if (a === 'add -A') return { codice: 0, uscita: '' }
+      if (a === 'diff --cached --quiet') return { codice: porte.salvati === true ? 0 : 1, uscita: '' }
+      if (a === 'diff --cached --name-only') return { codice: 0, uscita: porte.nonSalvati.join('\n') }
+      if (args.includes('commit')) { porte.salvati = true; return { codice: 0, uscita: '' } }
+    }
     if (a === 'rev-parse --is-inside-work-tree') return { codice: 0, uscita: 'true' }
     if (a === 'rev-parse --show-toplevel') return { codice: 0, uscita: radice.replace(/\\/gu, '/') }
     if (a === 'rev-parse --abbrev-ref HEAD') return { codice: 0, uscita: 'main' }
@@ -442,5 +458,44 @@ describe('correzioni del revisore (10/11)', () => {
     await attendi(() => (orch.piano(WS).compiti.find((c) => c.id === 'k-119')?.esito ?? '').includes('unione non fatta'), { cosa: 'l’unione fallita', timeout: 5000 })
     await new Promise((ris) => setTimeout(ris, 200))
     expect(processi[0]!.scritte.join('\n')).not.toContain('Adesso sono pronti da lanciare')
+  })
+})
+
+/**
+ * 11/11: il «salva prima di unire» vale anche nella copia dello specialista
+ * (ramo `worktree-agent-<id>`), e l'esito dell'unione dice quali file ha messo
+ * il programma nel commit: un avanzo dello specialista non entra di nascosto.
+ */
+describe('il programma salva nella copia dello specialista e lo dice (11/11)', () => {
+  it('l’esito dell’unione e il diario elencano i file salvati dal programma', async () => {
+    zitto()
+    mkdirSync(COPIA_R1, { recursive: true })
+    let sblocca = (): void => {}
+    const porte: Porte = { merge: [], chiamate: [], nonSalvati: ['src/barra.ts', 'appunti.tmp'], blocca: new Promise<void>((ris) => { sblocca = ris }) }
+    await caso(porte)
+    await attendi(() => porte.merge.length === 1, { cosa: 'l’unione di k-119 è in corso' })
+    // Prima dell'unione il commit nella copia, con il nome dello specialista.
+    expect(porte.salvati).toBe(true)
+    expect(porte.chiamate!.some((c) => c.toLowerCase().startsWith(`${COPIA_R1.toLowerCase()}|`) && c.includes('commit -m specialista '))).toBe(true)
+    const prima = processi[0]!.scritte.length
+    sblocca()
+    await attendi(() => statoK('k-119') === 'unito', { cosa: 'k-119 unito' })
+    await attendi(() => scritteDa(prima).includes('Prima di unire il programma ha salvato lui'), { cosa: 'l’esito con i file salvati', timeout: 3000 })
+    expect(scritteDa(prima)).toContain('Prima di unire il programma ha salvato lui 2 file che non erano in un commit: src/barra.ts, appunti.tmp. Se qualcuno non c’entra con il lavoro, fallo togliere a uno specialista.')
+    const unico = archivio.leggi(orch.impostazioni(WS).autopilota!)!
+    expect(unico.decisioni.some((d) => d.cosa.includes('salvati dal programma prima di unire: src/barra.ts, appunti.tmp'))).toBe(true)
+  })
+
+  it('senza niente da salvare l’esito resta quello di prima', async () => {
+    zitto()
+    let sblocca = (): void => {}
+    const porte: Porte = { merge: [], blocca: new Promise<void>((ris) => { sblocca = ris }) }
+    await caso(porte)
+    await attendi(() => porte.merge.length === 1, { cosa: 'l’unione di k-119 è in corso' })
+    const prima = processi[0]!.scritte.length
+    sblocca()
+    await attendi(() => statoK('k-119') === 'unito', { cosa: 'k-119 unito' })
+    await attendi(() => scritteDa(prima).includes('k-119'), { cosa: 'l’esito dell’unione', timeout: 3000 })
+    expect(scritteDa(prima)).not.toContain('Prima di unire il programma ha salvato')
   })
 })

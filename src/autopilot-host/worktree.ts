@@ -351,15 +351,52 @@ function* firma(cwd: string): Passi<string[]> {
  * Torna vero se ha fatto un commit.
  */
 export function salvaLavoro(git: Git, cartella: string, messaggio: string): boolean {
-  return inLinea(git, salvaPassi(cartella, messaggio))
+  return inLinea(git, salvaPassi(cartella, messaggio)).salvato
 }
 
 export function salvaLavoroAsincrono(git: GitAsincrono, cartella: string, messaggio: string): Promise<boolean> {
+  return aspettando(git, salvaPassi(cartella, messaggio)).then((e) => e.salvato)
+}
+
+/** Cosa ha salvato il programma: i file finiti nel suo commit (vuoto se non ne ha fatto uno). */
+export type EsitoSalvataggio = { salvato: boolean; file: string[] }
+
+/** `salvaLavoro` che dice anche quali file ha messo nel commit (11/11): chi unisce lo racconta, e un avanzo si vede. */
+export function salvaLavoroConFile(git: Git, cartella: string, messaggio: string): EsitoSalvataggio {
+  return inLinea(git, salvaPassi(cartella, messaggio))
+}
+
+export function salvaLavoroConFileAsincrono(git: GitAsincrono, cartella: string, messaggio: string): Promise<EsitoSalvataggio> {
   return aspettando(git, salvaPassi(cartella, messaggio))
 }
 
-function* salvaPassi(cartella: string, messaggio: string): Passi<boolean> {
-  if (!existsSync(cartella)) return false
+/**
+ * La copia di lavoro di uno specialista (11/11): la cartella che Claude Code gli
+ * dà, `<progetto>/.claude/worktrees/agent-<id>`, sul suo ramo `worktree-agent-<id>`.
+ * `radice` è quella che dice git da dentro la copia. Il «salva prima di unire»
+ * valeva solo per i rami `ap/…` delle chat: per gli specialisti era sempre
+ * rifiutato, e le modifiche che non avevano messo in un commit restavano fuori
+ * dall'unione (tre copie così il 10/11).
+ */
+export function eCopiaDiSpecialista(radice: string, ramo: string): boolean {
+  const m = /[\\/]\.claude[\\/]worktrees[\\/](agent-[^\\/]+)[\\/]*$/u.exec(radice)
+  return m !== null && ramo.toLowerCase() === `worktree-${m[1]!.toLowerCase()}`
+}
+
+/** I rifiuti già scritti nel registro, uno per cartella e motivo: un'unione in attesa richiama ogni 30 s (2.000 righe il 10-11/11). */
+const rifiutiDetti = new Set<string>()
+function rifiutoUnaVolta(cartella: string, motivo: string): void {
+  const chiave = `${normale(cartella)}|${motivo}`
+  if (rifiutiDetti.has(chiave)) return
+  if (rifiutiDetti.size >= 500) rifiutiDetti.clear()
+  rifiutiDetti.add(chiave)
+  console.warn(`[autopilota] non salvo in ${cartella}: ${motivo}`)
+}
+
+const NON_SALVATO: EsitoSalvataggio = { salvato: false, file: [] }
+
+function* salvaPassi(cartella: string, messaggio: string): Passi<EsitoSalvataggio> {
+  if (!existsSync(cartella)) return NON_SALVATO
   // **Solo sul ramo dell'autopilota** (0.71.0). Una cartella che non è (più) un
   // worktree vero fa risalire git al repository che la contiene: il 13/10, nella
   // prova, un worktree mancato dentro `note/` ha fatto un commit con tutto il
@@ -370,17 +407,21 @@ function* salvaPassi(cartella: string, messaggio: string): Passi<boolean> {
   // suo lavoro in corso.
   const radice = yield* radicePassi(cartella)
   if (radice === undefined || !(stessaCartella(radice, cartella) || (yield* sottocartellaDelRamo(radice, cartella)))) {
-    console.warn(`[autopilota] non salvo in ${cartella}: non è un worktree suo (git risale a ${radice ?? 'nessun repository'})`)
-    return false
+    rifiutoUnaVolta(cartella, `non è un worktree suo (git risale a ${radice ?? 'nessun repository'})`)
+    return NON_SALVATO
   }
   const ramo = yield* ramoPassi(cartella)
-  if (ramo === undefined || !ramo.startsWith('ap/')) {
-    console.warn(`[autopilota] non salvo in ${cartella}: è sul ramo «${ramo ?? '?'}», non su un ramo dell'autopilota`)
-    return false
+  // 11/11: anche la copia di uno specialista, sul suo ramo `worktree-agent-<id>`, come i rami `ap/…`.
+  if (ramo === undefined || !(ramo.startsWith('ap/') || eCopiaDiSpecialista(radice, ramo))) {
+    rifiutoUnaVolta(cartella, `è sul ramo «${ramo ?? '?'}», non su un ramo dell'autopilota`)
+    return NON_SALVATO
   }
-  if ((yield* chiedi(['add', '-A'], cartella)).codice !== 0) return false
-  if ((yield* chiedi(['diff', '--cached', '--quiet'], cartella)).codice === 0) return false
-  return (yield* chiedi([...(yield* firma(cartella)), 'commit', '-m', messaggio, '--no-verify'], cartella)).codice === 0
+  if ((yield* chiedi(['add', '-A'], cartella)).codice !== 0) return NON_SALVATO
+  if ((yield* chiedi(['diff', '--cached', '--quiet'], cartella)).codice === 0) return NON_SALVATO
+  // I nomi prima del commit: dopo non c'è più niente «in attesa» da elencare.
+  const nomi = yield* chiedi(['diff', '--cached', '--name-only'], cartella)
+  const salvato = (yield* chiedi([...(yield* firma(cartella)), 'commit', '-m', messaggio, '--no-verify'], cartella)).codice === 0
+  return salvato ? { salvato: true, file: nomi.codice === 0 ? soloFile(nomi.uscita) : [] } : NON_SALVATO
 }
 
 export type EsitoUnione =
