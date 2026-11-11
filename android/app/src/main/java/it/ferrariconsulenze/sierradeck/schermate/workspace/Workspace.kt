@@ -61,6 +61,9 @@ import it.ferrariconsulenze.sierradeck.nucleo.RigaChiLavora
 import it.ferrariconsulenze.sierradeck.nucleo.RigaRichiesta
 import it.ferrariconsulenze.sierradeck.nucleo.TestaWorkspace
 import it.ferrariconsulenze.sierradeck.nucleo.VistaAttesa
+import it.ferrariconsulenze.sierradeck.nucleo.SchedaBreve
+import it.ferrariconsulenze.sierradeck.nucleo.SchedaPiena
+import it.ferrariconsulenze.sierradeck.nucleo.TipoErrore
 import it.ferrariconsulenze.sierradeck.schermate.comune.Aiuto
 import it.ferrariconsulenze.sierradeck.schermate.comune.BarraAvanzamento
 import it.ferrariconsulenze.sierradeck.schermate.comune.CasellaScrivi
@@ -83,6 +86,9 @@ interface FonteWorkspace {
     suspend fun specialista(id: String): List<String>?
     /** «Precedenza» (cima) o «Ferma»: true se il PC l'ha presa. */
     suspend fun mossa(id: String, mossa: String): Boolean
+    /** Le schede del quaderno del progetto; null se non si leggono. */
+    suspend fun quaderno(): List<SchedaBreve>? = null
+    suspend fun scheda(file: String): SchedaPiena? = null
 }
 
 /** Una chat del workspace, per il «⋯». */
@@ -149,8 +155,9 @@ fun CorpoWorkspace(
 ) {
     var linguetta by rememberSaveable(id) { mutableStateOf(linguettaIniziale) }
     var guarda by remember(id) { mutableStateOf<RigaChiLavora?>(null) }
+    var quaderno by remember(id) { mutableStateOf(false) }
     Column(Modifier.fillMaxSize()) {
-        Intestazione(testa, chats, onApriChat, onIndietro)
+        Intestazione(testa, chats, onApriChat, onIndietro, onQuaderno = if (fonte != null) ({ quaderno = true }) else null)
         TabRow(selectedTabIndex = linguetta, containerColor = Banco.chassis, contentColor = Banco.accento) {
             Tab(selected = linguetta == 0, onClick = { linguetta = 0 }, text = { Text("Chat") }, modifier = Modifier.heightIn(min = 48.dp))
             Tab(selected = linguetta == 1, onClick = { linguetta = 1 }, text = { Text("Chi lavora · ${chi.count { it.alLavoro }}") }, modifier = Modifier.heightIn(min = 48.dp))
@@ -169,10 +176,49 @@ fun CorpoWorkspace(
         )
     }
     guarda?.let { g -> if (fonte != null) Specialista(g, fonte) { guarda = null } }
+    if (quaderno && fonte != null) Quaderno(testa.nome, fonte) { quaderno = false }
+}
+
+/** Il quaderno del progetto, da leggere: l'elenco delle schede, una per tocco. */
+@Composable
+private fun Quaderno(nome: String, fonte: FonteWorkspace, onChiudi: () -> Unit) {
+    var schede by remember { mutableStateOf<List<SchedaBreve>?>(null) }
+    var aperta by remember { mutableStateOf<SchedaPiena?>(null) }
+    var errore by remember { mutableStateOf(false) }
+    val ambito = rememberCoroutineScope()
+    LaunchedEffect(Unit) { val l = fonte.quaderno(); if (l == null) errore = true else schede = l }
+    BackHandler { if (aperta != null) aperta = null else onChiudi() }
+    Column(Modifier.fillMaxSize().background(Banco.fondo)) {
+        Row(Modifier.fillMaxWidth().background(Banco.chassis), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = { if (aperta != null) aperta = null else onChiudi() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Indietro") }
+            Column(Modifier.weight(1f)) {
+                Text("Quaderno", style = MaterialTheme.typography.labelMedium, color = Banco.testoQuieto)
+                Text(aperta?.titolo ?: nome, style = MaterialTheme.typography.titleSmall, color = Banco.testo, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        val a = aperta
+        val l = schede
+        when {
+            a != null -> SelectionContainer { LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp)) { item { Text(a.corpo, style = MaterialTheme.typography.bodyMedium, color = Banco.testo) } } }
+            errore -> Text(RegoleSchermate.fraseErrore(TipoErrore.RETE), color = Banco.testoQuieto, modifier = Modifier.padding(16.dp))
+            l == null -> Text("Leggo…", color = Banco.testoQuieto, modifier = Modifier.padding(16.dp))
+            l.isEmpty() -> Text("Il quaderno è vuoto.", color = Banco.testoQuieto, modifier = Modifier.padding(16.dp))
+            else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 8.dp)) {
+                items(l, key = { it.file }) { s ->
+                    TextButton(onClick = { ambito.launch { aperta = fonte.scheda(s.file) } }, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 8.dp)) {
+                        Column(Modifier.fillMaxWidth()) {
+                            Text(s.titolo.ifBlank { s.file }, style = MaterialTheme.typography.titleSmall, color = Banco.testo, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            if (s.assaggio.isNotBlank()) Text(s.assaggio, style = MaterialTheme.typography.bodySmall, color = Banco.testoQuieto, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
-private fun Intestazione(t: TestaWorkspace, chats: List<ChatDelWorkspace>, onApriChat: (String) -> Unit, onIndietro: () -> Unit) {
+private fun Intestazione(t: TestaWorkspace, chats: List<ChatDelWorkspace>, onApriChat: (String) -> Unit, onIndietro: () -> Unit, onQuaderno: (() -> Unit)?) {
     var menu by remember { mutableStateOf(false) }
     val colore = coloreTono(t.tono)
     Column(Modifier.fillMaxWidth().background(Banco.chassis).padding(end = 4.dp, bottom = 8.dp)) {
@@ -185,6 +231,7 @@ private fun Intestazione(t: TestaWorkspace, chats: List<ChatDelWorkspace>, onApr
             Box {
                 IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Altro") }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    if (onQuaderno != null) DropdownMenuItem(text = { Text("Quaderno") }, onClick = { menu = false; onQuaderno() })
                     if (chats.isEmpty()) DropdownMenuItem(text = { Text("Nessuna chat in questo workspace") }, onClick = { menu = false }, enabled = false)
                     for (c in chats) DropdownMenuItem(text = { Text(c.titolo, maxLines = 1, overflow = TextOverflow.Ellipsis) }, onClick = { menu = false; onApriChat(c.id) })
                 }

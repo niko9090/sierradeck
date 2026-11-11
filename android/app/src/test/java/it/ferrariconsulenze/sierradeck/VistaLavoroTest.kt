@@ -109,4 +109,12 @@ class VistaLavoroTest {
         assertEquals("in corso", r[0].stato)
         assertNull(ComponiWorkspace.testa(null, "id", null).percento)
     }
+
+    @Test fun salvaliEUnisciEPiuTardi() {
+        val c = conv("u", listOf(SceltaScheda("Salvali e unisci"), SceltaScheda("Lascia stare")))
+        assertEquals(TipoDomanda.UNISCI, ComponiLavoro.componi(Stato(), 1, false, listOf(c), emptyMap(), 0).domande.single().tipo)
+        val ora = 1_000_000L
+        assertTrue(it.ferrariconsulenze.sierradeck.schermate.altro.PiuTardi.nascosta(ora + it.ferrariconsulenze.sierradeck.schermate.altro.PiuTardi.UN_GIORNO, ora + 1))
+        assertTrue(!it.ferrariconsulenze.sierradeck.schermate.altro.PiuTardi.nascosta(ora, ora + 1))
+    }
 }

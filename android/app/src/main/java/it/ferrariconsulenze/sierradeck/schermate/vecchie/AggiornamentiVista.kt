@@ -308,12 +308,9 @@ internal fun AggiornamentoApp(api: Api) {
     }
 
     trovata?.let { (nome, apk) ->
-        DialogoAggiornamentoApp(
-            nome = nome,
-            apk = apk,
-            avviaScarico = { indirizzo, onProgresso, onGuasto ->
-                Scaricamento.apk(contesto, indirizzo, onProgresso, onGuasto)
-            },
+        it.ferrariconsulenze.sierradeck.schermate.altro.DialogoAggiornaApp(
+            nome = nome, apk = apk,
+            onPiuTardi = { it.ferrariconsulenze.sierradeck.schermate.altro.PiuTardi.rimanda(contesto, nome); trovata = null },
             onChiudi = { trovata = null }
         )
     }

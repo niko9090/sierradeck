@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.onLast
 import com.github.takahirom.roborazzi.captureRoboImage
 import it.ferrariconsulenze.sierradeck.nucleo.AdessoTelefono
 import it.ferrariconsulenze.sierradeck.nucleo.AutopilotaBreve
@@ -53,6 +54,8 @@ import androidx.compose.foundation.layout.Box
 import it.ferrariconsulenze.sierradeck.schermate.file.CorpoFile
 import it.ferrariconsulenze.sierradeck.dati.CodaFile
 import it.ferrariconsulenze.sierradeck.sottofondo.Ricevuto
+import it.ferrariconsulenze.sierradeck.schermate.altro.CorpoDialogoApp
+import it.ferrariconsulenze.sierradeck.schermate.altro.FaseApp
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -74,9 +77,11 @@ class FotoSchermateTest {
 
     private val ora = Instant.parse("2026-11-11T10:00:00Z").toEpochMilli()
 
-    private fun foto(nome: String, cosa: @Composable () -> Unit) {
+    private fun foto(nome: String, dialogo: Boolean = false, cosa: @Composable () -> Unit) {
         regola.setContent { TemaSierraDeck { Surface(Modifier.fillMaxSize(), color = Banco.fondo) { cosa() } } }
-        regola.onRoot().captureRoboImage("build/foto-schermate/$nome.png")
+        // Un dialogo è una finestra a sé: si fotografa quella.
+        if (dialogo) regola.onAllNodes(androidx.compose.ui.test.isRoot()).onLast().captureRoboImage("build/foto-schermate/$nome.png")
+        else regola.onRoot().captureRoboImage("build/foto-schermate/$nome.png")
     }
 
     private val autopiloti = listOf(
@@ -192,6 +197,16 @@ class FotoSchermateTest {
                 Ricevuto("r2", "copertina.png", "/finto/copertina.png", 820_000, "PC dello studio", ora - 3_600_000, salvatoIn = "Download/SierraDeck")
             )
         )
+    }
+
+    @Test fun lavoroSalvaliEUnisci() = foto("lavoro-salvali-e-unisci") {
+        val c = domanda("d3", "La chat «Prove del meteo» ha lavoro non salvato. Che faccio?",
+            listOf(SceltaScheda("Salvali e unisci", consigliata = true), SceltaScheda("Lascia stare")))
+        CorpoLavoro(ComponiLavoro.componi(Stato(autopiloti = autopiloti.take(1)), ora, false, listOf(c), emptyMap(), ora))
+    }
+
+    @Test fun aggiornaAppDopoAndroid() = foto("aggiorna-app", dialogo = true) {
+        CorpoDialogoApp("2.101.0", FaseApp.ANDROID, 100, null)
     }
 
     @Test fun altroElenco() = foto("altro") { ElencoAltro {} }

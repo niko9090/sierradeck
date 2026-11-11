@@ -117,6 +117,11 @@ fun SchedaDomandaNuova(d: DomandaLavoro, onRispondi: (String) -> Unit, onScriviT
                     TastoScelta(s, largo = true) { if (s.conConferma) conferma = s else onRispondi(s.testo) }
                     s.conseguenza?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Banco.testoQuieto, modifier = Modifier.padding(start = 4.dp, top = 2.dp)) }
                 }
+            } else if (d.tipo == TipoDomanda.UNISCI) {
+                // «Salvali e unisci»: i due tasti affiancati, uguali.
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for (s in d.scelte) Box(Modifier.weight(1f)) { TastoScelta(s, largo = true) { onRispondi(s.testo) } }
+                }
             } else {
                 for (s in d.scelte) TastoScelta(s, largo = true) { onRispondi(s.testo) }
             }

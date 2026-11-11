@@ -72,6 +72,9 @@ import it.ferrariconsulenze.sierradeck.nucleo.RegoleSchermate
 import it.ferrariconsulenze.sierradeck.schermate.chat.SchermataDettaglioChat
 import it.ferrariconsulenze.sierradeck.schermate.chat.fonteStoria
 import it.ferrariconsulenze.sierradeck.schermate.altro.SchermataAltro
+import it.ferrariconsulenze.sierradeck.schermate.altro.BandaAppNuova
+import it.ferrariconsulenze.sierradeck.schermate.altro.DialogoAggiornaApp
+import it.ferrariconsulenze.sierradeck.schermate.altro.PiuTardi
 import it.ferrariconsulenze.sierradeck.sottofondo.ToccoAvviso
 import it.ferrariconsulenze.sierradeck.schermate.workspace.FonteApi
 import it.ferrariconsulenze.sierradeck.schermate.workspace.SchermataWorkspace
@@ -84,8 +87,6 @@ import it.ferrariconsulenze.sierradeck.rete.Scoperta
 import it.ferrariconsulenze.sierradeck.schermate.tema.Banco
 import it.ferrariconsulenze.sierradeck.schermate.vecchie.AltriComputer
 import it.ferrariconsulenze.sierradeck.schermate.vecchie.Apertura
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.BandaAggiornamentoApp
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.DialogoAggiornamentoApp
 import it.ferrariconsulenze.sierradeck.schermate.vecchie.NotaGlobale
 import it.ferrariconsulenze.sierradeck.schermate.vecchie.SchermataChat
 import it.ferrariconsulenze.sierradeck.schermate.vecchie.SchermoInstallazione
@@ -177,7 +178,7 @@ private fun Collegata(vm: RadiceViewModel, pc: PcNoto, onEsci: () -> Unit) {
             Column {
                 RigaInAlto(pc, Parola.di(contatto), elenco, onRiprova = vm::riprova, onScegli = vm::scegli, onAggiungi = { vm.scegli(null) })
                 Apertura.aggiornamento?.let { (nome, _) ->
-                    BandaAggiornamentoApp(nome = nome, onAggiorna = { dialogoApp = true }, onChiudi = { Apertura.aggiornamento = null })
+                    if (!PiuTardi.nascosta(contesto, nome)) BandaAppNuova(nome, onAggiorna = { dialogoApp = true }, onPiuTardi = { PiuTardi.rimanda(contesto, nome); Apertura.aggiornamento = null })
                 }
             }
         },
@@ -201,9 +202,9 @@ private fun Collegata(vm: RadiceViewModel, pc: PcNoto, onEsci: () -> Unit) {
         }
     }
     if (dialogoApp) Apertura.aggiornamento?.let { (nome, apk) ->
-        DialogoAggiornamentoApp(
+        DialogoAggiornaApp(
             nome = nome, apk = apk,
-            avviaScarico = { indirizzoApk, onProgresso, onGuasto -> Scaricamento.apk(contesto, indirizzoApk, onProgresso, onGuasto) },
+            onPiuTardi = { PiuTardi.rimanda(contesto, nome); Apertura.aggiornamento = null; dialogoApp = false },
             onChiudi = { dialogoApp = false }
         )
     }
@@ -291,7 +292,8 @@ private fun GuscioLavoro(pc: PcNoto, api: Api, dettaglio: Dettaglio?, copia: Dep
         is Dettaglio.Autopilota -> {
             val a = copia.stato?.autopiloti?.firstOrNull { it.id == dettaglio.id }
             val nomeWs = a?.workspace
-            val fonte = remember(api, dettaglio.id) { FonteApi(api, dettaglio.id) { nomeWs } }
+            val cwd = a?.cwd
+            val fonte = remember(api, dettaglio.id) { FonteApi(api, dettaglio.id, cartella = { cwd }) { nomeWs } }
             SchermataWorkspace(
                 pc = pc.id, id = dettaglio.id,
                 testa = ComponiWorkspace.testa(a, dettaglio.id, null),

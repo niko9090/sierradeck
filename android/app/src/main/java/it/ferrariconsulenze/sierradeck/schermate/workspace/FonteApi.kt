@@ -4,13 +4,15 @@ import it.ferrariconsulenze.sierradeck.nucleo.AvanzamentoAutopilota
 import it.ferrariconsulenze.sierradeck.nucleo.Battuta
 import it.ferrariconsulenze.sierradeck.nucleo.Stato
 import it.ferrariconsulenze.sierradeck.nucleo.VistaAttesa
+import it.ferrariconsulenze.sierradeck.nucleo.SchedaBreve
+import it.ferrariconsulenze.sierradeck.nucleo.SchedaPiena
 import it.ferrariconsulenze.sierradeck.rete.Api
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
 /** Le letture della pagina dal PC vero. Un errore = null: resta quello che si vedeva. */
-class FonteApi(private val api: Api, private val id: String, private val workspace: () -> String?) : FonteWorkspace {
+class FonteApi(private val api: Api, private val id: String, private val cartella: () -> String? = { null }, private val workspace: () -> String?) : FonteWorkspace {
     private suspend fun <T> prova(f: suspend () -> T): T? = try { f() } catch (e: CancellationException) { throw e } catch (_: Exception) { null }
 
     override suspend fun chat(): List<Battuta>? = prova { api.autopilota(id).chat }
@@ -19,6 +21,8 @@ class FonteApi(private val api: Api, private val id: String, private val workspa
     override suspend fun specialista(id: String): List<String>? = prova {
         api.specialista(workspace() ?: "", id).righe.map { r -> r.testo }.filter { it.isNotBlank() }
     }
+    override suspend fun quaderno(): List<SchedaBreve>? = cartella()?.takeIf { it.isNotBlank() }?.let { c -> prova { api.quaderno(c).schede } }
+    override suspend fun scheda(file: String): SchedaPiena? = cartella()?.takeIf { it.isNotBlank() }?.let { c -> prova { api.scheda(c, file) } }
     override suspend fun mossa(id: String, mossa: String): Boolean = prova {
         api.grezzo("/api/specialisti/attesa/priorita", buildJsonObject { put("id", id); put("mossa", mossa) }.toString())
     } != null
