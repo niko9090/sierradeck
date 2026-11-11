@@ -288,11 +288,14 @@ describe('un Agent rifiutato o rilanciato non azzera un compito (11/11, k-133)',
 })
 
 describe('compito senza specialisti in memoria: il cancello chiede a git (11/11, k-6, k-8, k-10, k-120)', () => {
-  const info = (): ReturnType<typeof vi.spyOn> => {
+  /** Zitto come `zitto`, ma torna quello che il programma ha scritto nel registro (info). */
+  const info = (): (() => string) => {
     vi.spyOn(console, 'log').mockImplementation(() => {})
     vi.spyOn(console, 'error').mockImplementation(() => {})
     vi.spyOn(console, 'warn').mockImplementation(() => {})
-    return vi.spyOn(console, 'info').mockImplementation(() => {})
+    const dette: string[] = []
+    vi.spyOn(console, 'info').mockImplementation((...a: unknown[]) => { dette.push(String(a[0])) })
+    return () => dette.join('\n')
   }
 
   it('un’analisi finita, senza ramo: si chiude col suo criterio (dal ruolo salvato, o dall’esito dei compiti di prima)', async () => {
@@ -489,7 +492,7 @@ describe('compito senza specialisti in memoria: il cancello chiede a git (11/11,
     await avviaServizio(porte, { cartella, archivio })
     server!.riprendiLavori({ servizioAppenaPartito: true })
     await attendi(() => k('k-8')?.stato === 'unito', { cosa: 'k-8 chiuso dopo il riavvio' })
-    const dette = spia.mock.calls.map((c) => String(c[0])).join('\n')
+    const dette = spia()
     expect(dette).toContain('unione di k-8 ripresa dopo il riavvio')
     expect(dette).not.toContain('unione di k-6 ripresa dopo il riavvio')
     expect(k('k-6')!.stato).toBe('in-revisione')
