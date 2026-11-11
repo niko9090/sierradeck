@@ -19,6 +19,7 @@ import type { Esito } from './client-server'
 import type { Dispositivi } from './dispositivi'
 import { pcPerApp } from './rete-telefono'
 import { leggiRichiestaStoria, rispostaStoria, RIGHE_STORIA_MAX } from '@shared/storia-chat'
+import { filtraSessioni, leggiRichiestaSessioni, paginaDi } from '@shared/sessioni-pagine'
 import { chiaveFermo, eFermo, riparteDaSolo, type Autopilota } from '@shared/autopilota'
 import { codaConversazione } from '@shared/autopilota-leggero'
 import { autopilotaPerTelefono, battuteLeggere, specialistiLeggeri } from '@shared/autopilota-telefono'
@@ -2154,7 +2155,10 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       const tutte = conArchiviate || deps.gestioneChat === undefined ? tutteConArchiviate : tutteConArchiviate.filter((s) => !(deps.gestioneChat as { eArchiviata: (x: string) => boolean }).eArchiviata(s.id))
       const archiviate = tutteConArchiviate.length - tutte.length
       const conAnonime = typeof r.corpo === 'object' && r.corpo !== null && (r.corpo as { senzaNome?: unknown }).senzaNome === true
-      const elenco = (conAnonime ? tutte : tutte.filter((s) => s.senzaNome !== true)).slice(0, 30)
+      // A pagine e con la ricerca (m-collegamento, `@shared/sessioni-pagine`): prima solo le prime 30.
+      const rsess = leggiRichiestaSessioni(r.corpo, r.cerca)
+      const pag = paginaDi(filtraSessioni(conAnonime ? tutte : tutte.filter((s) => s.senzaNome !== true), rsess.cerca), rsess.pagina)
+      const elenco = pag.voci
       const nascoste = conAnonime ? 0 : tutte.filter((s) => s.senzaNome === true).length
       const conAltrove = elenco.map((s) => ({ s, su: deps.chatAltrove?.(s.cwd) }))
       // «su X · acceso / spento», come l'elenco «Riprendi» sul computer
@@ -2175,7 +2179,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
           ...(idDi.has(su) ? { altrovePc: idDi.get(su) } : {})
         }),
         nascoste,
-        ...(archiviate > 0 ? { archiviate } : {})
+        ...(archiviate > 0 ? { archiviate } : {}),
+        ...pag.conto
       })
     }
 
