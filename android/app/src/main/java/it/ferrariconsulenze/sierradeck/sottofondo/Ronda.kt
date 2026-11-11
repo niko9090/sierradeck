@@ -9,17 +9,15 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.RemoteInput
 import org.json.JSONObject
-import okhttp3.Request
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.RequestBody.Companion.toRequestBody
 import it.ferrariconsulenze.sierradeck.MainActivity
 import it.ferrariconsulenze.sierradeck.R
 import it.ferrariconsulenze.sierradeck.RispostaVeloce
 import it.ferrariconsulenze.sierradeck.dati.Collegamento
 import it.ferrariconsulenze.sierradeck.nucleo.PcCorrente
-import it.ferrariconsulenze.sierradeck.rete.Indirizzi
+import it.ferrariconsulenze.sierradeck.rete.Api
 import it.ferrariconsulenze.sierradeck.rete.Percorsi
 import it.ferrariconsulenze.sierradeck.rete.Rete
+import kotlinx.coroutines.runBlocking
 import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
 
 /**
@@ -170,14 +168,7 @@ object Ronda {
             .toString()
         Thread {
             try {
-                Percorsi.provando(collegamento.indirizzo) { base ->
-                    val richiesta = Request.Builder()
-                        .url("$base/api/avviso-mostrato")
-                        .header("x-sierradeck-chiave", collegamento.chiave)
-                        .post(corpo.toRequestBody("application/json".toMediaType()))
-                        .build()
-                    Rete.clientePer(Indirizzi.hostDi(base)).newCall(richiesta).execute().close()
-                }
+                runBlocking { Api(collegamento.indirizzo, collegamento.chiave).grezzo("/api/avviso-mostrato", corpo) }
             } catch (_: Exception) { }
         }.start()
     }
@@ -199,17 +190,8 @@ object Ronda {
      * computer niente da trovare.
      */
     private fun leggiStato(collegamento: Collegamento): JSONObject? = try {
-        // Sull'indirizzo che risponde adesso (rete di casa o Tailscale, k-50).
-        Percorsi.provando(collegamento.indirizzo) { base ->
-            val richiesta = Request.Builder()
-                .url("$base/api/stato")
-                .header("x-sierradeck-chiave", collegamento.chiave)
-                .build()
-            Rete.clientePer(Indirizzi.hostDi(base))
-                .newCall(richiesta).execute().use { r ->
-                    if (!r.isSuccessful) null else JSONObject(r.body?.string() ?: "")
-                }
-        }
+        // Dal Centralino (11/11), come le schermate.
+        runBlocking { JSONObject(Api(collegamento.indirizzo, collegamento.chiave).statoGrezzo()) }
     } catch (e: Exception) {
         // Il computer spento, il wifi cambiato, la rete che va e viene: sono i
         // casi normali di una guardia, non guasti da segnalare.

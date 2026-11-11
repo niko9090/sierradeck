@@ -5,16 +5,12 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import androidx.core.app.NotificationCompat
 import androidx.core.app.RemoteInput
 import kotlin.concurrent.thread
 import it.ferrariconsulenze.sierradeck.dati.Collegamento
-import it.ferrariconsulenze.sierradeck.rete.Indirizzi
-import it.ferrariconsulenze.sierradeck.rete.Percorsi
-import it.ferrariconsulenze.sierradeck.rete.Rete
+import it.ferrariconsulenze.sierradeck.rete.Api
+import kotlinx.coroutines.runBlocking
 import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
 
 /**
@@ -99,22 +95,16 @@ class RispostaVeloce : BroadcastReceiver() {
     private fun manda(collegamento: Collegamento, percorso: String, corpo: String): Boolean {
         if (!collegamento.pronto) return false
         return try {
-            Percorsi.provando(collegamento.indirizzo) { base ->
-                val richiesta = Request.Builder()
-                    .url("$base$percorso")
-                    .header("x-sierradeck-chiave", collegamento.chiave)
-                    .post(corpo.toRequestBody(JSON_MEDIA))
-                    .build()
-                Rete.clientePer(Indirizzi.hostDi(base))
-                    .newCall(richiesta).execute().use { it.isSuccessful }
-            }
+            // Dal Centralino (11/11): la strada giusta, la prova d'identità, l'id
+            // della richiesta (un secondo tocco non fa un doppione sul PC).
+            runBlocking { Api(collegamento.indirizzo, collegamento.chiave).grezzo(percorso, corpo) }
+            true
         } catch (e: Exception) {
             Log.e("SierraDeck", "risposta dalla notifica non partita", e)
             false
         }
     }
 
-    private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
 
     private fun aggiorna(contesto: Context, id: Int, testo: String) {
         if (id == 0) return

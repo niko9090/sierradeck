@@ -20,6 +20,9 @@ object Davanti {
 
     val adesso: Boolean get() = stato.value
 
+    /** Lo stesso, da ascoltare (il Centralino riprova quando l'app torna davanti). */
+    val flusso: kotlinx.coroutines.flow.StateFlow<Boolean> get() = stato
+
     fun imposta(davanti: Boolean) { stato.value = davanti }
 
     /**

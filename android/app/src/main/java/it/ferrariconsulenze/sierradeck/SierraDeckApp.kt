@@ -1,6 +1,7 @@
 package it.ferrariconsulenze.sierradeck
 
 import android.app.Application
+import it.ferrariconsulenze.sierradeck.dati.Telefono
 import it.ferrariconsulenze.sierradeck.rete.Percorsi
 import it.ferrariconsulenze.sierradeck.rete.Rete
 import it.ferrariconsulenze.sierradeck.sottofondo.Guasti
@@ -21,5 +22,6 @@ class SierraDeckApp : Application() {
         Guasti.prendiNota(this)
         Rete.ricorda(this)
         Percorsi.osserva(this)
+        Telefono.avvia(this)
     }
 }

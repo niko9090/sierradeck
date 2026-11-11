@@ -8,6 +8,7 @@ import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import it.ferrariconsulenze.sierradeck.dati.Collegamento
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody
@@ -150,7 +151,21 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
      * volta, con la stessa chiave: il PC lo si riconosce dall'impronta prima di
      * mandargliela.
      */
-    private suspend fun corpoTestoDiretto(percorso: String, corpo: RequestBody?, lenta: Boolean = percorso in ROTTE_LENTE): String =
+    private suspend fun corpoTestoDiretto(percorso: String, corpo: RequestBody?, lenta: Boolean = percorso in ROTTE_LENTE): String {
+        // Il Centralino (11/11), quando conosce questo PC: gara fra le strade,
+        // prova d'identità prima della chiave, attese dopo i fallimenti, id
+        // delle scritture, tetti per rotta. Le stesse eccezioni di prima.
+        val centralino = it.ferrariconsulenze.sierradeck.dati.Telefono.centralino
+        val rubrica = it.ferrariconsulenze.sierradeck.dati.Telefono.rubrica
+        val noto = rubrica?.pc(Collegamento.pulisci(indirizzo))
+        if (centralino != null && noto != null && (chiave.isNullOrBlank() || noto.chiave == chiave)) {
+            val testo = corpo?.let { val b = okio.Buffer(); it.writeTo(b); b.readUtf8() }
+            return centralino.chiama(noto.id, percorso, testo).oLancia()
+        }
+        return corpoTestoVecchio(percorso, corpo, lenta)
+    }
+
+    private suspend fun corpoTestoVecchio(percorso: String, corpo: RequestBody?, lenta: Boolean): String =
         withContext(Dispatchers.IO) {
             val base = Percorsi.effettivo(indirizzo)
             try {
@@ -295,6 +310,9 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
      * altre, ponte compreso. Un `IOException` vuol dire rete caduta: l'invio
      * chiede al PC dove era arrivato e riparte.
      */
+    /** Una chiamata col corpo già scritto (`null` = GET): per chi non ha un modello, come le notifiche e la guardia. */
+    suspend fun grezzo(percorso: String, corpoJson: String?): String = corpoTesto(percorso, corpoJson?.toRequestBody(JSON_MEDIA))
+
     fun trasporto(): Trasporto = object : Trasporto {
         override suspend fun chiama(percorso: String, corpo: JsonObject): String =
             corpoTesto(percorso, json.encodeToString(JsonObject.serializer(), corpo).toRequestBody(JSON_MEDIA))

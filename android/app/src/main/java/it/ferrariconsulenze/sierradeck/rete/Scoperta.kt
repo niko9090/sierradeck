@@ -44,6 +44,9 @@ object Scoperta {
     private val daRisolvere = ArrayDeque<NsdServiceInfo>()
     private var risolvendo = false
 
+    /** Chiamato con l'impronta di ogni PC appena visto in rete (il Centralino riprova subito quel PC). */
+    @Volatile var quandoVisto: ((String) -> Unit)? = null
+
     /** Gli indirizzi visti per quell'impronta (vuoto se non c'è o se non è stata ancora vista). */
     fun indirizziDi(impronta: String): List<String> =
         if (impronta.isBlank()) emptyList()
@@ -120,6 +123,7 @@ object Scoperta {
                                 vistiPerNome[i.serviceName] = Trovato(impronta, a, i.serviceName.removePrefix("SierraDeck-"))
                             }
                             pubblica()
+                            try { quandoVisto?.invoke(impronta) } catch (e: Exception) { }
                         }
                     } finally {
                         finito()
