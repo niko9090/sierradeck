@@ -87,6 +87,38 @@ describe('il controllo di tutti i PC (0.88.9)', () => {
     expect(readFileSync(join(cartella, rapporto), 'utf8')).toContain('risposta non leggibile, versione vecchia?')
   })
 
+  it('un PC lento (504) si riprova una volta; se poi risponde non c’è criticità', async () => {
+    const radice = mkdtempSync(join(tmpdir(), 'sd-controllo-'))
+    let chiamate = 0
+    const r = await giroControlloPc({
+      radice: () => radice, io: () => ({ id: 'a', nome: 'Qui' }), altri: () => [{ pcId: 'b', nome: 'Altro' }],
+      saluteQui: () => Promise.resolve(salute()),
+      saluteDi: () => { chiamate += 1; return chiamate === 1 ? Promise.reject(Object.assign(new Error('non ha finito'), { stato: 504 })) : Promise.resolve(salute()) },
+      autopiloti: () => Promise.resolve([]), affida: () => Promise.resolve(), adesso: () => 0, log: () => undefined, riprovaMs: 1
+    })
+    expect(chiamate).toBe(2)
+    expect(r.criticita).toBe(0)
+  })
+
+  it('un PC che resta lento non è «non risponde»: nessuna criticità, nel rapporto «lento, riprovo»', async () => {
+    const lento = Object.assign(new Error('risponde, ma non ha finito'), { stato: 504 })
+    expect(criticitaDi([{ pcId: 'b', nome: 'Altro', errore: 'x', lento: true }], [])).toEqual([])
+    const radice = mkdtempSync(join(tmpdir(), 'sd-controllo-'))
+    const r = await giroControlloPc({
+      radice: () => radice, io: () => ({ id: 'a', nome: 'Qui' }), altri: () => [{ pcId: 'b', nome: 'Altro' }, { pcId: 'c', nome: 'Spento' }],
+      saluteQui: () => Promise.resolve(salute(), ),
+      saluteDi: (id) => id === 'b' ? Promise.reject(lento) : Promise.reject(new Error('nessuna risposta')),
+      autopiloti: () => Promise.resolve([]), affida: () => Promise.resolve(), adesso: () => 0, log: () => undefined, riprovaMs: 1
+    })
+    expect(r.criticita).toBe(1)
+    const cartella = join(radice, '.sierradeck', 'errori-arrivati')
+    const rapporto = readdirSync(cartella).find((f) => f.startsWith('controllo-'))!
+    const testo = readFileSync(join(cartella, rapporto), 'utf8')
+    expect(testo).toContain('**Altro**')
+    expect(testo).toContain('lento, riprovo')
+    expect(testo).toContain('**Spento** · non risponde')
+  })
+
   it('senza la cartella di SierraDeck (non è il PC di sviluppo) non fa niente', async () => {
     let chiesto = false
     const r = await giroControlloPc({
