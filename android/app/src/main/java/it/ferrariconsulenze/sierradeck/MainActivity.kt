@@ -23,6 +23,9 @@ import it.ferrariconsulenze.sierradeck.rete.Percorsi
 import it.ferrariconsulenze.sierradeck.rete.Scoperta
 import it.ferrariconsulenze.sierradeck.schermate.comune.DialogoGuasto
 import it.ferrariconsulenze.sierradeck.schermate.tema.TemaSierraDeck
+import it.ferrariconsulenze.sierradeck.schermate.radice.Radice
+import it.ferrariconsulenze.sierradeck.sottofondo.Installazione
+import it.ferrariconsulenze.sierradeck.sottofondo.RicevitoreConsegne
 import it.ferrariconsulenze.sierradeck.schermate.vecchie.Apertura
 import it.ferrariconsulenze.sierradeck.schermate.vecchie.Condivisione
 import it.ferrariconsulenze.sierradeck.schermate.vecchie.Nota
@@ -52,14 +55,18 @@ class MainActivity : ComponentActivity() {
         // adesso, su GitHub, anche a computer spento e ad app chiusa.
         try { ControlloApp.programma(applicationContext) } catch (e: Exception) { android.util.Log.i("SierraDeck", "controllo dell'app non programmato: ${e.message}") }
 
-        val deposito = Collegamento(this)
+        // Le sveglie di sempre: la guardia a schermo spento, i file dal PC.
+        try {
+            Sentinella.programma(applicationContext)
+            RicevitoreConsegne.programma(applicationContext)
+            if (Collegamento(this).controlloContinuo) GuardiaService.avvia(applicationContext)
+        } catch (e: Exception) { android.util.Log.i("SierraDeck", "sveglie non programmate: ${e.message}") }
+        Installazione.riprendi(applicationContext)
+
         apriDoveChiede(intent)
         setContent {
             TemaSierraDeck {
-                // L'aggiornamento dell'app vive dentro `App` (una striscia in
-                // alto che si chiude), non piu' qui come finestra all'avvio.
-                // La radice nuova arriva nel prossimo passo dell'ossatura.
-                androidx.compose.material3.Text("SierraDeck")
+                Radice(scansionaQr = ::scansionaQr, onEsci = { finish() })
 
                 // La nota dell'ultima caduta. La si scriveva gia' e non la
                 // leggeva nessuno: l'app spariva, e al riavvio non restava una

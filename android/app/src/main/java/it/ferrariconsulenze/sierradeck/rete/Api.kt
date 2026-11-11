@@ -158,7 +158,7 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
         val centralino = it.ferrariconsulenze.sierradeck.dati.Telefono.centralino
         val rubrica = it.ferrariconsulenze.sierradeck.dati.Telefono.rubrica
         val noto = rubrica?.pc(Collegamento.pulisci(indirizzo))
-        if (centralino != null && noto != null && (chiave.isNullOrBlank() || noto.chiave == chiave)) {
+        if (centralino != null && noto != null && !chiave.isNullOrBlank() && noto.chiave == chiave) {
             val testo = corpo?.let { val b = okio.Buffer(); it.writeTo(b); b.readUtf8() }
             return centralino.chiama(noto.id, percorso, testo).oLancia()
         }

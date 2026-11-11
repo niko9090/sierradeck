@@ -3,53 +3,42 @@ package it.ferrariconsulenze.sierradeck.schermate.radice
 import it.ferrariconsulenze.sierradeck.schermate.vecchie.Scheda
 
 /**
- * **Le quattro voci fisse** (app 2.83.0, PC 0.83.0): Adesso, Chat, Progetti,
- * Altro. Nicholas (21/10): «fruibile al meglio, veloce, graficamente intuitiva
- * e leggibile». Prima erano sette, con i nomi su due righe a 10 sp
- * («Autopilo-ti», «Imposta-zioni»); ogni funzione di prima ha qui il suo posto
- * (mappa: `.sierradeck/quaderno/app-android-0-83-0.md`).
+ * **Tre voci** (app nuova, 11/11): Lavoro · File · Altro. Nicholas: «da capo,
+ * e migliorala». Lavoro tiene quello che prima stava in Workspace, Chat e
+ * Progetti (domande, autopiloti, chat, progetti); File i file dei PC e quelli
+ * ricevuti; Altro salute, computer, aggiornamenti, consumi e preferenze.
  *
- * L'ordine e i nomi vengono da `MENU_TELEFONO` in `src/shared/menu-principale.ts`,
- * scritti in `assets/menu.json`: `NavigazioneTest` controlla che questo enum sia
- * uguale, come la pagina servita dal PC.
- *
- * «Adesso» era stata tolta nella 0.61.0 perché nove volte su dieci era vuota.
- * Questa è un'altra cosa: le domande per te in cima, sotto gli autopiloti.
+ * Le voci di prima (`MENU_TELEFONO` del PC, scritte in `assets/menu.json`)
+ * hanno ognuna un posto qui: `NavigazioneTest` lo controlla, così nessuna
+ * funzione resta senza casa.
  */
 enum class VoceBarra(val id: String, val nome: String) {
-    // App 2.90.0: si apre su «Workspace» (id invariato: le notifiche e la pagina del PC lo chiamano ancora così).
-    ADESSO("adesso", "Workspace"),
-    CHAT("chat", "Chat"),
-    PROGETTI("progetti", "Progetti"),
-    ALTRO("altro", "Altro")
-}
+    LAVORO("lavoro", "Lavoro"),
+    FILE("file", "File"),
+    ALTRO("altro", "Altro");
 
-/** Le linguette in cima a una voce, la prima è quella di partenza. Adesso e Altro non ne hanno. */
-fun linguetteDi(v: VoceBarra): List<String> = when (v) {
-    // App 2.90.0: i workspace si gestiscono dal tasto «Workspace» della lista, il Negozio sta in Altro;
-    // il contenuto del Drive sta sotto Progetti, le code dei progetti non esistono più sul PC.
-    VoceBarra.PROGETTI -> listOf("Progetti", "File")
-    else -> emptyList()
+    companion object {
+        /** Dove sta adesso una voce di prima (`menu.json` → `telefono[].id`). */
+        fun daVoceDiPrima(id: String): VoceBarra? = when (id) {
+            "adesso", "chat", "progetti" -> LAVORO
+            "file" -> FILE
+            "altro" -> ALTRO
+            else -> null
+        }
+    }
 }
 
 /**
- * Le sezioni di «Altro»: un elenco, e una sezione per tocco. Prima erano le
- * schede Salute e Impostazioni, una sotto l'altra in una pagina lunga.
- * `impostazione` è l'id della sezione delle impostazioni del PC
- * (`assets/impostazioni.json`) che le fa da testata, se c'è.
+ * Le sezioni di «Altro»: un elenco, una sezione per tocco. `impostazione` è
+ * l'id della sezione delle impostazioni del PC (`assets/impostazioni.json`).
  */
 enum class SezioneAltro(val titolo: String, val sotto: String, val impostazione: String? = null, val gruppo: String = "Sistema") {
-    // App 2.90.0: a gruppi, nell'ordine in cui servono.
     SALUTE("Salute del sistema", "Da sistemare, computer, Drive, errori"),
     ALTRI_PC("Computer", "Accesi o spenti, chat dal vivo, cassetta", "computer"),
     AGGIORNAMENTI("Aggiornamenti", "L’app e il computer", "aggiornamenti"),
     CONSUMI("Consumi", "Token, limiti del piano, contesto"),
-    SPECIALISTI("Specialisti", "Chi lavora, chi è in fila per un posto"),
-    AVVISI("Avvisi", "Controllo continuo, quali notifiche", "notifiche", "Preferenze"),
-    ASPETTO("Aspetto", "Banco o Foglio, chiarore", "aspetto", "Preferenze"),
+    AVVISI("Notifiche", "Quali suonano, ore di silenzio", "notifiche", "Preferenze"),
     DRIVE("Drive", "Account Google, cassaforte, salvataggio", "drive", "Preferenze"),
-    CHAT("Chat", "Workspace a elenco, Torna come prima", "chat", "Preferenze"),
-    NEGOZIO("Negozio", "Plugin, skill, agenti e MCP delle chat", null, "Strumenti"),
     QUADERNO("Quaderno personale", "Le tue note per tutte le chat", null, "Strumenti"),
     INFO("Info ed errori", "Versioni, Copia i dettagli, errori", "info", "Aiuto");
 
@@ -58,73 +47,133 @@ enum class SezioneAltro(val titolo: String, val sotto: String, val impostazione:
         fun diImpostazione(id: String, voce: String? = null): SezioneAltro = when (id) {
             "aggiornamenti" -> AGGIORNAMENTI
             "computer" -> ALTRI_PC
-            "chat" -> if (voce == "quaderno-personale") QUADERNO else CHAT
+            "chat" -> if (voce == "quaderno-personale") QUADERNO else INFO
             "drive" -> DRIVE
-            "aspetto" -> ASPETTO
             "notifiche" -> AVVISI
             else -> INFO
         }
     }
 }
 
-/**
- * Dove si è: la voce, la linguetta di ogni voce (si ricorda tornandoci) e la
- * sezione di Altro aperta. I dettagli dentro una schermata (una chat, un
- * autopilota, una cartella) li tiene la schermata, con il suo «indietro».
- */
-data class Posto(
-    val voce: VoceBarra = VoceBarra.ADESSO,
-    val linguette: Map<VoceBarra, Int> = emptyMap(),
-    val sezione: SezioneAltro? = null
-) {
-    val linguetta: Int get() = linguette[voce] ?: 0
+/** Una pagina aperta sopra una voce: il dettaglio che «indietro» chiude per primo. */
+sealed interface Dettaglio {
+    data class Chat(val id: String) : Dettaglio
+    data class Autopilota(val id: String) : Dettaglio
+    data class Domanda(val id: String) : Dettaglio
+    data class Cartella(val progetto: String, val percorso: String = "") : Dettaglio
+    data class Sezione(val sezione: SezioneAltro) : Dettaglio
 }
 
 /**
- * La regola della barra e di «indietro», uguale in tutte e quattro le voci (e
- * nella pagina servita dal PC):
+ * Dove si è: la voce e, per ogni voce, la pila dei dettagli aperti (si
+ * ritrovano tornandoci). Sta in un `Posto` solo, salvato con la rotazione e
+ * con la morte del processo (`Navigazione.salva`/`riprendi`).
+ */
+data class Posto(
+    val voce: VoceBarra = VoceBarra.LAVORO,
+    val pile: Map<VoceBarra, List<Dettaglio>> = emptyMap()
+) {
+    val pila: List<Dettaglio> get() = pile[voce].orEmpty()
+    val dettaglio: Dettaglio? get() = pila.lastOrNull()
+}
+
+/** Chi chiede di aprire l'app in un posto: una notifica toccata, un'altra app che condivide. */
+sealed interface Richiesta {
+    data class Domanda(val id: String?) : Richiesta
+    data class Chat(val id: String) : Richiesta
+    data class Autopilota(val id: String) : Richiesta
+    data class Cartella(val progetto: String, val percorso: String = "") : Richiesta
+    data object Lavori : Richiesta
+    data object Aggiornamenti : Richiesta
+}
+
+/**
+ * La regola della barra e di «indietro», uguale nelle tre voci:
  *
- * 1. chiude il dialogo o il menu aperto;
- * 2. chiude il dettaglio aperto (chat, autopilota, cartella, progetto, sezione di Altro);
- * 3. torna alla prima linguetta della voce;
- * 4. torna ad Adesso;
- * 5. da Adesso esce dall'app.
- *
- * I passi 1 e 2 dentro una schermata li fanno i suoi `BackHandler`, che stanno
- * più in fondo e quindi vincono; qui la sezione di Altro e i passi 3-5.
+ * 1. chiude il dialogo o il menu aperto (lo fa la schermata, col suo `BackHandler`);
+ * 2. chiude l'ultimo dettaglio aperto;
+ * 3. torna a Lavoro;
+ * 4. da Lavoro esce dall'app.
  */
 object Navigazione {
-    /** Si apre su Adesso: le domande per te sono la prima cosa da vedere. */
     val INIZIO = Posto()
 
-    /** Il tocco su una voce della barra. Sulla voce in cui sei già: torna al suo inizio. */
+    /** Il tocco su una voce. Sulla voce in cui sei già: torna al suo inizio. */
     fun tocca(p: Posto, v: VoceBarra): Posto =
-        if (p.voce == v) p.copy(linguette = p.linguette - v, sezione = null)
-        else p.copy(voce = v, sezione = null)
+        if (p.voce == v) p.copy(pile = p.pile - v) else p.copy(voce = v)
 
-    fun linguetta(p: Posto, i: Int): Posto =
-        if (i == 0) p.copy(linguette = p.linguette - p.voce) else p.copy(linguette = p.linguette + (p.voce to i))
+    /** Apre un dettaglio sopra la voce dove sta (uno uguale già in cima non si ripete). */
+    fun apri(p: Posto, d: Dettaglio): Posto {
+        val voce = voceDi(d) ?: p.voce
+        val pila = p.pile[voce].orEmpty()
+        val nuova = if (pila.lastOrNull() == d) pila else (pila - d) + d
+        return p.copy(voce = voce, pile = p.pile + (voce to nuova))
+    }
 
-    fun apri(p: Posto, s: SezioneAltro): Posto = p.copy(voce = VoceBarra.ALTRO, sezione = s)
+    private fun voceDi(d: Dettaglio): VoceBarra? = when (d) {
+        is Dettaglio.Chat, is Dettaglio.Autopilota, is Dettaglio.Domanda -> VoceBarra.LAVORO
+        is Dettaglio.Cartella -> VoceBarra.FILE
+        is Dettaglio.Sezione -> VoceBarra.ALTRO
+    }
 
     /** Dove porta «indietro»; `null` = si esce dall'app. */
     fun indietro(p: Posto): Posto? = when {
-        p.sezione != null -> p.copy(sezione = null)
-        p.linguetta != 0 -> p.copy(linguette = p.linguette - p.voce)
-        p.voce != VoceBarra.ADESSO -> p.copy(voce = VoceBarra.ADESSO)
+        p.pila.isNotEmpty() -> p.copy(pile = p.pile + (p.voce to p.pila.dropLast(1)))
+        p.voce != VoceBarra.LAVORO -> p.copy(voce = VoceBarra.LAVORO)
         else -> null
     }
 
-    /**
-     * Dove porta una destinazione di prima (`Scheda`): le notifiche, «Apri la
-     * chat», «Apri cartella», «Chat di X dal vivo» la chiedono ancora così.
-     */
+    /** Una notifica o un'altra app chiede di aprire un posto. */
+    fun verso(p: Posto, r: Richiesta): Posto = when (r) {
+        is Richiesta.Domanda -> if (r.id != null) apri(p.copy(pile = p.pile - VoceBarra.LAVORO), Dettaglio.Domanda(r.id)) else p.copy(voce = VoceBarra.LAVORO, pile = p.pile - VoceBarra.LAVORO)
+        is Richiesta.Chat -> apri(p.copy(pile = p.pile - VoceBarra.LAVORO), Dettaglio.Chat(r.id))
+        is Richiesta.Autopilota -> apri(p.copy(pile = p.pile - VoceBarra.LAVORO), Dettaglio.Autopilota(r.id))
+        is Richiesta.Cartella -> apri(p.copy(pile = p.pile - VoceBarra.FILE), Dettaglio.Cartella(r.progetto, r.percorso))
+        Richiesta.Lavori -> p.copy(voce = VoceBarra.LAVORO, pile = p.pile - VoceBarra.LAVORO)
+        Richiesta.Aggiornamenti -> apri(p.copy(pile = p.pile - VoceBarra.ALTRO), Dettaglio.Sezione(SezioneAltro.AGGIORNAMENTI))
+    }
+
+    /** Le destinazioni di prima (`Scheda`), che le schermate vecchie chiedono ancora. */
     fun verso(p: Posto, s: Scheda): Posto = when (s) {
-        Scheda.DOMANDE, Scheda.AUTOPILOTI -> p.copy(voce = VoceBarra.ADESSO, sezione = null)
-        Scheda.CHAT -> p.copy(voce = VoceBarra.CHAT, linguette = p.linguette - VoceBarra.CHAT, sezione = null)
-        Scheda.PROGETTI -> p.copy(voce = VoceBarra.PROGETTI, linguette = p.linguette - VoceBarra.PROGETTI, sezione = null)
-        Scheda.FILE -> p.copy(voce = VoceBarra.PROGETTI, linguette = p.linguette + (VoceBarra.PROGETTI to 1), sezione = null)
-        Scheda.SALUTE -> p.copy(voce = VoceBarra.ALTRO, sezione = SezioneAltro.SALUTE)
-        Scheda.IMPOSTAZIONI -> p.copy(voce = VoceBarra.ALTRO, sezione = null)
+        Scheda.DOMANDE, Scheda.AUTOPILOTI, Scheda.CHAT, Scheda.PROGETTI -> p.copy(voce = VoceBarra.LAVORO, pile = p.pile - VoceBarra.LAVORO)
+        Scheda.FILE -> p.copy(voce = VoceBarra.FILE, pile = p.pile - VoceBarra.FILE)
+        Scheda.SALUTE -> apri(p.copy(pile = p.pile - VoceBarra.ALTRO), Dettaglio.Sezione(SezioneAltro.SALUTE))
+        Scheda.IMPOSTAZIONI -> p.copy(voce = VoceBarra.ALTRO, pile = p.pile - VoceBarra.ALTRO)
+    }
+
+    // ─── salvataggio (rotazione, processo ucciso) ───
+
+    /** In righe di testo: semplice da tenere in un `Bundle` e da leggere nei test. */
+    fun salva(p: Posto): ArrayList<String> {
+        val righe = arrayListOf("voce|${p.voce.id}")
+        for ((v, pila) in p.pile) for (d in pila) righe += "${v.id}|" + when (d) {
+            is Dettaglio.Chat -> "chat|${d.id}"
+            is Dettaglio.Autopilota -> "autopilota|${d.id}"
+            is Dettaglio.Domanda -> "domanda|${d.id}"
+            is Dettaglio.Cartella -> "cartella|${d.progetto}|${d.percorso}"
+            is Dettaglio.Sezione -> "sezione|${d.sezione.name}"
+        }
+        return righe
+    }
+
+    fun riprendi(righe: List<String>?): Posto {
+        if (righe.isNullOrEmpty()) return INIZIO
+        var p = INIZIO
+        val pile = linkedMapOf<VoceBarra, MutableList<Dettaglio>>()
+        for (r in righe) {
+            val pezzi = r.split('|')
+            if (pezzi[0] == "voce") { p = p.copy(voce = VoceBarra.entries.firstOrNull { it.id == pezzi.getOrNull(1) } ?: VoceBarra.LAVORO); continue }
+            val v = VoceBarra.entries.firstOrNull { it.id == pezzi[0] } ?: continue
+            val d: Dettaglio = when (pezzi.getOrNull(1)) {
+                "chat" -> Dettaglio.Chat(pezzi.drop(2).joinToString("|"))
+                "autopilota" -> Dettaglio.Autopilota(pezzi.drop(2).joinToString("|"))
+                "domanda" -> Dettaglio.Domanda(pezzi.drop(2).joinToString("|"))
+                "cartella" -> Dettaglio.Cartella(pezzi.getOrElse(2) { "" }, pezzi.drop(3).joinToString("|"))
+                "sezione" -> SezioneAltro.entries.firstOrNull { it.name == pezzi.getOrNull(2) }?.let { Dettaglio.Sezione(it) } ?: continue
+                else -> continue
+            }
+            pile.getOrPut(v) { mutableListOf() } += d
+        }
+        return p.copy(pile = pile.mapValues { it.value.toList() })
     }
 }

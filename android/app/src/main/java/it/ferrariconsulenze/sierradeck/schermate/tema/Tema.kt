@@ -199,7 +199,7 @@ fun TemaSierraDeck(content: @Composable () -> Unit) {
 
 /**
  * Una scala di testo sola (app 2.89.0): titoli un filo più pesanti e stretti,
- * corpo a 15 sp con interlinea comoda, etichette a 12 sp. Prima era la
+ * corpo a 15 sp con interlinea comoda; niente sotto i 14 sp (app nuova, 11/11). Prima era la
  * `Typography()` di Material senza ritocchi.
  */
 private fun tipografia(): Typography {
@@ -213,10 +213,10 @@ private fun tipografia(): Typography {
         titleSmall = base.titleSmall.con(14, FontWeight.SemiBold, 20),
         bodyLarge = base.bodyLarge.con(15, FontWeight.Normal, 22),
         bodyMedium = base.bodyMedium.con(14, FontWeight.Normal, 20),
-        bodySmall = base.bodySmall.con(13, FontWeight.Normal, 18),
+        bodySmall = base.bodySmall.con(14, FontWeight.Normal, 20),
         labelLarge = base.labelLarge.con(14, FontWeight.Medium, 20),
-        labelMedium = base.labelMedium.con(13, FontWeight.Medium, 18),
-        labelSmall = base.labelSmall.con(12, FontWeight.Medium, 16, 0.2)
+        labelMedium = base.labelMedium.con(14, FontWeight.Medium, 20),
+        labelSmall = base.labelSmall.con(14, FontWeight.Medium, 18, 0.1)
     )
 }
 

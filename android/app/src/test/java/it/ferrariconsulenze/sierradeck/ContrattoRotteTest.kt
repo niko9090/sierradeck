@@ -1,5 +1,6 @@
 package it.ferrariconsulenze.sierradeck
 
+import it.ferrariconsulenze.sierradeck.rete.Strade
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -23,6 +24,9 @@ class ContrattoRotteTest {
     @Test
     fun `le rotte lente dell'app comprendono quelle del ponte del PC`() {
         assertEquals(emptyList<String>(), elenco("lente").filter { it !in Api.ROTTE_LENTE })
+        // Il Centralino (11/11) usa le sue: devono comprendere le stesse.
+        assertEquals(emptyList<String>(), elenco("lente").filter { it !in Strade.LENTE })
+        assertEquals(emptyList<String>(), Api.ROTTE_LENTE.filter { it !in Strade.LENTE })
     }
 
     @Test
