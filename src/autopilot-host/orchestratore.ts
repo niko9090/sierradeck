@@ -76,7 +76,8 @@ export type AvviaProcesso = (p: { args: string[]; cwd: string; env: Record<strin
 export const MODELLO_ORCHESTRATORE = 'opus'
 /** Gli eventi esterni (non i messaggi) si raccolgono un poco, per partire insieme. */
 export const RACCOLTA_EVENTI_MS = 30_000
-export const CHIAMATE_PC_MAX = 2
+/** Quanti autopiloti (uno per workspace) possono avere un turno aperto insieme sul PC. 11/11: da 2 a 3, con tre workspace vivi il terzo aspettava il turno degli altri. */
+export const CHIAMATE_PC_MAX = 3
 export const ROTAZIONE_TOKEN = 80_000
 export const BATTUTE_SEMINA = 10
 export const INATTIVO_MS = 10 * 60_000
