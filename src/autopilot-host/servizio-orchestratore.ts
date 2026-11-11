@@ -15,11 +15,11 @@ import { RUOLI } from '@shared/ruoli-agenti'
 import { modelloAutopilotaAmmesso } from '@shared/modelli'
 import { righeLezioni } from '@shared/lezioni-chat'
 import { esaminaComando, principaleSporca } from '@shared/controllo-comandi'
-import { domandaControllataSubito, domandaPerRegistro } from '@shared/domanda-strutturata'
+import { DOMANDA_MAX, domandaControllataSubito, domandaPerRegistro, noteSulTesto, testoDomanda } from '@shared/domanda-strutturata'
 import type { ArchivioCode } from './coda-store'
 import { migraAutopiloti, misuraDaAutopiloti } from './coda-autopiloti'
 import { soloInChat, type ContestoDomanda, type RegistroDomande } from './domande'
-import { chiusaDopoLaDomanda, devePassareAlleDomande, richiestaChiusa, richiestaDellaDomanda, rispostaInCoda, scelteDaToccare } from './domande-in-chat'
+import { chiusaDopoLaDomanda, devePassareAlleDomande, richiestaChiusa, richiestaDellaDomanda, rispostaInCoda, scelteDaToccare, scelteProposte } from './domande-in-chat'
 import { aperteSulloStesso, risoltaDalloStato } from './domande-doppie'
 import { dimenticaIRossi, improntaCodiceAsincrona, misuraCriteri, type MemoriaCriteri } from './criteri-veloci'
 import { criteriPerLaProva } from './criteri-prova'
@@ -1175,22 +1175,25 @@ ${NOTA_SENZA_GIT}`,
 
   /**
    * `inChat` (0.96.0): la domanda nasce nella chat dell'autopilota; nelle Domande,
-   * nel conteggio e nelle notifiche passa dopo (`emergiDomande`). I permessi no:
-   * uno specialista li aspetta e sono urgenti.
+   * nel conteggio e nelle notifiche passa dopo (`emergiDomande`). Dall'11/11 i
+   * permessi non passano più di qui: li decide il programma.
    */
   const apriDomanda = (a: Autopilota, ws: string, domanda: string, scelte: string[], perche: string, opz: { inChat?: boolean; richiestaId?: string } = {}): ReturnType<RegistroDomande['apri']> => {
     // 0.89.4: «cosa sta facendo» dice il lavoro vero, non «coordino gli specialisti».
     const inLavoro = coda(ws).richieste.filter((r) => r.stato !== 'fatta' && r.compiti.length > 0).map((r) => r.titolo)
-    const pronta = domandaControllataSubito(a.nome, {
+    const controllata = domandaControllataSubito(a.nome, {
       staFacendo: inLavoro.length > 0 ? `lavora a: ${inLavoro.slice(0, 2).map((t) => `«${t.slice(0, 80)}»`).join(', ')}${inLavoro.length > 2 ? ` e altre ${inLavoro.length - 2}` : ''}` : 'aspetta la tua decisione per andare avanti',
       domanda,
       perche,
-      scelte: scelte.map((s, i) => {
-        const [scelta, conseguenza] = s.split(/\s*(?:→|->)\s*/u, 2)
-        return { scelta: (scelta ?? s).trim(), conseguenza: (conseguenza ?? '').trim(), ...(i === 0 ? { consigliata: true } : {}) }
-      }),
+      scelte: scelteProposte(scelte),
       seNonRispondi: 'intanto porto avanti il resto; fra un giorno la domanda si chiude e decido io con la scelta consigliata, se non è rischiosa'
     })
+    // 11/11: l'avvertenza «⚠ Domanda incompleta anche dopo la riscrittura» arriva a Nicholas solo se il
+    // testo non va ancora dopo che è tornato indietro una volta (`chiedi`). Le scelte senza conseguenza
+    // o una risposta libera non sono un difetto da mostrargli: non può farci niente.
+    const pronta = noteSulTesto(controllata.parti).length > 0
+      ? controllata
+      : { testo: testoDomanda(a.nome, controllata.parti), opzioni: controllata.opzioni, parti: controllata.parti }
     const d = x.domande.apri({ autopilotaId: a.id, testo: pronta.testo, scadenzaMs: x.scadenzaDomandaMs, ...domandaPerRegistro(pronta), ...(opz.inChat === true ? { inChat: true } : {}) })
     x.ricordaContesto(d.id, { autopilotaId: a.id, testo: pronta.testo, grezza: domanda, ...(opz.richiestaId !== undefined ? { richiestaId: opz.richiestaId } : {}) })
     x.orchestratori.cambiaImpostazioni(ws, (i) => ({ ...i, domande: [...(i.domande ?? []), x.adesso()].slice(-20) }))
@@ -1207,6 +1210,8 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
 
   /** 0.96.0: l'ultima volta che la chat di ogni workspace è stata davanti a Nicholas (ms). */
   const vistoIl = new Map<string, number>()
+  /** 11/11: i workspace a cui l'ultima domanda è tornata indietro per il testo: la seconda passa comunque. */
+  const testoRimandato = new Set<string>()
   // Una domanda chiusa (risposta, superata, ritirata): i suoi tasti spariscono dalla chat.
   x.domande.suChiusa((d) => {
     const a = x.archivio.leggi(d.autopilotaId)
@@ -1253,7 +1258,15 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       const gia = x.memoria?.rispostaPer(a.id, domanda)
       const giaData = gia?.esatta ?? gia?.simile
       if (giaData !== undefined) return { ok: true, testo: `Nicholas ha già risposto a questa domanda (${giaData.quando.slice(0, 10)}): «${giaData.risposta}». Non la rifaccio.` }
-      const richiestaId = richiestaDellaDomanda(coda(ws), richiesta, domanda)
+      // 11/11: il testo si controlla prima di aprire, e la domanda torna a chi l'ha scritta (una volta sola).
+      // Prima passava con «⚠ Domanda incompleta anche dopo la riscrittura», che nessuno aveva chiesto.
+      const note = noteSulTesto({ staFacendo: '', domanda, perche: perche ?? '', scelte: scelteProposte(scelte), seNonRispondi: '' })
+      if (note.length > 0 && !testoRimandato.has(ws)) {
+        testoRimandato.add(ws)
+        return { ok: false, motivo: `la domanda non si capisce abbastanza: ${note.join('; ')}. Riscrivila e richiamami: una frase sola con un solo punto interrogativo, al più ${DOMANDA_MAX} caratteri, in italiano semplice, senza sigle. Il resto mettilo in «perche»` }
+      }
+      testoRimandato.delete(ws)
+      const richiestaId =richiestaDellaDomanda(coda(ws), richiesta, domanda)
       const d = apriDomanda(a, ws, domanda, scelte, perche ?? 'è una decisione che spetta a te', { inChat: true, ...(richiestaId !== undefined ? { richiestaId } : {}) })
       return { ok: true, testo: `Domanda aperta per Nicholas (${d.id}): la risposta ti arriva come suo messaggio. Intanto vai avanti con il resto.` }
     },

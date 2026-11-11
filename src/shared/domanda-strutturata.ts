@@ -116,22 +116,49 @@ export function sembraNonItaliano(testo: string): boolean {
 
 export type Validazione = { completa: boolean; mancano: ParteDomanda[]; note: string[] }
 
+/** Cosa non va nella frase della domanda (non vuota): la prima nota, o `undefined` se va bene. */
+function notaSullaDomanda(p: PartiDomanda): string | undefined {
+  if (p.domanda.length > DOMANDA_MAX) return `la domanda è lunga ${p.domanda.length} caratteri: va detta in una frase, il resto va nelle altre parti`
+  if (!p.domanda.includes('?')) return 'la domanda non ha il punto interrogativo: non si capisce cosa chiedi'
+  if ((p.domanda.match(/\?/g) ?? []).length > 1) return 'ci sono più domande in una: fanne una sola, la più importante'
+  if (PAROLE_VAGHE.test(p.domanda)) return `la domanda è vaga («${PAROLE_VAGHE.exec(p.domanda)?.[0] ?? ''}»): di' esattamente di cosa si tratta, chi legge non ha seguito il lavoro`
+  if ([p.domanda, p.scelte.map((s) => `${s.scelta} ${s.conseguenza}`).join(' '), testiDi(p).join(' ')].some(sembraNonItaliano)) return 'la domanda non è in italiano: riscrivila tutta in italiano (domanda, cosa stai facendo, perché, scelte)'
+  return undefined
+}
+
+/** Le note di chiarezza, comprese le scelte vaghe. */
+function chiarezzaConScelte(p: PartiDomanda): string[] {
+  // 0.84.0: si capisce da sola, senza sigle di chat né «quel pezzo».
+  const chiarezza = noteDiChiarezza(p)
+  // Collaudo 0.84.0: «fai quella cosa» come scelta è vago quanto nella domanda.
+  const sceltaVaga = p.scelte.map((s) => s.scelta).find((t) => PAROLE_VAGHE.test(t))
+  if (sceltaVaga !== undefined && chiarezza.length === 0) chiarezza.push(`la scelta «${sceltaVaga}» è vaga: di' esattamente cosa farai`)
+  return chiarezza
+}
+
+/**
+ * **Solo il testo** (11/11): cosa non va nella frase della domanda e nelle
+ * scelte, senza guardare le parti che scrive il programma. Serve a
+ * `chiedi_utente` per rimandare indietro una domanda **prima** di aprirla:
+ * il 09 e il 10/11 a Nicholas è arrivato «⚠ Domanda incompleta anche dopo la
+ * riscrittura» su domande che nessuno aveva fatto riscrivere. Vuoto se va bene.
+ */
+export function noteSulTesto(p: PartiDomanda): string[] {
+  const nota = p.domanda === '' ? 'manca la domanda' : notaSullaDomanda(p)
+  return [...(nota !== undefined ? [nota] : []), ...chiarezzaConScelte(p)]
+}
+
 /** Le parti che mancano, o che non vanno. */
 export function validaDomanda(p: PartiDomanda): Validazione {
   const mancano: ParteDomanda[] = []
   const note: string[] = []
   if (p.staFacendo.length < 10) mancano.push('staFacendo')
   if (p.domanda === '') mancano.push('domanda')
-  else if (p.domanda.length > DOMANDA_MAX) { mancano.push('domanda'); note.push(`la domanda è lunga ${p.domanda.length} caratteri: va detta in una frase, il resto va nelle altre parti`) }
-  else if (!p.domanda.includes('?')) { mancano.push('domanda'); note.push('la domanda non ha il punto interrogativo: non si capisce cosa chiedi') }
-  else if ((p.domanda.match(/\?/g) ?? []).length > 1) { mancano.push('domanda'); note.push('ci sono più domande in una: fanne una sola, la più importante') }
-  else if (PAROLE_VAGHE.test(p.domanda)) { mancano.push('domanda'); note.push(`la domanda è vaga («${PAROLE_VAGHE.exec(p.domanda)?.[0] ?? ''}»): di' esattamente di cosa si tratta, chi legge non ha seguito il lavoro`) }
-  else if ([p.domanda, p.scelte.map((s) => `${s.scelta} ${s.conseguenza}`).join(' '), testiDi(p).join(' ')].some(sembraNonItaliano)) { mancano.push('domanda'); note.push('la domanda non è in italiano: riscrivila tutta in italiano (domanda, cosa stai facendo, perché, scelte)') }
-  // 0.84.0: si capisce da sola, senza sigle di chat né «quel pezzo».
-  const chiarezza = noteDiChiarezza(p)
-  // Collaudo 0.84.0: «fai quella cosa» come scelta è vago quanto nella domanda.
-  const sceltaVaga = p.scelte.map((s) => s.scelta).find((t) => PAROLE_VAGHE.test(t))
-  if (sceltaVaga !== undefined && chiarezza.length === 0) chiarezza.push(`la scelta «${sceltaVaga}» è vaga: di' esattamente cosa farai`)
+  else {
+    const nota = notaSullaDomanda(p)
+    if (nota !== undefined) { mancano.push('domanda'); note.push(nota) }
+  }
+  const chiarezza = chiarezzaConScelte(p)
   if (chiarezza.length > 0) {
     if (!mancano.includes('domanda')) mancano.push('domanda')
     note.push(...chiarezza)

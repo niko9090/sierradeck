@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  domandaControllata, leggiParti, partiBloccato, partiDaRisposta, partiPubblica, richiestaRiscrittura,
+  domandaControllata, leggiParti, noteSulTesto, partiBloccato, partiDaRisposta, partiPubblica, richiestaRiscrittura,
   sezioniDomanda, testoDomanda, validaDomanda, type PartiDomanda
 } from '@shared/domanda-strutturata'
 
@@ -45,6 +45,33 @@ describe('la validazione', () => {
     expect(p.scelte).toEqual([{ scelta: 'Google', conseguenza: '' }, { scelta: 'GitHub', conseguenza: '' }])
     expect(p.seNonRispondi).toBe('aspetto')
     expect(leggiParti(null).domanda).toBe('')
+  })
+})
+
+// 11/11: chiedi_utente rimanda indietro la domanda prima di aprirla, guardando solo quello che scrive l'autopilota.
+describe('le note sul testo soltanto (11/11)', () => {
+  const soloTesto = (domanda: string, scelte: PartiDomanda['scelte'] = []): PartiDomanda => ({ staFacendo: '', domanda, perche: '', scelte, seNonRispondi: '' })
+  it('una domanda buona non ha note, anche senza scelte, senza conseguenze e senza le parti del programma', () => {
+    expect(noteSulTesto(soloTesto('Quale chiave SSH uso per il server di produzione?'))).toEqual([])
+    expect(noteSulTesto(soloTesto('Tengo il colore verde per la barra?', [{ scelta: 'Sì', conseguenza: '' }, { scelta: 'No', conseguenza: '' }]))).toEqual([])
+    expect(noteSulTesto(BUONA)).toEqual([])
+  })
+  it('troppo lunga, senza «?», due domande in una, vaga, in inglese, con sigle o gesti a mano: una nota per difetto', () => {
+    expect(noteSulTesto(soloTesto(`${'Nel controllo ho trovato dei difetti. '.repeat(6)}Li correggo?`))[0]).toContain('in una frase')
+    expect(noteSulTesto(soloTesto('Dimmi la chiave.'))[0]).toContain('punto interrogativo')
+    expect(noteSulTesto(soloTesto('Pubblico adesso? O aspetto la revisione?'))[0]).toContain('più domande in una')
+    expect(noteSulTesto(soloTesto('Faccio come prima?'))[0]).toContain('vaga')
+    expect(noteSulTesto(soloTesto('Will you install the update on this PC so that it can restart?'))[0]).toContain('non è in italiano')
+    expect(noteSulTesto(soloTesto('Chiudo la chat c-7?'))[0]).toContain('sigle')
+    expect(noteSulTesto(soloTesto('Come procediamo?', [{ scelta: 'Le chiudo io', conseguenza: '' }, { scelta: 'Aspetta', conseguenza: '' }]))[0]).toContain('gesto a mano')
+    expect(noteSulTesto(soloTesto(''))).toEqual(['manca la domanda'])
+  })
+  it('sono le stesse note di validaDomanda sulla domanda', () => {
+    const lunga = { ...BUONA, domanda: `${'x'.repeat(450)}?` }
+    expect(validaDomanda(lunga).note).toEqual(noteSulTesto(lunga))
+    const sigla = { ...BUONA, domanda: 'Chiudo la chat c-7 adesso?' }
+    expect(validaDomanda(sigla).note).toEqual(noteSulTesto(sigla))
+    expect(validaDomanda(sigla).mancano).toEqual(['domanda'])
   })
 })
 

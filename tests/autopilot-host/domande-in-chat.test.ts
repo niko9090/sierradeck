@@ -10,7 +10,7 @@ import { apriCode, type ArchivioCode } from '../../src/autopilot-host/coda-store
 import { apriOrchestratori, type ArchivioOrchestratori } from '../../src/autopilot-host/orchestratore-store'
 import type { AvviaProcesso, ProcessoClaude } from '../../src/autopilot-host/orchestratore'
 import {
-  chiusaDopoLaDomanda, devePassareAlleDomande, DOMANDA_IN_CHAT_MS, DOMANDA_VISTA_SENZA_RISPOSTA_MS, richiestaChiusa, richiestaDellaDomanda, rispostaInCoda, rispostaScritta, rispostaSenzaLavoro, scelteDaToccare
+  chiusaDopoLaDomanda, devePassareAlleDomande, DOMANDA_IN_CHAT_MS, DOMANDA_VISTA_SENZA_RISPOSTA_MS, richiestaChiusa, richiestaDellaDomanda, rispostaInCoda, rispostaScritta, rispostaSenzaLavoro, scelteDaToccare, scelteProposte
 } from '../../src/autopilot-host/domande-in-chat'
 import { leggiStatoProgramma } from '../../src/autopilot-host/stato-programma'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
@@ -291,6 +291,63 @@ describe('una domanda nuova appare nella chat, non nelle Domande', () => {
     expect(domande.visibili(idUnico())).toHaveLength(0)
     expect(avvisi.filter((v) => v.tipo === 'domanda')).toHaveLength(0)
     expect(archivio.leggi(idUnico())!.dialogo.some((r) => r.domanda !== undefined)).toBe(false)
+  })
+})
+
+// 11/11: «(consigliata) (consigliata)» su 6 domande su 13, «⚠ Domanda incompleta anche dopo la riscrittura» su 2.
+describe('11/11: il testo della domanda si controlla prima di aprirla', () => {
+  const LUNGA = `${'Nel controllo dei PC ho trovato dei piccoli difetti nei messaggi. '.repeat(4)}Li guardo adesso?`
+
+  it('«(consigliata)» scritto anche dal modello non si ripete, né nel testo né nel tasto', async () => {
+    expect(scelteProposte(['Sì, tutte e tre (consigliata) → le faccio adesso (consigliata)', 'No → resta com’è'])).toEqual([
+      { scelta: 'Sì, tutte e tre', conseguenza: 'le faccio adesso', consigliata: true },
+      { scelta: 'No', conseguenza: 'resta com’è' }
+    ])
+    zitto()
+    await avviaServizio()
+    const { mcp } = await conStrumenti()
+    await mcp('chiedi_utente', { domanda: 'Tengo il colore verde per la barra?', perche: 'cambia il resto', scelte: ['Sì, verde (consigliata) → la barra resta verde (consigliata)', 'No → la faccio blu'] })
+    const d = domande.aperte(idUnico())[0]!
+    expect(d.testo).toContain('• Sì, verde (consigliata) → la barra resta verde')
+    expect(d.testo).not.toMatch(/\(consigliata\).*\(consigliata\)/su)
+    expect(scelteDaToccare(d)).toEqual(['Sì, verde', 'No'])
+  })
+
+  it('una domanda troppo lunga torna indietro con il motivo; la seconda passa, con l’avvertenza', async () => {
+    zitto()
+    await avviaServizio()
+    const { mcp } = await conStrumenti()
+    const prima = await mcp('chiedi_utente', { domanda: LUNGA, perche: 'cambia il resto', scelte: ['Sì → li guardo', 'No → restano'] })
+    expect(prima).toContain('Rifiutato')
+    expect(prima).toContain('la domanda non si capisce abbastanza')
+    expect(prima).toContain('in una frase')
+    expect(domande.aperte(idUnico())).toHaveLength(0)
+    expect(archivio.leggi(idUnico())!.dialogo.some((r) => r.domanda !== undefined)).toBe(false)
+    // Ancora lunga: non si rimanda due volte, una domanda zoppa è meglio di un lavoro fermo.
+    const seconda = await mcp('chiedi_utente', { domanda: LUNGA, perche: 'cambia il resto', scelte: ['Sì → li guardo', 'No → restano'] })
+    expect(seconda).toContain('Domanda aperta per Nicholas')
+    expect(domande.aperte(idUnico())[0]!.testo).toContain('⚠ Domanda incompleta')
+  })
+
+  it('riscritta bene dopo il rifiuto: si apre senza avvertenza; e il rifiuto dopo vale di nuovo', async () => {
+    zitto()
+    await avviaServizio()
+    const { mcp } = await conStrumenti()
+    expect(await mcp('chiedi_utente', { domanda: LUNGA, perche: 'cambia il resto' })).toContain('Rifiutato')
+    expect(await mcp('chiedi_utente', DOMANDA)).toContain('Domanda aperta per Nicholas')
+    expect(domande.aperte(idUnico())[0]!.testo).not.toContain('⚠')
+    expect(domande.aperte(idUnico())[0]!.avvertenza).toBeUndefined()
+    expect(await mcp('chiedi_utente', { domanda: 'Faccio come prima anche per il menu?', perche: 'cambia il resto' })).toContain('Rifiutato')
+  })
+
+  it('una risposta libera o scelte senza conseguenza non portano più l’avvertenza a Nicholas', async () => {
+    zitto()
+    await avviaServizio()
+    const { mcp } = await conStrumenti()
+    expect(await mcp('chiedi_utente', { domanda: 'Che nome do alla nuova sezione del menu?', perche: 'lo vedi ogni giorno' })).toContain('Domanda aperta per Nicholas')
+    const d = domande.aperte(idUnico())[0]!
+    expect(d.testo).not.toContain('⚠')
+    expect(d.avvertenza).toBeUndefined()
   })
 })
 

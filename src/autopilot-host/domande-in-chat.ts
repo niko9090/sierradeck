@@ -1,4 +1,5 @@
 import { aggiungi, type Coda, type PuntoRichiesta, type Richiesta } from '@shared/coda-richieste'
+import type { SceltaDomanda } from '@shared/domanda-strutturata'
 import type { DomandaAperta } from './domande'
 
 /**
@@ -29,6 +30,20 @@ export function devePassareAlleDomande(d: Pick<DomandaAperta, 'apertaIl'>, visto
   const vista = vistoIl !== undefined && vistoIl >= d.apertaIl
   const trascorso = ora - d.apertaIl
   return { vista, passa: trascorso >= (vista ? DOMANDA_VISTA_SENZA_RISPOSTA_MS : DOMANDA_IN_CHAT_MS) }
+}
+
+/**
+ * Le scelte come le manda l'autopilota a `chiedi_utente` («scelta → cosa
+ * succede dopo»), la consigliata per prima. 11/11: se il modello scrive anche
+ * lui «(consigliata)» nel testo, si toglie: a Nicholas arrivava «Sì, correggi
+ * tutte e tre (consigliata) (consigliata)» (6 domande su 13), anche nel tasto.
+ */
+export function scelteProposte(righe: string[]): SceltaDomanda[] {
+  const senzaSegno = (t: string): string => t.replace(/\s*\(\s*consigliat[ao]\s*\)/giu, ' ').replace(/\s+/gu, ' ').trim()
+  return righe.map((s, i) => {
+    const [scelta, conseguenza] = s.split(/\s*(?:→|->)\s*/u, 2)
+    return { scelta: senzaSegno(scelta ?? s), conseguenza: senzaSegno(conseguenza ?? ''), ...(i === 0 ? { consigliata: true as const } : {}) }
+  })
 }
 
 /** I tasti della chat: le scelte, senza «Ti scrivo io…» (quella è un campo da scrivere, non un tasto). */
