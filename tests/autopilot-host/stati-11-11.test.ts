@@ -85,9 +85,10 @@ function gitDiProva(porte: Porte): { git: Git; asinc: GitAsincrono } {
     if (args[0] === 'for-each-ref') return { codice: 0, uscita: Object.keys(rami()).join('\n') }
     const conta = /^rev-list --count main\.\.(.+)$/u.exec(a)
     if (conta !== null) return rami()[conta[1]!] !== undefined ? { codice: 0, uscita: String(rami()[conta[1]!]) } : { codice: 128, uscita: 'fatal' }
-    if (args[0] === 'log') {
-      const r = args.find((y) => y.startsWith('main..'))?.slice('main..'.length) ?? ''
-      return { codice: 0, uscita: (porte.soggetti?.[r] ?? []).join('\n') }
+    // I soggetti dei commit che main non ha, col ramo da cui si arrivano (`git log --source`).
+    if (args[0] === 'log' && args.includes('--source')) {
+      const righe = Object.entries(porte.soggetti ?? {}).flatMap(([r, s]) => ((rami()[r] ?? 0) > 0 ? s.map((x) => `refs/heads/${r}\t${x}`) : []))
+      return { codice: 0, uscita: righe.join('\n') }
     }
     const verifica = /^rev-parse --verify --quiet refs\/heads\/(.+)$/u.exec(a)
     if (verifica !== null) return { codice: verifica[1] === 'main' || rami()[verifica[1]!] !== undefined ? 0 : 1, uscita: '' }
@@ -281,5 +282,141 @@ describe('un Agent rifiutato o rilanciato non azzera un compito (11/11, k-133)',
     finisciUltimo('failed')
     await attendi(() => k('k-1')?.stato === 'da-fare', { cosa: 'k-1 di nuovo da fare' })
     expect(k('k-1')!.esito).toContain('non è riuscito')
+  })
+})
+
+describe('compito senza specialisti in memoria: il cancello chiede a git (11/11, k-6, k-8, k-10, k-120)', () => {
+  const info = (): ReturnType<typeof vi.spyOn> => {
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    return vi.spyOn(console, 'info').mockImplementation(() => {})
+  }
+
+  it('un’analisi finita, senza ramo: si chiude col suo criterio (dal ruolo salvato, o dall’esito dei compiti di prima)', async () => {
+    zitto()
+    const porte: Porte = { merge: [], rami: {} }
+    await avviaServizio(porte)
+    orch.scriviPiano(WS, { versione: 1, compiti: [
+      compito('k-8', { stato: 'in-revisione', ruolo: 'esploratore', criterio: 'niente toccato: `git status --short`' }),
+      compito('k-10', { stato: 'in-revisione', esito: 'esploratore ha finito: da unire con unisci' })
+    ] })
+    expect(await strumento('unisci', { compito: 'k-8' })).toContain('Unione avviata')
+    await attendi(() => k('k-8')?.stato === 'unito', { cosa: 'k-8 unito' })
+    expect(k('k-8')).toMatchObject({ criterioVerde: true })
+    await strumento('unisci', { compito: 'k-10' })
+    await attendi(() => k('k-10')?.stato === 'unito', { cosa: 'k-10 unito' })
+    expect(porte.merge).toEqual([])
+    await attendi(() => processi[0]!.scritte.join('\n').includes('analisi in sola lettura, niente da unire'), { cosa: 'l’esito detto all’autopilota' })
+  })
+
+  it('unito ma col criterio non misurato: unisci(compito) lo rimisura senza cercare un ramo', async () => {
+    zitto()
+    const porte: Porte = { merge: [], rami: {} }
+    await avviaServizio(porte)
+    orch.scriviPiano(WS, { versione: 1, compiti: [compito('k-120', { stato: 'unito', criterio: 'la release c’è: `gh release view v1.2.3`', unitoIl: '2026-11-10T13:11:46.995Z' })] })
+    await strumento('unisci', { compito: 'k-120' })
+    await attendi(() => k('k-120')?.criterioVerde === true, { cosa: 'k-120 verde' })
+    expect(porte.merge).toEqual([])
+    await attendi(() => processi[0]!.scritte.join('\n').includes('già unito: rimisuro il criterio'), { cosa: 'l’esito detto all’autopilota' })
+    expect(processi[0]!.scritte.join('\n')).not.toContain('non so quale ramo unire')
+  })
+
+  it('la guardia non rimisura con la principale sporca, né più di una volta ogni tanto', async () => {
+    zitto()
+    let sporca = true
+    let misure = 0
+    const porte: Porte = { merge: [], rami: {}, rispondi: (args) => (args.join(' ') === 'status --porcelain' && sporca ? { codice: 0, uscita: ' M src/a.ts' } : undefined) }
+    await avviaServizio(porte, { esegui: () => { misure += 1; return { codice: 0, uscita: 'ok' } } })
+    await strumento('stato', {})
+    expect(code.leggi(WS).richieste.find((r) => r.id === 'r-1')?.stato).not.toBe('fatta')
+    orch.scriviPiano(WS, { versione: 1, compiti: [compito('k-120', { stato: 'unito', criterio: 'la release c’è: `gh release view v1.2.3`' })] })
+    server!.controllaChatFerme()
+    await pausa(60)
+    expect(misure).toBe(0)
+    expect(k('k-120')!.criterioVerde).toBeUndefined()
+    // Pulita: ma dall'ultimo tentativo è passato troppo poco. Niente giri a vuoto ogni minuto.
+    sporca = false
+    server!.controllaChatFerme()
+    await pausa(60)
+    expect(misure).toBe(0)
+  })
+
+  it('la guardia rimisura da sola appena la principale è pulita', async () => {
+    zitto()
+    const porte: Porte = { merge: [], rami: {} }
+    await avviaServizio(porte)
+    await strumento('stato', {})
+    orch.scriviPiano(WS, { versione: 1, compiti: [compito('k-120', { stato: 'unito', criterio: 'la release c’è: `gh release view v1.2.3`' })] })
+    server!.controllaChatFerme()
+    await attendi(() => k('k-120')?.criterioVerde === true, { cosa: 'k-120 rimisurato dalla guardia' })
+  })
+
+  it('un ramo ricordato con lavoro fuori dal principale si unisce anche senza specialisti in memoria', async () => {
+    zitto()
+    const porte: Porte = { merge: [], rami: { [R1]: 2 } }
+    await avviaServizio(porte)
+    orch.scriviPiano(WS, { versione: 1, compiti: [compito('k-5', { stato: 'in-revisione', rami: [R1] })] })
+    await strumento('unisci', { compito: 'k-5' })
+    await attendi(() => k('k-5')?.stato === 'unito', { cosa: 'k-5 unito' })
+    expect(porte.merge).toEqual([R1])
+  })
+
+  it('il ramo ricordato è già nel principale (uscito con un’altra unione): niente da unire, vale il criterio (k-133)', async () => {
+    zitto()
+    const porte: Porte = { merge: [], rami: { [R1]: 0 } }
+    await avviaServizio(porte)
+    orch.scriviPiano(WS, { versione: 1, compiti: [compito('k-133', { rami: [R1], esito: 'sviluppatore non è riuscito' })] })
+    await strumento('unisci', { compito: 'k-133' })
+    await attendi(() => k('k-133')?.stato === 'unito', { cosa: 'k-133 unito' })
+    expect(porte.merge).toEqual([])
+    expect(k('k-133')!.criterioVerde).toBe(true)
+  })
+
+  it('un compito di prima, che scrive, senza niente di noto: resta com’è e lo dice (non si chiude a caso)', async () => {
+    zitto()
+    const porte: Porte = { merge: [], rami: {} }
+    await avviaServizio(porte)
+    orch.scriviPiano(WS, { versione: 1, compiti: [compito('k-6', { stato: 'in-revisione', esito: 'general-purpose ha finito: da unire con unisci' })] })
+    await strumento('unisci', { compito: 'k-6' })
+    await attendi(() => processi[0]!.scritte.join('\n').includes('non so quale ramo unire'), { cosa: 'l’esito' })
+    expect(k('k-6')!.stato).toBe('in-revisione')
+  })
+
+  it('un compito di prima unito col criterio rosso: il ramo col suo nome nei commit, mai entrato, si unisce (k-165)', async () => {
+    zitto()
+    const porte: Porte = { merge: [], rami: { [R1]: 1, [R2]: 1 }, soggetti: { [R1]: ['k-7: altro lavoro'], [R2]: ['k-165: copie con file in uso, si riprova senza errore'] } }
+    await avviaServizio(porte)
+    orch.scriviPiano(WS, { versione: 1, compiti: [compito('k-165', { stato: 'unito', criterioVerde: false })] })
+    await strumento('unisci', { compito: 'k-165' })
+    await attendi(() => k('k-165')?.criterioVerde === true, { cosa: 'k-165 verde' })
+    expect(porte.merge).toEqual([R2])
+  })
+
+  it('dopo un aggiornamento non si riprovano i compiti di una richiesta già chiusa; un’analisi di una aperta sì', async () => {
+    const spia = info()
+    const porte: Porte = { merge: [], rami: {} }
+    const cartella = await avviaServizio(porte)
+    const unico = orch.impostazioni(WS).autopilota!
+    await strumento('stato', {})
+    const aperta = code.leggi(WS).richieste[0]!.id
+    // Una seconda richiesta, chiusa come «già fatta» con il suo compito ancora «in revisione».
+    await posta('/orchestratore/messaggio', { ws: WS, testo: 'una cosa vecchia, già fatta' })
+    const chiusa = code.leggi(WS).richieste.at(-1)!.id
+    expect(chiusa).not.toBe(aperta)
+    expect(await strumento('coda_chiudi', { ids: [chiusa], come: 'gia-fatta', perche: 'è già nel principale' })).toContain('Chiuse')
+    orch.scriviPiano(WS, { versione: 1, compiti: [
+      compito('k-6', { richiesta: chiusa, stato: 'in-revisione', esito: 'general-purpose ha finito: da unire con unisci' }),
+      compito('k-8', { richiesta: aperta, stato: 'in-revisione', ruolo: 'esploratore' })
+    ] })
+    server?.close()
+    archivio.scrivi({ ...archivio.leggi(unico)!, fermatoPerAggiornamento: true })
+    await avviaServizio(porte, { cartella, archivio })
+    server!.riprendiLavori({ servizioAppenaPartito: true })
+    await attendi(() => k('k-8')?.stato === 'unito', { cosa: 'k-8 chiuso dopo il riavvio' })
+    const dette = spia.mock.calls.map((c) => String(c[0])).join('\n')
+    expect(dette).toContain('unione di k-8 ripresa dopo il riavvio')
+    expect(dette).not.toContain('unione di k-6 ripresa dopo il riavvio')
+    expect(k('k-6')!.stato).toBe('in-revisione')
   })
 })

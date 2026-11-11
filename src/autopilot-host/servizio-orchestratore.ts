@@ -7,14 +7,14 @@ import {
   type Coda, type MisuraCompito, type Modifica, type VistaCoda
 } from '@shared/coda-richieste'
 import {
-  allineaConPiano, comandoDelCriterio, conCompito, conPercento, misuraDalPiano, misuraUnita, vistaLavoro,
+  allineaConPiano, comandoDelCriterio, conCompito, conPercento, conRamoRicordato, misuraDalPiano, misuraUnita, vistaLavoro,
   type CompitoPiano, type Piano, type TrascrizioneSpecialista, type VistaOrchestratore
 } from '@shared/piano-orchestratore'
 import { compitoDallaDescrizione, durata, specialistiAlLavoro, type EffettoFlusso, type Specialista, type StatoFlusso } from '@shared/flusso-orchestratore'
 import { RUOLI } from '@shared/ruoli-agenti'
 import { modelloAutopilotaAmmesso } from '@shared/modelli'
 import { righeLezioni } from '@shared/lezioni-chat'
-import { esaminaComando, principaleSporca } from '@shared/controllo-comandi'
+import { esaminaComando, principaleSporca, titoloDiSolaAnalisi } from '@shared/controllo-comandi'
 import { domandaControllataSubito, domandaPerRegistro } from '@shared/domanda-strutturata'
 import type { ArchivioCode } from './coda-store'
 import { migraAutopiloti, misuraDaAutopiloti } from './coda-autopiloti'
@@ -26,7 +26,7 @@ import { criteriPerLaProva } from './criteri-prova'
 import { fallitiDavvero, nonMisurati, type Esecutore } from './verifiche'
 import type { Memoria } from './memoria'
 import type { TipoAvviso } from './telegram'
-import { comeAsincrono, ramoCorrente, ramoGiaChiusoAsincrono, salvaLavoroAsincrono, type Git, type GitAsincrono } from './worktree'
+import { comeAsincrono, ramoCorrente, ramoGiaChiusoAsincrono, ramoSenzaNovitaAsincrono, salvaLavoroAsincrono, type Git, type GitAsincrono } from './worktree'
 import {
   creaGettoniOrchestratore, configMcpOrchestratore, rispondiMcpOrchestratore, specialistiVivi, SPECIALISTI_PC_MAX, ATTESA_PERMESSO_MS,
   type AmbienteOrchestratore, type EsitoAmbiente
@@ -450,6 +450,64 @@ export async function senzaLavoroSuiRami(g: GitAsincrono, specialisti: Specialis
   return true
 }
 
+/** 11/11: ogni quanto si riprova a misurare il criterio di un compito unito ma non misurato. */
+export const RIMISURA_OGNI_MS = 10 * 60_000
+
+/** 11/11: il compito è un'analisi senza niente da unire? Dal ruolo salvato; per i compiti di prima, dall'esito o dal titolo. */
+export function compitoDiSolaLettura(c: Pick<CompitoPiano, 'ruolo' | 'esito' | 'titolo'>): boolean {
+  if (c.ruolo !== undefined) return RUOLI_SOLA_LETTURA.has(c.ruolo)
+  return /^(esploratore|revisore|Explore) ha finito/u.test(c.esito ?? '') || titoloDiSolaAnalisi(c.titolo)
+}
+
+/** Dove sono, per git, i rami ricordati di un compito. */
+export type RamiDelCompito = {
+  /** Quelli con commit che il principale non ha e che unirli cambierebbe qualcosa, dal più vecchio. */
+  conLavoro: string[]
+  /** Quanti sono già nel principale (contenuti, o senza novità). */
+  dentro: number
+  /** Quanti non ci sono più (tolti dopo l'unione, o mai nati perché lo specialista non ha cambiato niente). */
+  mancanti: number
+}
+
+/**
+ * **I rami di un compito, chiesti a git** (11/11). Prima il cancello conosceva solo gli
+ * specialisti in memoria: dopo un riavvio non trovava niente («non so quale ramo unire»),
+ * oppure chiudeva il compito col solo criterio mentre il ramo vero restava fuori (k-165).
+ * Si guardano i rami ricordati nel piano; per i compiti di prima, che non ne hanno, i rami
+ * `worktree-agent-*` con un commit il cui soggetto comincia con l'id del compito («k-3: …»).
+ * `daNonGuardare`: i rami di altri compiti aperti e degli specialisti al lavoro.
+ */
+export async function ramiDelCompitoSulDisco(
+  g: GitAsincrono,
+  p: { cwd: string; base: string; compito: Pick<CompitoPiano, 'id' | 'ramo' | 'rami'>; daNonGuardare?: ReadonlySet<string> }
+): Promise<RamiDelCompito> {
+  const fuori: RamiDelCompito = { conLavoro: [], dentro: 0, mancanti: 0 }
+  let candidati = [...new Set([...(p.compito.rami ?? []), ...(p.compito.ramo !== undefined ? [p.compito.ramo] : [])])]
+  if (candidati.length === 0) {
+    const log = await g(['log', '--source', '--no-merges', '--format=%S%x09%s', '--branches=worktree-agent-*', '--not', p.base], p.cwd)
+    const trovati = new Set<string>()
+    for (const riga of log.codice === 0 ? log.uscita.split(/\r?\n/u) : []) {
+      const tab = riga.indexOf('\t')
+      if (tab <= 0 || compitoDallaDescrizione(riga.slice(tab + 1)) !== p.compito.id) continue
+      trovati.add(riga.slice(0, tab).trim().replace(/^refs\/heads\//u, ''))
+    }
+    candidati = [...trovati]
+  }
+  for (const ramo of candidati) {
+    if (ramo === p.base || p.daNonGuardare?.has(ramo) === true) continue
+    const chiuso = await ramoGiaChiusoAsincrono(g, { cwd: p.cwd, ramo, base: p.base })
+    if (chiuso === 'mancante') { fuori.mancanti += 1; continue }
+    if (chiuso === 'unito') { fuori.dentro += 1; continue }
+    const conta = await g(['rev-list', '--count', `${p.base}..${ramo}`], p.cwd)
+    const avanti = conta.codice === 0 ? Number.parseInt(conta.uscita.trim(), 10) : NaN
+    // Git non risponde: di questo ramo non si sa niente, e nel dubbio non si decide.
+    if (!Number.isFinite(avanti)) continue
+    if (avanti <= 0 || await ramoSenzaNovitaAsincrono(g, { cwd: p.cwd, ramo, base: p.base })) { fuori.dentro += 1; continue }
+    fuori.conLavoro.push(ramo)
+  }
+  return fuori
+}
+
 export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
   const gettoni = creaGettoniOrchestratore()
   const recenti = new Map<string, EventoOrchestratore[]>()
@@ -756,7 +814,7 @@ ${NOTA_SENZA_GIT}`,
         // 11/11 (k-133): un compito finito e in fila per l'unione resta com'è (ramo compreso); degli altri si ricorda com'erano.
         if (k !== undefined && k.stato !== 'unito' && !finitoInFila(ws, k)) {
           primaDelLancio.set(s.id, k)
-          cambiaCompito(ws, k.id, (c) => ({ ...senzaRamo(c), stato: 'in-corso', chat: s.id }))
+          cambiaCompito(ws, k.id, (c) => ({ ...senzaRamo(c), stato: 'in-corso', chat: s.id, ruolo: s.ruolo }))
         }
         if (u !== undefined) { const dopo = { ...u }; x.annota(dopo, `parte ${s.ruolo}${s.compito !== undefined ? ` (${s.compito})` : ''}: ${s.descrizione.slice(0, 140)}`, avanzamento(s.id, `Al lavoro: ${chiSpecialista(s.ruolo)} — ${cosaDel(s.descrizione)}.`)); x.salva(dopo) }
         ricalcola(ws, `${s.compito ?? s.ruolo} parte`)
@@ -784,6 +842,11 @@ ${NOTA_SENZA_GIT}`,
         if (voci.length > 0) {
           try { x.lezioni(u.cwd, voci, x.adesso()) } catch (err) { console.error(`[orchestratore] lezioni di ${s.id} non scritte:`, err) }
         }
+      }
+      // 11/11: il ramo di ogni specialista che scrive resta nel piano, qualunque esito e anche se il compito non è più «suo».
+      const suo = RUOLI_SOLA_LETTURA.has(s.ruolo) ? undefined : ramoDelloSpecialistaFinito(s)
+      if (s.compito !== undefined && suo !== undefined && x.orchestratori.piano(ws).compiti.some((c) => c.id === s.compito && c.rami?.includes(suo) !== true)) {
+        cambiaCompito(ws, s.compito, (c) => conRamoRicordato(c, suo))
       }
       const k = s.compito !== undefined ? x.orchestratori.piano(ws).compiti.find((c) => c.id === s.compito && c.chat === s.id) : undefined
       if (k !== undefined && k.stato !== 'unito') {
@@ -899,6 +962,20 @@ ${NOTA_SENZA_GIT}`,
   const compitiInUnione = (ws: string): string[] => (filaUnioni.get(ws) ?? []).flatMap((l) => (l.compito !== undefined ? [l.compito] : []))
   /** 11/11 (k-133): il compito ha finito e la sua unione è in corso o in fila: un Agent lanciato per lui non lo riporta «in corso». */
   const finitoInFila = (ws: string, k: CompitoPiano): boolean => k.stato === 'in-revisione' && compitiInUnione(ws).includes(k.id)
+  /** 11/11: i rami che non sono di questo compito: quelli degli altri compiti non ancora uniti e degli specialisti al lavoro. */
+  const ramiAltrui = (ws: string, id: string): Set<string> => {
+    const altrui = new Set<string>()
+    for (const c of x.orchestratori.piano(ws).compiti) {
+      if (c.id === id || c.stato === 'unito') continue
+      if (c.ramo !== undefined) altrui.add(c.ramo)
+      for (const r of c.rami ?? []) altrui.add(r)
+    }
+    for (const s of subagenti(ws)) {
+      const r = s.stato === 'avviato' || s.stato === 'lavoro' ? ramoDelloSpecialistaFinito(s) : undefined
+      if (r !== undefined) altrui.add(r)
+    }
+    return altrui
+  }
   /** Le unioni in corso e in fila, per lo stato dell'autopilota. */
   const righeUnioni = (ws: string): string[] => (filaUnioni.get(ws) ?? []).map((l, i) => (i === 0 ? `- ${l.chi}: in corso${l.tentativi > 0 ? ` (tentativo ${l.tentativi + 1})` : ''}` : `- ${l.chi}: in fila, ${i + 1}ª`))
   const giraFila = async (ws: string): Promise<void> => {
@@ -1005,7 +1082,24 @@ ${NOTA_SENZA_GIT}`,
     /** 06/11: gli altri rami con lavoro dello stesso compito (da unire prima) e gli specialisti che finiscono uniti con questo. */
     let altriRami: RamoConLavoro[] = []
     let assorbiti: RamoConLavoro[] = []
-    if (!senzaGit && !soloLettura && g !== undefined && a.ramoBase !== undefined) {
+    // 11/11 (k-6, k-8, k-10, k-120): del compito non c'è in memoria nessuno specialista ancora da unire (un riavvio,
+    // o sono già uniti tutti). Prima finiva in «non so quale ramo unire» e non si chiudeva più: ora lo dice git.
+    let soloMisura: string | undefined
+    if (!senzaGit && !soloLettura && g !== undefined && a.ramoBase !== undefined && compito !== undefined && p.ramo === undefined && chat === undefined
+      && !subagenti(ws).some((s) => s.unito !== true && (s.compito === compito.id || s.id === compito.chat))) {
+      const suoi = await ramiDelCompitoSulDisco(g, { cwd: a.cwd, base: a.ramoBase, compito, daNonGuardare: ramiAltrui(ws, compito.id) })
+      if (suoi.conLavoro.length > 0) {
+        // Un ramo ricordato ha ancora lavoro fuori dal principale: si unisce quello (prima gli altri, se sono più d'uno).
+        const fuori = suoi.conLavoro.map((r): RamoConLavoro => ({ sub: { id: r, ruolo: compito.ruolo ?? 'sviluppatore', descrizione: compito.titolo, compito: compito.id, stato: 'finito', inizio: compito.creato, ramo: r }, ramo: r, avanti: 1 }))
+        ramo = fuori[fuori.length - 1]!.ramo
+        altriRami = fuori.slice(0, -1)
+        assorbiti = altriRami
+      } else if (compito.stato === 'unito') soloMisura = 'già unito: rimisuro il criterio'
+      else if (suoi.dentro > 0) soloMisura = 'il suo lavoro è già nel principale: niente da unire, vale il criterio'
+      else if (compito.stato === 'in-revisione' && suoi.mancanti > 0) soloMisura = 'il suo ramo non c’è più (unito e tolto, o senza modifiche): vale il criterio'
+      else if (compito.stato === 'in-revisione' && compitoDiSolaLettura(compito)) soloMisura = 'analisi in sola lettura, niente da unire'
+    }
+    if (!senzaGit && !soloLettura && soloMisura === undefined && g !== undefined && a.ramoBase !== undefined) {
       // Il ramo: dato, della chat adottata, o del worktree del subagente.
       const nato = (c: string): number | undefined => { try { return statSync(c).birthtimeMs } catch { return undefined } }
       const tutti = subagenti(ws)
@@ -1174,7 +1268,7 @@ ${NOTA_SENZA_GIT}`,
       if (chat !== undefined) x.avanzaFinite()
     }
     ricalcola(ws, `${compito?.id ?? nome} unito${verde ? '' : ' con il criterio rosso'}`)
-    const dove = ramo !== undefined ? `ramo ${ramo} unito nel principale` : fuoriDaiRami ? 'lavoro fuori dai rami (scritto in un’altra cartella): niente da unire, vale il criterio' : soloLettura ? 'analisi in sola lettura, niente da unire' : 'lavoro già nella cartella del progetto'
+    const dove = ramo !== undefined ? `ramo ${ramo} unito nel principale` : soloMisura !== undefined ? soloMisura : fuoriDaiRami ?'lavoro fuori dai rami (scritto in un’altra cartella): niente da unire, vale il criterio' : soloLettura ? 'analisi in sola lettura, niente da unire' : 'lavoro già nella cartella del progetto'
     const chi = compito?.id !== undefined && compito.id !== nome ? `${compito.id} (${nome})` : nome
     if (nonMisurato) return `${chi}: ${dove}. Criterio NON MISURATO — ${dettaglio}. Non è un rosso del lavoro: nessuno specialista da affidare.`
     return `${chi}: ${dove}. Criterio ${verde ? 'VERDE' : 'ROSSO'}: ${dettaglio}.${verde ? '' : ' Il compito resta da correggere: affidalo a uno specialista, dicendo cosa non va.'}`
@@ -1582,6 +1676,33 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     }
   }
 
+  /**
+   * 11/11 (k-120): un compito unito ma col criterio mai misurato (la principale era sporca, o il criterio è
+   * stato riscritto) restava così per sempre e teneva aperta la richiesta: serviva lanciare un verificatore
+   * solo per farlo misurare. Ora lo rimisura il programma, uno per giro, quando la principale è pulita.
+   */
+  const rimisureChieste = new Map<string, number>()
+  const rimisuraNonMisurati = (ora: number): void => {
+    if (x.unioneDaSola === false) return
+    for (const a of unici()) {
+      if (a.archiviato === true) continue
+      const ws = wsDi(a)
+      if (unioniIn(ws) > 0) continue
+      const aperte = new Set(coda(ws).richieste.filter((r) => r.stato !== 'fatta').map((r) => r.id))
+      const k = x.orchestratori.piano(ws).compiti.find((c) => c.stato === 'unito' && c.criterioVerde === undefined && aperte.has(c.richiesta)
+        && ora - (rimisureChieste.get(`${ws}|${c.id}`) ?? -Infinity) >= RIMISURA_OGNI_MS)
+      if (k === undefined) continue
+      rimisureChieste.set(`${ws}|${k.id}`, ora)
+      const parti = (): void => { if (unioniIn(ws) === 0 && avviaUnione(ws, { compito: k.id }) !== undefined) console.info(`[orchestratore] ${ws} — ${k.id} è unito ma il criterio non è misurato: lo rimisuro`) }
+      const g = gitA()
+      if (g === undefined || !conGit(a.cwd)) { parti(); continue }
+      // Con la principale sporca non si misurerebbe nemmeno adesso: si aspetta che sia pulita, senza svegliare nessuno.
+      void g(['status', '--porcelain'], a.cwd)
+        .then((st) => { if (st.codice === 0 && !principaleSporca(st.uscita).sporca) parti() })
+        .catch(() => { /* al prossimo giro */ })
+    }
+  }
+
   /** Ogni minuto: le chat adottate zitte da 20 minuti diventano un evento (una volta per silenzio). */
   const guardia = (): void => {
     const ora = Date.parse(x.adesso())
@@ -1590,6 +1711,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     try { ricordaRossi(ora) } catch (err) { console.error('[orchestratore] promemoria del criterio rosso non riuscito:', err) }
     try { spingiFermi(ora) } catch (err) { console.error('[orchestratore] controllo del lavoro fermo non riuscito:', err) }
     try { rivediFila() } catch (err) { console.error('[attesa] giro della lista d’attesa non riuscito:', err) }
+    try { rimisuraNonMisurati(ora) } catch (err) { console.error('[orchestratore] rimisura dei criteri non misurati non riuscita:', err) }
     for (const a of unici()) {
       for (const c of specialistiVivi(a)) {
         if (c.stato !== 'lavoro') continue
@@ -1647,11 +1769,13 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       if (a.archiviato === true) continue
       const ws = wsDi(a)
       // Un compito «in revisione» ha finito e non è unito: dopo un riavvio la fila (in memoria) è vuota, si rifà.
+      // 11/11 (k-6, k-8, k-10): i compiti di una richiesta già chiusa non si riprovano a ogni aggiornamento.
+      const chiuse = richiesteChiuse(ws)
       for (const k of x.orchestratori.piano(ws).compiti) {
-        if (k.stato !== 'in-revisione') continue
-        // Senza aggiornamento (accensione, crash) si riprende solo quello di cui si è certi: col ramo noto e
-        // senza un'unione già fallita apposta (conflitto stabile). Il resto lo decide l'autopilota.
-        if (opzioni.soloCerte === true && (k.ramo === undefined || /unione non fatta/iu.test(k.esito ?? ''))) continue
+        if (k.stato !== 'in-revisione' || chiuse.has(k.richiesta)) continue
+        // Senza aggiornamento (accensione, crash) si riprende solo quello di cui si è certi: col ramo noto (o
+        // un'analisi, che non ha niente da unire) e senza un'unione già fallita apposta (conflitto stabile).
+        if (opzioni.soloCerte === true && ((k.ramo === undefined && !compitoDiSolaLettura(k)) || /unione non fatta/iu.test(k.esito ?? ''))) continue
         const chiave = `${ws}|${k.id}`
         if (unioniRiprese.has(chiave)) continue
         unioniRiprese.add(chiave)

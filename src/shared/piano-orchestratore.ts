@@ -35,6 +35,13 @@ export type CompitoPiano = {
   chat?: string
   /** Il ramo dello specialista finito: serve a riprendere un'unione a metà dopo un riavvio, quando la memoria dei suoi specialisti non c'è più. */
   ramo?: string
+  /**
+   * 11/11: i rami di tutti gli specialisti che ci hanno lavorato, qualunque esito. Dopo un riavvio
+   * è l'unico filo fra il compito e il lavoro (k-165: «unito» col suo commit rimasto fuori dal principale).
+   */
+  rami?: string[]
+  /** 11/11: il ruolo dell'ultimo specialista partito: dice, anche dopo un riavvio, se è un'analisi senza niente da unire. */
+  ruolo?: string
   /** L'ultimo esito del cancello `unisci`: il criterio misurato dopo l'unione. */
   criterioVerde?: boolean
   /** L'ultimo esito in parole (unione, criterio, motivo del rifiuto). */
@@ -46,6 +53,15 @@ export type CompitoPiano = {
 export type Piano = { versione: 1; compiti: CompitoPiano[] }
 
 export const pianoVuoto = (): Piano => ({ versione: 1, compiti: [] })
+
+/** Quanti rami si ricordano per compito (i più recenti). */
+export const RAMI_RICORDATI = 12
+
+/** Il compito con un ramo in più fra quelli ricordati (lo stesso oggetto se c'era già). */
+export function conRamoRicordato(c: CompitoPiano, ramo: string | undefined): CompitoPiano {
+  if (ramo === undefined || ramo === '' || c.rami?.includes(ramo) === true) return c
+  return { ...c, rami: [...(c.rami ?? []), ramo].slice(-RAMI_RICORDATI) }
+}
 
 /** Quanti compiti al più in un `piano_scrivi`. */
 export const COMPITI_PER_VOLTA_MAX = 30
@@ -364,6 +380,8 @@ function leggiCompitoPiano(x: unknown): CompitoPiano | undefined {
     creato: typeof o.creato === 'string' ? o.creato : '',
     ...(typeof o.chat === 'string' && o.chat !== '' ? { chat: o.chat } : {}),
     ...(typeof o.ramo === 'string' && o.ramo !== '' ? { ramo: o.ramo.slice(0, 200) } : {}),
+    ...(Array.isArray(o.rami) && o.rami.some((r) => typeof r === 'string' && r !== '') ? { rami: o.rami.filter((r): r is string => typeof r === 'string' && r !== '').map((r) => r.slice(0, 200)).slice(-RAMI_RICORDATI) } : {}),
+    ...(typeof o.ruolo === 'string' && o.ruolo !== '' ? { ruolo: o.ruolo.slice(0, 60) } : {}),
     ...(typeof o.criterioVerde === 'boolean' ? { criterioVerde: o.criterioVerde } : {}),
     ...(typeof o.esito === 'string' && o.esito !== '' ? { esito: o.esito.slice(0, 600) } : {}),
     ...(typeof o.unitoIl === 'string' && o.unitoIl !== '' ? { unitoIl: o.unitoIl } : {})
