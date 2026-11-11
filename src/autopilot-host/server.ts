@@ -867,7 +867,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     if (ws === '') return { stato: 400, corpo: { errore: 'manca il workspace' } }
     const gia = servizio().unicoDi(ws)
     if (gia === undefined && (cwd === '' || !existsSync(cwd) || !statSync(cwd).isDirectory())) return { stato: 400, corpo: { errore: `cartella non utilizzabile: ${cwd}` } }
-    const e = servizio().assicura(ws, { ...(cwd !== '' ? { cwd } : {}), obiettivo: testo })
+    // 11/11: un messaggio del programma (controllo dei PC, errori arrivati) non conta come «Nicholas ha scritto».
+    const e = servizio().assicura(ws, { ...(cwd !== '' ? { cwd } : {}), obiettivo: testo, ...(corpo?.daProgramma === true ? { daProgramma: true } : {}) })
     return e.ok ? { stato: 200, corpo: e.unico } : { stato: 400, corpo: { errore: e.motivo } }
   }
 

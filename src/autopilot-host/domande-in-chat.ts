@@ -57,13 +57,19 @@ export function rispostaScritta(testo: string, scelte: string[]): string {
  * dichiarata dall'autopilota (se esiste); l'unica citata nel testo; l'unica
  * richiesta ancora aperta. Con più candidate, nessuna: meglio non ritirare mai
  * una domanda per sbaglio.
+ *
+ * 11/11: una richiesta **già chiusa** non lega la domanda. L'08/11 «Correggo le
+ * tre cose…?» è nata legata a un'analisi appena finita: il programma l'ha
+ * ritirata dopo 0,3 secondi («la richiesta è fatta») e l'autopilota l'ha
+ * rifatta 37 secondi dopo. Dichiarata o citata ma chiusa: nessuna richiesta.
  */
 export function richiestaDellaDomanda(coda: Pick<Coda, 'richieste' | 'compattate'>, dichiarata: string | undefined, testo: string): string | undefined {
   const esiste = (id: string): boolean => coda.richieste.some((r) => r.id === id) || coda.compattate.some((r) => r.id === id)
+  const seAperta = (id: string): string | undefined => (richiestaChiusa(coda, id).chiusa ? undefined : id)
   const d = dichiarata?.trim().toLowerCase()
-  if (d !== undefined && /^r-\d+$/u.test(d) && esiste(d)) return d
+  if (d !== undefined && /^r-\d+$/u.test(d) && esiste(d)) return seAperta(d)
   const citate = [...new Set([...testo.toLowerCase().matchAll(/\br-\d+\b/gu)].map((m) => m[0]))].filter(esiste)
-  if (citate.length === 1) return citate[0]
+  if (citate.length === 1) return seAperta(citate[0]!)
   const aperte = coda.richieste.filter((r) => r.stato !== 'fatta' && r.chiusa === undefined)
   return aperte.length === 1 ? aperte[0]!.id : undefined
 }
@@ -72,15 +78,29 @@ export function richiestaDellaDomanda(coda: Pick<Coda, 'richieste' | 'compattate
  * La richiesta è chiusa (fatta, chiusa senza lavoro, già nello storico
  * compattato) o è stata unita a un'altra che lo è? Una richiesta che non
  * si trova da nessuna parte non dice niente: la domanda resta.
+ * `il` (11/11): quando è stata chiusa, se si sa.
  */
-export function richiestaChiusa(coda: Pick<Coda, 'richieste' | 'compattate'>, id: string): { chiusa: boolean; come?: string } {
+export function richiestaChiusa(coda: Pick<Coda, 'richieste' | 'compattate'>, id: string): { chiusa: boolean; come?: string; il?: string } {
   const viva = coda.richieste.find((r) => r.id === id) ?? coda.richieste.find((r) => r.unioni.some((u) => u.fonti.includes(id)))
   if (viva !== undefined) {
-    if (viva.chiusa !== undefined) return { chiusa: true, come: viva.id === id ? 'chiusa senza lavoro' : `unita a ${viva.id}, chiusa` }
-    if (viva.stato === 'fatta') return { chiusa: true, come: viva.id === id ? 'fatta' : `unita a ${viva.id}, fatta` }
+    const il = viva.chiusa?.il ?? viva.fattaIl
+    const quando = il !== undefined ? { il } : {}
+    if (viva.chiusa !== undefined) return { chiusa: true, come: viva.id === id ? 'chiusa senza lavoro' : `unita a ${viva.id}, chiusa`, ...quando }
+    if (viva.stato === 'fatta') return { chiusa: true, come: viva.id === id ? 'fatta' : `unita a ${viva.id}, fatta`, ...quando }
     return { chiusa: false }
   }
-  return coda.compattate.some((r) => r.id === id) ? { chiusa: true, come: 'fatta' } : { chiusa: false }
+  const storica = coda.compattate.find((r) => r.id === id)
+  return storica !== undefined ? { chiusa: true, come: 'fatta', il: storica.fattaIl } : { chiusa: false }
+}
+
+/**
+ * 11/11: la chiusura della richiesta è arrivata **dopo** la domanda? Solo allora
+ * la domanda è superata. Senza una data leggibile vale sì: la domanda nasce
+ * legata solo a richieste aperte, quindi la chiusura è per forza successiva.
+ */
+export function chiusaDopoLaDomanda(chiusura: { il?: string }, apertaIl: number): boolean {
+  const t = chiusura.il !== undefined ? Date.parse(chiusura.il) : Number.NaN
+  return Number.isNaN(t) || t >= apertaIl
 }
 
 // ── La risposta di Nicholas diventa lavoro (k-64) ──

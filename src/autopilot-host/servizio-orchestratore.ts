@@ -19,7 +19,7 @@ import { domandaControllataSubito, domandaPerRegistro } from '@shared/domanda-st
 import type { ArchivioCode } from './coda-store'
 import { migraAutopiloti, misuraDaAutopiloti } from './coda-autopiloti'
 import { soloInChat, type ContestoDomanda, type RegistroDomande } from './domande'
-import { devePassareAlleDomande, richiestaChiusa, richiestaDellaDomanda, rispostaInCoda, scelteDaToccare } from './domande-in-chat'
+import { chiusaDopoLaDomanda, devePassareAlleDomande, richiestaChiusa, richiestaDellaDomanda, rispostaInCoda, scelteDaToccare } from './domande-in-chat'
 import { aperteSulloStesso } from './domande-doppie'
 import { dimenticaIRossi, improntaCodiceAsincrona, misuraCriteri, type MemoriaCriteri } from './criteri-veloci'
 import { criteriPerLaProva } from './criteri-prova'
@@ -188,7 +188,7 @@ export type ServizioUnico = {
    * L'autopilota del workspace, creato se non c'è ancora, con gli autopiloti
    * di prima passati a lui; con `obiettivo`, il primo messaggio.
    */
-  assicura: (ws: string, p?: { cwd?: string; obiettivo?: string }) => { ok: true; unico: Autopilota } | { ok: false; motivo: string }
+  assicura: (ws: string, p?: { cwd?: string; obiettivo?: string; daProgramma?: boolean }) => { ok: true; unico: Autopilota } | { ok: false; motivo: string }
   /** All'avvio: ogni workspace con autopiloti di prima passa al suo unico. Torna quanti workspace. */
   migraVecchi: () => number
   /** k-59: gli autopiloti di prima del workspace non ancora passati al suo unico (per l'autoriparazione). */
@@ -196,7 +196,7 @@ export type ServizioUnico = {
   /** 0.89.0: un autopilota di quella cartella ha un turno in volo o specialisti al lavoro (le loro copie non si toccano). */
   agentiAlLavoro: (cartella: string) => boolean
   imposta: (ws: string, p: { modello?: unknown; tettoSpecialisti?: unknown }) => ImpostazioniOrchestratore
-  messaggio: (a: Autopilota, testo: string, quando?: string) => Autopilota
+  messaggio: (a: Autopilota, testo: string, quando?: string, opz?: { daProgramma?: boolean }) => Autopilota
   /** Lo Stop di una chat **adottata**: registra e fa un evento, senza modello. */
   fermata: (a: Autopilota, chatId: string, corpo: Record<string, unknown>) => Record<string, unknown>
   notifica: (a: Autopilota, chatId: string | undefined, corpo: Record<string, unknown>) => void
@@ -1269,12 +1269,12 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
   /** L’ultimo registro dei progetti mandato dal programma (con i doppioni): per non far rinascere un doppione. */
   let ultimoRegistro: RichiestaDoppioni | undefined
 
-  const assicura = (ws: string, p: { cwd?: string; obiettivo?: string } = {}): { ok: true; unico: Autopilota } | { ok: false; motivo: string } => {
+  const assicura = (ws: string, p: { cwd?: string; obiettivo?: string; daProgramma?: boolean } = {}): { ok: true; unico: Autopilota } | { ok: false; motivo: string } => {
     const gia = unicoDi(ws)
     const loro = vecchiDel(ws)
     const quando = x.adesso()
     const conObiettivo = (u: Autopilota): { ok: true; unico: Autopilota } => (
-      p.obiettivo !== undefined && p.obiettivo.trim() !== '' ? { ok: true, unico: messaggio(u, p.obiettivo.trim(), quando) } : { ok: true, unico: u }
+      p.obiettivo !== undefined && p.obiettivo.trim() !== '' ? { ok: true, unico: messaggio(u, p.obiettivo.trim(), quando, { daProgramma: p.daProgramma === true }) } : { ok: true, unico: u }
     )
     if (gia !== undefined && loro.length === 0) return conObiettivo(gia)
     const cwd = gia?.cwd ?? p.cwd ?? cartellaDelWorkspace(loro)
@@ -1349,7 +1349,12 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     return ws.size
   }
 
-  const messaggio = (a: Autopilota, testo: string, quando: string = x.adesso()): Autopilota => {
+  /**
+   * `daProgramma` (11/11): il messaggio lo scrive il programma («Controllo di tutti i PC…»,
+   * «Errori arrivati…»), non Nicholas: le domande aperte restano aperte. Il 07/11 un controllo
+   * dei PC ha chiuso la domanda sulla scheda video dopo sei minuti, e l'autopilota l'ha rifatta.
+   */
+  const messaggio = (a: Autopilota, testo: string, quando: string = x.adesso(), opz: { daProgramma?: boolean } = {}): Autopilota => {
     const ws = wsDi(a)
     // Ogni richiesta in coda (le parole intere), con le candidate all'unione in vista: le unisce l'orchestratore.
     let riga = ''
@@ -1367,7 +1372,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     ricalcola(ws, `richiesta nuova: «${testo.replace(/\s+/gu, ' ').slice(0, 60)}»`)
     // k-44: se Nicholas scrive nel dialogo, le domande rimaste aperte prima del suo messaggio sono superate
     // (ha parlato lui): spariscono dalle Domande e l'autopilota lo legge qui.
-    const chiuse = x.domande.aperte(a.id).filter((d) => d.apertaIl <= Date.parse(quando) && x.domande.superata(d.id, 'Nicholas ha scritto nel dialogo dopo la domanda'))
+    const chiuse = opz.daProgramma === true ? [] : x.domande.aperte(a.id).filter((d) => d.apertaIl <= Date.parse(quando) && x.domande.superata(d.id, 'Nicholas ha scritto nel dialogo dopo la domanda'))
     const nota = chiuse.length > 0
       ? ` [Il programma ha chiuso ${chiuse.length === 1 ? 'una tua domanda aperta' : `${chiuse.length} tue domande aperte`}, perché hai scritto nel dialogo dopo: ${chiuse.map((d) => `«${(d.parti?.domanda ?? d.testo).replace(/\s+/gu, ' ').slice(0, 120)}»`).join(', ')}. Se serve ancora la risposta, rifalla.]`
       : ''
@@ -1503,19 +1508,16 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       if (x.domande.superata(d.id, 'l’autopilota che l’aveva fatta non c’è più')) console.info(`[orchestratore] domanda di un autopilota che non c’è più, chiusa: ${(d.parti?.domanda ?? d.testo).slice(0, 120)}`)
     }
     for (const a of unici()) {
-      // 0.92.1: tutto il lavoro in coda è finito dopo la domanda: non è più attuale.
+      // 11/11: via la regola «tutto il lavoro in coda è finito dopo la domanda» (0.92.1). L'08/11 ha chiuso
+      // senza risposta una domanda sui dati del Drive, che poi è stata rifatta. Una domanda superata la
+      // ritira l'autopilota con ritira_domanda, o la chiusura della richiesta da cui nasce (qui sotto).
       const c = coda(wsDi(a))
-      const finite = c.richieste.length > 0 && c.richieste.every((r) => r.stato === 'fatta')
-      const ultimaFatta = finite ? Math.max(...c.richieste.map((r) => Date.parse(r.fattaIl ?? r.chiusa?.il ?? '') || 0)) : 0
       for (const d of x.domande.aperte(a.id)) {
-        if (finite && ultimaFatta > d.apertaIl && x.domande.superata(d.id, 'il lavoro in coda è finito dopo la domanda: non serve più')) {
-          console.info(`[orchestratore] ${wsDi(a)} — domanda superata dal lavoro finito, chiusa: ${(d.parti?.domanda ?? d.testo).slice(0, 120)}`)
-          continue
-        }
         // 0.96.0: la richiesta da cui nasce è chiusa o unita: la domanda non serve più.
+        // 11/11: solo se la chiusura è arrivata dopo la domanda (mai per una richiesta già chiusa quando è nata).
         const rid = d.contesto?.richiestaId
         const chiusa = rid !== undefined ? richiestaChiusa(c, rid) : undefined
-        if (rid !== undefined && chiusa?.chiusa === true && x.domande.superata(d.id, `la richiesta ${rid} è ${chiusa.come ?? 'chiusa'}: non serve più`)) {
+        if (rid !== undefined && chiusa?.chiusa === true && chiusaDopoLaDomanda(chiusa, d.apertaIl) && x.domande.superata(d.id, `la richiesta ${rid} è ${chiusa.come ?? 'chiusa'}: non serve più`)) {
           console.info(`[orchestratore] ${wsDi(a)} — domanda superata dalla richiesta ${rid} (${chiusa.come ?? 'chiusa'}), chiusa: ${(d.parti?.domanda ?? d.testo).slice(0, 120)}`)
           continue
         }

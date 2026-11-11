@@ -10,7 +10,7 @@ import { apriCode, type ArchivioCode } from '../../src/autopilot-host/coda-store
 import { apriOrchestratori, type ArchivioOrchestratori } from '../../src/autopilot-host/orchestratore-store'
 import type { AvviaProcesso, ProcessoClaude } from '../../src/autopilot-host/orchestratore'
 import {
-  devePassareAlleDomande, DOMANDA_IN_CHAT_MS, DOMANDA_VISTA_SENZA_RISPOSTA_MS, richiestaChiusa, richiestaDellaDomanda, rispostaInCoda, rispostaScritta, rispostaSenzaLavoro, scelteDaToccare
+  chiusaDopoLaDomanda, devePassareAlleDomande, DOMANDA_IN_CHAT_MS, DOMANDA_VISTA_SENZA_RISPOSTA_MS, richiestaChiusa, richiestaDellaDomanda, rispostaInCoda, rispostaScritta, rispostaSenzaLavoro, scelteDaToccare
 } from '../../src/autopilot-host/domande-in-chat'
 import { leggiStatoProgramma } from '../../src/autopilot-host/stato-programma'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
@@ -76,6 +76,25 @@ describe('la richiesta da cui nasce una domanda (puro)', () => {
     expect(richiestaDellaDomanda(due, undefined, 'tra r-1 e r-2?')).toBeUndefined()
     expect(richiestaDellaDomanda(codaCon([richiesta('r-1'), richiesta('r-2', { stato: 'fatta' })]), undefined, 'verde?')).toBe('r-1')
     expect(richiestaDellaDomanda(codaCon([richiesta('r-1', { chiusa: { come: 'risposta', perche: 'x', il: 'a' } }), richiesta('r-2')]), undefined, 'verde?')).toBe('r-2')
+  })
+  // 08/11: «Correggo le tre cose…?» legata a un'analisi appena finita, ritirata dopo 0,3 secondi e rifatta.
+  it('11/11: una richiesta già chiusa non lega la domanda, né dichiarata né citata', () => {
+    const fatta = codaCon([richiesta('r-1', { stato: 'fatta', fattaIl: '2026-11-06T08:30:00.000Z' }), richiesta('r-2')])
+    expect(richiestaDellaDomanda(fatta, 'r-1', 'correggo le tre cose?')).toBeUndefined()
+    expect(richiestaDellaDomanda(fatta, undefined, 'dopo la r-1, correggo?')).toBeUndefined()
+    expect(richiestaDellaDomanda(fatta, 'r-2', 'correggo?')).toBe('r-2')
+    const senzaLavoro = codaCon([richiesta('r-1', { chiusa: { come: 'risposta', perche: 'x', il: 'a' } })])
+    expect(richiestaDellaDomanda(senzaLavoro, 'r-1', 'e adesso?')).toBeUndefined()
+    expect(richiestaDellaDomanda(codaCon([], [{ id: 'r-1', titolo: 't', fattaIl: 'a' }]), 'r-1', 'e adesso?')).toBeUndefined()
+  })
+  it('11/11: la chiusura conta solo se arriva dopo la domanda; senza data vale dopo', () => {
+    const aperta = Date.parse('2026-11-06T09:00:00.000Z')
+    expect(chiusaDopoLaDomanda({ il: '2026-11-06T08:40:00.000Z' }, aperta)).toBe(false)
+    expect(chiusaDopoLaDomanda({ il: '2026-11-06T09:00:00.000Z' }, aperta)).toBe(true)
+    expect(chiusaDopoLaDomanda({ il: '2026-11-06T09:05:00.000Z' }, aperta)).toBe(true)
+    expect(chiusaDopoLaDomanda({}, aperta)).toBe(true)
+    expect(chiusaDopoLaDomanda({ il: 'non è una data' }, aperta)).toBe(true)
+    expect(richiestaChiusa(codaCon([richiesta('r-1', { stato: 'fatta', fattaIl: '2026-11-06T09:05:00.000Z' })]), 'r-1').il).toBe('2026-11-06T09:05:00.000Z')
   })
   it('chiusa se fatta, chiusa senza lavoro, nello storico o unita a una che lo è; ignota o aperta no', () => {
     expect(richiestaChiusa(codaCon([richiesta('r-1')]), 'r-1')).toEqual({ chiusa: false })
@@ -408,8 +427,10 @@ describe('la richiesta chiusa ritira la domanda', () => {
   const duePerCoda = async (): Promise<void> => {
     await posta('/orchestratore/messaggio', { ws: 'Lavoro', testo: 'la seconda cosa, un lavoro diverso' })
   }
-  const chiudi = (id: string): void => {
-    code.cambia('Lavoro', (c) => ({ coda: { ...c, richieste: c.richieste.map((r) => (r.id === id ? { ...r, stato: 'fatta' as const, fattaIl: new Date(ora - 20 * MIN).toISOString() } : r)) }, eventi: [] }))
+  // 11/11: la chiusura porta l'ora di adesso (prima «20 minuti fa»): la domanda si ritira solo se la
+  // richiesta si chiude dopo che è nata. `quando` serve a provare il caso contrario.
+  const chiudi = (id: string, quando: number = ora): void => {
+    code.cambia('Lavoro', (c) => ({ coda: { ...c, richieste: c.richieste.map((r) => (r.id === id ? { ...r, stato: 'fatta' as const, fattaIl: new Date(quando).toISOString() } : r)) }, eventi: [] }))
   }
 
   it('con richiesta dichiarata: fatta lei, la domanda sparisce (ancora in chat: senza traccia fra le risolte) e i tasti vanno via', async () => {
@@ -446,6 +467,33 @@ describe('la richiesta chiusa ritira la domanda', () => {
     server!.controllaChatFerme()
     expect(await visibiliNelServizio()).toHaveLength(0)
     expect(domande.risolte(idUnico())[0]?.risposta).toContain(`la richiesta ${ids[0]} è fatta`)
+  })
+
+  it('11/11: dichiarata una richiesta già fatta, la domanda nasce senza richiesta e nessuno la ritira', async () => {
+    zitto()
+    await avviaServizio()
+    const { mcp } = await conStrumenti()
+    await duePerCoda()
+    const ids = code.leggi('Lavoro').richieste.map((r) => r.id)
+    chiudi(ids[0]!, ora - 20 * MIN)
+    expect(await mcp('chiedi_utente', { ...DOMANDA, richiesta: ids[0] })).toContain('Domanda aperta per Nicholas')
+    expect(domande.aperte(idUnico())[0]!.contesto?.richiestaId).toBeUndefined()
+    server!.controllaChatFerme()
+    ora += 2 * MIN
+    server!.controllaChatFerme()
+    expect(domande.aperte(idUnico())).toHaveLength(1)
+  })
+
+  it('11/11: una domanda legata (da prima) a una richiesta chiusa prima che nascesse non si ritira', async () => {
+    zitto()
+    await avviaServizio()
+    const { mcp } = await conStrumenti()
+    await duePerCoda()
+    const ids = code.leggi('Lavoro').richieste.map((r) => r.id)
+    await mcp('chiedi_utente', { ...DOMANDA, richiesta: ids[0] })
+    chiudi(ids[0]!, ora - 20 * MIN)
+    server!.controllaChatFerme()
+    expect(domande.aperte(idUnico())).toHaveLength(1)
   })
 
   it('senza dichiarazione, con una sola richiesta aperta, la ricava dalla coda', async () => {

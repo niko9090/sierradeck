@@ -651,6 +651,32 @@ describe('il motore non si ferma (0.89.4)', () => {
       await attendi(() => processi.some((p) => p.scritte.some((s) => testoScritto(s).includes('chiuso una tua domanda aperta'))), { cosa: 'avviso all’autopilota' })
     })
 
+    // 11/11: 45 dei 109 messaggi «tu» erano del programma, e ognuno chiudeva le domande aperte (poi rifatte).
+    it('11/11: un messaggio del programma (controllo dei PC, errori arrivati) non chiude le domande aperte', async () => {
+      const id = await preparo()
+      domande.apri({ autopilotaId: id, testo: 'Tengo il verde?', scadenzaMs: 60_000 })
+      const r = await posta('/orchestratore/messaggio', { ws: 'Lavoro', testo: 'Controllo di tutti i PC: 2 criticità. Il rapporto è nel progetto.', daProgramma: true })
+      expect(r.status).toBe(200)
+      expect(domande.aperte(id)).toHaveLength(1)
+      expect(domande.risolte(id)).toHaveLength(0)
+      // Il messaggio arriva lo stesso: in coda e all'autopilota, senza «ho chiuso una tua domanda».
+      expect(code.leggi('Lavoro').richieste.some((q) => q.testo.includes('Controllo di tutti i PC'))).toBe(true)
+      await attendi(() => processi.some((p) => p.scritte.some((s) => testoScritto(s).includes('Controllo di tutti i PC'))), { cosa: 'il messaggio all’autopilota' })
+      expect(processi.some((p) => p.scritte.some((s) => testoScritto(s).includes('chiuso una tua domanda aperta')))).toBe(false)
+    })
+
+    it('11/11: il lavoro in coda tutto finito non chiude più da solo le domande', async () => {
+      const id = await preparo()
+      await posta('/orchestratore/messaggio', { ws: 'Lavoro', testo: 'libera spazio sul disco' })
+      const d = domande.apri({ autopilotaId: id, testo: 'Cancello le copie vecchie o le tengo un mese?', scadenzaMs: 60_000 })
+      // Tutte le richieste fatte, dopo la domanda: prima bastava questo per chiuderla senza risposta.
+      const dopo = new Date(d.apertaIl + 60_000).toISOString()
+      code.cambia('Lavoro', (c) => ({ coda: { ...c, richieste: c.richieste.map((q) => ({ ...q, stato: 'fatta' as const, fattaIl: dopo })) }, eventi: [] }))
+      expect(code.leggi('Lavoro').richieste.every((q) => q.stato === 'fatta')).toBe(true)
+      server!.controllaChatFerme()
+      expect(domande.aperte(id)).toHaveLength(1)
+    })
+
     it('l’autopilota finito o archiviato non lascia domande aperte', async () => {
       const id = await preparo()
       domande.apri({ autopilotaId: id, testo: 'Pubblico?', scadenzaMs: 60_000 })
