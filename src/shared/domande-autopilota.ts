@@ -1,5 +1,6 @@
 import type { Autopilota, ScambioDialogo } from './autopilota'
 import type { PartiDomanda } from './domanda-strutturata'
+import { campiScadenza, scadenzaDi } from './scadenza-domanda'
 import { chiDi, schedaDaParti, schedaDaTesto, type SchedaDomanda } from './scheda-domanda'
 
 /**
@@ -22,7 +23,7 @@ import { chiDi, schedaDaParti, schedaDaTesto, type SchedaDomanda } from './sched
  */
 
 /** Una domanda aperta come la manda il servizio (`/domande`). */
-export type DomandaApertaServizio = { id: string; autopilotaId: string; testo: string; apertaIl?: number; opzioni?: string[]; parti?: PartiDomanda; avvertenza?: string }
+export type DomandaApertaServizio = { id: string; autopilotaId: string; testo: string; apertaIl?: number; opzioni?: string[]; parti?: PartiDomanda; avvertenza?: string; contesto?: { rischiosa?: boolean; maiDaSola?: boolean } }
 
 export type DomandaScheda = {
   /** Stabile: `d:<id>` per una domanda del servizio, `via:<autopilota>` per il via. */
@@ -52,9 +53,13 @@ export function domandeScheda(a: Autopilota, aperte: DomandaApertaServizio[]): D
     .sort((x, y) => (x.apertaIl ?? 0) - (y.apertaIl ?? 0))
   const chi = chiDi('autopilota', a.nome !== '' ? a.nome : a.obiettivo.slice(0, 60), a.cwd)
   const fuori: DomandaScheda[] = mie.map((d) => ({
-    scheda: d.parti !== undefined
-      ? schedaDaParti(chi, d.parti, d.avvertenza !== undefined ? { avvertenza: d.avvertenza } : {})
-      : schedaDaTesto(chi, d.testo, (d.opzioni ?? []).map((testo) => ({ testo })), 'Scrivi tu la risposta'),
+    scheda: {
+      ...(d.parti !== undefined
+        ? schedaDaParti(chi, d.parti, d.avvertenza !== undefined ? { avvertenza: d.avvertenza } : {})
+        : schedaDaTesto(chi, d.testo, (d.opzioni ?? []).map((testo) => ({ testo })), 'Scrivi tu la risposta')),
+      // 11/11: se e quando sceglie il programma (`scadenza-domanda.ts`).
+      ...campiScadenza(scadenzaDi(d))
+    },
     chiave: `d:${d.id}`,
     tipo: 'domanda',
     idDomanda: d.id,

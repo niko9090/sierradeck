@@ -68,7 +68,19 @@ export type SchedaDomanda = {
   poi?: number
   /** Il testo non è arrivato (0.84.1): il tasto «Apri la chat su <PC>». */
   apri?: ApriChatAltrove
+  /**
+   * 11/11 (`scadenza-domanda.ts`): quando il programma sceglie da solo se
+   * Nicholas non risponde (ISO). Solo per le domande non rischiose.
+   */
+  scadeIl?: string
+  /** 11/11: `true` = tocca cose sue, nessuno decide al posto suo; `false` = scade. Assente: non si sa (domande di prima). */
+  rischiosa?: boolean
+  /** 11/11: come è finita una domanda chiusa: ha risposto lui, ha scelto il programma, non serve più. */
+  decisa?: DecisaDomanda
 }
+
+/** Come è finita una domanda (11/11): la riga sotto è «Hai risposto: …», «Ha scelto il programma: …», «Non serve più: …». */
+export type DecisaDomanda = { come: 'tu' | 'programma' | 'ritirata'; testo: string; quando: string }
 
 /**
  * Cosa fa il tocco di un tasto (0.84.3, Revisione): una scelta `libera` apre
