@@ -150,3 +150,12 @@ Corretto nella versione 0.97.3 per quanto riguarda il programma: «Drive pieno»
 
 ## «Error occurred in handler for 'domande:chiama': il servizio autopilota non risponde sulla porta 47630: TimeoutError»
 Corretto nella prossima versione (dopo la 0.98.0). Causa: `rispondi` (src/main/autopilot-client.ts) usava i 3 s di lettura invece dei 30 s di scrittura, ma il servizio scrive su disco prima di rispondere; ora usa l'attesa di scrittura e, se scade, controlla se la domanda è ancora aperta. Il pannello mostra «servizio occupato» (testoErroreDialogo). Test in tests/main/risposta-autopilota-k317.test.ts.
+
+
+# Errori arrivati (lotto 20261110165020)
+
+## 1. «[orchestratore] serverDSM — turno non riuscito: API Error: Can't reach the API server (ENOTFOUND)» (11 volte, versione 0.99.0)
+Corretto nella 0.99.2 (rete) e 0.99.3 (autopilota mai fermo anche sugli errori non di rete). Causa: il PC non raggiungeva il server delle API (DNS/rete assente per più di un'ora) e il turno dell'orchestratore falliva senza un nuovo tentativo adatto; non è un difetto dei dati del workspace.
+
+## 2. «[orchestratore] Desk_remoto #2 — turno non riuscito: API Error: Can't reach the API server (ENOTFOUND)» (10 volte, versione 0.99.0)
+Stessa causa e stessa correzione del gruppo 1 (0.99.2 e 0.99.3): era il risveglio «lavoro fermo da 4 minuti» di un altro orchestratore, fallito sulla stessa mancanza di rete. Nessun gruppo aperto in questo lotto.
