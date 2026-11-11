@@ -133,9 +133,22 @@ export function versionePcInBreve(p: { versione: string; battito?: string; viva?
 }
 
 /**
+ * Le righe che **raccontano** (11/11): la risposta dell'autopilota, il testo di
+ * una sua domanda, quello che Nicholas gli ha scritto. Sono parole libere, e
+ * dentro c'è spesso «fallito» o «non riuscito» («2 prove fallite», «la
+ * correzione non è entrata»): il 10/11 il controllo dei PC contava «9 da
+ * guardare» su un PC dove quasi tutte erano risposte dell'autopilota.
+ */
+const RIGA_DI_RACCONTO = /\[orchestratore\] .*? — (?:risponde|domanda [^:]{0,80}): |\[domande\] .*? — la tua risposta «/u
+/** Un conto a zero non è un guasto: «0 rifiutate dal Drive, 0 errori». */
+const CONTI_A_ZERO = /\b0 (?:rifiutat[oaie]|fallit[oaie]|non riuscit[oaie]|non partit[oaie])\b/giu
+const PAROLE_DI_GUASTO = /\b(fallit[oaie]|non riuscit[oaie]|rifiutat[oaie]|guasto|non partit[oaie])\b/i
+
+/**
  * Gli errori delle ultime `ore` dal registro: le righe `[ERRORE]` e quelle che
  * dicono «fallito», «non riuscito», «rifiutat…». Raggruppate per messaggio
- * (numeri, orari e id tolti), dalla più recente.
+ * (numeri, orari e id tolti), dalla più recente. Le righe di racconto e i
+ * conti a zero non contano (una riga `[ERRORE]` conta sempre).
  */
 export function erroriDalLog(righe: string[], adesso: number, ore: number, avvio?: number): ErroreLog[] {
   const da = adesso - ore * 3_600_000
@@ -151,7 +164,7 @@ export function erroriDalLog(righe: string[], adesso: number, ore: number, avvio
     const livello = (m[2] as string).toUpperCase()
     const testo = (m[3] as string).trim()
     const grave = livello === 'ERRORE' || livello === 'ERROR'
-    if (!grave && !/\b(fallit[oaie]|non riuscit[oaie]|rifiutat[oaie]|guasto|non partit[oaie])\b/i.test(testo)) continue
+    if (!grave && (RIGA_DI_RACCONTO.test(testo) || !PAROLE_DI_GUASTO.test(testo.replace(CONTI_A_ZERO, '')))) continue
     const chiave = testo.replace(/\d+([.,:]\d+)*/g, '#').replace(/[0-9a-f]{8,}/gi, '#').slice(0, 160)
     const g = gruppi.get(chiave)
     if (g === undefined) gruppi.set(chiave, { messaggio: testo.slice(0, 400), volte: 1, ultimo: m[1] as string, primo: m[1] as string })
