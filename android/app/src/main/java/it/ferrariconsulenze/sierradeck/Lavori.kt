@@ -426,33 +426,6 @@ fun DalVivo(v: StatoDalVivo, senzaStato: Boolean = false) {
     if (v.ultimaAzione.isNotBlank()) Text(v.ultimaAzione, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1)
 }
 
-/** Il riquadro «Adesso» (PC 0.81.0): una riga per chat, le ferme in cima e in rosso. */
-@Composable
-fun AdessoVista(a: Adesso) {
-    if (a.righe.isEmpty() && a.finite == 0) return
-    Spacer(Modifier.height(6.dp))
-    Column(Modifier.fillMaxWidth().border(1.dp, Banco.incisione, RoundedCornerShape(Banco.raggioGrande)).padding(8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Adesso", color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.weight(1f))
-            Aiuto(a.aiuto, di = "Adesso")
-        }
-        a.righe.forEach { r ->
-            Text(
-                buildAnnotatedString {
-                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(r.chi) }
-                    if (r.compito.isNotBlank()) withStyle(SpanStyle(color = Banco.testoQuieto)) { append(" · ${r.compito}") }
-                    append(" — ")
-                    withStyle(SpanStyle(color = coloreVista(coloreAdesso(r.tono)))) { append(r.testo) }
-                },
-                color = Banco.testo,
-                fontSize = 12.sp,
-                modifier = Modifier.padding(top = 3.dp)
-            )
-        }
-        righeFinite(a.finite)?.let { Text(it, color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.padding(top = 3.dp)) }
-    }
-}
-
 /**
  * I messaggi verso la chat (2.72.1): spunte ✓ su una riga, e una riga sola
  * per chi è fermo, con «Manda adesso» (vedi `MessaggiCompattiVista`).

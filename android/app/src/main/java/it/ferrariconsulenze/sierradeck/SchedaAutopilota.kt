@@ -49,23 +49,6 @@ fun sezioniAutopilota(domande: Int): List<String> = linguetteAutopilota(domande)
 fun domandaArrivata(prima: List<String>?, adesso: List<DomandaScheda>): Boolean =
     if (prima == null) adesso.isNotEmpty() else adesso.any { it.chiave !in prima }
 
-/** Una riga del diff, con il suo tipo per il colore. */
-data class RigaDiff(val tipo: String, val testo: String)
-
-fun righeDiff(testo: String, max: Int = 2000): List<RigaDiff> = testo.split("\n").take(max).map { r ->
-    when {
-        r.startsWith("+++") || r.startsWith("---") || r.startsWith("diff ") || r.startsWith("index ") -> RigaDiff("testa", r)
-        r.startsWith("@@") -> RigaDiff("blocco", r)
-        r.startsWith("+") -> RigaDiff("piu", r.drop(1))
-        r.startsWith("-") -> RigaDiff("meno", r.drop(1))
-        else -> RigaDiff("contesto", r.removePrefix(" "))
-    }
-}
-
-/** «modificato · +3 −1 · da salvare»: la riga di un file. */
-fun rigaFile(f: FileCambiato): String =
-    "${f.stato} · " + (if (f.binario == true) "binario" else "+${f.piu} −${f.meno}") + " · " + (if (f.salvato) "in commit" else "da salvare")
-
 /**
  * Quanto puo' crescere la linguetta aperta, in dp, prima di scorrere (0.39.1):
  * le Domande hanno piu' posto. Il testo di una domanda non si taglia mai: oltre

@@ -296,23 +296,6 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
             put("azione", azione); put("sessioni", sessioniJson(sessioni)); put("ancheDalDrive", ancheDalDrive)
         }))
 
-    suspend fun archiviateChat(): ArchiviateChat = json.decodeFromString(corpoTesto("/api/chat/gestione/archiviate", oggetto { }))
-
-    suspend fun recuperoChat(): RecuperoChat = json.decodeFromString(corpoTesto("/api/chat/gestione/recupero", oggetto { }))
-
-    suspend fun ripristinaDalRecupero(id: String): MessaggioChat =
-        json.decodeFromString(corpoTesto("/api/chat/gestione/ripristina", oggetto { put("id", id) }))
-
-    /** Primo passo di «Svuota il recupero adesso»: il PC dà il gettone e dice cosa si perde. */
-    suspend fun chiediSvuotaRecupero(ancheDalDrive: Boolean): RispostaSvuota =
-        json.decodeFromString(corpoTesto("/api/chat/gestione/svuota", oggetto { put("ancheDalDrive", ancheDalDrive) }))
-
-    /** Secondo passo: il gettone e la parola scritta. */
-    suspend fun svuotaRecupero(ancheDalDrive: Boolean, gettone: String, frase: String): RispostaSvuota =
-        json.decodeFromString(corpoTesto("/api/chat/gestione/svuota", oggetto {
-            put("ancheDalDrive", ancheDalDrive); put("gettone", gettone); put("frase", frase)
-        }))
-
     // ─── lo storico degli errori (PC 0.81.0) ───
     suspend fun storicoErrori(): StoricoErroriPc = json.decodeFromString(corpoTesto("/api/errori", oggetto { }))
 
@@ -368,26 +351,6 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
 
     suspend fun installaLaStato(): StatoInstallaLa = json.decodeFromString(corpoTesto("/api/installa-la/stato", null))
 
-    /** Il pannello delle chat e dei progetti del Drive (PC 0.58.0), anche attraverso il ponte. */
-    suspend fun pannelloDrive(): PannelloDrive = json.decodeFromString(corpoTesto("/api/drive/pannello", oggetto { }))
-
-    suspend fun azioneDrive(azione: String, progetto: String, id: String = ""): EsitoAzioneDrive =
-        json.decodeFromString(corpoTesto("/api/drive/azione", oggetto { put("azione", azione); put("progetto", progetto); put("id", id) }))
-
-    /** Le azioni dello spazio sul Drive (PC 0.65.0): misura, pulisci, annulla, svuota. */
-    suspend fun azioneSpazio(azione: String, tipo: String = "", id: String = "", recupero: String = ""): EsitoAzioneDrive =
-        json.decodeFromString(corpoTesto("/api/drive/azione", oggetto { put("azione", azione); put("tipo", tipo); put("id", id); if (recupero != "") put("recupero", recupero) }))
-
-    /** «Libera spazio sul Drive» (PC k-307): le stesse rotte della pagina del telefono. */
-    suspend fun spazioStato(forza: Boolean): StatoSpazioDrive? =
-        json.decodeFromString<RispostaSpazioStato>(corpoTesto("/api/drive/spazio/stato", oggetto { put("forza", forza) })).stato
-    suspend fun spazioQuota(forza: Boolean): QuotaMisurataDrive? =
-        json.decodeFromString<RispostaSpazioQuota>(corpoTesto("/api/drive/spazio/quota", oggetto { put("forza", forza) })).quota
-    suspend fun spazioInSospeso(): List<InSospesoDrive> =
-        json.decodeFromString<RispostaSpazioInSospeso>(corpoTesto("/api/drive/spazio/in-sospeso", oggetto { })).inSospeso
-    suspend fun spazioRiprendi(): EsitoRiprendiSpazio =
-        json.decodeFromString(corpoTesto("/api/drive/spazio/riprendi", oggetto { }))
-
     /** Il Quaderno personale (PC 0.57.0): solo il PC accoppiato, mai attraverso il ponte. */
     suspend fun quadernoPersonale(): StatoQuadernoPersonale =
         json.decodeFromString(corpoTesto("/api/quaderno-personale", oggetto { }))
@@ -422,19 +385,6 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
 
     suspend fun sessioni(senzaNome: Boolean = false): Sessioni =
         json.decodeFromString(corpoTesto("/api/sessioni", if (senzaNome) oggetto { put("senzaNome", true) } else null))
-
-    /**
-     * Apre una chat dal pannello «Progetti» (PC 0.67.0): sul computer, qui con
-     * la sua storia, o dal vivo sul PC dove vive (`pc`). Risponde come le azioni
-     * del pannello, così l'app lo dice con la stessa nota.
-     */
-    suspend fun apriChatProgetto(cartella: String, sessione: String, pc: String?, titolo: String): EsitoAzioneDrive {
-        corpoTesto("/api/sessioni/riprendi", oggetto {
-            put("cartella", cartella); put("sessione", sessione); put("titolo", titolo)
-            if (pc != null) { put("dalVivo", true); put("pc", pc) }
-        })
-        return EsitoAzioneDrive(ok = true, messaggio = "Aperta sul computer: la trovi fra le sue chat.")
-    }
 
     suspend fun riprendiSessione(cartella: String, sessione: String): Fatto =
         json.decodeFromString(corpoTesto("/api/sessioni/riprendi", oggetto {
@@ -508,13 +458,6 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
         return json.decodeFromString(corpoTesto(percorso, oggetto { for ((k, v) in corpo) put(k, v) }))
     }
 
-    /** La linguetta «File» (0.38.0): solo lettura. */
-    suspend fun fileAutopilota(id: String): FileAutopilota =
-        json.decodeFromString(corpoTesto("/api/autopilota/file", oggetto { put("autopilota", id) }))
-
-    suspend fun diffAutopilota(id: String, chat: String, percorso: String): DiffFile =
-        json.decodeFromString(corpoTesto("/api/autopilota/diff", oggetto { put("autopilota", id); put("chat", chat); put("percorso", percorso) }))
-
     /**
      * Gli scrivi. Il computer risponde subito «ricevuto»: la sua risposta
      * compare in `AutopilotaDettaglio.dialogo` al giro dopo. Un computer con
@@ -561,19 +504,6 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
     suspend fun ripristinaWorkspace(nome: String, eliminatoIl: String): Ripristinato =
         json.decodeFromString(corpoTesto("/api/workspace/ripristina", oggetto { put("nome", nome); put("eliminatoIl", eliminatoIl) }))
 
-    // ─── la coda condivisa dei comandi di un progetto ───
-    suspend fun coda(progetto: String): Coda =
-        json.decodeFromString(corpoTesto("/api/coda", oggetto { put("progetto", progetto) }))
-
-    suspend fun codaAggiungi(progetto: String, testo: String): Coda =
-        json.decodeFromString(corpoTesto("/api/coda/aggiungi", oggetto { put("progetto", progetto); put("testo", testo) }))
-
-    suspend fun codaTogli(progetto: String, voce: String): Coda =
-        json.decodeFromString(corpoTesto("/api/coda/togli", oggetto { put("progetto", progetto); put("voce", voce) }))
-
-    suspend fun codaPulisci(progetto: String): Coda =
-        json.decodeFromString(corpoTesto("/api/coda/pulisci", oggetto { put("progetto", progetto) }))
-
     // ─── la posta per un PC: azioni che si eseguono solo la', quando e' acceso ───
     suspend fun pc(): ElencoPc = json.decodeFromString(corpoTesto("/api/pc", null))
 
@@ -588,27 +518,6 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
 
     suspend fun postaPulisci(pc: String): Posta =
         json.decodeFromString(corpoTesto("/api/posta/pulisci", oggetto { put("pc", pc) }))
-
-    // ─── il Drive ───
-    suspend fun driveCatalogo(): RispostaCatalogo = json.decodeFromString(corpoTesto("/api/drive/catalogo", null))
-    suspend fun drivePorta(chiave: String): EsitoPorta =
-        json.decodeFromString(corpoTesto("/api/drive/porta", oggetto { put("progetto", chiave) }))
-    suspend fun drivePortaWorkspace(nome: String): EsitoPorta =
-        json.decodeFromString(corpoTesto("/api/drive/portaWorkspace", oggetto { put("workspace", nome) }))
-    suspend fun driveLavoro(): StatoLavoro = json.decodeFromString(corpoTesto("/api/drive/lavoro", null))
-    suspend fun driveCatalogoStato(): StatoCatalogo = json.decodeFromString(corpoTesto("/api/drive/catalogoStato", null))
-    suspend fun driveAnnulla(): Fatto = json.decodeFromString(corpoTesto("/api/drive/annulla", oggetto { }))
-    suspend fun driveRiavvia(): EsitoPorta = json.decodeFromString(corpoTesto("/api/drive/riavvia", oggetto { }))
-
-    // ─── preferenze (stile / chiarore) ───
-    suspend fun preferenze(): PreferenzeInvolucro =
-        json.decodeFromString(corpoTesto("/api/preferenze", null))
-
-    suspend fun impostaStile(stile: String): Fatto =
-        json.decodeFromString(corpoTesto("/api/preferenze", oggetto { put("stile", stile) }))
-
-    suspend fun impostaChiarore(chiarore: Int): Fatto =
-        json.decodeFromString(corpoTesto("/api/preferenze", oggetto { put("chiarore", chiarore) }))
 
     // ─── aggiornamento del COMPUTER ───
     suspend fun aggiornamento(): Aggiornamento =
@@ -637,39 +546,6 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
     /** Gli indirizzi del PC (rete di casa e Tailscale) e la sua impronta, per ritrovarlo senza VPN (k-50). */
     suspend fun indirizziPc(): IndirizziPc = json.decodeFromString(corpoTesto("/api/indirizzi", null))
 
-    suspend fun negozio(): DatiNegozio =
-        json.decodeFromString(corpoTesto("/api/negozio", null))
-
-    /** Accende o spegne un plugin, una skill o un MCP. */
-    suspend fun commutaNegozio(cosa: String, nome: String, attivo: Boolean): EsitoNegozio =
-        json.decodeFromString(
-            corpoTesto("/api/negozio/commuta", oggetto {
-                put("cosa", cosa)
-                put("nome", nome)
-                put("attivo", attivo)
-            })
-        )
-
-    /**
-     * Installa un plugin. Passa dal CLI di Claude Code: da qualche secondo a un
-     * paio di minuti. `accetta` è l'impronta del comando del marketplace che
-     * la persona ha letto e confermato.
-     */
-    suspend fun installaPlugin(id: String, accetta: String? = null): EsitoNegozio =
-        json.decodeFromString(corpoTesto("/api/negozio/installa", oggetto { put("id", id); accetta?.let { put("accetta", it) } }))
-
-    /** Aggiorna un plugin installato all'ultima versione del suo marketplace (0.53.0). */
-    suspend fun aggiornaPlugin(id: String, accetta: String? = null): EsitoNegozio =
-        json.decodeFromString(corpoTesto("/api/negozio/aggiorna", oggetto { put("id", id); accetta?.let { put("accetta", it) } }))
-
-    /** Cerca nel catalogo intero (0.53.0; un computer di prima risponde 404). */
-    suspend fun cercaPlugin(q: String): RicercaNegozio =
-        json.decodeFromString(corpoTesto("/api/negozio/cerca", oggetto { put("q", q) }))
-
-    /** Gli MCP con lo stato del collegamento: il computer li prova uno per uno (0.53.0). */
-    suspend fun saluteMcp(): SaluteMcp =
-        json.decodeFromString(corpoTesto("/api/negozio/salute-mcp", null))
-
     /**
      * Le cartelle dentro una cartella del computer.
      *
@@ -680,29 +556,12 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
     suspend fun sfoglia(percorso: String = ""): Sfoglia =
         json.decodeFromString(corpoTesto("/api/sfoglia", oggetto { put("percorso", percorso) }))
 
-    /** La trasformazione dei workspace (PC 0.74.1; un PC più vecchio risponde 404). */
-    suspend fun migrazione(): RispostaMigrazione =
-        json.decodeFromString(corpoTesto("/api/migrazione", null))
-
-    suspend fun tornaMigrazione(): EsitoMigrazioneApp =
-        json.decodeFromString(corpoTesto("/api/migrazione/torna", oggetto { }))
-
-    suspend fun rifaiMigrazione(): EsitoMigrazioneApp =
-        json.decodeFromString(corpoTesto("/api/migrazione/rifai", oggetto { }))
-
     /**
      * La catena del Drive del computer. Dal PC 0.88.0 l'account di SierraDeck
      * non c'è più: risponde `entrato: false`, con la catena se c'è.
      */
     suspend fun account(): Account =
         json.decodeFromString(corpoTesto("/api/account", null))
-
-    // ─── specialisti: la lista d'attesa (PC, k-48) ───
-    suspend fun attesaSpecialisti(): VistaAttesaApp = json.decodeFromString(corpoTesto("/api/specialisti/attesa", oggetto { }))
-    suspend fun attesaPriorita(id: String, mossa: String): VistaAttesaApp =
-        json.decodeFromString(corpoTesto("/api/specialisti/attesa/priorita", oggetto { put("id", id); put("mossa", mossa) }))
-    suspend fun attesaTogli(id: String): VistaAttesaApp =
-        json.decodeFromString(corpoTesto("/api/specialisti/attesa/togli", oggetto { put("id", id) }))
 
     // ─── consumi ───
     suspend fun consumi(): Consumi = json.decodeFromString(corpoTesto("/api/consumi", null))

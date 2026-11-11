@@ -163,10 +163,8 @@ fun GestioneWorkspace(api: Api, workspace: Workspace, nomePc: String?, onChiudi:
                                                     "rinomina" -> { rinomina = v.nome; nomeNuovo = v.nome }
                                                     "cartella" -> scope.launch { apriCartellaDa(api, nomePc, workspace = v.nome); if (Apertura.cartellaRichiesta != null) onChiudi() }
                                                     "elimina" -> elimina = v.nome
-                                                    "portaQui" -> fai("portare qui «${v.nome}»") {
-                                                        val r = api.drivePortaWorkspace(v.nome)
-                                                        if (!r.ok) throw Exception(r.messaggio ?: r.errore ?: "non riuscito")
-                                                    }
+                                                    // «Porta qui» dal Drive: si fa dal computer (11/11).
+                                                    "portaQui" -> Nota.mostra("Si porta qui dal computer.")
                                                 }
                                             }
                                         )

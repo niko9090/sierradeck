@@ -34,16 +34,6 @@ class SchedaAutopilotaTest {
     }
 
     @Test
-    fun `i file e il diff si leggono dal computer`() {
-        val f = Api.json.decodeFromString(
-            FileAutopilota.serializer(),
-            """{"gruppi":[{"chiave":"principale","nome":"Cartella del progetto","cartella":"C:/p","base":"dal commit da cui è partito","file":[{"percorso":"a.ts","stato":"modificato","piu":2,"meno":1,"salvato":false}]}]}"""
-        )
-        assertEquals("modificato · +2 −1 · da salvare", rigaFile(f.gruppi[0].file[0]))
-        assertEquals(listOf("blocco", "meno", "piu"), righeDiff("@@ -1 +1 @@\n-vecchia\n+nuova").map { it.tipo })
-    }
-
-    @Test
     fun `il dettaglio porta le domande della linguetta`() {
         val d = Api.json.decodeFromString(
             AutopilotaDettaglio.serializer(),

@@ -44,7 +44,8 @@ class MainActivity : ComponentActivity() {
             TemaSierraDeck {
                 // L'aggiornamento dell'app vive dentro `App` (una striscia in
                 // alto che si chiude), non piu' qui come finestra all'avvio.
-                App(deposito = deposito, scansionaQr = ::scansionaQr)
+                // La radice nuova arriva nel prossimo passo dell'ossatura.
+                androidx.compose.material3.Text("SierraDeck")
 
                 // La nota dell'ultima caduta. La si scriveva gia' e non la
                 // leggeva nessuno: l'app spariva, e al riavvio non restava una

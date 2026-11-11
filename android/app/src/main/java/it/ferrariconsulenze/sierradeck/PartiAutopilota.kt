@@ -73,58 +73,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.text.style.TextAlign
 
-@Composable
-internal fun Passaggi(passi: List<Passo>, mostraNota: Boolean = true) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        for (p in passi) {
-            val colore = when (p.stato) {
-                "fatto" -> Banco.verde
-                "corrente" -> Banco.accento
-                "attesa" -> Banco.ambra
-                "fermo" -> Banco.rosso
-                else -> Banco.incisione
-            }
-            Column(Modifier.weight(1f)) {
-                Box(Modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(colore))
-                Spacer(Modifier.height(4.dp))
-                Text(p.nome, color = if (p.stato == "davanti") Banco.testoQuieto else Banco.testo, fontSize = 12.sp)
-            }
-        }
-    }
-    val nota = passi.firstOrNull { it.nota != null }?.nota
-    if (nota != null && mostraNota) {
-        Spacer(Modifier.height(6.dp))
-        Text(nota, color = Banco.testoQuieto, fontSize = 13.sp)
-    }
-}
-
-/** La barra della misura e, accanto al dettaglio, quante volte e' intervenuto (i cicli). */
-@Composable
-internal fun Misura(m: MisuraPasso, cicli: Int) {
-    val colore = when (m.tono) {
-        "lavoro" -> Banco.verde
-        "attesa" -> Banco.ambra
-        "fermo" -> Banco.rosso
-        else -> Banco.accento
-    }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        LinearProgressIndicator(
-            progress = { m.percento / 100f },
-            color = colore,
-            trackColor = Banco.incisione,
-            modifier = Modifier.weight(1f).height(6.dp)
-        )
-        Spacer(Modifier.size(10.dp))
-        Text("${m.percento}%", color = colore, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-    }
-    // «3 criteri su 7 · 12 interventi», come sul computer e sulla pagina: i
-    // cicli arrivavano da sempre e nessuna schermata li mostrava.
-    val riga = listOf("${m.dettaglio} ${m.di}".trim(), interventiInParole(cicli)).filter { it.isNotBlank() }
-    if (riga.isNotEmpty()) {
-        Text(riga.joinToString(" · "), color = Banco.testoQuieto, fontSize = 12.sp)
-    }
-}
-
 /** «12 interventi», «1 intervento». */
 internal fun interventiInParole(n: Int): String = if (n == 1) "1 intervento" else "$n interventi"
 
@@ -257,26 +205,6 @@ internal fun RigaChat(b: Battuta, nomeSuo: String) {
     }
 }
 
-/** Una sotto-chat nell'albero: LED, compito, stato, ramo, giri. */
-@Composable
-internal fun RigaAlbero(f: NodoAlbero) {
-    val colore = when (f.stato) { "lavoro" -> Banco.verde; "bloccata" -> Banco.ambra; else -> Banco.testoQuieto }
-    Row(Modifier.padding(start = 8.dp, top = 4.dp), verticalAlignment = Alignment.Top) {
-        Box(Modifier.width(1.dp).height(34.dp).background(Banco.incisione))
-        Spacer(Modifier.width(8.dp))
-        Box(Modifier.padding(top = 5.dp).size(8.dp).clip(CircleShape).background(colore))
-        Spacer(Modifier.width(8.dp))
-        Column {
-            // PC 0.71: il ruolo, con la parola e il colore decisi dal PC.
-            f.ruolo?.let { r -> Text(r.parola, color = coloreVista(r.colore), fontSize = 12.sp, fontWeight = FontWeight.Bold) }
-            Text(f.titolo, color = Banco.testo, fontSize = 13.sp)
-            Text(
-                f.parola + (if (f.approvata) " · approvato e unito" else "") + " · ${f.cicli} " + (if (f.cicli == 1) "giro" else "giri") + (f.ramo?.let { " · $it" } ?: ""),
-                color = Banco.testoQuieto, fontSize = 12.sp
-            )
-        }
-    }
-}
 /**
  * La linguetta «Domande» (0.38.0): una domanda per volta, con il testo intero,
  * le opzioni da toccare, la casella libera e «1 di N». Dopo la risposta,
@@ -346,61 +274,4 @@ internal fun LinguettaDomande(api: Api, autopilota: String, schede: List<Domanda
         color = Banco.testoQuieto, fontSize = 12.sp
     )
 }
-
-/**
- * La linguetta «File» (0.38.0): i file cambiati, per chat, con lo stato, le
- * righe e se sono gia' in commit; toccando un file, il diff. Solo lettura.
- */
-@Composable
-internal fun LinguettaFile(api: Api, autopilota: String) {
-    var file by remember(autopilota) { mutableStateOf<FileAutopilota?>(null) }
-    var guasto by remember(autopilota) { mutableStateOf<String?>(null) }
-    var scelto by remember(autopilota) { mutableStateOf<Pair<String, String>?>(null) }
-    var diff by remember(autopilota) { mutableStateOf<String?>(null) }
-    // Un computer piu' vecchio della 0.38.0 non ha i file: si dice, senza chiedere.
-    val spenta = FunzioniPc.disponibile(FunzionePc.FILE_AUTOPILOTA, PcCorrente.versione) == false
-    LaunchedEffect(autopilota, spenta) {
-        if (spenta) { guasto = FunzioniPc.testoMancante(FunzionePc.FILE_AUTOPILOTA); return@LaunchedEffect }
-        while (isActive) {
-            try { file = api.fileAutopilota(autopilota); guasto = null } catch (e: Exception) {
-                guasto = FunzioniPc.spiega(e, FunzionePc.FILE_AUTOPILOTA)
-            }
-            Davanti.pausa(Davanti.ELENCO_MS)
-        }
-    }
-    LaunchedEffect(scelto) {
-        val s = scelto ?: return@LaunchedEffect
-        diff = null
-        diff = try { api.diffAutopilota(autopilota, s.first, s.second).diff } catch (e: Exception) { "⚠ ${e.message ?: "diff non disponibile"}" }
-    }
-    RigaConAiuto("I file che ha cambiato: tocca un file per vedere le righe.", "I file che ha cambiato, per la cartella del progetto e per il worktree di ogni sua chat. Tocca un file per vedere le righe tolte e aggiunte. Qui si guarda soltanto.")
-    guasto?.let { Text(it, color = Banco.ambra, fontSize = 12.sp) }
-    val f = file
-    if (f == null && guasto == null) Text("Leggo i file…", color = Banco.testoQuieto, fontSize = 13.sp)
-    f?.gruppi?.forEach { g ->
-        Spacer(Modifier.height(8.dp))
-        Etichetta(g.nome.uppercase() + (g.ramo?.let { " · $it" } ?: ""))
-        Text("Confronto ${g.base}", color = Banco.testoQuieto, fontSize = 12.sp)
-        g.errore?.let { Text("⚠ $it", color = Banco.ambra, fontSize = 12.sp) }
-        if (g.errore == null && g.file.isEmpty()) Text("Nessun file cambiato.", color = Banco.testoQuieto, fontSize = 12.sp)
-        for (x in g.file) {
-            Column(Modifier.fillMaxWidth().tocco { scelto = if (scelto == g.chiave to x.percorso) null else g.chiave to x.percorso }.padding(vertical = 4.dp)) {
-                Text(x.percorso, color = Banco.testo, fontSize = 13.sp)
-                Text(rigaFile(x), color = if (x.salvato) Banco.testoQuieto else Banco.ambra, fontSize = 12.sp)
-            }
-        }
-    }
-    val s = scelto
-    if (s != null) {
-        Spacer(Modifier.height(8.dp))
-        Etichetta(s.second)
-        val t = diff
-        if (t == null) Text("Leggo il diff…", color = Banco.testoQuieto, fontSize = 12.sp)
-        else for (r in righeDiff(t)) Text(
-            r.testo,
-            color = when (r.tipo) { "piu" -> Banco.verde; "meno" -> Banco.rosso; "testa", "blocco" -> Banco.testoQuieto; else -> Banco.testo },
-            fontSize = 12.sp,
-            fontFamily = FontTerminale
-        )
-    }
-}
+

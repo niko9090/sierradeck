@@ -77,86 +77,6 @@ fun SezioneAggiornamenti(api: Api) {
         AggiornamentoPc(api, aggiornamento, versionePc)
 }
 
-/** I workspace della linguetta «Workspace» di Chat: dove sei, dove puoi andare, crearne uno. */
-@Composable
-fun SezioneWorkspaceChat(api: Api, stato: Stato?) {
-    val scope = rememberCoroutineScope()
-    var nuovoWs by remember { mutableStateOf("") }
-        // ─── Workspace ───
-        // Tutto dentro una tessera sola: prima i workspace erano chip sospesi e
-        // sotto, staccato, un campo con una scritta di fianco — tre cose che non
-        // sembravano la stessa cosa. Qui si vede subito dove sei e dove puoi
-        // andare, e il campo per crearne uno sta nello stesso pannello.
-        Sezione("Workspace")
-        val ws = stato?.workspace
-        // Rinominare ed eliminare (app 2.55.0): prima la funzione c'era ma
-        // nessun tasto la chiamava, e un workspace dal telefono non si toglieva.
-        var gestisci by remember { mutableStateOf(false) }
-        if (gestisci) GestioneWorkspace(api, ws ?: Workspace(), PcCorrente.nome, onChiudi = { gestisci = false })
-        Tessera(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(12.dp)) {
-                if ((ws?.nomi ?: emptyList()).isEmpty()) {
-                    Text("Nessun workspace.", color = Banco.testoQuieto, fontSize = 13.sp)
-                } else {
-                    Row(
-                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        for (nome in (ws?.nomi ?: emptyList()).filter { it.isNotBlank() }) {
-                            VoceWorkspace(
-                                nome = nome,
-                                attivo = nome == ws?.attivo,
-                                onClick = { scope.launch { tenta("cambiare workspace") { api.cambiaWorkspace(nome) } } }
-                            )
-                        }
-                    }
-                }
-                // «Su altri PC» (PC 0.65.1): a parte, sotto quelli di questo PC.
-                val altrove = ws?.altrove ?: emptyList()
-                if (altrove.isNotEmpty()) {
-                    Spacer(Modifier.height(10.dp))
-                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        Text("SU ALTRI PC", color = Banco.testoQuieto, fontSize = 12.sp)
-                        Aiuto("Workspace che vivono su altri PC e qui non ci sono. La lista di questo PC resta sua: qui si vedono a parte.", di = "SU ALTRI PC")
-                    }
-                    for (p in altrove) Text("${p.nome}: ${p.workspace.joinToString(", ")}", color = Banco.testo, fontSize = 13.sp)
-                }
-                Spacer(Modifier.height(12.dp))
-                HorizontalDivider(color = Banco.incisione)
-                Spacer(Modifier.height(12.dp))
-                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    OutlinedTextField(
-                        value = nuovoWs,
-                        onValueChange = { nuovoWs = it.take(40) },
-                        placeholder = { Text("Nome del nuovo", color = Banco.testoQuieto, fontSize = 14.sp) },
-                        textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Banco.accento,
-                            unfocusedBorderColor = Banco.incisione,
-                            focusedContainerColor = Banco.fondo,
-                            unfocusedContainerColor = Banco.fondo
-                        ),
-                        modifier = Modifier.weight(1f)
-                    )
-                    Spacer(Modifier.width(10.dp))
-                    Button(
-                        enabled = nuovoWs.isNotBlank(),
-                        shape = MaterialTheme.shapes.small,
-                        onClick = {
-                            val e = AzioniTelefono.erroreNomeWorkspace(nuovoWs, ws?.nomi ?: emptyList())
-                            if (e != null) { Nota.mostra(e); return@Button }
-                            val n = nuovoWs.trim(); nuovoWs = ""
-                            scope.launch { tentaGestione("creare il workspace «$n»", PcCorrente.nome) { api.creaWorkspace(n) } }
-                        }
-                    ) { Text("Crea") }
-                }
-                Spacer(Modifier.height(6.dp))
-                TextButton(onClick = { gestisci = true }) { Text("Rinomina o elimina un workspace…") }
-            }
-        }
-}
-
 @Composable
 fun SezioneDrive(api: Api) {
     var account by remember { mutableStateOf<Account?>(null) }
@@ -166,39 +86,6 @@ fun SezioneDrive(api: Api) {
         // la cassaforte, da guardare; si collegano sul computer.
         Sezione("Drive")
         CatenaDrive(account)
-}
-
-@Composable
-fun SezioneAspetto(api: Api) {
-    val scope = rememberCoroutineScope()
-    var pref by remember { mutableStateOf<Preferenze?>(null) }
-    LaunchedEffect(Unit) { pref = try { api.preferenze().preferenze } catch (_: Exception) { null } }
-        // ─── Impostazioni ───
-        Sezione("Aspetto")
-        val p = pref
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            for ((chiave, etichetta) in listOf("banco" to "Banco", "foglio" to "Foglio")) {
-                FilterChip(
-                    selected = (p?.stile ?: "banco") == chiave,
-                    onClick = {
-                        pref = p?.copy(stile = chiave) ?: Preferenze(stile = chiave)
-                        scope.launch { if (tenta("cambiare lo stile") { api.impostaStile(chiave) } != null) try { Banco.applica(api.stile()) } catch (_: Exception) { } }
-                    },
-                    label = { Text(etichetta) }
-                )
-            }
-        }
-        Spacer(Modifier.height(12.dp))
-        Text("Chiarore del fondo", color = Banco.testoQuieto, fontSize = 12.sp)
-        var chiarore by remember(p?.chiarore) { mutableStateOf((p?.chiarore ?: 20).toFloat()) }
-        Slider(
-            value = chiarore,
-            onValueChange = { chiarore = it },
-            valueRange = 0f..100f,
-            onValueChangeFinished = {
-                scope.launch { if (tenta("cambiare il chiarore del fondo") { api.impostaChiarore(chiarore.toInt()) } != null) try { Banco.applica(api.stile()) } catch (_: Exception) { } }
-            }
-        )
 }
 
 @Composable

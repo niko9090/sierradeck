@@ -192,8 +192,6 @@ internal fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: (
             Spacer(Modifier.width(8.dp))
             Text(if (tendina) "▴" else "▾", color = Banco.testoQuieto, fontSize = 16.sp)
         }
-        // Il menu Specialisti (k-56): chi lavora e chi è in fila, con percentuale, tempo e precedenza.
-        MenuSpecialistiChat(api, listOfNotNull(det?.workspace, breve.cwd.ifBlank { null }), Modifier.padding(start = 8.dp))
         if (tendina || linguetta != LinguettaWorkspace.CONVERSAZIONE) {
             LinguetteWorkspace(linguetta, conti = { RegoleWorkspace.conto(it, specialistiOrch.size, aperte, chatWs.size) }) { linguetta = it; tendina = false }
         }
@@ -227,8 +225,8 @@ internal fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: (
                     }
                 }
             }
-            LinguettaWorkspace.FILE -> Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp)) {
-                LinguettaFile(api, breve.id)
+            LinguettaWorkspace.FILE -> Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Text("I file cambiati si guardano sul computer.", color = Banco.testoQuieto)
             }
             LinguettaWorkspace.CHAT -> Box(Modifier.weight(1f).fillMaxWidth()) { LinguettaChatWorkspace(chatWs) }
             LinguettaWorkspace.CONVERSAZIONE -> LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp), state = lista) {
@@ -360,62 +358,6 @@ private fun AvanzamentoBreve(av: AvanzamentoAutopilota?, onApri: () -> Unit) {
             )
         }
         if (richieste.size > 3) Text("e altre ${richieste.size - 3} richieste ▸", color = Banco.accento, fontSize = 12.sp)
-    }
-}
-
-/**
- * L'avanzamento intero (PC 0.86.x): la percentuale del workspace (e perché è
- * scesa, se è scesa), il piano, le richieste in coda con stato e percentuale,
- * gli specialisti al lavoro.
- */
-@Composable
-private fun AvanzamentoVista(av: AvanzamentoAutopilota?, nota: String?) {
-    nota?.let { Text(it, color = Banco.ambra, fontSize = 12.sp) }
-    if (av == null) {
-        if (nota == null) Text("Leggo l’avanzamento…", color = Banco.testoQuieto, fontSize = 13.sp)
-        return
-    }
-    val o = av.orchestratore
-    val p = av.percento
-    if (p == null) {
-        Text("Ancora nessuna percentuale: arriva quando ha un piano.", color = Banco.testoQuieto, fontSize = 13.sp)
-    } else {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.weight(1f)) { BarraPercento(p) }
-            Spacer(Modifier.width(10.dp))
-            Text(RegoleAvanzamento.percento(p), color = Banco.verde, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-        }
-    }
-    val sotto = listOfNotNull(
-        o?.piano?.takeIf { it.totale > 0 }?.let { "${it.uniti} di ${it.totale} compiti uniti" },
-        if (o?.pensa == true) "sta pensando" else null
-    )
-    if (sotto.isNotEmpty()) Text(sotto.joinToString(" · "), color = Banco.testoQuieto, fontSize = 12.sp)
-    av.calo?.let { c ->
-        Text("scesa da ${RegoleAvanzamento.percento(c.da)} a ${RegoleAvanzamento.percento(c.a)}: ${c.perche}", color = Banco.ambra, fontSize = 12.sp)
-    }
-    Spacer(Modifier.height(10.dp))
-    val richieste = RegoleAvanzamento.ordinate(av.coda?.richieste ?: emptyList())
-    Etichetta("RICHIESTE · ${richieste.size}")
-    if (richieste.isEmpty()) {
-        Text("Nessuna richiesta in coda: scrivigli cosa vuoi nella casella qui sotto.", color = Banco.testoQuieto, fontSize = 13.sp)
-    } else {
-        for (r in richieste) {
-            Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                Text(r.titolo.ifBlank { r.testo }, color = if (r.stato == "fatta") Banco.testoQuieto else Banco.testo, fontSize = 13.sp)
-                Text(RegoleAvanzamento.rigaRichiesta(r), color = Banco.testoQuieto, fontSize = 12.sp)
-            }
-        }
-    }
-    Spacer(Modifier.height(10.dp))
-    val specialisti = o?.specialisti ?: emptyList()
-    Etichetta("SPECIALISTI · ${specialisti.size}")
-    if (specialisti.isEmpty()) {
-        Text("Nessuno specialista al lavoro adesso.", color = Banco.testoQuieto, fontSize = 13.sp)
-    } else {
-        for (s in specialisti) {
-            Text(RegoleAvanzamento.rigaSpecialista(s), color = Banco.testo, fontSize = 13.sp, modifier = Modifier.padding(vertical = 3.dp))
-        }
     }
 }
 

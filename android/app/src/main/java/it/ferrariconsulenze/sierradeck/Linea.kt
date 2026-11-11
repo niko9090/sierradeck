@@ -292,9 +292,7 @@ fun IndicatoreLinea(linea: StatoLinea, nomePc: String, spiega: String? = null) {
     val adesso = adessoVivo(true)
     // «Linea lenta» (app 2.56.0): qualcosa non arriva ma non è caduta — giallo, niente «giù».
     val lenta = !giu && Linea.faseVista(linea, adesso) == "lenta"
-    // A linea caduta (0.52.1): ambra i primi tentativi, poi rosso, con il conto alla rovescia.
-    val rov = Tentativi.rovescia(linea, adesso)
-    val colore = when { giu -> if (rov?.second == "ambra") Banco.ambra else Banco.rosso; lenta -> Banco.ambra; tacche >= 3 -> Banco.verde; tacche == 2 -> Banco.ambra; else -> Banco.rosso }
+    val colore = when { giu -> Banco.rosso; lenta -> Banco.ambra; tacche >= 3 -> Banco.verde; tacche == 2 -> Banco.ambra; else -> Banco.rosso }
     Row(
         Modifier.tocco { storia = true }.background(Banco.fondo.copy(alpha = 0.6f)).padding(horizontal = 8.dp, vertical = 4.dp),
         verticalAlignment = Alignment.Bottom
@@ -305,7 +303,7 @@ fun IndicatoreLinea(linea: StatoLinea, nomePc: String, spiega: String? = null) {
             Box(Modifier.padding(horizontal = 1.dp).width(3.dp).height((4 + i * 3).dp).background(if (i < tacche) colore else Banco.incisione))
         }
         Spacer(Modifier.width(4.dp))
-        Text((if (giu) "non connesso · ${rov?.first ?: ""}" else if (lenta) "linea lenta" else q.ritardoMs?.let { "$it ms" } ?: "…") +
+        Text((if (giu) "non connesso" else if (lenta) "linea lenta" else q.ritardoMs?.let { "$it ms" } ?: "…") +
             (if (giu) "" else Percorsi.comeCollegato(linea.strada)?.let { " · $it" } ?: ""), color = if (giu || lenta) colore else Banco.testoQuieto, fontSize = 12.sp)
     }
     if (storia) {

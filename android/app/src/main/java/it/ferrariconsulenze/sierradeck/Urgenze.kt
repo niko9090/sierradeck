@@ -92,53 +92,6 @@ fun urgenzaDi(stato: Stato?, connesso: Boolean): Urgenza? {
     return null
 }
 
-@Composable
-fun BandaUrgenze(api: Api, stato: Stato?, connesso: Boolean, onApriDomande: () -> Unit = {}) {
-    val urgenza = urgenzaDi(stato, connesso)
-    val colore: Color = when (urgenza?.tipo) {
-        TipoUrgenza.SCOLLEGATO -> Banco.rosso
-        else -> Banco.ambra
-    }
-    val onAzione: () -> Unit = when (urgenza?.tipo) {
-        // Niente piu' finestra che blocca: la domanda si legge e si risponde
-        // nella scheda «Domande», insieme a tutte le altre.
-        TipoUrgenza.DOMANDE -> onApriDomande
-        else -> { {} }
-    }
-
-    AnimatedVisibility(
-        visible = urgenza != null,
-        enter = expandVertically(),
-        exit = shrinkVertically()
-    ) {
-        urgenza?.let { u ->
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .background(colore.copy(alpha = 0.14f))
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Il filetto di colore a sinistra: si riconosce con la coda
-                // dell'occhio, prima ancora di leggere.
-                Column(
-                    Modifier.width(3.dp).height(38.dp).background(colore)
-                ) {}
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(u.titolo, color = colore, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    Text(u.sotto, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 3)
-                }
-                if (u.azione != null) {
-                    Spacer(Modifier.width(10.dp))
-                    Button(onClick = onAzione) { Text(u.azione) }
-                }
-            }
-        }
-    }
-
-}
-
 /** Le voci di una fila, con lo spazio giusto in mezzo. */
 @Composable
 fun FilaSpaziata(spazio: Int = 8, contenuto: @Composable () -> Unit) {

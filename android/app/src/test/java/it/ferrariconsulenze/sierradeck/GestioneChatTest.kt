@@ -88,14 +88,6 @@ class GestioneChatTest {
     }
 
     @Test
-    fun `il recupero e le archiviate`() {
-        val r = Api.json.decodeFromString(RecuperoChat.serializer(), casi["recupero"]!!.toString())
-        assertEquals(casi["recupero"]!!.jsonObject["riga"]!!.jsonPrimitive.content, GestioneChatRegole.rigaRecupero(r.chat.single(), adesso))
-        val a = Api.json.decodeFromString(ChatArchiviataApp.serializer(), casi["archiviata"]!!.jsonObject["voce"]!!.toString())
-        assertEquals(casi["archiviata"]!!.jsonObject["riga"]!!.jsonPrimitive.content, GestioneChatRegole.rigaArchiviata(a))
-    }
-
-    @Test
     fun `i rifiuti con il motivo del PC, e la parola per svuotare`() {
         val e = Api.json.decodeFromString(EsitoAzioniChat.serializer(), casi["esito"]!!.toString())
         assertEquals(1, e.rifiutate)

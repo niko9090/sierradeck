@@ -138,23 +138,6 @@ data class VocePosta(
     val apertaIl: String? = null
 )
 
-/** La coda condivisa dei comandi di un progetto, com'e' sul Drive. */
-@Serializable
-data class Coda(val voci: List<VoceCoda> = emptyList(), val disponibile: Boolean = true, val fatto: Boolean = false)
-
-@Serializable
-data class VoceCoda(
-    val id: String,
-    val testo: String = "",
-    val creataIl: String = "",
-    val daNome: String = "",
-    val sessione: String? = null,
-    val stato: String = "attesa",
-    val consegnataIl: String? = null,
-    val aNome: String? = null,
-    val aSessione: String? = null
-)
-
 @Serializable
 data class NomeComputer(
     /** Dalla 0.52.4 è il nome scelto (ripiego: l'hostname); prima era sempre l'hostname. */
@@ -364,35 +347,6 @@ data class Specialista(
     val cosa: String = "",
     val quanto: String = ""
 )
-
-/** La linguetta «File» (0.38.0): i file cambiati, per chat. */
-@Serializable
-data class FileAutopilota(val gruppi: List<GruppoFile> = emptyList())
-
-@Serializable
-data class GruppoFile(
-    val chiave: String = "",
-    val nome: String = "",
-    val cartella: String = "",
-    val ramo: String? = null,
-    val base: String = "",
-    val file: List<FileCambiato> = emptyList(),
-    val errore: String? = null
-)
-
-@Serializable
-data class FileCambiato(
-    val percorso: String = "",
-    val vecchio: String? = null,
-    val stato: String = "modificato",
-    val piu: Int = 0,
-    val meno: Int = 0,
-    val salvato: Boolean = false,
-    val binario: Boolean? = null
-)
-
-@Serializable
-data class DiffFile(val diff: String = "")
 
 @Serializable
 data class Conversazione(

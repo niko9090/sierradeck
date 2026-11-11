@@ -18,17 +18,6 @@ class NavigazioneTest {
     private val telefono = Api.json.parseToJsonElement(File("src/main/assets/menu.json").readText()).jsonObject["telefono"]!!.jsonArray.map { it.jsonObject }
 
     @Test
-    fun `quattro voci, uguali a quelle che il PC scrive per il telefono`() {
-        assertEquals(listOf("adesso", "chat", "progetti", "altro"), VoceBarra.entries.map { it.id })
-        assertEquals(telefono.map { it["id"]!!.jsonPrimitive.content }, VoceBarra.entries.map { it.id })
-        assertEquals(telefono.map { it["nome"]!!.jsonPrimitive.content }, VoceBarra.entries.map { it.nome })
-        for (v in VoceBarra.entries) {
-            val l = telefono.first { it["id"]!!.jsonPrimitive.content == v.id }["linguette"]!!.jsonArray.map { it.jsonPrimitive.content }
-            assertEquals(v.id, l, linguetteDi(v))
-        }
-    }
-
-    @Test
     fun `l app si apre su Adesso e da Adesso indietro esce`() {
         assertEquals(VoceBarra.ADESSO, Navigazione.INIZIO.voce)
         assertNull(Navigazione.indietro(Navigazione.INIZIO))
@@ -94,21 +83,6 @@ class NavigazioneTest {
         assertEquals(SezioneAltro.QUADERNO, SezioneAltro.diImpostazione("chat", "quaderno-personale"))
         assertEquals(SezioneAltro.CHAT, SezioneAltro.diImpostazione("chat", "pin"))
         assertEquals(SezioneAltro.INFO, SezioneAltro.diImpostazione("sconosciuta"))
-    }
-
-    @Test
-    fun `i pallini della barra, con i colori della tabella del PC`() {
-        assertNull(Pallini.di(null).adesso)
-        val fermo = Pallini.di(Stato(autopiloti = listOf(AutopilotaBreve("a", stato = "sospeso")), domandeInAttesa = 2))
-        assertTrue(fermo.adesso!!.rosso)
-        assertEquals(2, fermo.adesso!!.numero)
-        val chiede = Pallini.di(Stato(domandeInAttesa = 1)).adesso!!
-        assertFalse(chiede.rosso)
-        assertEquals("una domanda per te", chiede.descrizione)
-        assertEquals(0, Pallini.di(Stato(autopiloti = listOf(AutopilotaBreve("a", stato = "pronto")))).adesso!!.numero)
-        assertNull(Pallini.di(Stato(autopiloti = listOf(AutopilotaBreve("a", stato = "lavoro")))).adesso)
-        val sceglie = Pallini.di(Stato(chat = listOf(Chat(id = "c", chiede = true)), domandeInAttesa = 0))
-        assertEquals(1, sceglie.chat!!.numero)
     }
 
     @Test

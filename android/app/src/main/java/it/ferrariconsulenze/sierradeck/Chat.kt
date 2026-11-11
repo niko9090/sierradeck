@@ -175,12 +175,6 @@ private fun ChatSuAltroPc(api: Api, su: PcPonte, deposito: Collegamento) {
         FasciaSuPc(su, null, linea) { SuPc.corrente = null }
         // Quel PC è indietro (app 2.56.2): lo si dice, con «Installa là».
         BandaPcIndietro(api, su.pcId, su.nome, stato?.computer?.versione)
-        // «Mi collego a NOME-PC…» (0.52.1): i tentativi finché il primo collegamento non riesce.
-        val inizioPonte = remember(su.pcId) { System.currentTimeMillis() }
-        var schedaPonte by remember(su.pcId) { mutableStateOf(true) }
-        val vistaPonte = Tentativi.passi(su.nome, Tentativi.daLinea(linea, inizioPonte))
-        LaunchedEffect(su.pcId, vistaPonte.fase) { if (vistaPonte.fase == "collegato") { delay(2500); schedaPonte = false } }
-        if (schedaPonte) SchedaCollegamento(vistaPonte, null, onRiprova = { Collegamenti.passo(su.pcId, EventoLinea.RiprovaAdesso(System.currentTimeMillis())) })
         FasciaLinea(linea, su.nome, onRiprova = { Collegamenti.passo(su.pcId, EventoLinea.RiprovaAdesso(System.currentTimeMillis())) })
         guasto?.let { Text(it, color = Banco.rosso, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) }
         val chat = stato?.chat ?: emptyList()
@@ -402,7 +396,7 @@ private fun ElencoChat(
         api,
         nomePc = nomePc,
         conGestione = FunzioniPc.disponibile(FunzionePc.GESTIONE_CHAT, versionePc) != false,
-        onSpazio = { mostraRiprendi = false; mostraSpazio = true },
+        onSpazio = { mostraRiprendi = false },
         onScegli = { s ->
             // Vive su un altro PC (PC 0.58.4): le si scrive da qui, e là parte in sottofondo.
             if (!s.altrove.isNullOrBlank() && !s.altrovePc.isNullOrBlank()) sottofondoPer = s
@@ -411,7 +405,6 @@ private fun ElencoChat(
         onChiudi = { mostraRiprendi = false }
     )
     sottofondoPer?.let { s -> DialogoSottofondo(api, s, onChiudi = { sottofondoPer = null }) }
-    if (mostraSpazio) SpazioDelleChat(api, nomePc, onChiudi = { mostraSpazio = false })
 }
 
 /**

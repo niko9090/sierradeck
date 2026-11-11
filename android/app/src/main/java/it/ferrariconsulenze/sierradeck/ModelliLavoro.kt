@@ -94,8 +94,6 @@ data class AutopilotaDettaglio(
     val messaggi: List<StatoMessaggio> = emptyList(),
     /** PC 0.81.0: il riquadro «Adesso», una riga per chat. Assente con un PC più vecchio. */
     val adesso: Adesso? = null,
-    /** PC 0.84.3: il Punto in cima alla conversazione. Assente con un PC più vecchio. */
-    val punto: PuntoAutopilota? = null,
     val id: String = "",
     val nome: String = "",
     /** L'obiettivo come l'ha capito lui (riscritto dalla preparazione). */
@@ -352,18 +350,6 @@ data class SchedaPiena(
     val titolo: String = "",
     val corpo: String = "",
     val quando: String = ""
-)
-
-// ─── /api/preferenze ───
-@Serializable
-data class PreferenzeInvolucro(val preferenze: Preferenze = Preferenze())
-
-@Serializable
-data class Preferenze(
-    /** banco | foglio */
-    val stile: String = "banco",
-    /** Chiarore del fondo, 0..100. */
-    val chiarore: Int = 20
 )
 
 // ─── /api/aggiornamento (del computer) ───
