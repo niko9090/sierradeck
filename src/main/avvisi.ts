@@ -206,7 +206,12 @@ export function apriAvvisi(deps: {
     chiudi,
     fatto(f) {
       const e = daFatto(f)
-      return 'nasce' in e ? nasce(e.nasce) : chiudi(e.chiude.id, e.chiude.come, e.chiude.testo)
+      if ('chiude' in e) return chiudi(e.chiude.id, e.chiude.come, e.chiude.testo)
+      // Una richiesta fatta nel workspace: il suo «Lavoro fermo» di prima non vale più.
+      if (f.cosa === 'fatto') {
+        for (const a of stato.avvisi.filter((x) => x.tipo === 'fermo' && x.chiuso === undefined && x.bersaglio.pc === undefined && x.bersaglio.id === f.workspace)) chiudi(a.id, 'ritirata')
+      }
+      return nasce(e.nasce)
     },
     ha: (id) => stato.avvisi.some((a) => a.id === id),
     aperti: (prefisso = '') => stato.avvisi.filter((a) => a.chiuso === undefined && a.id.startsWith(prefisso)).map(pubblico),

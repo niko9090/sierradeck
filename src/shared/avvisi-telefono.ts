@@ -316,6 +316,27 @@ export function bozzaFile(f: { id: string; nome: string; per: string }): BozzaAv
   }
 }
 
+/**
+ * Una domanda che apre il programma, non un autopilota: il sì a un file da
+ * mandare al telefono, il consenso a un dato del quaderno personale. Il testo
+ * è il primo capoverso; le scelte sono i tasti.
+ */
+export type DomandaDelProgramma = { id: string; testo: string; opzioni?: readonly string[]; da?: string; sotto?: string; scadeIl?: number }
+export function bozzaDomandaDelProgramma(d: DomandaDelProgramma): BozzaAvviso {
+  const capoverso = d.testo.split(/\n\s*\n/u)[0] ?? d.testo
+  const azioni = (d.opzioni ?? []).slice(0, AZIONI_MAX).map((s) => ({ etichetta: unaRiga(s, 40), risposta: s }))
+  return {
+    id: `domanda:${d.id}`,
+    tipo: 'domanda',
+    titolo: `${unaRiga(d.da ?? '', 50) || 'SierraDeck'} chiede`,
+    testo: unaRiga(capoverso, 300) || 'Una domanda aspetta te.',
+    ...(d.sotto !== undefined && d.sotto.trim() !== '' ? { sotto: unaRiga(d.sotto, 120) } : {}),
+    ...(d.scadeIl !== undefined && Number.isFinite(d.scadeIl) ? { scadeIl: new Date(d.scadeIl).toISOString() } : {}),
+    bersaglio: { cosa: 'domanda', id: d.id },
+    ...(azioni.length > 0 ? { azioni } : {})
+  }
+}
+
 /** «Prova notifica»: suona sempre, perché serve a sapere se arriva. */
 export function bozzaProva(quando: Date): BozzaAvviso {
   return {
