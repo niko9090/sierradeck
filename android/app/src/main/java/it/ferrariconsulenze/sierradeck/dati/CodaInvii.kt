@@ -88,6 +88,20 @@ class CodaInvii(
         return i
     }
 
+    /** In coda e via subito, su un ambito che non muore con la schermata. */
+    fun manda(ambito: CoroutineScope, pc: String, rotta: String, corpo: String, casella: String, testo: String): Invio {
+        val i = metti(pc, rotta, corpo, casella, testo)
+        ambito.launch { svuota(pc) }
+        return i
+    }
+
+    /** Riprova un rifiutato adesso. */
+    fun riprovaOra(ambito: CoroutineScope, id: String) {
+        riprova(id)
+        val pc = _invii.value.firstOrNull { it.id == id }?.pc ?: return
+        ambito.launch { svuota(pc) }
+    }
+
     @Synchronized
     fun togli(id: String) { _invii.value = _invii.value.filterNot { it.id == id }; scrivi() }
 

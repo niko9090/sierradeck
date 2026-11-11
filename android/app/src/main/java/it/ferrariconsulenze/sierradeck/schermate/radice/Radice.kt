@@ -65,6 +65,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import it.ferrariconsulenze.sierradeck.dati.Collegamento
 import it.ferrariconsulenze.sierradeck.dati.Deposito
+import it.ferrariconsulenze.sierradeck.nucleo.ComponiWorkspace
+import it.ferrariconsulenze.sierradeck.schermate.lavoro.SchermataLavoro
+import it.ferrariconsulenze.sierradeck.schermate.workspace.FonteApi
+import it.ferrariconsulenze.sierradeck.schermate.workspace.SchermataWorkspace
+import it.ferrariconsulenze.sierradeck.schermate.workspace.chatDelWorkspace
 import it.ferrariconsulenze.sierradeck.nucleo.PcCorrente
 import it.ferrariconsulenze.sierradeck.rete.Api
 import it.ferrariconsulenze.sierradeck.rete.Indirizzi
@@ -168,7 +173,7 @@ private fun Collegata(vm: RadiceViewModel, pc: PcNoto, onEsci: () -> Unit) {
     ) { spazi ->
         Box(Modifier.padding(spazi).fillMaxSize()) {
             when (posto.voce) {
-                VoceBarra.LAVORO -> GuscioLavoro(api, posto.dettaglio, copia, collegamento)
+                VoceBarra.LAVORO -> GuscioLavoro(pc, api, posto.dettaglio, copia, collegamento, onApri = vm::apri, onIndietro = { vm.indietro() }, onVersione = { vm.apri(Dettaglio.Sezione(SezioneAltro.AGGIORNAMENTI)) })
                 VoceBarra.FILE -> SezioneFile(api)
                 VoceBarra.ALTRO -> GuscioAltro(api, posto.dettaglio as? Dettaglio.Sezione, onApri = { vm.apri(Dettaglio.Sezione(it)) }, onIndietro = { vm.indietro() })
             }
@@ -252,21 +257,36 @@ private fun iconaDi(v: VoceBarra): ImageVector = when (v) {
     VoceBarra.ALTRO -> Icons.Filled.MoreHoriz
 }
 
-/** Lavoro: oggi le chat e i workspace di prima; un dettaglio Chat apre quella chat. */
+/**
+ * Lavoro (app 11/11): le domande e i workspace; un workspace apre la sua
+ * pagina (Chat · Chi lavora); una chat apre ancora il dettaglio di prima.
+ */
 @Composable
-private fun GuscioLavoro(api: Api, dettaglio: Dettaglio?, copia: Deposito.Copia, collegamento: Collegamento) {
-    LaunchedEffect(dettaglio) {
-        if (dettaglio is Dettaglio.Chat) Apertura.chatRichiesta = dettaglio.id
-    }
-    Column(Modifier.fillMaxSize()) {
-        if (copia.vecchia && copia.stato != null && copia.quando > 0) {
-            Text(
-                "Ultimo aggiornamento alle ${Parola.oraBreve(copia.quando)}",
-                style = MaterialTheme.typography.labelMedium, color = Banco.testoQuieto,
-                modifier = Modifier.fillMaxWidth().background(Banco.chassisAlto).padding(horizontal = 16.dp, vertical = 6.dp)
+private fun GuscioLavoro(pc: PcNoto, api: Api, dettaglio: Dettaglio?, copia: Deposito.Copia, collegamento: Collegamento, onApri: (Dettaglio) -> Unit, onIndietro: () -> Unit, onVersione: () -> Unit) {
+    when (dettaglio) {
+        is Dettaglio.Chat -> {
+            LaunchedEffect(dettaglio) { Apertura.chatRichiesta = dettaglio.id }
+            SchermataChat(api, copia.stato, collegamento)
+        }
+        is Dettaglio.Autopilota -> {
+            val a = copia.stato?.autopiloti?.firstOrNull { it.id == dettaglio.id }
+            val nomeWs = a?.workspace
+            val fonte = remember(api, dettaglio.id) { FonteApi(api, dettaglio.id) { nomeWs } }
+            SchermataWorkspace(
+                pc = pc.id, id = dettaglio.id,
+                testa = ComponiWorkspace.testa(a, dettaglio.id, null),
+                battito = copia.quando, fonte = fonte,
+                chats = chatDelWorkspace(copia.stato, nomeWs ?: ""),
+                onApriChat = { onApri(Dettaglio.Chat(it)) }, onIndietro = onIndietro
             )
         }
-        SchermataChat(api, copia.stato, collegamento)
+        else -> SchermataLavoro(
+            pc = pc.id, stato = copia.stato, quando = copia.quando, vecchia = copia.vecchia,
+            leggiDomande = { try { api.domande().conversazioni } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null } },
+            onApriWorkspace = { onApri(Dettaglio.Autopilota(it)) },
+            onVersione = onVersione,
+            evidenzia = (dettaglio as? Dettaglio.Domanda)?.id
+        )
     }
 }
 

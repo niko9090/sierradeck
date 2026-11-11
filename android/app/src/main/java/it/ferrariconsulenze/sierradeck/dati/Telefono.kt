@@ -4,13 +4,16 @@ import android.content.Context
 import android.content.SharedPreferences
 import it.ferrariconsulenze.sierradeck.nucleo.Davanti
 import it.ferrariconsulenze.sierradeck.rete.Centralino
+import it.ferrariconsulenze.sierradeck.rete.Contatto
 import it.ferrariconsulenze.sierradeck.rete.Diario
 import it.ferrariconsulenze.sierradeck.rete.RetiAndroid
 import it.ferrariconsulenze.sierradeck.rete.Scoperta
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import java.io.File
@@ -53,6 +56,12 @@ object Telefono {
         app.getSharedPreferences("sierradeck", Context.MODE_PRIVATE).registerOnSharedPreferenceChangeListener(l)
         ambito.launch { Davanti.flusso.drop(1).filter { it }.collect { centralino.riprova(null) } }
         Scoperta.quandoVisto = { impronta -> centralino.visto(impronta) }
+        // La coda degli invii: riparte da sola quando un PC torna collegato.
+        CodaInvii.avvia(
+            File(app.filesDir, "dati"), ambito,
+            manda = { inv -> centralino.chiama(inv.pc, inv.rotta, inv.corpo, inv.id) },
+            collegati = centralino.contatti.map { m -> m.filterValues { it is Contatto.Collegato }.keys }.distinctUntilChanged()
+        )
         return i
     }
 }
