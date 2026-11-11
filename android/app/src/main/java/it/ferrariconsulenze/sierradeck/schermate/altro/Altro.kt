@@ -80,7 +80,7 @@ fun SchermataAltro(
         Box(Modifier.fillMaxSize()) {
             when (aperta) {
                 SezioneAltro.AGGIORNAMENTI -> Column(Modifier.verticalScroll(rememberScrollState())) { SezioneAggiornamenti(api) }
-                SezioneAltro.AVVISI -> SchermataNotifiche()
+                SezioneAltro.AVVISI -> Column(Modifier.verticalScroll(rememberScrollState())) { SchermataNotifiche() }
                 SezioneAltro.SALUTE -> Linguette(listOf("Salute", "Computer", "Consumi")) { i ->
                     when (i) { 0 -> SezioneSalute(api); 1 -> AltriComputer(api); else -> SezioneConsumi(api) }
                 }

@@ -113,7 +113,11 @@ object Ascolto {
     fun ciclo(c: Context): CicloAscolto = CicloAscolto(
         porta = { Porte.delPc(c) },
         memoria = Memoria(c),
-        alPacco = { r -> Avvisatore.applica(c, r) },
+        alPacco = { r ->
+            Avvisatore.applica(c, r)
+            // Un file annunciato si va a prendere subito, senza aspettare il giro delle consegne (11/11).
+            if (r.avvisi.any { it.bersaglio.cosa == "file" && it.chiuso == null }) RicevitoreConsegne.subito(c)
+        },
         alVecchioPc = { try { Ronda.giro(c) } catch (_: Exception) { } }
     )
 }

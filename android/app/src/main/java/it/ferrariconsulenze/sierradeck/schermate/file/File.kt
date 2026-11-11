@@ -127,7 +127,7 @@ fun CorpoFile(
                     ambito.launch {
                         nota = try {
                             val (n, problemi) = RicevitoreConsegne.giro(contesto)
-                            when { problemi.isNotEmpty() -> "Qualcosa non è arrivato."; n == 0 -> "Nessun file nuovo."; else -> "Arrivati $n file." }
+                            when { problemi.isNotEmpty() -> "Qualcosa non è arrivato."; n == 0 -> "Nessun file nuovo."; n == 1 -> "Arrivato 1 file."; else -> "Arrivati $n file." }
                         } catch (e: CancellationException) { throw e } catch (_: Exception) { "Il computer non risponde. Riprova fra poco." } finally { controllo = false }
                     }
                 }) { Text(if (controllo) "Controllo…" else "Controlla") }

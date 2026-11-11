@@ -519,6 +519,7 @@ private fun ParteRicevuti(onNota: (String?) -> Unit, nota: String?) {
                                 onNota(when {
                                     problemi.isNotEmpty() -> problemi.joinToString("\n")
                                     n == 0 -> "Nessun file nuovo dai PC."
+                                    n == 1 -> "✓ Arrivato 1 file."
                                     else -> "✓ Arrivati $n file."
                                 })
                             } catch (e: CancellationException) { throw e } catch (e: Exception) { onNota("Il controllo non è riuscito: ${e.message}") } finally { controllo = false }

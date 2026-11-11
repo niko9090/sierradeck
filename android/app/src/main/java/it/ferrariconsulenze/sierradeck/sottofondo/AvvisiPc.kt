@@ -142,7 +142,7 @@ object RegoleAvvisi {
 
     /** La riga fissa del servizio: dice da quanto il PC ha risposto l'ultima volta. */
     fun rigaAscolto(ultimoContatto: Long?, adesso: Long, vecchioPc: Boolean = false): String {
-        if (ultimoContatto == null) return "In ascolto · il computer non ha ancora risposto"
+        if (ultimoContatto == null) return "In ascolto"
         val min = ((adesso - ultimoContatto).coerceAtLeast(0) / 60_000L)
         val quando = when {
             min < 1 -> "adesso"

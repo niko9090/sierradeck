@@ -89,7 +89,8 @@ class RegoleAvvisiTest {
 
     @Test
     fun `la riga fissa dice da quanto il PC ha risposto`() {
-        assertEquals("In ascolto · il computer non ha ancora risposto", RegoleAvvisi.rigaAscolto(null, t0))
+        // Il primo giro è un’attesa lunga: per 50 s il PC non risponde anche se va tutto bene.
+        assertEquals("In ascolto", RegoleAvvisi.rigaAscolto(null, t0))
         assertEquals("In ascolto · ultimo contatto adesso", RegoleAvvisi.rigaAscolto(t0 - 30_000, t0))
         assertEquals("In ascolto · ultimo contatto 3 min fa", RegoleAvvisi.rigaAscolto(t0 - 3 * 60_000, t0 + 1))
         assertEquals("In ascolto · ultimo contatto 2 h fa", RegoleAvvisi.rigaAscolto(t0, t0 + 2 * 3_600_000))
