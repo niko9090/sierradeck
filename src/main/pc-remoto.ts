@@ -472,8 +472,13 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
       if (Number.isFinite(dichiarata) && dichiarata > RISPOSTA_MAX_BYTE) {
         throw new ErroreRemoto('http', `${b.nome} ha risposto con ${Math.round(dichiarata / (1024 * 1024))} MB: troppo per passare dal ponte (massimo ${RISPOSTA_MAX_BYTE / (1024 * 1024)} MB).`, 502)
       }
-      let dati: unknown = undefined
-      try { dati = await risposta.json() } catch { dati = undefined }
+      // Il tetto vale sui byte letti davvero (m-collegamento): il Client non manda
+      // `content-length` (risponde a pezzi), e il controllo qui sopra non scattava mai.
+      const letta = await leggiJsonConTetto(risposta, RISPOSTA_MAX_BYTE)
+      if (!letta.ok) {
+        throw new ErroreRemoto('http', `${b.nome} ha risposto con più di ${RISPOSTA_MAX_BYTE / (1024 * 1024)} MB: troppo per passare dal ponte. Ho smesso di leggere.`, 502)
+      }
+      const dati = letta.dati
       segnaStrada(pcId, b.nome, stradaDiIndirizzo(ind), ind)
       return { dati: datiDa({ stato: risposta.status, corpo: dati }, b.nome) }
     }
@@ -549,6 +554,42 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
       }
     }
   }
+}
+
+/**
+ * Il JSON di una risposta, letto a pezzi contando i byte: oltre `tetto` si
+ * smette di leggere (e si chiude il flusso) invece di tenere tutto in memoria.
+ * Un corpo che non è JSON vale `undefined`, come prima.
+ */
+export async function leggiJsonConTetto(risposta: Response, tetto: number): Promise<{ ok: true; dati: unknown } | { ok: false; letti: number }> {
+  const flusso = risposta.body as ReadableStream<Uint8Array> | null | undefined
+  let testo: string
+  if (flusso !== null && flusso !== undefined && typeof flusso.getReader === 'function') {
+    const lettore = flusso.getReader()
+    const pezzi: Uint8Array[] = []
+    let letti = 0
+    for (;;) {
+      const { done, value } = await lettore.read()
+      if (done) break
+      letti += value.byteLength
+      if (letti > tetto) {
+        try { await lettore.cancel() } catch { /* già chiuso */ }
+        return { ok: false, letti }
+      }
+      pezzi.push(value)
+    }
+    testo = Buffer.concat(pezzi.map((p) => Buffer.from(p.buffer, p.byteOffset, p.byteLength))).toString('utf8')
+  } else {
+    // Una risposta senza flusso (le finte dei test): si legge e si controlla dopo.
+    const r = risposta as Partial<Pick<Response, 'text' | 'json'>>
+    try {
+      if (typeof r.text === 'function') testo = await r.text()
+      else if (typeof r.json === 'function') testo = JSON.stringify(await r.json()) ?? ''
+      else return { ok: true, dati: undefined }
+    } catch { return { ok: true, dati: undefined } }
+    if (Buffer.byteLength(testo, 'utf8') > tetto) return { ok: false, letti: Buffer.byteLength(testo, 'utf8') }
+  }
+  try { return { ok: true, dati: JSON.parse(testo) as unknown } } catch { return { ok: true, dati: undefined } }
 }
 
 /** `v` e' almeno `min` (x.y.z). Una versione illeggibile non lo e'. */
