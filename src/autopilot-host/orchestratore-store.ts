@@ -45,10 +45,14 @@ export type ImpostazioniOrchestratore = {
   domande?: string[]
   /** Gli autopiloti di prima già passati a lui (P4): non si riassorbono e vanno nel recupero. */
   assorbiti?: string[]
+  /** 11/11: i rami degli specialisti già guardati (`ramo@commit`): quelli con lavoro mai unito si dicono all'autopilota una volta sola. */
+  ramiSegnalati?: string[]
 }
 
 export const TETTO_SPECIALISTI = 3
 export const TETTO_SPECIALISTI_MAX = 4
+/** Quanti rami già guardati si ricordano, al più. */
+export const RAMI_SEGNALATI_MAX = 300
 
 export function impostazioniPredefinite(): ImpostazioniOrchestratore {
   return { modello: 'opus', tettoSpecialisti: TETTO_SPECIALISTI }
@@ -81,7 +85,8 @@ export function leggiImpostazioni(x: unknown): ImpostazioniOrchestratore {
     ...(o.daSeminare === true ? { daSeminare: true } : {}),
     ...(percento !== undefined ? { percento } : {}),
     ...(Array.isArray(o.domande) ? { domande: o.domande.filter((q): q is string => typeof q === 'string').slice(-20) } : {}),
-    ...(Array.isArray(o.assorbiti) ? { assorbiti: o.assorbiti.filter((q): q is string => typeof q === 'string') } : {})
+    ...(Array.isArray(o.assorbiti) ? { assorbiti: o.assorbiti.filter((q): q is string => typeof q === 'string') } : {}),
+    ...(Array.isArray(o.ramiSegnalati) ? { ramiSegnalati: o.ramiSegnalati.filter((q): q is string => typeof q === 'string').slice(-RAMI_SEGNALATI_MAX) } : {})
   }
 }
 

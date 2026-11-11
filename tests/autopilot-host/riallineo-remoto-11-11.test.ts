@@ -303,6 +303,43 @@ describe('nel servizio: una release uscita da un ramo non lascia indietro il pri
     expect(quante()).toBe(dette)
   }, 90_000)
 
+  it('un ramo di specialista con lavoro mai unito: il programma non lo tocca e lo dice all’autopilota, una volta per ramo', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(console, 'info').mockImplementation(() => {})
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    // Il pezzo di k-165 rimasto fuori; un ramo il cui lavoro è entrato per un'altra strada; uno che serve a un compito aperto.
+    esegui(['checkout', '-q', '-b', 'worktree-agent-a5'], qui)
+    scrivi(qui, 'fuori.txt', 'mai unito\n', 'k-165: copie con file in uso, si riprova senza errore')
+    esegui(['checkout', '-q', '-b', 'worktree-agent-a6', 'main'], qui)
+    scrivi(qui, 'doppio.txt', 'lo stesso\n', 'k-7: lo stesso lavoro')
+    esegui(['checkout', '-q', '-b', 'worktree-agent-a7', 'main'], qui)
+    scrivi(qui, 'aperto.txt', 'a metà\n', 'k-9: a metà')
+    esegui(['checkout', '-q', 'main'], qui)
+    scrivi(qui, 'doppio.txt', 'lo stesso\n', 'lo stesso lavoro, uscito con una release')
+    esegui(['push', '-q', 'origin', 'main'], qui)
+    await avviaServizio()
+    orch.scriviPiano(WS, { versione: 1, compiti: [
+      compito('k-165', { stato: 'unito', criterioVerde: true }),
+      compito('k-9', { rami: ['worktree-agent-a7'], esito: 'sviluppatore è stato fermato' })
+    ] })
+    expect([...server!.ramiCitati(qui)]).toEqual(['worktree-agent-a7'])
+    expect([...server!.copieVive(qui)]).toEqual([])
+    server!.controllaChatFerme()
+    await attendi(() => processi[0]!.scritte.join('\n').includes('worktree-agent-a5'), { cosa: 'l’evento all’autopilota', timeout: 30_000 })
+    const detto = processi[0]!.scritte.join('\n')
+    expect(detto).toContain('lavoro che non è mai entrato nel principale')
+    expect(detto).toContain('k-165: copie con file in uso')
+    expect(detto).toContain('è del compito k-165, che risulta unito: questo pezzo è rimasto fuori')
+    expect(detto).not.toContain('worktree-agent-a6')
+    expect(detto).not.toContain('worktree-agent-a7')
+    // Nessun ramo è stato toccato, e i due guardati non si riguardano (né si ridicono) la prossima volta.
+    const rami = esegui(['for-each-ref', '--format=%(refname:short)', 'refs/heads/'], qui).split(/\r?\n/).sort()
+    expect(rami).toEqual(['main', 'worktree-agent-a5', 'worktree-agent-a6', 'worktree-agent-a7'])
+    const guardati = (orch.impostazioni(WS).ramiSegnalati ?? []).map((r) => r.split('@')[0]).sort()
+    expect(guardati).toEqual(['worktree-agent-a5', 'worktree-agent-a6'])
+  }, 90_000)
+
   it('remoto che non si raggiunge: una riga nel registro (non un errore), e le unioni vanno avanti lo stesso', async () => {
     const errori = vi.spyOn(console, 'error').mockImplementation(() => {})
     const dette: string[] = []

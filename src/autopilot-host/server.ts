@@ -164,6 +164,9 @@ export type ServerAutopiloti = Server & {
   migraVecchi: () => number
   /** 0.89.0: per l’autopulizia, le copie degli specialisti di quella cartella sono in uso? */
   agentiAlLavoro: (cartella: string) => boolean
+  /** 11/11: per l'autopulizia, le copie degli specialisti al lavoro adesso e i rami che servono ancora (`ServizioUnico`). */
+  copieVive: (cartella: string) => Set<string>
+  ramiCitati: (cartella: string) => Set<string>
 }
 
 /** Ogni quanto, al più, si rilegge la trascrizione di una chat per il suo rapporto (0.85.1). */
@@ -1509,6 +1512,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     riprendiLavori,
     riportaInCoda,
     migraVecchi: () => servizio().migraVecchi(),
-    agentiAlLavoro: (cartella: string) => servizio().agentiAlLavoro(cartella)
+    agentiAlLavoro: (cartella: string) => servizio().agentiAlLavoro(cartella),
+    copieVive: (cartella: string) => servizio().copieVive(cartella),
+    ramiCitati: (cartella: string) => servizio().ramiCitati(cartella)
   })
 }
