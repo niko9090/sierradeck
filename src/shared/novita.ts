@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.99.2',
+    righe: [
+      '**Note del quaderno salvate sempre:** le modifiche del programma a lezioni e decisioni vengono salvate anche quando riscrivono righe, così non bloccano più le unioni.',
+      '**Rete più paziente:** i guasti di rete passeggeri non fermano l’autopilota né gli aggiornamenti.',
+      '**Modelli nuovi:** i modelli appena usciti si riconoscono da soli.',
+      '**Controllo del PC:** la Salute legge la versione davvero in esecuzione.',
+    ],
+  },
+  {
     versione: '0.99.1',
     righe: [
       '**Salute più onesta:** un PC che non dà segni di vita non mostra più numeri vecchi come se fossero di adesso: si legge «nessun dato di adesso».',
