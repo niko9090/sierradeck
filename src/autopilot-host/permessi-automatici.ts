@@ -40,7 +40,7 @@ export const MOTIVO_CHIEDI = 'per chiedere a Nicholas usa lo strumento chiedi_ut
 export const MOTIVO_POSTO_DELICATO = 'è un posto protetto (sistema, chiavi, impostazioni di Claude o di SierraDeck, l’interno di .git): scrivi nella tua copia del progetto o in una cartella temporanea'
 /** I comandi di shell passano di norma senza chiedere: se la CLI chiede lo stesso, quel comando non si fa. */
 export const MOTIVO_COMANDO = 'la CLI chiede un permesso per questo comando: il programma non lo concede e non lo chiede a Nicholas. Cambia comando, restando nella tua copia del progetto'
-export const MOTIVO_SCONOSCIUTO ='strumento non previsto: il programma non lo concede e non lo chiede a Nicholas. Trova un’altra strada con gli strumenti che hai'
+export const MOTIVO_SCONOSCIUTO = 'strumento non previsto: il programma non lo concede e non lo chiede a Nicholas. Trova un’altra strada con gli strumenti che hai'
 
 const minuscolo = (p: string): string => (process.platform === 'win32' ? p.toLowerCase() : p)
 const sotto = (cartella: string, p: string): boolean => {

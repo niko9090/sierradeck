@@ -539,7 +539,7 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
     return si
   }
   const coda = (ws: string): Coda => x.code.leggi(ws)
-  const allineaOra =(ws: string): Coda => x.code.cambia(ws, (c) => allineaConPiano(c, x.orchestratori.piano(ws), x.adesso()))
+  const allineaOra = (ws: string): Coda => x.code.cambia(ws, (c) => allineaConPiano(c, x.orchestratori.piano(ws), x.adesso()))
   const cambiaCompito = (ws: string, id: string | undefined, f: (c: CompitoPiano) => CompitoPiano): void => {
     if (id === undefined || !x.orchestratori.piano(ws).compiti.some((c) => c.id === id)) return
     x.orchestratori.scriviPiano(ws, conCompito(x.orchestratori.piano(ws), id, f))
@@ -1285,10 +1285,10 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       const ora = Date.parse(x.adesso())
       if (note.length > 0 && ora - (testoRimandato.get(ws) ?? -Infinity) > RIMANDATA_VALE_MS) {
         testoRimandato.set(ws, ora)
-        return { ok: false, motivo:`la domanda non si capisce abbastanza: ${note.join('; ')}. Riscrivila e richiamami: una frase sola con un solo punto interrogativo, al più ${DOMANDA_MAX} caratteri, in italiano semplice, senza sigle. Il resto mettilo in «perche»` }
+        return { ok: false, motivo: `la domanda non si capisce abbastanza: ${note.join('; ')}. Riscrivila e richiamami: una frase sola con un solo punto interrogativo, al più ${DOMANDA_MAX} caratteri, in italiano semplice, senza sigle. Il resto mettilo in «perche»` }
       }
       testoRimandato.delete(ws)
-      const richiestaId =richiestaDellaDomanda(coda(ws), richiesta, domanda)
+      const richiestaId = richiestaDellaDomanda(coda(ws), richiesta, domanda)
       const d = apriDomanda(a, ws, domanda, scelte, perche ?? 'è una decisione che spetta a te', { inChat: true, ...(richiestaId !== undefined ? { richiestaId } : {}), ...(opz?.rischiosa === true ? { rischiosa: true } : {}) })
       // 11/11: l'autopilota sa subito cosa succede senza risposta.
       const poi = d.rischiosa
