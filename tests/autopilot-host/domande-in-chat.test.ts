@@ -294,6 +294,41 @@ describe('una domanda nuova appare nella chat, non nelle Domande', () => {
   })
 })
 
+// 11/11: «La 0.99.3 è pronta… Quando la installi?» con «fra un giorno decido io con la scelta consigliata».
+describe('11/11: l’installazione è un avviso, non una domanda', () => {
+  const INSTALLA = { domanda: 'La 0.99.3 è pronta e una prova conferma che il lavoro riparte. Quando la installi?', perche: 'senza l’installazione le correzioni restano fuori', scelte: ['La installo adesso → il lavoro riparte', 'Più tardi → resta fermo'] }
+
+  it('nessuna domanda aperta: nella chat resta una riga sola, senza tasti, e non si ripete', async () => {
+    zitto()
+    await avviaServizio()
+    const { mcp } = await conStrumenti()
+    const esito = await mcp('chiedi_utente', INSTALLA)
+    expect(esito).toContain('Rifiutato')
+    expect(esito).toContain('L’ho scritto io a Nicholas come avviso')
+    expect(domande.aperte(idUnico())).toHaveLength(0)
+    expect(avvisi.filter((v) => v.tipo === 'domanda')).toHaveLength(0)
+    const righe = (): { testo: string; domanda?: unknown }[] => archivio.leggi(idUnico())!.dialogo.filter((r) => r.da === 'lui' && r.testo.includes('Installala quando vuoi'))
+    expect(righe()).toHaveLength(1)
+    expect(righe()[0]!.testo).toBe('La 0.99.3 è pronta e una prova conferma che il lavoro riparte. Installala quando vuoi: non serve rispondere, intanto vado avanti con il resto.')
+    expect(righe()[0]!.domanda).toBeUndefined()
+    await mcp('chiedi_utente', INSTALLA)
+    expect(righe()).toHaveLength(1)
+    // Non ha consumato il tetto delle domande all'ora.
+    expect(orch.impostazioni('Lavoro').domande ?? []).toHaveLength(0)
+  })
+
+  it('una versione già installata: «Già fatto», senza domanda e senza avviso', async () => {
+    zitto()
+    await avviaServizio()
+    const { mcp } = await conStrumenti()
+    // Il servizio di questa prova è alla 0.96.0.
+    const esito = await mcp('chiedi_utente', { domanda: 'Installi tu la 0.95.2 su questo PC?', perche: 'serve per chiudere il lavoro' })
+    expect(esito).toContain('Già fatto: su questo PC è già installata la 0.96.0')
+    expect(domande.aperte(idUnico())).toHaveLength(0)
+    expect(archivio.leggi(idUnico())!.dialogo.some((r) => r.testo.includes('Quando vuoi puoi installare'))).toBe(false)
+  })
+})
+
 describe('dalla chat alle Domande', () => {
   it('mai vista: prima dei 10 minuti no, dopo sì, con la notifica una volta sola; i tasti restano nella chat', async () => {
     zitto()

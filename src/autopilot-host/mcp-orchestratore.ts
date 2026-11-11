@@ -5,6 +5,7 @@ import { apriSeguiti, scriviPiano, type Piano } from '@shared/piano-orchestrator
 import type { Specialista } from '@shared/flusso-orchestratore'
 import { LEZIONE_MAX } from '@shared/lezioni-chat'
 import { gettoneBearer, rispondiRpc, type EsitoStrumento, type ServerMcpMinimo, type StrumentoMcp } from '@shared/mcp-minimo'
+import { argomentoDi } from '@shared/argomento-testo'
 
 /**
  * **Gli strumenti dell'orchestratore unico** (P3, 30/10/2026): il server MCP
@@ -127,6 +128,12 @@ export type AmbienteOrchestratore = {
   /** Le domande partite nell'ultima ora. */
   domandeUltimaOra: (ws: string) => number
   annota: (ws: string, testo: string, tag: string) => EsitoAmbiente
+  /** 11/11: il progetto di questo workspace è SierraDeck stesso (lì «la installi?» non è una domanda). */
+  eIlProgramma?: (ws: string) => boolean
+  /** 11/11: la domanda parla di una cosa già successa (versione già installata, chat già chiusa)? Il perché, o `undefined`. */
+  giaSuccesso?: (ws: string, testo: string) => string | undefined
+  /** 11/11: una riga di avviso a Nicholas nella chat, senza risposta richiesta. Uguale a una recente non si ripete. */
+  avviso?: (ws: string, testo: string) => void
   /** Ricalcola la percentuale dopo un cambio, con il perché se scende. */
   ricalcola: (ws: string, perche: string) => void
   riassunto: (ws: string) => string
@@ -396,6 +403,16 @@ export async function chiamaStrumento(amb: AmbienteOrchestratore, ws: string, no
       if (/\bgit\s+(checkout|reset|merge|stash|commit|push|pull|rebase|restore|clean)\b|\bnpm\s+(run|install|ci)\b|\bnpx\s/iu.test(`${domanda} ${scelte.join(' ')}`)) {
         return no('non chiedere a Nicholas di lanciare comandi: il lavoro tecnico lo fa uno specialista (o il programma). Chiedigli solo la decisione, in parole semplici')
       }
+      // 11/11: una cosa già successa non si chiede (20/10: «Installi tu la 0.80.0?» con la 0.80.1 già installata).
+      const gia = amb.giaSuccesso?.(ws, domanda)
+      if (gia !== undefined) return si(`Già fatto: ${gia}. Non lo chiedo a Nicholas: vai avanti tenendone conto.`)
+      // 11/11: «Quando la installi?» non è una domanda che scade e «decide da sola»: è un avviso.
+      const etichette = scelte.map((s) => s.split(/\s*(?:→|->)\s*/u, 1)[0] ?? s)
+      if (domandaSullInstallazione(domanda, etichette, amb.eIlProgramma?.(ws) === true)) {
+        if (amb.avviso === undefined) return no(`${MOTIVO_INSTALLAZIONE} Scrivi tu una riga di avviso nel tuo messaggio («La X è pronta: quando la installi, succede Y») e vai avanti con il resto, senza aspettare.`)
+        amb.avviso(ws, avvisoInstallazione(domanda))
+        return no(`${MOTIVO_INSTALLAZIONE} L’ho scritto io a Nicholas come avviso, senza risposta richiesta: non ripeterlo come domanda e vai avanti con il resto, senza aspettare.`)
+      }
       // 06/11: l'autopilota è autosufficiente: riavvii, programmi da chiudere e lavoro a mano si risolvono da soli.
       const inutile = motivoDomandaInutile(`${domanda} ${scelte.join(' ')}`)
       if (inutile !== undefined) return no(inutile)
@@ -447,6 +464,43 @@ export function motivoDomandaInutile(testo: string): string | undefined {
   // «La fila delle unioni è ferma da 7 ore… Come vuoi fare?», «…saltando la fila?»). Di questo si occupa il programma.
   if (UNIONI_FERME.test(t)) return MOTIVO_UNIONI_FERME
   return undefined
+}
+
+export const MOTIVO_INSTALLAZIONE = 'l’installazione di SierraDeck la fa Nicholas quando vuole: non è una domanda e non ha una scadenza.'
+
+/**
+ * **«Quando la installi?»** (11/11). Installare SierraDeck spetta solo a
+ * Nicholas, quindi non c'è niente da decidere: la domanda dell'11/11 offriva
+ * «La installo adesso (consigliata)» e prometteva «fra un giorno decido io con
+ * la scelta consigliata», cioè una cosa che l'autopilota non può fare.
+ *
+ * Vale per SierraDeck e basta: se il testo lo nomina, oppure se il progetto del
+ * workspace è SierraDeck e si parla di una versione o di un aggiornamento.
+ * «Installo il servizio sul NAS?» di un altro progetto non c'entra. Si guardano
+ * la domanda e i tasti, non le conseguenze («…poi una release che installi
+ * tu»), e non conta un «senza installarla».
+ */
+export function domandaSullInstallazione(domanda: string, etichette: string[], suSierraDeck: boolean): boolean {
+  const t = `${domanda} ${etichette.join(' ')}`.replace(/\s+/gu, ' ')
+  const senzaNegate = t.replace(/(?<![\p{L}])(?:senza|non|mai)\s+(?:[\p{L}’']+\s+){0,2}?install[\p{L}]*/giu, ' ')
+  if (!argomentoDi(senzaNegate).installa) return false
+  if (/(?<![\p{L}])sierradeck(?![\p{L}])/iu.test(t)) return true
+  return suSierraDeck && (argomentoDi(t).versioni.length > 0 || /(?<![\p{L}])(?:aggiornament[\p{L}]*|versione|release)(?![\p{L}])/iu.test(t))
+}
+
+/**
+ * La riga di avviso al posto della domanda: quello che la domanda diceva prima
+ * del punto interrogativo, e «installala quando vuoi». Senza risposta richiesta.
+ */
+export function avvisoInstallazione(domanda: string): string {
+  const coda = 'non serve rispondere, intanto vado avanti con il resto.'
+  const frasi = domanda.replace(/\s+/gu, ' ').trim().split(/(?<=[.!?])\s+/u)
+  const premessa = frasi.filter((f) => !f.trim().endsWith('?')).join(' ').trim()
+  if (premessa !== '') return `${premessa} Installala quando vuoi: ${coda}`
+  const versione = argomentoDi(domanda).versioni[0]
+  return versione !== undefined
+    ? `Quando vuoi puoi installare la ${versione}: ${coda}`
+    : `Quando vuoi puoi installare la versione nuova di SierraDeck: ${coda}`
 }
 
 /** File non salvati, cartella principale, fila delle unioni ferma o da saltare: non sono domande dell'autopilota. */

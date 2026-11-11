@@ -1,6 +1,6 @@
 import { join, parse } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { statSync } from 'node:fs'
+import { readFileSync, statSync } from 'node:fs'
 import { DIALOGO_RICORDATO, type Autopilota, type ChatGovernata, type Traguardo, NOTA_TRAGUARDO_MAX } from '@shared/autopilota'
 import {
   aggiungi, avanzamentoCoda, candidatiUnione, chiaveWorkspace, daSeguire,
@@ -20,7 +20,7 @@ import type { ArchivioCode } from './coda-store'
 import { migraAutopiloti, misuraDaAutopiloti } from './coda-autopiloti'
 import { soloInChat, type ContestoDomanda, type RegistroDomande } from './domande'
 import { chiusaDopoLaDomanda, devePassareAlleDomande, richiestaChiusa, richiestaDellaDomanda, rispostaInCoda, scelteDaToccare } from './domande-in-chat'
-import { aperteSulloStesso } from './domande-doppie'
+import { aperteSulloStesso, risoltaDalloStato } from './domande-doppie'
 import { dimenticaIRossi, improntaCodiceAsincrona, misuraCriteri, type MemoriaCriteri } from './criteri-veloci'
 import { criteriPerLaProva } from './criteri-prova'
 import { fallitiDavvero, nonMisurati, type Esecutore } from './verifiche'
@@ -515,8 +515,24 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
     const chats = [...(u?.chats ?? []), ...subagenti(ws).map((s) => ({ id: s.id, ...(s.attivita !== undefined ? { ultimaAzione: s.attivita } : {}) }))]
     return misuraUnita(misuraDalPiano(x.orchestratori.piano(ws), chats), misuraDaAutopiloti(u !== undefined ? [u] : []))
   }
+  /**
+   * 11/11: il progetto del workspace è SierraDeck stesso? Si legge dal nome nel suo
+   * `package.json`, al più ogni dieci minuti. Solo lì la versione in uso dice qualcosa
+   * («la installi?» a versione già installata) e l'installazione è cosa di Nicholas.
+   */
+  const programmaVisto = new Map<string, { si: boolean; il: number }>()
+  const eIlProgramma = (ws: string): boolean => {
+    const cwd = unicoDi(ws)?.cwd
+    if (cwd === undefined) return false
+    const v = programmaVisto.get(cwd)
+    if (v !== undefined && Date.now() - v.il < 10 * 60_000) return v.si
+    let si = false
+    try { si = (JSON.parse(readFileSync(join(cwd, 'package.json'), 'utf8')) as { name?: unknown }).name === 'sierradeck' } catch { si = false }
+    programmaVisto.set(cwd, { si, il: Date.now() })
+    return si
+  }
   const coda = (ws: string): Coda => x.code.leggi(ws)
-  const allineaOra = (ws: string): Coda => x.code.cambia(ws, (c) => allineaConPiano(c, x.orchestratori.piano(ws), x.adesso()))
+  const allineaOra =(ws: string): Coda => x.code.cambia(ws, (c) => allineaConPiano(c, x.orchestratori.piano(ws), x.adesso()))
   const cambiaCompito = (ws: string, id: string | undefined, f: (c: CompitoPiano) => CompitoPiano): void => {
     if (id === undefined || !x.orchestratori.piano(ws).compiti.some((c) => c.id === id)) return
     x.orchestratori.scriviPiano(ws, conCompito(x.orchestratori.piano(ws), id, f))
@@ -1259,6 +1275,26 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       if (a === undefined || x.lezioni === undefined) return { ok: false, motivo: 'il quaderno non è disponibile' }
       const r = x.lezioni(a.cwd, [{ tag, testo }], x.adesso())
       return { ok: true, testo: r.nuove > 0 ? 'Annotata nel quaderno.' : 'C’era già nel quaderno: confermata.' }
+    },
+    eIlProgramma,
+    // 11/11: i fatti che il servizio conosce davvero. La versione in uso solo se il progetto è SierraDeck;
+    // le release e i rami non si leggono qui (non scartano niente): scartare una domanda vera è peggio.
+    giaSuccesso(ws, testo) {
+      const a = unicoDi(ws)
+      if (a === undefined) return undefined
+      const versione = eIlProgramma(ws) && /^\d+\.\d+\.\d+/u.test(x.versione) && x.versione !== '0.0.0' ? x.versione : undefined
+      return risoltaDalloStato(testo, {
+        ...(versione !== undefined ? { versioneInstallata: versione } : {}),
+        chat: a.chats.map((c) => ({ id: c.id, ...(c.ramo !== undefined ? { ramo: c.ramo } : {}), finita: c.stato === 'finita' }))
+      })
+    },
+    avviso(ws, testo) {
+      const riga = testo.replace(/\s+/gu, ' ').trim().slice(0, 600)
+      if (riga === '' || unicoDi(ws) === undefined) return
+      // Lo stesso avviso non si ripete: se è fra le ultime battute, basta quello.
+      if (x.orchestratori.ultimeDialogo(ws, 30).some((r) => r.da === 'lui' && r.testo === riga)) return
+      console.info(`[orchestratore] ${ws} — avviso a Nicholas al posto di una domanda: ${riga.slice(0, 160)}`)
+      nelDialogo(ws, { quando: x.adesso(), da: 'lui', testo: riga })
     },
     ricalcola,
     riassunto
