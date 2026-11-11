@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { chiudiProvaAsincrono, comeAsincrono, creaWorktree, iniziaProvaAsincrono, ramoSenzaNovitaAsincrono, salvaLavoro, soloAggiunteNumstat, togliWorktree } from '../../src/autopilot-host/worktree'
+import { elencoFile } from '../../src/autopilot-host/servizio-orchestratore'
 import { esegui, git, repositoryDiPartenza } from './worktree-comune'
 
 /** Worktree con git vero, 5/5: ramo senza novità e unione di prova (0.84.4). Il necessario comune è in `worktree-comune.ts`. */
@@ -89,7 +90,7 @@ describe('le note del programma non fermano l’unione (0.88.5)', () => {
     salvaLavoro(git, wt.cartella, 'pezzo')
     const tracciato = esegui(['ls-files'], progetto).split(/\r?\n/)[0] as string
     writeFileSync(join(progetto, tracciato), 'a metà\n')
-    expect(await iniziaProvaAsincrono(ga, { cwd: progetto, ramo: wt.ramo, base: 'main' })).toEqual({ ok: false, motivo: 'la cartella di lavoro ha modifiche non salvate' })
+    expect(await iniziaProvaAsincrono(ga, { cwd: progetto, ramo: wt.ramo, base: 'main' })).toEqual({ ok: false, motivo: 'la cartella di lavoro ha modifiche non salvate', file: [tracciato] })
   })
 })
 
@@ -125,12 +126,39 @@ describe('note del quaderno: solo aggiunte (10/11)', () => {
     expect(await iniziaProvaAsincrono(conAvviso, { cwd: progetto, ramo, base: 'main' })).toEqual({ ok: true })
   })
 
-  it('righe tolte o cambiate a mano: il file resta di Nicholas e l’unione aspetta', async () => {
+  it('decisioni.md con una riga cambiata («(×2)»): si salva e l’unione parte', async () => {
+    mkdirSync(join(progetto, '.sierradeck', 'quaderno'), { recursive: true })
+    writeFileSync(join(progetto, '.sierradeck', 'quaderno', 'decisioni.md'), '- scelta uno\n- scelta due\n')
+    esegui(['add', '-A'], progetto)
+    esegui(['commit', '-q', '-m', 'decisioni'], progetto)
+    const wt = creaWorktree(git, { cwd: progetto, autopilota: 'ap1', chat: 'c-1', base: 'main' })
+    if (!wt.ok) throw new Error('worktree non creato')
+    writeFileSync(join(wt.cartella, 'b.txt'), 'dalla chat\n')
+    salvaLavoro(git, wt.cartella, 'pezzo')
+    writeFileSync(join(progetto, '.sierradeck', 'quaderno', 'decisioni.md'), '- scelta uno (×2)\n- scelta due\n')
+    expect(await iniziaProvaAsincrono(ga, { cwd: progetto, ramo: wt.ramo, base: 'main' })).toEqual({ ok: true })
+    expect(esegui(['log', '-1', '--format=%s', 'HEAD'], progetto)).toBe('quaderno: le note del programma, prima di unire')
+    expect(git(['status', '--porcelain', '--untracked-files=no'], progetto).uscita).not.toContain('decisioni.md')
+  })
+
+  it('un file fuori da `.sierradeck/` ferma ancora l’unione, insieme al quaderno cambiato, e si dice quale', async () => {
     const ramo = conRamoPronto()
     writeFileSync(join(progetto, '.sierradeck', 'quaderno', 'lezioni.md'), '- una\n- DUE cambiata\n')
+    const tracciato = esegui(['ls-files'], progetto).split(/\r?\n/).find((f) => !f.startsWith('.sierradeck/')) as string
+    writeFileSync(join(progetto, tracciato), 'a metà\n')
     const prima = esegui(['rev-parse', 'HEAD'], progetto)
-    expect(await iniziaProvaAsincrono(ga, { cwd: progetto, ramo, base: 'main' })).toEqual({ ok: false, motivo: 'la cartella di lavoro ha modifiche non salvate' })
+    const r = await iniziaProvaAsincrono(ga, { cwd: progetto, ramo, base: 'main' })
+    expect(r).toMatchObject({ ok: false, motivo: 'la cartella di lavoro ha modifiche non salvate' })
+    expect(r.ok === false ? r.file : []).toContain(tracciato)
     expect(esegui(['rev-parse', 'HEAD'], progetto)).toBe(prima)
+  })
+})
+
+describe('elencoFile: il messaggio d’attesa dice quali file tengono ferma la fila', () => {
+  it('elenca i primi cinque e conta gli altri', () => {
+    expect(elencoFile([])).toBe('')
+    expect(elencoFile(['a.ts', 'b.ts'])).toBe(': a.ts, b.ts')
+    expect(elencoFile(['1', '2', '3', '4', '5', '6', '7'])).toBe(': 1, 2, 3, 4, 5 (+2)')
   })
 })
 

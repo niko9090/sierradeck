@@ -686,7 +686,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         const inizio = await turni.unione(a.cwd, () => iniziaProvaAsincrono(gitA(git), { cwd: a.cwd, ramo, base }))
         if (inizio.ok) return undefined
         // Cartella con file di Nicholas a metà: non si tocca, l'unione aspetta il suo turno.
-        return { unito: false, motivo: `l’unione di prova non si è potuta fare (${inizio.motivo})`, ...(inizio.motivo === MOTIVO_CARTELLA_SPORCA ? { ritenta: 'sporca' as const } : {}) }
+        return { unito: false, motivo: `l’unione di prova non si è potuta fare (${inizio.motivo})`, ...(inizio.motivo === MOTIVO_CARTELLA_SPORCA ? { ritenta: 'sporca' as const } : {}), ...(inizio.file !== undefined ? { file: inizio.file } : {}) }
       }
       const fallita = await unisci()
       if (fallita !== undefined) return fallita

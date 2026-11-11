@@ -528,7 +528,7 @@ function* senzaNovitaPassi(p: { cwd: string; ramo: string; base: string }): Pass
   return albero.codice === 0 && /^[0-9a-f]{7,64}$/i.test(primo) && primo === albero.uscita.trim()
 }
 
-export type EsitoProva = { ok: true } | { ok: false; motivo: string }
+export type EsitoProva = { ok: true } | { ok: false; motivo: string; file?: string[] }
 
 /**
  * **L'unione di prova** (0.84.4): il ramo unito nella cartella di lavoro
@@ -635,13 +635,20 @@ function* iniziaProvaPassi(p: { cwd: string; ramo: string; base: string }): Pass
   // contando solo le voci vere: un avviso di git sugli a capo non è un file.
   if (sporca.codice === 0 && soloNoteDelProgramma(sporca.uscita)) {
     const righe = yield* chiedi(['diff', '--numstat', '--ignore-space-at-eol', 'HEAD', '--', '.sierradeck'], radice)
-    if (righe.codice === 0 && soloAggiunteNumstat(righe.uscita)) {
+    // 11/11: dentro `.sierradeck/quaderno/` si salva sempre, anche con righe cambiate: lo scrive il
+    // programma (il «(×2)» delle decisioni confermate, il riordino) ed è sotto git, quindi niente si perde.
+    // Le altre note (consegne...) restano «solo aggiunte»; fuori da `.sierradeck/` non si tocca mai.
+    const tuttoQuaderno = vociPorcelain(sporca.uscita).every((v) => percorsiDellaVoce(v).every((x) => x.startsWith('.sierradeck/quaderno/')))
+    if (tuttoQuaderno || (righe.codice === 0 && soloAggiunteNumstat(righe.uscita))) {
       yield* chiedi(['add', '-u', '--', '.sierradeck'], radice)
       yield* chiedi([...(yield* firma(radice)), 'commit', '-m', 'quaderno: le note del programma, prima di unire', '--', '.sierradeck'], radice)
       sporca = yield* chiedi(['status', '--porcelain', '--untracked-files=no'], radice)
     }
   }
-  if (sporca.codice !== 0 || vociPorcelain(sporca.uscita).length > 0) return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA }
+  if (sporca.codice !== 0 || vociPorcelain(sporca.uscita).length > 0) {
+    const file = [...new Set(vociPorcelain(sporca.uscita).flatMap(percorsiDellaVoce))]
+    return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA, ...(file.length > 0 ? { file } : {}) }
+  }
   // Il segno prima dell'unione: se il processo muore a metà, il prossimo la riconosce.
   if (dir !== undefined) {
     const testa = yield* chiedi(['rev-parse', '--verify', '--quiet', `refs/heads/${p.ramo}`], radice)
