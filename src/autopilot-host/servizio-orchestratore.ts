@@ -37,11 +37,11 @@ import {
   type AvviaProcesso, type ContestoTurno, type EventoOrchestratore, type Orchestratore
 } from './orchestratore'
 import type { ArchivioOrchestratori, ImpostazioniOrchestratore, RigaDialogo } from './orchestratore-store'
-import { RAMI_SEGNALATI_MAX, TETTO_SPECIALISTI_MAX } from './orchestratore-store'
+import { RAMI_SEGNALATI_MAX, SVEGLIE_MAX, TETTO_SPECIALISTI_MAX } from './orchestratore-store'
 import { POSTI_MAX } from '@shared/posti-chat'
 import { fermataSpecialista } from './stop-specialista'
 import { cartellaDelWorkspace, hookAdottato, nuovoUnico, obiettiviInCoda, passaAllUnico, type CampiVecchi, type Vecchio } from './migra-orchestratore'
-import { riassuntoOrchestratore } from './riassunto-orchestratore'
+import { quandoInParole, riassuntoOrchestratore } from './riassunto-orchestratore'
 import { motivoSpecialistaDoppio, ripresaDopoRiavvio } from './ripresa-riavvio'
 import { fileAgenti, fileImpostazioniCli, RUOLI_AGENTI } from './agenti-orchestratore'
 import { giudicaGuardiaOrchestratore } from './guardia-orchestratore'
@@ -786,6 +786,7 @@ Il posto è tuo per 5 minuti.` })
       domandeAperte: u === undefined ? 0 : x.domande.aperte(u.id).length,
       domande: u === undefined ? [] : x.domande.aperte(u.id).map((q) => ({ id: q.id, testo: q.parti?.domanda ?? q.testo, apertaIl: q.apertaIl })),
       subagenti: subagenti(ws),
+      ...((i.sveglie ?? []).length > 0 ? { sveglie: i.sveglie as { il: string; perche: string }[] } : {}),
       unioni: [...righeUnioni(ws), ...[rigaUnioneEPoi(x.orchestratori.piano(ws), compitiInUnione(ws))].flatMap((r) => (r !== undefined ? [r] : []))],
       adesso: Date.parse(x.adesso())
     })
@@ -1462,6 +1463,17 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     },
     ricalcola,
     riassunto,
+    // 11/11: la sveglia sta sul disco e la suona la guardia: sopravvive alla sessione che si spegne e al riavvio del servizio.
+    sveglia(ws, quando, perche): EsitoAmbiente {
+      if (quando === undefined) {
+        const quante = (imp(ws).sveglie ?? []).length
+        x.orchestratori.cambiaImpostazioni(ws, (i) => { const { sveglie: _via, ...senza } = i; return senza })
+        return { ok: true, testo: quante === 0 ? 'Non c’erano sveglie in attesa.' : `${quante === 1 ? 'Tolta la sveglia' : `Tolte le ${quante} sveglie`} in attesa.` }
+      }
+      if ((imp(ws).sveglie ?? []).length >= SVEGLIE_MAX) return { ok: false, motivo: `ci sono già ${SVEGLIE_MAX} sveglie in attesa: toglile con «annulla» e rimetti quelle che servono` }
+      x.orchestratori.cambiaImpostazioni(ws, (i) => ({ ...i, sveglie: [...(i.sveglie ?? []), { il: quando, perche, chiesta: x.adesso() }].sort((a, b) => a.il.localeCompare(b.il)) }))
+      return { ok: true, testo: `Sveglia salvata per ${quandoInParole(quando, oraMs())}: a quell’ora il programma ti richiama con un evento, anche se nel frattempo si riavvia o la sessione si spegne. Fino ad allora non serve aspettare.` }
+    },
     // 11/11: un compito superato o annullato si chiude senza unirlo. Prima restava nel piano e teneva aperta la richiesta (k-120).
     chiudiCompito(ws, id, come, perche): EsitoAmbiente {
       if (subagenti(ws).some((s) => (s.stato === 'avviato' || s.stato === 'lavoro') && s.compito === id)) return { ok: false, motivo: `uno specialista sta lavorando a ${id}: aspetta che finisca, poi decidi` }
@@ -1946,6 +1958,25 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     return trovati.length
   }
 
+  /** 11/11: le sveglie arrivate all'ora: escono dal disco e diventano un evento, subito. Vale anche per quelle scadute a servizio spento. */
+  const suonaSveglie = (ora: number): void => {
+    for (const a of unici()) {
+      if (a.archiviato === true) continue
+      const ws = wsDi(a)
+      const scadute = (imp(ws).sveglie ?? []).filter((s) => Date.parse(s.il) <= ora)
+      if (scadute.length === 0) continue
+      x.orchestratori.cambiaImpostazioni(ws, (i) => {
+        const resto = (i.sveglie ?? []).filter((s) => Date.parse(s.il) > ora)
+        const { sveglie: _via, ...senza } = i
+        return resto.length > 0 ? { ...senza, sveglie: resto } : senza
+      })
+      for (const s of scadute) {
+        console.info(`[orchestratore] ${ws} — suona la sveglia del${quandoInParole(s.il, ora)}: ${s.perche.slice(0, 120)}`)
+        evento(ws, { tipo: 'sveglia', quando: x.adesso(), testo: `è l’ora che avevi chiesto (${quandoInParole(s.il, ora)}): ${s.perche}. Riprendi adesso da lì.` }, true)
+      }
+    }
+  }
+
   const conLavoroAperto = (ws: string): boolean => coda(ws).richieste.some((r) => r.stato !== 'fatta')
   const giroRiallineo = (ora: number): void => {
     const ogni = x.riallineoOgniMs ?? RIALLINEO_OGNI_MS
@@ -1966,6 +1997,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     try { rivediFila() } catch (err) { console.error('[attesa] giro della lista d’attesa non riuscito:', err) }
     try { rimisuraNonMisurati(ora) } catch (err) { console.error('[orchestratore] rimisura dei criteri non misurati non riuscita:', err) }
     try { giroRiallineo(ora) } catch (err) { console.info('[orchestratore] giro di riallineo col remoto non riuscito, riprovo al prossimo:', err) }
+    try { suonaSveglie(ora) } catch (err) { console.error('[orchestratore] sveglie non suonate, riprovo al prossimo giro:', err) }
     for (const a of unici()) {
       for (const c of specialistiVivi(a)) {
         if (c.stato !== 'lavoro') continue

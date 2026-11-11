@@ -31,6 +31,8 @@ export type DatiRiassunto = {
   subagenti?: Specialista[]
   /** 06/11: le unioni in corso e in fila (una per riga, già scritta). */
   unioni?: string[]
+  /** 11/11: le sveglie in attesa, salvate sul disco: le suona il programma. */
+  sveglie?: { il: string; perche: string }[]
   adesso: number
 }
 
@@ -46,6 +48,16 @@ const corto = (t: string, n: number): string => {
   return x.length > n ? `${x.slice(0, n - 1)}…` : x
 }
 
+/** «le 19:00 di oggi», «le 08:30 del 12/11»: l'ora di una sveglia come la legge Nicholas, nell'ora del PC. */
+export function quandoInParole(iso: string, adesso: number = Date.now()): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  const due = (n: number): string => String(n).padStart(2, '0')
+  const ora = `le ${due(d.getHours())}:${due(d.getMinutes())}`
+  const oggi = new Date(adesso)
+  return d.toDateString() === oggi.toDateString() ? `${ora} di oggi` : `${ora} del ${due(d.getDate())}/${due(d.getMonth() + 1)}`
+}
+
 export function riassuntoOrchestratore(d: DatiRiassunto): string {
   const righe: string[] = []
   const aperte = d.coda.richieste.filter((r) => r.stato !== 'fatta')
@@ -102,6 +114,11 @@ export function riassuntoOrchestratore(d: DatiRiassunto): string {
   if (d.domande !== undefined && d.domande.length > 0) {
     righe.push('DOMANDE APERTE (le vede Nicholas: ritira con ritira_domanda quelle che non servono più — hai già deciso, il lavoro è andato avanti, ti ha risposto nel dialogo):')
     for (const q of d.domande) righe.push(`- ${q.id} (da ${minuti(new Date(q.apertaIl).toISOString(), d.adesso)}): ${corto(q.testo, 200)}`)
+  }
+
+  if (d.sveglie !== undefined && d.sveglie.length > 0) {
+    righe.push('SVEGLIE (ti richiama il programma a quell’ora, anche dopo un riavvio: non aspettarle e non rifarle):')
+    for (const s of d.sveglie) righe.push(`- ${quandoInParole(s.il, d.adesso)}: ${corto(s.perche, 160)}`)
   }
 
   if (d.eventi.length > 0) {

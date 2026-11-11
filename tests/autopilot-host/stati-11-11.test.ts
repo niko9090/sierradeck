@@ -13,7 +13,7 @@ import type { EsitoGit, Git, GitAsincrono } from '../../src/autopilot-host/workt
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
 import type { CompitoPiano } from '@shared/piano-orchestratore'
 import { attendi } from '../setup/attendi'
-import { orologioDa } from '../setup/orologio'
+import { orologioDa, type Orologio } from '../setup/orologio'
 
 /**
  * 11/11, «il lavoro resta fermo e non arriva mai al 100%»: i vicoli ciechi della
@@ -121,10 +121,18 @@ function gitDiProva(porte: Porte): { git: Git; asinc: GitAsincrono } {
   return { git, asinc }
 }
 
-type Opzioni = { cartella?: string; archivio?: Archivio; esegui?: (comando: string) => { codice: number; uscita: string } }
+/** Un orologio fermo a un'ora data che va avanti col tempo vero, e che il test può spostare in avanti. */
+type OrologioMio = Orologio & { avanti: (ms: number) => void }
+function orologioCheAvanza(inizio: string): OrologioMio {
+  const base = orologioDa(inizio)
+  let piu = 0
+  return { ms: () => base.ms() + piu, iso: () => new Date(base.ms() + piu).toISOString(), avanti: (ms) => { piu += ms } }
+}
+
+type Opzioni = { cartella?: string; archivio?: Archivio; esegui?: (comando: string) => { codice: number; uscita: string }; orologio?: Orologio }
 
 async function avviaServizio(porte: Porte, opz: Opzioni = {}): Promise<string> {
-  const orologio = orologioDa('2026-11-11T08:00:00.000Z')
+  const orologio = opz.orologio ?? orologioDa('2026-11-11T08:00:00.000Z')
   const cartella = opz.cartella ?? mkdtempSync(join(tmpdir(), 'ap-stati-dati-'))
   archivio = opz.archivio ?? apriArchivio(mkdtempSync(join(tmpdir(), 'ap-stati-')))
   if (opz.archivio === undefined) archivio.scrivi(ap())
@@ -290,6 +298,51 @@ describe('un Agent rifiutato o rilanciato non azzera un compito (11/11, k-133)',
     finisciUltimo('failed')
     await attendi(() => k('k-1')?.stato === 'da-fare', { cosa: 'k-1 di nuovo da fare' })
     expect(k('k-1')!.esito).toContain('non è riuscito')
+  })
+})
+
+describe('la sveglia sopravvive alla sessione e al riavvio (11/11, «riprendo stasera alle 19»)', () => {
+  it('si salva sul disco, si vede nello stato, e all’ora suona come evento anche dopo un riavvio del servizio', async () => {
+    zitto()
+    const orologio = orologioCheAvanza('2026-11-11T08:00:00.000Z')
+    const porte: Porte = { merge: [], rami: {} }
+    const cartella = await avviaServizio(porte, { orologio })
+    const unico = orch.impostazioni(WS).autopilota!
+    expect(await strumento('sveglia', { tra_minuti: 90 })).toContain('serve il perché')
+    expect(await strumento('sveglia', { perche: 'riprendere la ricostruzione' })).toContain('dimmi quando')
+    expect(await strumento('sveglia', { tra_minuti: 90, perche: 'riprendere la ricostruzione di Server e NAS' })).toContain('Sveglia salvata per le')
+    expect(orch.impostazioni(WS).sveglie).toHaveLength(1)
+    expect(Date.parse(orch.impostazioni(WS).sveglie![0]!.il) - orologio.ms()).toBeGreaterThan(89 * 60_000)
+    expect(await strumento('stato', {})).toContain('riprendere la ricostruzione di Server e NAS')
+    // Prima dell'ora non suona.
+    server!.controllaChatFerme()
+    await pausa(60)
+    expect(processi[0]!.scritte.join('\n')).not.toContain('è l’ora che avevi chiesto')
+    // Il servizio si riavvia (un aggiornamento): la sessione e la memoria non ci sono più, il disco sì.
+    server?.close()
+    orologio.avanti(91 * 60_000)
+    await avviaServizio(porte, { cartella, archivio, orologio })
+    expect(orch.impostazioni(WS).autopilota).toBe(unico)
+    expect(orch.impostazioni(WS).sveglie).toHaveLength(1)
+    server!.controllaChatFerme()
+    await attendi(() => processi.length > 0 && processi[0]!.scritte.join('\n').includes('è l’ora che avevi chiesto'), { cosa: 'la sveglia che suona dopo il riavvio' })
+    expect(processi[0]!.scritte.join('\n')).toContain('riprendere la ricostruzione di Server e NAS')
+    expect(orch.impostazioni(WS).sveglie).toBeUndefined()
+    // Una volta sola: un turno solo la porta (dentro, sta fra gli eventi e nello stato).
+    const turni = (): number => processi[0]!.scritte.filter((r) => r.includes('<eventi>') && r.split('<eventi>')[1]!.includes('è l’ora che avevi chiesto')).length
+    turnoChiuso()
+    server!.controllaChatFerme()
+    await pausa(60)
+    expect(turni()).toBe(1)
+  })
+
+  it('«annulla» toglie le sveglie in attesa; non più di dieci insieme', async () => {
+    zitto()
+    await avviaServizio({ merge: [], rami: {} })
+    for (let n = 1; n <= 10; n += 1) expect(await strumento('sveglia', { tra_minuti: 10 * n, perche: `cosa ${n}` })).toContain('Sveglia salvata')
+    expect(await strumento('sveglia', { tra_minuti: 5, perche: 'una di troppo' })).toContain('ci sono già 10 sveglie')
+    expect(await strumento('sveglia', { annulla: true, perche: 'Nicholas ha detto di riprendere subito' })).toContain('Tolte le 10 sveglie')
+    expect(orch.impostazioni(WS).sveglie).toBeUndefined()
   })
 })
 

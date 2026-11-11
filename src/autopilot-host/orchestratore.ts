@@ -58,7 +58,7 @@ export function ambientePulito(base: NodeJS.ProcessEnv): Record<string, string> 
 
 // ---------------------------------------------------------------- tipi
 
-export type TipoEvento = 'finito' | 'bloccato' | 'domanda' | 'silenzio' | 'unione' | 'fermo' | 'risposta' | 'adozione' | 'domanda-scaduta' | 'posto'
+export type TipoEvento = 'finito' | 'bloccato' | 'domanda' | 'silenzio' | 'unione' | 'fermo' | 'risposta' | 'adozione' | 'domanda-scaduta' | 'posto' | 'sveglia'
 export type EventoOrchestratore = { tipo: TipoEvento; quando: string; testo: string; chat?: string }
 export type MessaggioUtente = { quando: string; testo: string }
 
@@ -130,6 +130,8 @@ export const REGOLE_ORCHESTRATORE = [
   '4d. Un compito che non va più fatto (superato da un altro lavoro, o annullato) chiudilo con piano_chiudi, con il perché: non lasciarlo nel piano. Un compito fatto invece si chiude solo con unisci e il criterio verde.',
   // 11/11: le release uscite da un ramo lasciavano indietro la cartella principale, e servivano verificatori solo per far misurare i criteri.
   '4e. Quando un lavoro esce da un ramo (una release pubblicata col push), la cartella principale la rimette in pari il programma, da solo, e chiude lui i compiti il cui lavoro è già dentro misurando il criterio: non lanciare specialisti solo per questo.',
+  // 11/11: «riprendo stasera alle 19» era un promemoria nella sessione, che si spegne dopo 10 minuti di quiete: non suonava mai.
+  '4f. Se devi riprendere più tardi (Nicholas dice «riprendi stasera», o aspetti qualcosa che ha un orario), usa lo strumento sveglia: il programma ti richiama a quell’ora, anche se nel frattempo si riavvia. Un promemoria tenuto a mente o un’attesa con sleep si perdono. Le sveglie in attesa sono in SVEGLIE nello stato.',
   '5. Uno specialista bloccato: se la risposta sta nel codice, nel quaderno o in quello che Nicholas ha già detto, decidi tu e rilancia. Chiedi a Nicholas con chiedi_utente solo una decisione che spetta a lui, con 2-4 scelte e la consigliata per prima.',
   '6. Quello che conviene ricordare per i lavori futuri va nel quaderno con quaderno_annota, una riga. Le righe LEZIONI: dei riepiloghi le annota già il programma.',
   '',
@@ -204,7 +206,8 @@ const PAROLA_EVENTO: Record<TipoEvento, string> = {
   risposta: 'risposta di Nicholas',
   adozione: 'adozione',
   'domanda-scaduta': 'domanda scaduta',
-  posto: 'lista d’attesa'
+  posto: 'lista d’attesa',
+  sveglia: 'sveglia'
 }
 
 /** Il messaggio di un turno: stato, indice del quaderno, (le ultime battute), eventi e messaggi. */
