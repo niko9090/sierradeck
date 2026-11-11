@@ -1,5 +1,4 @@
 ﻿import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest'
-import { spawn } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -12,6 +11,7 @@ import {
 import { comeAsincrono, creaWorktree, gitReale, type Git } from '../../src/autopilot-host/worktree'
 import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/server'
 import { unicoFinto } from '../setup/unico-finto'
+import { finche, programmaVivoIn } from '../setup/programma-vivo'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
 
 const ORA = Date.parse('2026-10-30T12:00:00.000Z')
@@ -448,9 +448,8 @@ describe('su disco, con un git finto', () => {
     archivio.scrivi(autopilota({ id: 'ap-0123abcd-0000', cwd: progetto }))
     const { git } = gitFinto()
     // Un programma che lavora ancora in quella cartella: Windows non la lascia togliere finché vive.
-    const vivo = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], { cwd: d, stdio: 'ignore', windowsHide: true })
+    const vivo = await programmaVivoIn(d)
     try {
-      await new Promise<void>((ok, no) => { vivo.once('spawn', () => { ok() }); vivo.once('error', no) })
       const e = await autopulizia({ archivio, git: comeAsincrono(git), ora: DOPO })
       expect(existsSync(d)).toBe(true)
       expect(e.errori).toEqual([])
@@ -458,11 +457,10 @@ describe('su disco, con un git finto', () => {
       expect(e.tenute).toEqual([{ cosa: 'ap-0123abcd-c-7', perche: TENUTA_FILE_IN_USO }])
       expect(rigaRiepilogo(e)).toContain('file in uso, riprovo al prossimo giro (1)')
     } finally {
-      const finito = new Promise<void>((ok) => { vivo.once('exit', () => { ok() }) })
-      vivo.kill()
-      await finito
+      await vivo.ferma()
     }
-    const dopo = await autopulizia({ archivio, git: comeAsincrono(git), ora: DOPO })
+    // Al giro dopo, finito il programma, se ne va (Windows la lascia un attimo dopo: si riprova).
+    const dopo = await finche(() => autopulizia({ archivio, git: comeAsincrono(git), ora: DOPO }), (e) => e.copieTolte === 1)
     expect(existsSync(d)).toBe(false)
     expect(dopo.copieTolte).toBe(1)
     expect(dopo.tenute).toEqual([])

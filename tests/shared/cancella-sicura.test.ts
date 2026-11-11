@@ -1,8 +1,8 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { finche, programmaVivoIn } from '../setup/programma-vivo'
 import {
   cancellaSicura, cancellaSicuraAsincrona, cestinoSicuro, controllaCancellazione, divietoAssoluto, eBloccoTemporaneo, CancellazioneRifiutata,
   type AmbienteCancellazione
@@ -252,20 +252,19 @@ describe('cancellaSicuraAsincrona: gli stessi controlli, senza fermare il proces
     mkdirSync(usata, { recursive: true })
     writeFileSync(join(usata, 'f.txt'), 'x')
     // Un programma che ha quella cartella come cartella di lavoro: Windows non la lascia togliere finché vive.
-    const vivo = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], { cwd: usata, stdio: 'ignore', windowsHide: true })
+    const vivo = await programmaVivoIn(usata)
     try {
-      await new Promise<void>((ok, no) => { vivo.once('spawn', () => { ok() }); vivo.once('error', no) })
       const errore = await cancellaSicuraAsincrona(usata, { dentro: [lavoro], ambiente: ambienteFinto(r) }).then(() => undefined, (e: unknown) => e)
       expect(errore).toBeDefined()
       expect(errore).not.toBeInstanceOf(CancellazioneRifiutata)
       expect(eBloccoTemporaneo(String(errore))).toBe(true)
       expect(existsSync(usata)).toBe(true)
     } finally {
-      const finito = new Promise<void>((ok) => { vivo.once('exit', () => { ok() }) })
-      vivo.kill()
-      await finito
+      await vivo.ferma()
     }
-    expect(await cancellaSicuraAsincrona(usata, { dentro: [lavoro], ambiente: ambienteFinto(r) })).toBe('cancellata')
+    // Finito il programma la cartella si toglie (Windows la lascia un attimo dopo: si riprova).
+    const dopo = await finche(() => cancellaSicuraAsincrona(usata, { dentro: [lavoro], ambiente: ambienteFinto(r) }).then((e) => e, () => 'ancora-tenuta' as const), (e) => e !== 'ancora-tenuta')
+    expect(dopo).toBe('cancellata')
     expect(existsSync(usata)).toBe(false)
   })
 })
