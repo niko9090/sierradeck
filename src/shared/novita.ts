@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.99.3',
+    righe: [
+      '**Autopilota mai fermo:** anche quando l’errore non è di rete, l’autopilota riprova subito una volta e poi aspetta sempre di più, senza fermarsi mai.',
+    ],
+  },
+  {
     versione: '0.99.2',
     righe: [
       '**Note del quaderno salvate sempre:** le modifiche del programma a lezioni e decisioni vengono salvate anche quando riscrivono righe, così non bloccano più le unioni.',
