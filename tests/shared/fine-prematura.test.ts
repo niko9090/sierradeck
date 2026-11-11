@@ -49,9 +49,12 @@ describe('hook SubagentStop (k-189)', () => {
 describe('guardia degli specialisti (k-189)', () => {
   it('rifiuta un Bash in sottofondo e uno sleep lungo', () => {
     const a = giudicaGuardiaOrchestratore(specialista('Bash', { command: 'npx vitest run', run_in_background: true }), ctx)
-    expect(a).toEqual({ ok: false, motivo: MOTIVO_SOTTOFONDO })
+    // 11/11: il rifiuto dice anche la classe del permesso e come si arriva al sì di Nicholas.
+    expect(a).toMatchObject({ ok: false, permesso: { classe: 'sottofondo', azione: 'npx vitest run' } })
+    expect(!a.ok && a.motivo.startsWith(MOTIVO_SOTTOFONDO)).toBe(true)
+    expect(!a.ok && a.motivo).toContain('Si sblocca solo con il sì di Nicholas')
     expect(MOTIVO_SOTTOFONDO).toContain('davanti')
-    expect(giudicaGuardiaOrchestratore(specialista('Bash', { command: 'sleep 90' }), ctx)).toEqual({ ok: false, motivo: MOTIVO_SOTTOFONDO })
+    expect(giudicaGuardiaOrchestratore(specialista('Bash', { command: 'sleep 90' }), ctx)).toMatchObject({ ok: false, permesso: { classe: 'sottofondo', azione: 'sleep 90' } })
     // 11/11: fino a 30 secondi passa (prima era rifiutato ogni sleep, anche questo): oltre no.
     expect(giudicaGuardiaOrchestratore(specialista('PowerShell', { command: 'Start-Sleep -Seconds 31; npm test' }), ctx).ok).toBe(false)
     expect(giudicaGuardiaOrchestratore(specialista('PowerShell', { command: 'Start-Sleep -Seconds 30; npm test' }), ctx).ok).toBe(true)

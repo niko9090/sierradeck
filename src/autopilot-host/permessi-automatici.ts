@@ -1,5 +1,7 @@
 import { homedir, tmpdir } from 'node:os'
 import { isAbsolute, join, resolve, sep } from 'node:path'
+import type { ClassePermesso } from '@shared/permessi-nicholas'
+import { chiaveComando, chiavePercorso, comeChiedere, type Concesso } from './permessi-nicholas'
 
 /**
  * I permessi li decide il programma, da solo (0.89.5, e 11/11).
@@ -66,28 +68,55 @@ export function postiDelicati(casa = homedir()): string[] {
   ]
 }
 
-/** 11/11: mai «chiedi a Nicholas». Concesso con il perché, o negato con il motivo per chi ha chiesto. */
-export type PermessoDaSolo = { concesso: true; perche: string } | { concesso: false; motivo: string }
+/**
+ * 11/11: mai «chiedi a Nicholas» per conto proprio. Concesso con il perché, o
+ * negato con il motivo per chi ha chiesto. `permesso`: il no è di un'azione
+ * protetta che il sì di Nicholas può sbloccare (`permessi-nicholas.ts`).
+ */
+export type PermessoDaSolo = { concesso: true; perche: string } | { concesso: false; motivo: string; permesso?: { classe: ClassePermesso; azione: string } }
+
+/** L'azione di uno strumento negato: il suo nome, e per una shell anche il comando preciso. */
+export function azioneStrumento(strumento: string, input: unknown): string {
+  const i = (typeof input === 'object' && input !== null ? input : {}) as Record<string, unknown>
+  return (strumento === 'Bash' || strumento === 'PowerShell') && typeof i.command === 'string' ? `${strumento}: ${chiaveComando(i.command)}` : strumento
+}
+
+/** Uno strumento che il programma nega quando la CLI ne chiede il permesso (e che il sì di Nicholas sblocca). */
+export function strumentoNegato(strumento: string): boolean {
+  return strumento !== 'AskUserQuestion' && !STRUMENTI_LETTURA_WEB.has(strumento) && !STRUMENTI_INNOCUI.has(strumento) && !STRUMENTI_MODIFICA.has(strumento)
+}
+
+/** Il file sta in un posto protetto (sistema, chiavi, impostazioni, l'interno di `.git`) e non fra i temporanei. */
+export function postoProtetto(file: string, o: { casa?: string; temp?: string } = {}): boolean {
+  const f = resolve(file)
+  // L'interno di .git (hook, config): è il modo di far girare codice a ogni commit.
+  if (/[\\/]\.git([\\/]|$)/u.test(f)) return true
+  if (sotto(o.temp ?? tmpdir(), f)) return false
+  return postiDelicati(o.casa).some((d) => sotto(d, f))
+}
 
 /**
  * Pura (a parte casa e temp, passabili): il programma concede questo permesso
  * o lo nega, sempre da solo. `cwd` è la cartella del progetto, per i percorsi relativi.
+ * `o.concesso`: il sì di Nicholas già registrato, per le azioni protette.
  */
-export function permessoDaSolo(strumento: string, input: unknown, cwd: string, o: { casa?: string; temp?: string } = {}): PermessoDaSolo {
+export function permessoDaSolo(strumento: string, input: unknown, cwd: string, o: { casa?: string; temp?: string; concesso?: Concesso } = {}): PermessoDaSolo {
   if (STRUMENTI_LETTURA_WEB.has(strumento)) return { concesso: true, perche: 'legge il web' }
   if (STRUMENTI_INNOCUI.has(strumento)) return { concesso: true, perche: 'legge e basta' }
-  if (STRUMENTI_ATTESA.has(strumento)) return { concesso: false, motivo: MOTIVO_ATTESA }
   if (strumento === 'AskUserQuestion') return { concesso: false, motivo: MOTIVO_CHIEDI }
-  if (strumento === 'Bash' || strumento === 'PowerShell') return { concesso: false, motivo: MOTIVO_COMANDO }
-  if (!STRUMENTI_MODIFICA.has(strumento)) return { concesso: false, motivo: MOTIVO_SCONOSCIUTO }
+  if (!STRUMENTI_MODIFICA.has(strumento)) {
+    // 11/11: Monitor, le sveglie della CLI, un comando per cui la CLI chiede il permesso, uno strumento non previsto.
+    const azione = azioneStrumento(strumento, input)
+    if (o.concesso?.('strumenti-negati', azione) === true) return { concesso: true, perche: `${strumento}: permesso da Nicholas` }
+    const motivo = STRUMENTI_ATTESA.has(strumento) ? MOTIVO_ATTESA : strumento === 'Bash' || strumento === 'PowerShell' ? MOTIVO_COMANDO : MOTIVO_SCONOSCIUTO
+    return { concesso: false, permesso: { classe: 'strumenti-negati', azione }, motivo: `${motivo}.${comeChiedere('strumenti-negati')}` }
+  }
   const i = (typeof input === 'object' && input !== null ? input : {}) as Record<string, unknown>
   const grezzo = typeof i.file_path === 'string' ? i.file_path : typeof i.notebook_path === 'string' ? i.notebook_path : ''
   if (grezzo.trim() === '') return { concesso: false, motivo: 'manca il percorso del file da scrivere' }
   const file = isAbsolute(grezzo) ? resolve(grezzo) : resolve(cwd, grezzo)
-  // L'interno di .git (hook, config): è il modo di far girare codice a ogni commit.
-  if (/[\\/]\.git([\\/]|$)/u.test(file)) return { concesso: false, motivo: MOTIVO_POSTO_DELICATO }
-  const temp = o.temp ?? tmpdir()
-  if (sotto(temp, file)) return { concesso: true, perche: `scrive un file temporaneo (${file})` }
-  if (postiDelicati(o.casa).some((d) => sotto(d, file))) return { concesso: false, motivo: MOTIVO_POSTO_DELICATO }
-  return { concesso: true, perche: `modifica ${file}` }
+  if (!postoProtetto(file, o)) return sotto(o.temp ?? tmpdir(), file) ? { concesso: true, perche: `scrive un file temporaneo (${file})` } : { concesso: true, perche: `modifica ${file}` }
+  const azione = chiavePercorso(file)
+  if (o.concesso?.('posti-protetti', azione) === true) return { concesso: true, perche: `modifica ${file} (posto protetto: permesso da Nicholas)` }
+  return { concesso: false, permesso: { classe: 'posti-protetti', azione }, motivo: `${MOTIVO_POSTO_DELICATO}.${comeChiedere('posti-protetti')}` }
 }

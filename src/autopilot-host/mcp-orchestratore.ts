@@ -6,6 +6,7 @@ import type { Specialista } from '@shared/flusso-orchestratore'
 import { LEZIONE_MAX } from '@shared/lezioni-chat'
 import { gettoneBearer, rispondiRpc, type EsitoStrumento, type ServerMcpMinimo, type StrumentoMcp } from '@shared/mcp-minimo'
 import { argomentoDi } from '@shared/argomento-testo'
+import { CLASSI_PERMESSO, DURATA_PERMESSO_MIN } from '@shared/permessi-nicholas'
 
 /**
  * **Gli strumenti dell'orchestratore unico** (P3, 30/10/2026): il server MCP
@@ -125,6 +126,8 @@ export type AmbienteOrchestratore = {
   sveglia?: (ws: string, quando: string | undefined, perche: string) => EsitoAmbiente
   /** Una richiesta di permesso della CLI: la decide il programma, subito (11/11: mai una domanda a Nicholas). */
   permesso: (ws: string, strumento: string, input: unknown) => Promise<{ consenti: boolean; motivo?: string }>
+  /** 11/11: fa aprire al programma la domanda a Nicholas per un'azione protetta (`permessi-nicholas.ts`). Il testo lo scrive il programma. */
+  chiediConsenso?: (ws: string, p: { classe?: unknown; comando?: unknown; percorsi?: unknown; strumento?: unknown; perche?: unknown }) => EsitoAmbiente
   /** Apre la domanda (registro, doppioni); il tetto all'ora lo guarda lo strumento. */
   chiedi: (ws: string, domanda: string, scelte: string[], perche?: string, richiesta?: string, opz?: { rischiosa?: boolean }) => EsitoAmbiente
   /** Ritira una propria domanda superata (0.92.1). */
@@ -314,6 +317,23 @@ export const STRUMENTI_ORCHESTRATORE: readonly StrumentoMcp[] = [
       },
       required: ['perche']
     }
+  },
+  {
+    // 11/11, Nicholas: «perché hai lasciato i limiti? devono poter essere sorpassati se decisi da me».
+    name: 'chiedi_consenso',
+    title: 'Chiedi a Nicholas il permesso per un’azione protetta',
+    description: `Quando il programma blocca un’azione e il rifiuto dice «si sblocca solo con il sì di Nicholas», e quell’azione l’ha chiesta lui, chiedi qui il permesso: la domanda la scrive e la apre il programma, con il comando o i percorsi esatti. Tu dai la classe e l’azione precisa, così come verrà rilanciata. Classi: ${CLASSI_PERMESSO.filter((c) => c !== 'cancellazioni').join(', ')} (per le cancellazioni la domanda nasce da sola quando il comando viene bloccato). Dopo «Sì, questa volta» fai rilanciare lo stesso identico comando entro ${DURATA_PERMESSO_MIN} minuti; dopo «Sì, sempre» in questo progetto non serve più chiedere. Non usarlo per aggirare un divieto che Nicholas non ha chiesto di superare, e MAI di tua iniziativa per installare SierraDeck: «installazione» si chiede solo se Nicholas ha scritto lui di installare, e vale solo per quella volta.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        classe: { type: 'string', enum: [...CLASSI_PERMESSO], description: 'La classe scritta nel rifiuto.' },
+        comando: { type: 'string', description: 'Il comando esatto bloccato, così come verrà rilanciato (per push-forzato, installazione, cose-altrui, sottofondo, e per uno strumento Bash o PowerShell).' },
+        percorsi: { type: 'array', items: { type: 'string' }, description: 'Per posti-protetti: i file da scrivere, con il percorso per intero.' },
+        strumento: { type: 'string', description: 'Per strumenti-negati: il nome dello strumento negato (per esempio Monitor).' },
+        perche: { type: 'string', description: 'Una riga: a cosa serve. Nicholas la legge come parole tue.' }
+      },
+      required: ['classe']
+    }
   }
 ]
 
@@ -459,6 +479,12 @@ export async function chiamaStrumento(amb: AmbienteOrchestratore, ws: string, no
       const r = await amb.permesso(ws, strumento, input)
       // La risposta che la CLI si aspetta: un JSON nel testo.
       return si(JSON.stringify(r.consenti ? { behavior: 'allow', updatedInput: input } : { behavior: 'deny', message: r.motivo ?? 'il programma non lo permette' }))
+    }
+
+    case 'chiedi_consenso': {
+      if (amb.chiediConsenso === undefined) return no('i permessi di Nicholas non sono disponibili')
+      const e = amb.chiediConsenso(ws, { classe: arg.classe, comando: arg.comando, percorsi: arg.percorsi, strumento: arg.strumento, perche: str(arg.perche).replace(/\s+/gu, ' ').slice(0, 300) })
+      return e.ok ? si(e.testo) : no(e.motivo)
     }
 
     case 'chiedi_utente': {

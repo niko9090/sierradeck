@@ -56,8 +56,11 @@ describe('consenso di Nicholas alle cancellazioni', () => {
     if (g.ok) return
     expect(g.consensoPer).toEqual([DA_TOGLIERE])
     expect(g.motivo).toMatch(/suo consenso registrato dal programma/)
-    expect(g.motivo).toMatch(/Sì, cancella/)
+    // 11/11: le scelte sono tre («No», «Sì, questa volta», «Sì, sempre»): il rifiuto non cita più «Sì, cancella».
+    expect(g.motivo).toMatch(/Quando risponde di sì/)
     expect(g.motivo).toMatch(/entro 30 minuti/)
+    expect(g.permesso).toEqual({ classe: 'cancellazioni', azione: DA_TOGLIERE })
+    expect(g.soloVolta).toBeUndefined()
   })
 
   it('con consenso sul percorso: passa, anche per quello che contiene', () => {
@@ -146,23 +149,56 @@ describe('restano vietati anche col consenso', () => {
     ['AppData\\Roaming intera', `${CASA}\\AppData\\Roaming`],
     ['la cartella di Windows', 'C:\\Windows'],
     ['Programmi', 'C:\\Program Files'],
-    ['un antenato della cartella utente', 'C:\\Users'],
-    ['la cartella principale del progetto', 'E:\\lavoro\\progetto'],
-    ['un antenato del progetto', 'E:\\lavoro']
+    ['un antenato della cartella utente', 'C:\\Users']
   ]
   for (const [nome, percorso] of vietati) {
     it(`${nome}: bloccato, e la guardia non apre nemmeno la domanda`, () => {
-      const { giudica, chiediEConsenti } = prova()
+      const { giudica, chiediEConsenti, consensi } = prova()
       // anche se il consenso fosse stato registrato (per forza di cose)
       chiediEConsenti('ap-1', [percorso])
       const g = giudica('ap-1', percorso)
       expect(g.ok).toBe(false)
       if (!g.ok) {
         expect(g.consensoPer).toBeUndefined()
+        expect(g.permesso).toBeUndefined()
         expect(g.motivo).toMatch(/nemmeno col consenso/)
       }
+      // 11/11, il pavimento: nemmeno «sempre» (la classe tolta da Nicholas per il progetto) li sblocca.
+      expect(giudicaStrumento(rm(percorso), AMMESSE, { consenso: consensi.per('ap-1'), ambiente: AMB, sempre: true }).ok).toBe(false)
     })
   }
+
+  // 11/11: «devono poter essere sorpassati se decisi da me». Una cartella di lavoro intera (o una che la contiene)
+  // prima non si cancellava nemmeno col consenso; ora sì, ma solo con un «questa volta» per quel percorso preciso.
+  for (const [nome, percorso] of [['la cartella principale del progetto', 'E:\\lavoro\\progetto'], ['un antenato del progetto', 'E:\\lavoro']] as const) {
+    it(`${nome}: si chiede ogni volta, «sempre» non la copre, e passa solo col sì per quel percorso`, () => {
+      const { giudica, chiediEConsenti, consensi } = prova()
+      const senza = giudica('ap-1', percorso)
+      expect(senza.ok).toBe(false)
+      if (senza.ok) return
+      expect(senza.consensoPer).toEqual([percorso])
+      expect(senza.soloVolta).toBe(true)
+      expect(senza.motivo).toMatch(/cartella di lavoro intera/)
+      // «Sempre» per le cancellazioni fuori dalle cartelle non vale per lei.
+      const conSempre = giudicaStrumento(rm(percorso), AMMESSE, { consenso: consensi.per('ap-1'), ambiente: AMB, sempre: true })
+      expect(conSempre.ok).toBe(false)
+      expect(!conSempre.ok && conSempre.soloVolta).toBe(true)
+      // Il sì di Nicholas per un altro percorso non basta; per questo sì.
+      chiediEConsenti('ap-1', [ALTRO])
+      expect(giudica('ap-1', percorso).ok).toBe(false)
+      chiediEConsenti('ap-1', [percorso])
+      expect(giudica('ap-1', percorso).ok).toBe(true)
+    })
+  }
+
+  it('«sempre» nel progetto: le cancellazioni fuori dalle cartelle passano senza chiedere, il resto no', () => {
+    const { consensi } = prova()
+    const opz = { consenso: consensi.per('ap-1'), ambiente: AMB, sempre: true }
+    expect(giudicaStrumento(rm(DA_TOGLIERE), AMMESSE, opz).ok).toBe(true)
+    expect(giudicaStrumento(rm(`${CASA}\\AppData\\Local\\Qualcosa\\vecchio`), AMMESSE, opz).ok).toBe(true)
+    expect(giudicaStrumento(rm(`${CASA}\\AppData\\Local`), AMMESSE, opz).ok).toBe(false)
+    expect(giudicaStrumento({ tool_name: 'Bash', tool_input: { command: 'rm -rf "$d"/*' }, cwd: 'E:\\vecchio' }, AMMESSE, opz).ok).toBe(false)
+  })
 
   it('un percorso con una variabile non espansa: bloccato anche col consenso', () => {
     const { consensi } = prova()
