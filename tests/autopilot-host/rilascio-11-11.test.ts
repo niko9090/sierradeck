@@ -67,7 +67,7 @@ describe('lo specialista «rilascio»: com’è fatto', () => {
     expect(p).toContain('mai uno di debug')
     expect(p).toContain('gh release view <tag> --json isDraft,assets')
     expect(p).toContain('MAI installare')
-    expect(p).toContain('senza sottofondo e senza sleep')
+    expect(p).toContain('senza sottofondo e senza attese lunghe a mano (sleep oltre 30 secondi)')
     expect(p).toContain('RAPPORTO:')
   })
 

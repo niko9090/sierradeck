@@ -51,7 +51,7 @@ const REGOLE_COPIA = [
   'ai test passa i file scritti per esteso, non `$(cat elenco)`;',
   'i file si cambiano con Edit e Write, non con heredoc o sed.',
   '`node_modules` è già collegato dal programma alla cartella vera: non creare giunzioni, non cancellarlo, non lanciare `npm install`.',
-  'Niente comandi in sottofondo e niente attese con sleep: se il PC è carico l’attesa la fa il programma, tu aspetti la fine del comando.'
+  'Niente comandi in sottofondo e niente attese lunghe a mano (uno sleep fino a 30 secondi passa, oltre no): se il PC è carico l’attesa la fa il programma, tu aspetti la fine del comando.'
 ].join(' ')
 
 const COMUNE = [
@@ -82,7 +82,7 @@ const RILASCIO = [
   '4. Il pacchetto si costruisce solo qui, nella cartella principale, sul ramo principale pulito: mai da una copia di lavoro. Se il progetto ha i suoi comandi di pubblicazione usali in quest’ordine: `npm run pubblica` (se chiede il token: `export GH_TOKEN=$(gh auth token) && npm run pubblica`), poi `npm run allega-apk` (l’APK firmato, mai uno di debug; si ricompila solo se la parte Android è cambiata, altrimenti si riallega l’ultimo).',
   '5. Prima di dire «fatto» controlla i file della release: `gh release view <tag> --json isDraft,assets`. Devono esserci tutti, caricati, e la release non deve essere rimasta in bozza. Per SierraDeck sono cinque: installer, blockmap, latest.yml, APK e app-android.json. Una release pubblicata a metà ferma gli aggiornamenti di tutti.',
   '6. MAI installare: non lanciare l’installer e non chiamare «Installa» in nessuna forma. Le versioni le installa solo Nicholas.',
-  '7. Un comando lungo alla volta, davanti, con il tempo massimo dello strumento (timeout di 10 minuti), senza sottofondo e senza sleep: aspetti che finisca. Se il PC è carico l’attesa la fa il programma.',
+  '7. Un comando lungo alla volta, davanti, con il tempo massimo dello strumento (timeout di 10 minuti), senza sottofondo e senza attese lunghe a mano (sleep oltre 30 secondi): aspetti che finisca. Se il PC è carico l’attesa la fa il programma.',
   'Se ti manca una decisione che non puoi prendere tu, fermati e dillo nel riepilogo finale («bloccato: …»): l’autopilota risponde, o chiede a Nicholas.',
   '',
   'Il tuo messaggio finale è il riepilogo che l’autopilota legge: cosa hai pubblicato, il tag, i file della release e come li hai controllati, cosa resta. In fondo le righe:',

@@ -63,9 +63,46 @@ export type ContestoGuardia = {
 }
 
 /** k-189: il motivo per i comandi in sottofondo e per le attese a mano. */
-export const MOTIVO_SOTTOFONDO = 'lancia il comando davanti, senza sottofondo e senza sleep: se il PC è carico, l’attesa la fa SierraDeck. Aspetta sempre la fine del comando, poi chiudi.'
-/** `sleep 90`, `Start-Sleep -Seconds 30` all'inizio di un comando o dopo `;`, `&&`, `|`. */
-const ATTESA_A_MANO = /(?:^|[;&|(]\s*|\n\s*)(?:sleep|start-sleep)(?:\s|$)/iu
+export const MOTIVO_SOTTOFONDO = 'lancia il comando davanti, senza sottofondo e senza attese lunghe a mano (sleep oltre 30 secondi, o dentro un ciclo): se il PC è carico, l’attesa la fa SierraDeck. Aspetta sempre la fine del comando, poi chiudi.'
+/** `sleep 90`, `Start-Sleep -Seconds 30` all'inizio di un comando o dopo `;`, `&&`, `|`: con quello che segue (la durata). */
+const ATTESA_A_MANO = /(?:^|[;&|(]\s*|\n\s*)(?:sleep|start-sleep)(?=\s|$)([^;&|)\n]*)/giu
+/** 11/11: un'attesa breve passa (`npm run dev & sleep 6; curl …`): in tutto, al più questi secondi per comando. */
+export const ATTESA_A_MANO_MAX_S = 30
+const CICLO = /(?:^|[\s;&|({])(?:while|until|for|foreach|do)(?=[\s({]|$)|ForEach-Object|%\s*\{/iu
+
+/** I secondi di uno `sleep`: `6`, `1.5`, `2m`, `1m 30s`, `-Seconds 5`, `-Milliseconds 500`. `undefined` se non si sanno leggere (`$T`, `infinity`). */
+function secondiDiAttesa(argomenti: string): number | undefined {
+  const a = argomenti.trim()
+  const ps = /^-(seconds|s|milliseconds|ms|m)\s+(\d+(?:\.\d+)?)$/iu.exec(a)
+  if (ps !== null) return /^(seconds|s)$/iu.test(ps[1]!) ? Number(ps[2]) : Number(ps[2]) / 1000
+  const pezzi = a.split(/\s+/u)
+  if (a === '' || !pezzi.every((p) => /^\d+(?:\.\d+)?[smhd]?$/u.test(p))) return undefined
+  const UNITA: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86_400 }
+  return pezzi.reduce((somma, p) => somma + Number.parseFloat(p) * (UNITA[p.at(-1)!] ?? 1), 0)
+}
+
+/**
+ * **L'attesa a mano che non passa** (k-189, 11/11). Fino all'11/11 ogni `sleep`
+ * era rifiutato, anche i sei secondi che servono a un server per partire; ma
+ * il guasto vero era un altro, lo specialista che aspetta a lungo un comando
+ * lasciato in sottofondo e chiude a metà. Passa un'attesa breve (in tutto al
+ * più `ATTESA_A_MANO_MAX_S` nel comando); non passano quelle lunghe, quelle di
+ * cui non si sa leggere la durata, e quelle dentro un ciclo (quante volte gira
+ * non si sa).
+ */
+export function attesaAManoLunga(comando: string): boolean {
+  let totale = 0
+  let trovata = false
+  for (const m of comando.matchAll(ATTESA_A_MANO)) {
+    trovata = true
+    const s = secondiDiAttesa(m[1] ?? '')
+    if (s === undefined) return true
+    totale += s
+  }
+  if (!trovata) return false
+  // Le parole fra apici non sono un ciclo (`grep "ready for"`).
+  return totale > ATTESA_A_MANO_MAX_S || CICLO.test(comando.replace(/'[^']*'|"(?:[^"\\]|\\.)*"/gu, ' '))
+}
 
 const ordinale =(n: number): string => `${n}°`
 
@@ -180,9 +217,10 @@ export function giudicaGuardiaOrchestratore(corpo: Record<string, unknown>, c: C
   }
 
   // k-189: niente sottofondo e niente attese a mano (8 casi di specialisti chiusi a metà).
+  // 11/11: un'attesa breve sì (`attesaAManoLunga`).
   if ((STRUMENTI_SHELL as readonly string[]).includes(nome)) {
     const comando = s(input.command) ?? ''
-    if (input.run_in_background === true || ATTESA_A_MANO.test(comando)) return { ok: false, motivo: MOTIVO_SOTTOFONDO }
+    if (input.run_in_background === true || attesaAManoLunga(comando)) return { ok: false, motivo: MOTIVO_SOTTOFONDO }
   }
 
   // Senza git non c'è una copia: lo specialista lavora proprio nella cartella principale.

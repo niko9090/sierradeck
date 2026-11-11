@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process'
 import { describe, expect, it } from 'vitest'
 import { comandoFinePrematura, finePrematura, MOTIVO_FINE_PREMATURA } from '../../src/shared/fine-prematura'
 import { fileImpostazioniCli, RUOLI_AGENTI } from '../../src/autopilot-host/agenti-orchestratore'
-import { giudicaGuardiaOrchestratore, MOTIVO_SOTTOFONDO } from '../../src/autopilot-host/guardia-orchestratore'
+import { ATTESA_A_MANO_MAX_S, attesaAManoLunga, giudicaGuardiaOrchestratore, MOTIVO_SOTTOFONDO } from '../../src/autopilot-host/guardia-orchestratore'
 
 const RADICE = process.platform === 'win32' ? 'C:\\progetto' : '/progetto'
 const ctx = { radice: RADICE, specialistiSulPc: 0, tettoPc: 4, tipiSpecialisti: RUOLI_AGENTI }
@@ -47,13 +47,29 @@ describe('hook SubagentStop (k-189)', () => {
 })
 
 describe('guardia degli specialisti (k-189)', () => {
-  it('rifiuta un Bash in sottofondo e uno sleep', () => {
+  it('rifiuta un Bash in sottofondo e uno sleep lungo', () => {
     const a = giudicaGuardiaOrchestratore(specialista('Bash', { command: 'npx vitest run', run_in_background: true }), ctx)
     expect(a).toEqual({ ok: false, motivo: MOTIVO_SOTTOFONDO })
     expect(MOTIVO_SOTTOFONDO).toContain('davanti')
-    expect(giudicaGuardiaOrchestratore(specialista('Bash', { command: 'sleep 90' }), ctx).ok).toBe(false)
-    expect(giudicaGuardiaOrchestratore(specialista('PowerShell', { command: 'Start-Sleep -Seconds 30; npm test' }), ctx).ok).toBe(false)
+    expect(giudicaGuardiaOrchestratore(specialista('Bash', { command: 'sleep 90' }), ctx)).toEqual({ ok: false, motivo: MOTIVO_SOTTOFONDO })
+    // 11/11: fino a 30 secondi passa (prima era rifiutato ogni sleep, anche questo): oltre no.
+    expect(giudicaGuardiaOrchestratore(specialista('PowerShell', { command: 'Start-Sleep -Seconds 31; npm test' }), ctx).ok).toBe(false)
+    expect(giudicaGuardiaOrchestratore(specialista('PowerShell', { command: 'Start-Sleep -Seconds 30; npm test' }), ctx).ok).toBe(true)
     expect(giudicaGuardiaOrchestratore(specialista('Bash', { command: 'npx vitest run tests/shared' }), ctx).ok).toBe(true)
+  })
+
+  // 11/11: i sei secondi che servono a un server per partire non sono il guasto di k-189 (aspettare a lungo e chiudere a metà).
+  it('un’attesa breve passa; lunga, illeggibile o dentro un ciclo no', () => {
+    expect(ATTESA_A_MANO_MAX_S).toBe(30)
+    const passa = (command: string, tool = 'Bash'): boolean => giudicaGuardiaOrchestratore(specialista(tool, { command }), ctx).ok
+    for (const c of ['npm run dev & sleep 6; curl -s http://127.0.0.1:5173', 'sleep 30', 'sleep 0.5 && node prova.js', 'sleep 10; node a.js; sleep 20', 'sleep 5; curl -s http://127.0.0.1:5173 | grep "ready for you"']) expect(passa(c), c).toBe(true)
+    for (const c of ['Start-Sleep 5; Get-Content esito.txt', 'Start-Sleep -Seconds 12', 'Start-Sleep -Milliseconds 800; node a.js', 'Start-Sleep -s 3']) expect(passa(c, 'PowerShell'), c).toBe(true)
+    for (const c of ['sleep 31', 'sleep 1m', 'sleep 20; node a.js; sleep 20', 'sleep 1m 30s', 'sleep $ATTESA', 'sleep infinity', 'sleep', 'while ! curl -s http://127.0.0.1:5173; do echo aspetto; sleep 5; done', 'for i in 1 2 3 4 5 6 7 8 9; do node a.js; sleep 10; done']) expect(passa(c), c).toBe(false)
+    for (const c of ['Start-Sleep -Seconds 120', 'Start-Sleep -Milliseconds 45000', 'Start-Sleep $t', 'while (-not (Test-Path esito.txt)) { echo aspetto; Start-Sleep 5 }']) expect(passa(c, 'PowerShell'), c).toBe(false)
+    expect(attesaAManoLunga('npx vitest run tests/shared')).toBe(false)
+    expect(attesaAManoLunga('grep -rn "sleep 90" src')).toBe(false)
+    // Il sottofondo resta vietato anche con un'attesa breve.
+    expect(giudicaGuardiaOrchestratore(specialista('Bash', { command: 'sleep 5', run_in_background: true }), ctx).ok).toBe(false)
   })
 
   it('con git l’orchestratore chiama solo gli specialisti di SierraDeck', () => {
