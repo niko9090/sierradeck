@@ -11,7 +11,7 @@ import { somiglianza } from './somiglianza-parole'
  *   copiate parola per parola dalle note vecchie: quelle non si potano mai.
  *
  * Una voce che torna (somiglianza ≥ 0.8) non si riscrive: aumenta solo
- * «confermata N×, ultima <data>». Tetto: 200 voci o 32 KB per file; oltre,
+ * «confermata N×, ultima <data>». Tetto: 600 voci o 128 KB per file; oltre,
  * escono prima le voci meno confermate e, fra quelle, le più vecchie.
  *
  * Alle chat non va il quaderno intero: va un **indice** di poche righe
@@ -22,8 +22,11 @@ import { somiglianza } from './somiglianza-parole'
 
 export const FILE_LEZIONI = 'lezioni.md'
 export const FILE_DECISIONI = 'decisioni.md'
-export const VOCI_MAX = 200
-export const BYTE_MAX = 32 * 1024
+// 11/11: erano 200 voci e 32 KB, e `lezioni.md` di un progetto vivo li riempiva in quattro giorni:
+// le lezioni di una settimana prima uscivano e gli stessi errori si rifacevano. Alle chat va
+// comunque solo l'indice (`INDICE_MAX`): il file più grande non pesa sui loro messaggi.
+export const VOCI_MAX = 600
+export const BYTE_MAX = 128 * 1024
 export const SIMILE_VOCE = 0.8
 /** L'indice per le chat, in caratteri: ~1.3k token, sotto il tetto di ~1.5k. */
 export const INDICE_MAX = 5000
@@ -201,7 +204,7 @@ export function byteVoci(voci: readonly Voce[]): number {
 }
 
 /**
- * Sotto il tetto: oltre 200 voci o 32 KB escono prima le meno confermate e,
+ * Sotto il tetto: oltre `VOCI_MAX` voci o `BYTE_MAX` byte escono prima le meno confermate e,
  * a parità, le più vecchie (poi le scritte prima). Le regole di Nicholas non
  * sono voci: non si toccano mai. Pura.
  */

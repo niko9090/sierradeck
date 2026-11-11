@@ -246,7 +246,7 @@ export type AnteprimaRiordinoVista = {
   voci: number
   regole: number
   frase: string
-  /** Le voci che il tetto (200 voci o 32 KB per file) lascerebbe fuori (D4): si vedono prima di confermare. */
+  /** Le voci che il tetto (`VOCI_MAX` voci o `BYTE_MAX` byte per file) lascerebbe fuori (D4): si vedono prima di confermare. */
   tolte: VoceTolta[]
   /** Le note che si sposterebbero: alla conferma si spostano solo queste, non una arrivata dopo. */
   file: string[]
