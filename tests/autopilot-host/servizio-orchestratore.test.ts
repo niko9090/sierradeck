@@ -198,6 +198,25 @@ describe('autopilota unico nel servizio', () => {
     expect(avviso.mock.calls.some((c) => String(c[0]).includes('turno non riuscito') && String(c[0]).includes('ENOTFOUND'))).toBe(true)
   })
 
+  // 11/11: il 09/11, 11 righe uguali in inglese in 70 minuti, una per tentativo.
+  it('11/11: «turno non riuscito» arriva in italiano e la stessa riga non si ripete a ogni tentativo', async () => {
+    zitto()
+    await avviaServizio([ap()])
+    migra()
+    const eventi = (): string[] => orch.ultimeDialogo('Lavoro', 40).filter((r) => r.da === 'evento').map((r) => r.testo)
+    const fallisce = (): void => { processi.at(-1)!.emetti({ type: 'result', is_error: true, result: 'You\'ve hit your weekly limit · resets 1am (Europe/Rome)', total_cost_usd: 0, session_id: 'sess-1', usage: { input_tokens: 5 } }) }
+    fallisce()
+    expect(eventi()).toHaveLength(1)
+    expect(eventi()[0]).toBe('turno non riuscito: limite settimanale di Claude raggiunto, si sblocca alle 01:00: fino ad allora non posso lavorare, poi riparto da solo')
+    // Nel registro resta il motivo com'è, per chi cerca il guasto.
+    expect(vi.mocked(console.error).mock.calls.some((c) => String(c[0]).includes('turno non riuscito') && String(c[0]).includes('weekly limit'))).toBe(true)
+    // Il primo guasto riprova subito: il turno riparte, fallisce uguale, e la riga non si riscrive.
+    await attendi(() => processi.reduce((n, p) => n + p.scritte.length, 0) >= 2, { cosa: 'il secondo tentativo' })
+    fallisce()
+    expect(vi.mocked(console.error).mock.calls.filter((c) => String(c[0]).includes('turno non riuscito')).length).toBeGreaterThanOrEqual(2)
+    expect(eventi()).toHaveLength(1)
+  })
+
   it('lo Stop con gli id di prima arriva alla chat adottata: evento, niente modello', async () => {
     zitto()
     await avviaServizio([ap()])

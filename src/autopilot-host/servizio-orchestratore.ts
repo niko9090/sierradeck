@@ -61,6 +61,7 @@ import { nomeWorkspace } from '@shared/attesa-vista'
 import { PESO_PREDEFINITO, stimaLista, titoloBreve, type DurataVera, type PesoCompito } from '@shared/stima-specialisti'
 import { rigaUltimaAzione } from '@shared/specialisti'
 import { eErroreDiRete } from '@shared/errori-rete'
+import { motivoInItaliano, stessaRigaDiPrima } from './turno-non-riuscito'
 import type { ArchivioAttesa } from './attesa-store'
 import { creaCambi, type Cambi } from '@shared/spinta-specialisti'
 
@@ -823,9 +824,14 @@ ${NOTA_SENZA_GIT}`,
       else console.error(`[orchestratore] ${ws} — turno non riuscito: ${motivo}`)
       const u = unicoDi(ws)
       if (u === undefined) return
-      x.orchestratori.aggiungiDialogo(ws, { quando: x.adesso(), da: 'evento', testo: `turno non riuscito: ${motivo}` })
+      // 11/11: a Nicholas in italiano, e una volta sola. Il 09/11: «turno non riuscito: You've hit your weekly
+      // limit · resets 1am», 11 righe in 70 minuti, una per tentativo. Nel registro resta il motivo com'è.
+      const detto = motivoInItaliano(motivo)
+      const riga = `turno non riuscito: ${detto}`
+      if (stessaRigaDiPrima(x.orchestratori.ultimeDialogo(ws, 1).at(-1), riga)) return
+      x.orchestratori.aggiungiDialogo(ws, { quando: x.adesso(), da: 'evento', testo: riga })
       const dopo = { ...u }
-      x.annota(dopo, `l’autopilota non ha potuto rispondere (${motivo.slice(0, 200)}): i tuoi messaggi restano in attesa e partono con il prossimo turno`)
+      x.annota(dopo, `l’autopilota non ha potuto rispondere (${detto.slice(0, 200)}): i tuoi messaggi restano in attesa e partono con il prossimo turno`)
       x.salva(dopo)
     },
     flusso: suFlusso,
