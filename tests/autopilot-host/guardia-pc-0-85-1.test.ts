@@ -117,13 +117,15 @@ describe('la guardia', () => {
 
   it('un passo aspetta finché il PC si libera', async () => {
     let n = 0
-    // Pieno per due minuti e mezzo, poi libero.
-    const f = guardiaFinta(() => { n += 1; return pc(n <= 10 ? 98 : 40) })
+    // Pieno per quasi un minuto, poi libero. (11/11: prima erano due minuti e mezzo,
+    // ma l'attesa massima è scesa a due minuti: oltre, il passo parte comunque.)
+    const f = guardiaFinta(() => { n += 1; return pc(n <= 4 ? 98 : 40) })
     f.g.valuta()
     f.avanza(PROCESSORE_PER_MS)
     const inizio = f.ora()
     await f.g.attendi('la suite')
-    expect(f.ora() - inizio).toBeGreaterThanOrEqual(2 * 60_000)
+    expect(f.ora() - inizio).toBeGreaterThanOrEqual(60_000)
+    expect(f.ora() - inizio).toBeLessThan(ATTESA_MASSIMA_MS)
     expect(f.g.stato()).toBeUndefined()
   })
 
@@ -217,7 +219,10 @@ describe('il servizio con la guardia', () => {
       scadenzaDomandaMs: 5000,
       adesso: () => iso(ora),
       misuraPc: () => pc(10),
-      guardiaPc: { valuta, stato: () => stato, attendi: () => Promise.resolve() }
+      guardiaPc: { valuta, stato: () => stato, attendi: () => Promise.resolve() },
+      // 11/11: l'attesa nell'hook, con i tempi corti per la prova (di serie 90 secondi e 5 minuti).
+      turni: creaTurni(),
+      attesaPesante: { tettoMs: 400, tettoTurnoMs: 800, riprovaMs: 10 }
     })
     const s: Server = server
     await new Promise<void>((ris) => { s.listen(0, '127.0.0.1', () => { porta = (s.address() as { port: number }).port; ris() }) })
@@ -233,15 +238,41 @@ describe('il servizio con la guardia', () => {
     stato: 'lavoro', ultimoEvento: iso(ORA), ramoBase: 'main', tettoChat: 8, chats
   })
 
-  it('una chat che lancia la suite completa col PC carico riceve un «no» con il motivo', async () => {
+  // 11/11: prima la chat adottata riceveva un «no» («riprova fra qualche minuto»). Adesso aspetta
+  // il programma dentro l'hook, come per gli specialisti: nessun rifiuto da riprovare.
+  it('una chat che lancia la suite completa col PC carico non riceve un «no»: aspetta nell’hook e parte appena il PC si libera', async () => {
     stato = { motivo: 'processore al 99% da 5 min', dal: iso(ORA - 300_000) }
     await ambiente()
+    vi.spyOn(console, 'info').mockImplementation(() => {})
     archivio.scrivi(conChat('ap-a', [chat('c-1')]))
-    const r = await chiama('POST', '/hook/pretool?ap=ap-a&chat=c-1', { tool_name: 'Bash', tool_input: { command: 'npx vitest run' }, cwd: 'C:\\Progetti\\Esempio' })
-    expect(r.hookSpecificOutput).toMatchObject({ permissionDecision: 'deny' })
-    expect(r.hookSpecificOutput.permissionDecisionReason).toContain('PC carico: aspetto')
+    let risposta: unknown
+    const inizio = Date.now()
+    const attesa = chiama('POST', '/hook/pretool?ap=ap-a&chat=c-1', { tool_name: 'Bash', tool_input: { command: 'npx vitest run' }, cwd: 'C:\\Progetti\\Esempio' }).then((r) => { risposta = r })
+    await new Promise((ris) => setTimeout(ris, 120))
+    // Ancora in attesa: né un sì né un no.
+    expect(risposta).toBeUndefined()
+    stato = undefined
+    await attesa
+    expect(risposta).toEqual({})
+    expect(Date.now() - inizio).toBeLessThan(400)
     // Non è un divieto: non finisce nelle decisioni dell'autopilota.
-    expect(archivio.leggi('ap-a')!.decisioni.some((d) => d.cosa.includes('PC carico'))).toBe(false)
+    expect(archivio.leggi('ap-a')!.decisioni.some((d) => d.cosa.includes('PC carico') || d.cosa.includes('comando bloccato'))).toBe(false)
     expect(await chiama('POST', '/hook/pretool?ap=ap-a&chat=c-1', { tool_name: 'Bash', tool_input: { command: 'git status' }, cwd: 'C:\\Progetti\\Esempio' })).toEqual({})
+  })
+
+  it('se il PC resta carico la chat non aspetta per sempre: al tetto il comando parte lo stesso, e un comando leggero non aspetta mai', async () => {
+    stato = { motivo: 'processore al 99% da 5 min', dal: iso(ORA - 300_000) }
+    await ambiente()
+    vi.spyOn(console, 'info').mockImplementation(() => {})
+    const avvisi = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    archivio.scrivi(conChat('ap-a', [chat('c-1')]))
+    const leggero = Date.now()
+    expect(await chiama('POST', '/hook/pretool?ap=ap-a&chat=c-1', { tool_name: 'Bash', tool_input: { command: 'npx vitest run tests/uno.test.ts' }, cwd: 'C:\\Progetti\\Esempio' })).toEqual({})
+    expect(Date.now() - leggero).toBeLessThan(300)
+    const inizio = Date.now()
+    expect(await chiama('POST', '/hook/pretool?ap=ap-a&chat=c-1', { tool_name: 'Bash', tool_input: { command: 'npx vitest run' }, cwd: 'C:\\Progetti\\Esempio' })).toEqual({})
+    expect(Date.now() - inizio).toBeGreaterThanOrEqual(380)
+    expect(Date.now() - inizio).toBeLessThan(800)
+    expect(avvisi.mock.calls.some((c) => String(c[0]).includes('parte anche se il PC è carico'))).toBe(true)
   })
 })

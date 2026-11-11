@@ -64,7 +64,17 @@ describe('lezioni.md e decisioni.md', () => {
     expect(f.voci).toEqual([{ tag: 'build', testo: 'scritta a mano senza data', volte: 1, ultima: '' }])
   })
 
-  it('il tetto: 200 voci; escono prima le meno confermate, poi le più vecchie', () => {
+  // 11/11: il tetto è salito da 200 voci e 32 KB a 600 voci e 128 KB (il quaderno ricordava quattro giorni).
+  it('il tetto è di 600 voci e 128 KB', () => {
+    expect(VOCI_MAX).toBe(600)
+    expect(BYTE_MAX).toBe(128 * 1024)
+    // Un file che prima veniva potato (250 voci, ~40 KB) ora resta intero.
+    const come = Array.from({ length: 250 }, (_, i) => voce(`${i} ${'parola '.repeat(20)}`))
+    expect(byteVoci(come)).toBeGreaterThan(32 * 1024)
+    expect(potaVoci(come)).toHaveLength(250)
+  })
+
+  it('il tetto delle voci: escono prima le meno confermate, poi le più vecchie', () => {
     const molte = Array.from({ length: VOCI_MAX + 2 }, (_, i) => voce(`voce numero ${i} diversa`, i === 0 || i === 1 ? 1 : 2, i === 0 ? '2026-10-05' : '2026-10-01'))
     const p = potaVoci(molte)
     expect(p).toHaveLength(VOCI_MAX)
@@ -74,12 +84,14 @@ describe('lezioni.md e decisioni.md', () => {
     expect(potaVoci(tre, 2).map((v) => v.testo)).toEqual(['b nuova una volta', 'c tante volte'])
   })
 
-  it('il tetto: 32 KB', () => {
-    const grosse = Array.from({ length: 190 }, (_, i) => voce(`${i} ${'parola '.repeat(27)}`))
+  it('il tetto dei byte', () => {
+    // Meno voci del tetto, ma grosse: le ferma il peso (11/11: prima 190 voci da ~230 byte, oltre i 32 KB di allora).
+    const quante = VOCI_MAX - 10
+    const grosse = Array.from({ length: quante }, (_, i) => voce(`${i} ${'parola '.repeat(40)}`))
     expect(byteVoci(grosse)).toBeGreaterThan(BYTE_MAX)
     const p = potaVoci(grosse)
     expect(byteVoci(p)).toBeLessThanOrEqual(BYTE_MAX)
-    expect(p.length).toBeLessThan(190)
+    expect(p.length).toBeLessThan(quante)
   })
 
   it('le regole di Nicholas non si potano mai', () => {
@@ -91,7 +103,7 @@ describe('lezioni.md e decisioni.md', () => {
   })
 
   it('l’indice per le chat sta nei ~1.5k token anche con il quaderno pieno', () => {
-    const lez: FileQuaderno = { voci: Array.from({ length: 200 }, (_, i) => voce(`lezione ${i} ${'testo '.repeat(25)}`, (i % 5) + 1)), regole: [] }
+    const lez: FileQuaderno = { voci: Array.from({ length: VOCI_MAX }, (_, i) => voce(`lezione ${i} ${'testo '.repeat(25)}`, (i % 5) + 1)), regole: [] }
     const dec: FileQuaderno = {
       voci: Array.from({ length: 50 }, (_, i) => voce(`decisione ${i} ${'testo '.repeat(25)}`, 1, '2026-10-01', 'nicholas')),
       regole: Array.from({ length: 150 }, (_, i) => ({ titolo: `Regola numero ${i}`, testo: 'x'.repeat(2000) }))

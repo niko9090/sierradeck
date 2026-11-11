@@ -50,13 +50,24 @@ describe('la prova rimasta a metà', () => {
     expect(existsSync(join(progetto, '.git', 'MERGE_HEAD'))).toBe(true)
   })
 
-  it('un file a metà che non è della prova resta dov’è, anche dopo una prova interrotta', async () => {
+  // 11/11: prima un file a metà qualunque fermava la prova. Adesso, se il ramo non lo tocca, la prova
+  // parte lo stesso; quello che conta resta: il file di Nicholas è identico anche dopo una prova interrotta.
+  it('un file a metà che non è della prova resta dov’è, identico, anche dopo una prova interrotta e ripulita', async () => {
     const ramo = ramoConLavoro()
     await iniziaProvaAsincrono(ga, { cwd: progetto, ramo, base: 'main' })
     await ripulisciProvaAsincrono(ga, { cwd: progetto })
     const tracciato = esegui(['ls-files'], progetto).split(/\r?\n/)[0] as string
     writeFileSync(join(progetto, tracciato), 'di Nicholas\n')
-    expect(await iniziaProvaAsincrono(ga, { cwd: progetto, ramo, base: 'main' })).toEqual({ ok: false, motivo: MOTIVO_CARTELLA_SPORCA, file: [tracciato] })
+    expect(await iniziaProvaAsincrono(ga, { cwd: progetto, ramo, base: 'main' })).toEqual({ ok: true })
+    expect(readFileSync(join(progetto, tracciato), 'utf8')).toBe('di Nicholas\n')
+    // Il processo muore qui (nessuno chiude la prova): la ripulisce il programma, e il file è ancora lì com'era.
+    expect(await ripulisciProvaAsincrono(ga, { cwd: progetto })).toBe('ripulita')
+    expect(existsSync(join(progetto, 'b.txt'))).toBe(false)
+    expect(readFileSync(join(progetto, tracciato), 'utf8')).toBe('di Nicholas\n')
+    expect(git(['status', '--porcelain', '--untracked-files=no'], progetto).uscita).toMatch(new RegExp(`^M ${tracciato.replace('.', '\\.')}$`))
+    // E la prova dopo riparte da sola, sempre senza toccarlo.
+    expect(await iniziaProvaAsincrono(ga, { cwd: progetto, ramo, base: 'main' })).toEqual({ ok: true })
+    expect(await chiudiProvaAsincrono(ga, { cwd: progetto, tieni: true })).toBe(true)
     expect(readFileSync(join(progetto, tracciato), 'utf8')).toBe('di Nicholas\n')
   })
 })

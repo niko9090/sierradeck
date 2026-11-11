@@ -92,4 +92,28 @@ describe('registro delle domande', () => {
     expect(r.aperte()).toEqual([])
     expect(r.rispondi(d.id, 'x', 'modale')).toBe(false)
   })
+
+  // 11/11: la domanda del programma «salvo io i tuoi file non salvati?» non si chiude mai da sola,
+  // ma il programma la ritira quando non serve più.
+  it('finché qualcuno la aspetta non si chiude da sola; chi l’ha aperta può ritirarla, e chi aspettava è libero senza risposta', async () => {
+    const r = registro()
+    const chiuse: string[] = []
+    const tardive: string[] = []
+    r.suChiusa((d) => chiuse.push(d.id))
+    r.suRispostaTardiva((id) => tardive.push(id))
+    const d = r.apri({ autopilotaId: 'ap-1', testo: 'Li salvo io?', scadenzaMs: 20 * 24 * 60 * 60_000, opzioni: ['Salvali e unisci', 'Aspetta, li sistemo io'] })
+    const attesa = r.attendi(d.id)
+    expect(r.superata(d.id, 'chiusura automatica')).toBe(false)
+    expect(r.aperte().map((x) => x.id)).toEqual([d.id])
+    expect(r.ritira?.(d.id, 'l’unione è passata: non serve più')).toBe(true)
+    expect(await attesa).toBeUndefined()
+    expect(r.aperte()).toEqual([])
+    expect(chiuse).toEqual([d.id])
+    expect(tardive).toEqual([])
+    expect(r.risolte('ap-1')[0]?.risposta).toContain('non serve più')
+    // Ritirata o mai esistita: niente da ritirare, e una risposta arrivata dopo non vale.
+    expect(r.ritira?.(d.id, 'di nuovo')).toBe(false)
+    expect(r.ritira?.('d-che-non-esiste', 'x')).toBe(false)
+    expect(r.rispondi(d.id, 'Salvali e unisci', 'modale')).toBe(false)
+  })
 })

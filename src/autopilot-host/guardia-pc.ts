@@ -32,9 +32,9 @@ export { rigaPcCarico }
  *   una misura bassa da sola non libera niente, una alta rimette il conto a zero;
  * - appena liberato parte **un** comando pesante solo, per `QUIETE_DOPO_MS`:
  *   se il PC torna pieno, gli altri non si accodano sopra;
- * - un passo che aspetta parte comunque dopo `ATTESA_MASSIMA_MS` (mezz'ora;
- *   dentro un hook `ATTESA_IN_UN_HOOK_MS`, cinque minuti): il tetto c'è
- *   perché un programma esterno sempre acceso non fermi l'autopilota per sempre.
+ * - un passo che aspetta parte comunque dopo `ATTESA_MASSIMA_MS` (11/11: due
+ *   minuti; era mezz'ora): il tetto c'è perché un programma esterno sempre
+ *   acceso non fermi l'autopilota per sempre.
  *
  * 0.86.1: carico per più di `CARICO_MASSIMO_MS` (10 minuti) di fila, il PC si
  * libera già sotto il 75% (un minuto intero): fra il 60 e il 75% la guardia
@@ -64,20 +64,41 @@ export const RIPROVA_MS = 15_000
  * stesso, detto nel registro. Era 15 minuti, poi un'ora (0.85.2); 0.86.1:
  * mezz'ora. Un'ora era il tetto dell'hook (`TIMEOUT_HOOK_S`): un criterio che
  * aspettava tanto faceva scadere la fermata della chat.
+ * 11/11: due minuti. I criteri sono quelli delle unioni, e mezz'ora di attesa
+ * era più della prova che li contiene: il 07/11 ogni unione è scaduta per ore.
+ * Il turno dei pesanti (uno alla volta) e i due processi di test restano.
  */
-export const ATTESA_MASSIMA_MS = 30 * 60_000
+export const ATTESA_MASSIMA_MS = 2 * 60_000
 /**
  * Il tetto dell'attesa dentro un hook (0.86.1), ben sotto `TIMEOUT_HOOK_S`:
  * dopo l'attesa vengono ancora i criteri e il supervisore. 30/10: da 15 a 5
  * minuti, con l'hook sceso da un'ora a 15 minuti.
+ * 11/11: 90 secondi, e vale per il **PC carico**. Fra il 09 e l'11/11 gli
+ * specialisti hanno aspettato 64 volte e 16 sono arrivati ai 5 minuti, per poi
+ * partire lo stesso: il PC era carico dei loro stessi test, o di programmi che
+ * non si fermano mai. Aspettare di più non lo scarica.
  */
-export const ATTESA_IN_UN_HOOK_MS = 5 * 60_000
+export const ATTESA_IN_UN_HOOK_MS = 90_000
+/**
+ * Il tetto dell'attesa del **turno** dentro un hook (11/11): i cinque minuti
+ * di prima. «Un pesante alla volta» resta: chi trova il turno occupato aspetta
+ * che l'altro comando finisca, non i 90 secondi del PC carico.
+ */
+export const ATTESA_TURNO_IN_UN_HOOK_MS = 5 * 60_000
 /**
  * Carico da così tanto di fila (0.86.1), il PC si libera già sotto
  * `SOGLIA_PROCESSORE` invece che sotto `SOGLIA_RILASCIO`: un PC che resta fra
  * il 60 e il 75% non è al limite, e l'isteresi lo teneva «carico» per sempre.
  */
 export const CARICO_MASSIMO_MS = 10 * 60_000
+/**
+ * 11/11: l'uscita anche per la memoria. Carico da `CARICO_MASSIMO_MS`, il PC
+ * conta come «a corto di memoria» solo sotto questa parte libera (era sempre
+ * il 15%, senza uscita: un PC fermo al 12% restava «carico» per sempre).
+ * Liberato così, torna carico per la memoria solo sotto questa stessa soglia,
+ * finché la memoria libera non risale sopra `MEMORIA_LIBERA_MIN`.
+ */
+export const MEMORIA_LIBERA_MIN_A_LUNGO = 0.08
 
 /**
  * Le richieste che girano dentro un hook di una chat (0.86.1): lì un'attesa
@@ -102,35 +123,44 @@ export type StatoGuardia = {
   sopraDal?: number
   /** Da quando il PC carico è sotto `SOGLIA_RILASCIO` (ancora carico). */
   sottoDal?: number
+  /** 11/11: liberato con la memoria ancora sotto il 15%: finché non risale, torna carico solo sotto `MEMORIA_LIBERA_MIN_A_LUNGO`. */
+  memoriaTollerata?: true
 }
 
-const memoriaBassa = (m: MisuraPc): boolean => m.memoriaTotaleMb > 0 && m.memoriaLiberaMb / m.memoriaTotaleMb < MEMORIA_LIBERA_MIN
+const parteLibera = (m: MisuraPc): number => (m.memoriaTotaleMb > 0 ? m.memoriaLiberaMb / m.memoriaTotaleMb : 1)
+const memoriaBassa = (m: MisuraPc, soglia = MEMORIA_LIBERA_MIN): boolean => parteLibera(m) < soglia
 const motivoMemoria = (m: MisuraPc): string =>
   `memoria libera al ${Math.round((m.memoriaLiberaMb / m.memoriaTotaleMb) * 100)}% (${m.memoriaLiberaMb} MB su ${m.memoriaTotaleMb})`
 
 /**
  * Un passo della guardia, con l'isteresi: si entra in fretta (20 s sopra il
  * 75%, o subito per la memoria), si esce piano (un minuto intero sotto il 60%).
+ * 11/11: c'è un'uscita anche per la memoria (`MEMORIA_LIBERA_MIN_A_LUNGO`).
  */
 export function giudicaMisura(m: MisuraPc, prec: StatoGuardia, ora: number): StatoGuardia {
   if (prec.carico === undefined) {
+    // La memoria è risalita: la tolleranza finisce, da qui vale di nuovo il 15%.
+    const tollerata = prec.memoriaTollerata === true && memoriaBassa(m)
+    const resto = tollerata ? { memoriaTollerata: true as const } : {}
     const sopraDal = m.caricoPercento > SOGLIA_PROCESSORE ? (prec.sopraDal ?? ora) : undefined
-    if (memoriaBassa(m)) return { carico: { motivo: motivoMemoria(m), risorsa: 'memoria', dal: ora } }
+    if (memoriaBassa(m, tollerata ? MEMORIA_LIBERA_MIN_A_LUNGO : MEMORIA_LIBERA_MIN)) return { carico: { motivo: motivoMemoria(m), risorsa: 'memoria', dal: ora } }
     if (sopraDal !== undefined && ora - sopraDal >= PROCESSORE_PER_MS) {
       return { carico: { motivo: `processore al ${m.caricoPercento}% da ${durata(ora - sopraDal)}`, risorsa: 'processore', dal: sopraDal } }
     }
-    return sopraDal !== undefined ? { sopraDal } : {}
+    return sopraDal !== undefined ? { sopraDal, ...resto } : resto
   }
   const c = prec.carico
-  if (memoriaBassa(m)) return { carico: { motivo: motivoMemoria(m), risorsa: 'memoria', dal: c.dal } }
+  const daTroppo = ora - c.dal >= CARICO_MASSIMO_MS
+  if (memoriaBassa(m, daTroppo ? MEMORIA_LIBERA_MIN_A_LUNGO : MEMORIA_LIBERA_MIN)) return { carico: { motivo: motivoMemoria(m), risorsa: 'memoria', dal: c.dal } }
   // Carico da troppo (0.86.1): per liberarsi basta stare sotto la soglia d'entrata.
-  const soglia = ora - c.dal >= CARICO_MASSIMO_MS ? SOGLIA_PROCESSORE : SOGLIA_RILASCIO
+  const soglia = daTroppo ? SOGLIA_PROCESSORE : SOGLIA_RILASCIO
   if (m.caricoPercento >= soglia) {
     // Ancora pieno: il conto per liberarsi riparte da zero.
     return { carico: { motivo: `processore al ${m.caricoPercento}% da ${durata(ora - c.dal)}`, risorsa: 'processore', dal: c.dal } }
   }
   const sottoDal = prec.sottoDal ?? ora
-  if (ora - sottoDal >= RILASCIO_PER_MS) return {}
+  // Liberato con la memoria ancora sotto il 15% (ma sopra l'8%): non rientra subito per quella.
+  if (ora - sottoDal >= RILASCIO_PER_MS) return memoriaBassa(m) ? { memoriaTollerata: true } : {}
   // Sotto soglia ma non da abbastanza: resta carico, con il motivo di prima.
   return { carico: c, sottoDal }
 }
@@ -406,11 +436,18 @@ const minuti = (ms: number): number => Math.max(1, Math.ceil(ms / 60_000))
  * - Con il turno occupato, «un comando pesante è già in corso, riprova fra N
  *   minuti».
  * Il «no» porta `pcCarico`: non è un divieto e non va nel diario.
+ *
+ * 11/11: `perTurno` dice che il «no» è per il turno occupato (non per il PC
+ * carico): chi aspetta nell'hook ha due tetti diversi. `senzaQuiete`: per gli
+ * specialisti niente «appena liberato, parte un pesante solo» (il turno li
+ * mette già uno dietro l'altro).
  */
+export type GiudizioPesante = Giudizio & { perTurno?: true }
+
 export function giudicaPesanteDellaChat(
   r: RichiestaStrumento,
-  o: { chi: string; cwd: string; turni?: TurniCriteri; guardia?: GuardiaPc; ora?: number }
-): Giudizio {
+  o: { chi: string; cwd: string; turni?: TurniCriteri; guardia?: GuardiaPc; ora?: number; senzaQuiete?: boolean }
+): GiudizioPesante {
   const turni = o.turni ?? TURNI_PC
   const ora = o.ora ?? Date.now()
   const tenuto = turni.prenotato()
@@ -420,7 +457,8 @@ export function giudicaPesanteDellaChat(
   const carico = giudicaPesanteConPcCarico(r, o.guardia?.stato())
   if (!carico.ok) return carico
   const giaMio = turni.prenotato()?.chi === o.chi
-  if (!giaMio && o.guardia?.passoLibero !== undefined && !o.guardia.passoLibero(false)) {
+  const conQuiete = o.senzaQuiete !== true
+  if (conQuiete && !giaMio && o.guardia?.passoLibero !== undefined && !o.guardia.passoLibero(false)) {
     return {
       ok: false,
       pcCarico: true,
@@ -435,10 +473,11 @@ export function giudicaPesanteDellaChat(
     return {
       ok: false,
       pcCarico: true,
+      perTurno: true,
       motivo: `SierraDeck rimanda questo comando: un comando pesante è già in corso (${p.occupato}), riprova fra ${minuti(p.attesaMs)} minuti. Su questo PC le suite complete, le compilazioni e tsc sull'intero progetto girano uno alla volta. Non è un errore del tuo lavoro: intanto continua con il resto (leggere, scrivere, i test di un solo file). Non chiudere nessun programma.`
     }
   }
-  if (!giaMio) o.guardia?.passoLibero?.(true)
+  if (conQuiete && !giaMio) o.guardia?.passoLibero?.(true)
   return { ok: true }
 }
 
@@ -446,28 +485,44 @@ export function giudicaPesanteDellaChat(
  * **Lo specialista non riceve il «riprova fra qualche minuto»** (0.97.1). Non ha modo di
  * aspettare (`sleep` e bloccato, Monitor non c'e): riprovava ogni 2-3 secondi e dopo pochi
  * minuti chiudeva senza prove. Qui aspetta il programma, dentro l'hook, finche il PC e libero
- * e il turno e suo, al piu `ATTESA_IN_UN_HOOK_MS`: poi il comando passa comunque.
+ * e il turno e suo: poi il comando passa comunque.
+ *
+ * 11/11: due tetti. Per il **PC carico** al più `ATTESA_IN_UN_HOOK_MS` (90 secondi): oltre,
+ * la guardia non conta più e resta solo il turno. Per il **turno** occupato al più
+ * `ATTESA_TURNO_IN_UN_HOOK_MS` (cinque minuti, come prima): un pesante alla volta resta.
+ * Vale anche per le chat adottate, che prima ricevevano il «no» secco.
  */
 export async function giudicaPesanteAspettando(
   r: RichiestaStrumento,
-  o: Parameters<typeof giudicaPesanteDellaChat>[1] & { dormi?: (ms: number) => Promise<void>; riprovaMs?: number; tettoMs?: number }
+  o: Parameters<typeof giudicaPesanteDellaChat>[1] & { dormi?: (ms: number) => Promise<void>; riprovaMs?: number; tettoMs?: number; tettoTurnoMs?: number }
 ): Promise<Giudizio> {
   const dormi = o.dormi ?? ((ms: number) => new Promise<void>((ok) => { setTimeout(ok, ms) }))
-  const tetto = o.tettoMs ?? ATTESA_IN_UN_HOOK_MS
+  const tettoCarico = o.tettoMs ?? ATTESA_IN_UN_HOOK_MS
+  const tettoTurno = Math.max(tettoCarico, o.tettoTurnoMs ?? ATTESA_TURNO_IN_UN_HOOK_MS)
   const passo = o.riprovaMs ?? 5_000
+  const { guardia: _guardia, ...senzaGuardia } = o
   let atteso = 0
+  let attesoCarico = 0
   let detto = false
   for (;;) {
-    const g = giudicaPesanteDellaChat(r, { ...o, ora: o.ora !== undefined ? o.ora + atteso : Date.now() })
-    if (g.ok || g.pcCarico !== true) return g
-    if (atteso >= tetto) {
+    // Oltre il tetto del PC carico la guardia non si guarda più: resta solo il turno.
+    const oltre = attesoCarico >= tettoCarico
+    const g = giudicaPesanteDellaChat(r, { ...(oltre ? senzaGuardia : o), ora: o.ora !== undefined ? o.ora + atteso : Date.now() })
+    if (g.ok) {
+      if (oltre) console.warn(`[guardia-pc] ${o.chi} parte anche se il PC è carico: aspettava da ${durata(atteso)}, il tetto dell'attesa in un hook`)
+      return g
+    }
+    if (g.pcCarico !== true) return g
+    if (atteso >= tettoTurno) {
       console.warn(`[guardia-pc] ${o.chi} parte comunque: aspettava da ${durata(atteso)}, il tetto dell'attesa in un hook`)
       return { ok: true }
     }
     if (!detto) { console.info(`[guardia-pc] ${o.chi} aspetta dentro l'hook: ${g.motivo}`); detto = true }
-    const quanto = Math.min(passo, tetto - atteso)
+    const perCarico = !oltre && g.perTurno !== true
+    const quanto = Math.max(1, Math.min(passo, tettoTurno - atteso, perCarico ? tettoCarico - attesoCarico : Infinity))
     await dormi(quanto)
     atteso += quanto
+    if (perCarico) attesoCarico += quanto
   }
 }
 

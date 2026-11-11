@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { cancellaSicura } from '@shared/cancella-sicura'
 import { CARTELLA_QUADERNO, SOTTOCARTELLA, leggiScheda, type Scheda } from '@shared/quaderno'
 import {
-  annotaVoci, componiFileQuaderno, FILE_DECISIONI, FILE_LEZIONI, fileVuoto, indiceQuaderno, leggiFileQuaderno, TAG_DECISIONI,
+  annotaVoci, BYTE_MAX, componiFileQuaderno, FILE_DECISIONI, FILE_LEZIONI, fileVuoto, indiceQuaderno, leggiFileQuaderno, TAG_DECISIONI, VOCI_MAX,
   type FileQuaderno
 } from '@shared/quaderno-lezioni'
 import { distilla, fraseRiordino, RESTANO, type EsitoDistilla } from '@shared/quaderno-riordino'
@@ -133,7 +133,7 @@ export function anteprimaRiordino(cwd: string, oggi: string = new Date().toISOSt
 
 /** Le voci uscite per il tetto, leggibili: si salvano nel recupero accanto agli originali. */
 function testoVociTolte(tolte: EsitoDistilla['tolte'], quando: string): string {
-  const righe = [`# Voci rimaste fuori dal riordino del ${quando.slice(0, 10)}`, '', 'Il tetto di lezioni.md e decisioni.md (200 voci o 32 KB per file) le ha lasciate fuori. Le note originali sono qui accanto.', '']
+  const righe = [`# Voci rimaste fuori dal riordino del ${quando.slice(0, 10)}`, '', `Il tetto di lezioni.md e decisioni.md (${VOCI_MAX} voci o ${BYTE_MAX / 1024} KB per file) le ha lasciate fuori. Le note originali sono qui accanto.`, '']
   for (const t of tolte) righe.push(`- [${t.file} · ${t.tag}] ${t.testo} _(${t.volte > 1 ? `confermata ${t.volte}×, ` : ''}${t.ultima})_`)
   return `${righe.join('\n')}\n`
 }

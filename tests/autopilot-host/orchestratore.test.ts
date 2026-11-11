@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
-  ARGOMENTI_VIETATI, REGOLE_ORCHESTRATORE, ambienteOrchestratore, argomentiOrchestratore, creaOrchestratore, rigaUtente, sogliaDiRotazione,
+  ARGOMENTI_VIETATI, CHIAMATE_PC_MAX, REGOLE_ORCHESTRATORE, ambienteOrchestratore, argomentiOrchestratore, creaOrchestratore, rigaUtente, sogliaDiRotazione,
   type AvviaProcesso, type DipendenzeOrchestratore, type ProcessoClaude
 } from '../../src/autopilot-host/orchestratore'
 import { impostazioniPredefinite, type ImpostazioniOrchestratore, type RigaDialogo } from '../../src/autopilot-host/orchestratore-store'
@@ -112,14 +112,25 @@ describe('il motore', () => {
     expect(secondo).not.toContain('<ultime-battute>')
   })
 
-  it('al più due turni insieme sul PC', () => {
+  // 11/11: erano due; con tre workspace vivi il terzo aspettava il turno degli altri.
+  it('al più tre turni insieme sul PC', () => {
+    expect(CHIAMATE_PC_MAX).toBe(3)
     const { o, processi } = motore()
+    for (const ws of ['a', 'b', 'c', 'd']) o.messaggio(ws, { quando: '2026-10-30T09:00:00.000Z', testo: `ciao ${ws}` })
+    expect(processi).toHaveLength(3)
+    expect(o.chiamateInVolo()).toBe(3)
+    expect(testoScritto(processi[2]!.scritte[0]!)).toContain('ciao c')
+    processi[0]!.emetti(result())
+    expect(processi).toHaveLength(4)
+    expect(testoScritto(processi[3]!.scritte[0]!)).toContain('ciao d')
+  })
+
+  it('il tetto dei turni si può stringere (per i test e i PC piccoli)', () => {
+    const { o, processi } = motore({ globaliMax: 2 })
     for (const ws of ['a', 'b', 'c']) o.messaggio(ws, { quando: '2026-10-30T09:00:00.000Z', testo: `ciao ${ws}` })
     expect(processi).toHaveLength(2)
-    expect(o.chiamateInVolo()).toBe(2)
     processi[0]!.emetti(result())
     expect(processi).toHaveLength(3)
-    expect(testoScritto(processi[2]!.scritte[0]!)).toContain('ciao c')
   })
 
   it('gli eventi esterni si raccolgono 30 s; un messaggio li porta subito con sé', () => {

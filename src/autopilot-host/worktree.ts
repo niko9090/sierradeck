@@ -2,7 +2,7 @@ import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, realpathSync, rmdirSync, unlinkSync, writeFileSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type { FattiPubblicazione } from '@shared/harness'
-import { togliCollegamenti } from './ambiente-copia'
+import { collegamentoRimasto, togliCollegamenti } from './ambiente-copia'
 import { allineaHookEcc, type FuoriDaGit } from './hook-ecc'
 
 /**
@@ -574,7 +574,9 @@ export type EsitoProva = { ok: true } | { ok: false; motivo: string; file?: stri
 /**
  * **L'unione di prova** (0.84.4): il ramo unito nella cartella di lavoro
  * **senza commit**, per misurare lì i criteri con i pacchetti veri. Solo sul
- * ramo principale e con la cartella pulita; un conflitto si annulla subito.
+ * ramo principale; un conflitto si annulla subito. 11/11: i file a metà di
+ * Nicholas la fermano solo se il ramo li tocca (allora torna
+ * `MOTIVO_CARTELLA_SPORCA` con i loro nomi); gli altri restano come sono.
  * Dopo la misura `chiudiProva` la conferma o la annulla.
  */
 export function iniziaProvaAsincrono(git: GitAsincrono, p: { cwd: string; ramo: string; base: string }): Promise<EsitoProva> {
@@ -632,9 +634,9 @@ function togliMarcatore(dir: string): void {
  * ogni unione dopo viene respinta per «modifiche non salvate». Il programma
  * riconosce la propria prova: il segno lasciato in `.git` (`sierradeck-prova.json`:
  * il commit unito) deve combaciare con `MERGE_HEAD`. Allora `merge --abort`
- * ripristina solo i file della prova (la cartella era pulita, lo si controlla
- * prima di ogni prova). Un'unione senza il segno, o con un altro commit, è di
- * Nicholas: non si tocca.
+ * ripristina solo i file della prova (prima di ogni prova si controlla che il
+ * ramo non tocchi nessun file a metà: quelli restano come sono). Un'unione
+ * senza il segno, o con un altro commit, è di Nicholas: non si tocca.
  */
 export function ripulisciProvaAsincrono(git: GitAsincrono, p: { cwd: string }): Promise<'niente' | 'ripulita'> {
   return aspettando(git, ripulisciProvaPassi(p.cwd))
@@ -667,40 +669,77 @@ function* iniziaProvaPassi(p: { cwd: string; ramo: string; base: string }): Pass
   const dir = yield* cartellaGitPassi(radice)
   // Un'unione aperta che non è del programma (di Nicholas): non si tocca, nemmeno con `merge --abort`.
   if (dir !== undefined && existsSync(join(dir, 'MERGE_HEAD'))) return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA }
-  // Con file a metà nella cartella di lavoro la prova misurerebbe anche quelli, e l'annullarla li toccherebbe.
   let sporca = yield* chiedi(['status', '--porcelain', '--untracked-files=no'], radice)
-  // Solo le note del programma (`.sierradeck/`: quaderno, consegne)? Si salvano
-  // con un commit e si va avanti (0.88.5): il 30/10 l'unione di k-1 è rimasta
+  // Le note del programma (`.sierradeck/`: quaderno, consegne) si salvano con un
+  // commit e si va avanti (0.88.5): il 30/10 l'unione di k-1 è rimasta
   // ferma per due note, e né l'autopilota né gli specialisti potevano salvarle.
   // 10/11: solo se sono aggiunte (niente righe tolte a mano da Nicholas) e
   // contando solo le voci vere: un avviso di git sugli a capo non è un file.
-  if (sporca.codice === 0 && soloNoteDelProgramma(sporca.uscita)) {
+  // 11/11: anche con altri file a metà accanto: il commit prende solo `.sierradeck`.
+  const note = sporca.codice === 0 ? vociPorcelain(sporca.uscita).filter((v) => percorsiDellaVoce(v).every((x) => x.startsWith('.sierradeck/'))) : []
+  if (note.length > 0) {
     const righe = yield* chiedi(['diff', '--numstat', '--ignore-space-at-eol', 'HEAD', '--', '.sierradeck'], radice)
     // 11/11: dentro `.sierradeck/quaderno/` si salva sempre, anche con righe cambiate: lo scrive il
     // programma (il «(×2)» delle decisioni confermate, il riordino) ed è sotto git, quindi niente si perde.
     // Le altre note (consegne...) restano «solo aggiunte»; fuori da `.sierradeck/` non si tocca mai.
-    const tuttoQuaderno = vociPorcelain(sporca.uscita).every((v) => percorsiDellaVoce(v).every((x) => x.startsWith('.sierradeck/quaderno/')))
+    const tuttoQuaderno = note.every((v) => percorsiDellaVoce(v).every((x) => x.startsWith('.sierradeck/quaderno/')))
     if (tuttoQuaderno || (righe.codice === 0 && soloAggiunteNumstat(righe.uscita))) {
       yield* chiedi(['add', '-u', '--', '.sierradeck'], radice)
       yield* chiedi([...(yield* firma(radice)), 'commit', '-m', 'quaderno: le note del programma, prima di unire', '--', '.sierradeck'], radice)
       sporca = yield* chiedi(['status', '--porcelain', '--untracked-files=no'], radice)
     }
   }
-  if (sporca.codice !== 0 || vociPorcelain(sporca.uscita).length > 0) {
-    const file = [...new Set(vociPorcelain(sporca.uscita).flatMap(percorsiDellaVoce))]
-    return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA, ...(file.length > 0 ? { file } : {}) }
+  if (sporca.codice !== 0) return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA }
+  // **I file a metà fermano l'unione solo se il ramo li tocca** (11/11). Prima bastava un
+  // file modificato qualunque, e la fila delle unioni restava ferma per ore senza che nessuno
+  // potesse sbloccarla. Git unisce senza toccare i file locali che l'unione non riguarda
+  // (se dovesse sovrascriverne uno rifiuta da solo), e `merge --abort` li lascia come sono.
+  // Mai stash, mai reset dei file di Nicholas. Con qualcosa già nell'indice non si prova nemmeno.
+  const sporchi = [...new Set(vociPorcelain(sporca.uscita).flatMap(percorsiDellaVoce))]
+  if (sporchi.length > 0) {
+    const inIndice = yield* chiedi(['diff', '--cached', '--name-only'], radice)
+    const delRamo = yield* chiedi(['diff', '--name-only', '--no-renames', `${p.base}...${p.ramo}`], radice)
+    // Nel dubbio (git che non risponde) vale la regola di prima: non si unisce.
+    if (inIndice.codice !== 0 || delRamo.codice !== 0) return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA, file: sporchi }
+    const uguale = (f: string): string => f.trim().replace(/^"|"$/g, '').replace(/\\/g, '/').toLowerCase()
+    const toccati = new Set(soloFile(delRamo.uscita).map(uguale))
+    const fermano = [...new Set([...soloFile(inIndice.uscita).map((f) => f.trim().replace(/^"|"$/g, '')), ...sporchi.filter((f) => toccati.has(uguale(f)))])]
+    if (fermano.length > 0) return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA, file: fermano }
   }
   // Il segno prima dell'unione: se il processo muore a metà, il prossimo la riconosce.
   if (dir !== undefined) {
     const testa = yield* chiedi(['rev-parse', '--verify', '--quiet', `refs/heads/${p.ramo}`], radice)
     try { writeFileSync(join(dir, MARCATORE_PROVA), JSON.stringify({ ramo: p.ramo, testa: testa.codice === 0 ? testa.uscita.trim() : '', il: new Date().toISOString() })) } catch { /* senza segno la prova si fa lo stesso */ }
   }
-  const r = yield* chiedi([...(yield* firma(radice)), 'merge', '--no-ff', '--no-commit', p.ramo], radice)
+  // Con file a metà, mai lo stash automatico di git (`merge.autoStash` nella configurazione di chi usa il PC).
+  const r = yield* chiedi([...(yield* firma(radice)), 'merge', '--no-ff', '--no-commit', ...(sporchi.length > 0 ? ['--no-autostash'] : []), p.ramo], radice)
   if (r.codice === 0) return { ok: true }
   const inConflitto = soloFile((yield* chiedi(['diff', '--name-only', '--diff-filter=U'], radice)).uscita)
   yield* chiedi(['merge', '--abort'], radice)
   if (dir !== undefined) togliMarcatore(dir)
+  // Git ha rifiutato per non sovrascrivere un file locale: è ancora «cartella sporca», l'unione aspetta.
+  if (inConflitto.length === 0 && sporchi.length > 0 && /overwritten|local changes|sovrascritt/i.test(r.uscita)) return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA, file: sporchi }
   return { ok: false, motivo: inConflitto.length > 0 ? `conflitto su ${inConflitto.join(', ')}` : `unione di prova non riuscita: ${r.uscita.slice(0, 300)}` }
+}
+
+/**
+ * **Salva con un commit i file a metà che fermano un'unione** (11/11), e solo
+ * quelli: `git add` e `git commit` con i percorsi esatti. Si chiama **solo**
+ * dopo il «sì» di Nicholas alla domanda del programma che li elenca. Un commit
+ * non perde niente; mai stash, mai reset, mai checkout. Torna `true` se il
+ * commit c'è.
+ */
+export function salvaFileAsincrono(git: GitAsincrono, p: { cwd: string; file: string[]; messaggio: string }): Promise<boolean> {
+  return aspettando(git, salvaFilePassi(p))
+}
+
+function* salvaFilePassi(p: { cwd: string; file: string[]; messaggio: string }): Passi<boolean> {
+  const radice = yield* radicePassi(p.cwd)
+  // Mai un percorso che comincia con `-` (sarebbe letto come opzione) né uno che esce dalla cartella.
+  const file = p.file.filter((f) => f !== '' && !f.startsWith('-') && !f.split(/[\\/]/).includes('..') && !/^([a-zA-Z]:|[\\/])/.test(f))
+  if (radice === undefined || file.length === 0 || file.length !== p.file.length) return false
+  if ((yield* chiedi(['add', '--', ...file], radice)).codice !== 0) return false
+  return (yield* chiedi([...(yield* firma(radice)), 'commit', '-m', p.messaggio, '--no-verify', '--', ...file], radice)).codice === 0
 }
 
 /** Conferma l'unione di prova con il suo commit (`tieni`), o la annulla. */
@@ -845,6 +884,11 @@ function* togliPassi(p: { cwd: string; cartella: string; ramo: string }): Passi<
   // Il collegamento a node_modules della Revisione (0.84.4) prima della copia:
   // git lo lascerebbe lì e la cartella non si potrebbe togliere.
   togliCollegamenti(radiceWt)
+  // 11/11: se il collegamento è ancora lì (non si è staccato) git non parte: dentro c'è la cartella vera.
+  if (collegamentoRimasto(radiceWt)) {
+    console.warn(`[autopilota] non tolgo la copia ${radiceWt}: il collegamento a node_modules non si è staccato`)
+    return
+  }
   yield* chiedi(['worktree', 'remove', '--force', radiceWt], radice)
   yield* chiedi(['branch', '-d', p.ramo], radice)
   yield* chiedi(['worktree', 'prune'], radice)

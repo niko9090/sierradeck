@@ -108,6 +108,14 @@ export type RegistroDomande = {
    */
   superata: (id: string, motivo: string, extra?: Pick<DomandaRisolta, 'chatId' | 'chatTitolo'>) => boolean
   /**
+   * 11/11: chi ha aperto la domanda la **ritira** perché non serve più, anche
+   * se la sta ancora aspettando (`superata` in quel caso non la tocca): chi
+   * aspettava è libero, senza risposta. Resta fra le risolte con il motivo.
+   * `false` se non c'era o aveva già una risposta. Facoltativa: i registri di
+   * prova possono non averla.
+   */
+  ritira?: (id: string, motivo: string) => boolean
+  /**
    * Chiamata quando una risposta arriva dopo la scadenza dell'attesa, con la
    * domanda (0.84.4): senza il suo contesto la risposta va lo stesso al
    * supervisore del suo autopilota, invece di perdersi.
@@ -302,6 +310,24 @@ export function creaRegistroDomande(deps: {
         risposta: `${SUPERATA}${motivo}`,
         quando: new Date(deps.adesso()).toISOString()
       }]
+      salva()
+      return true
+    },
+
+    ritira(id, motivo) {
+      const voce = voci.get(id)
+      if (voce === undefined || voce.risposta !== undefined) return false
+      // Chi aspettava (il programma stesso) è libero: non è una risposta.
+      const attese = voce.attese
+      voce.attese = []
+      for (const r of attese) r(undefined)
+      voci.delete(id)
+      const d = voce.domanda
+      dicoChiusa(d)
+      if (!soloInChat(d)) {
+        const domanda = (d.parti?.domanda !== undefined && d.parti.domanda !== '' ? d.parti.domanda : d.testo).trim().slice(0, RISOLTA_MAX)
+        risolte = [...fresche(), { autopilotaId: d.autopilotaId, domanda, risposta: `${SUPERATA}${motivo}`, quando: new Date(deps.adesso()).toISOString() }]
+      }
       salva()
       return true
     },

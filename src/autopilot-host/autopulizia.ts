@@ -347,6 +347,34 @@ export async function staccaCollegamenti(cartella: string): Promise<{ staccati: 
 /** Un archivio di Electron: nel servizio non si guarda mai con `lstat` (vedi `staccaCollegamenti`). */
 const eAsar = (nome: string): boolean => /\.asar$/iu.test(nome)
 
+/**
+ * **Via la copia di uno specialista già unito** (11/11). Prima si staccano i
+ * collegamenti dentro la copia (la giunzione a `node_modules` che lo
+ * specialista, o il programma, ci ha messo) **senza seguirli**; solo dopo
+ * `git worktree remove --force`, e il ramo. Il cancello dell'unione chiamava
+ * git direttamente: con una giunzione dentro, la copia restava lì a metà (git
+ * 2.55 la lascia con la giunzione), e una cancellazione ricorsiva che entra in
+ * una giunzione svuota la cartella vera (regola 2, qui sopra).
+ *
+ * Se anche un solo collegamento non si stacca, git non parte e la copia resta
+ * dov'è: la riguarda l'autopulizia. Mai la cartella principale.
+ */
+export async function togliCopiaUnita(git: GitAsincrono, p: { cwd: string; cartella: string; ramo: string }): Promise<{ tolta: boolean; staccati: number; motivo?: string }> {
+  if (chiavePercorso(p.cartella) === chiavePercorso(p.cwd) || dentroOUguale(p.cwd, p.cartella)) return { tolta: false, staccati: 0, motivo: 'è la cartella principale, o la contiene' }
+  let staccati = 0
+  if (existsSync(p.cartella) || await eCollegamento(p.cartella)) {
+    const s = await staccaCollegamenti(p.cartella)
+    staccati = s.staccati
+    if (s.falliti.length > 0) {
+      console.warn(`[unione] non tolgo la copia ${p.cartella}: collegamenti non staccati (${s.falliti[0]})`)
+      return { tolta: false, staccati, motivo: `collegamenti non staccati: ${s.falliti[0]}` }
+    }
+  }
+  const r = await git(['worktree', 'remove', '--force', p.cartella], p.cwd)
+  await git(['branch', '-d', p.ramo], p.cwd)
+  return { tolta: r.codice === 0 && !existsSync(p.cartella), staccati, ...(r.codice !== 0 ? { motivo: r.uscita.slice(0, 160) } : {}) }
+}
+
 /** Quanto pesa una cartella, senza seguire i collegamenti. Un file `.asar` conta zero (11/11): pesarlo vorrebbe dire aprirlo. */
 export async function pesoCartella(cartella: string): Promise<number> {
   let tot = 0

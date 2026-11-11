@@ -2,6 +2,7 @@ import { TendinaMenu } from './TendinaMenu'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Scheda } from '@shared/quaderno'
 import type { AnteprimaRiordinoVista } from '@shared/quaderno-riordino'
+import { BYTE_MAX, VOCI_MAX } from '@shared/quaderno-lezioni'
 import { assaggio, cartelleUniche, filtraSchede, nomeCartella, ordinaSchedeCome, quandoBreve, tuttiITag, type OrdineSchede } from '@shared/quaderno-vista'
 import { SezioneQuadernoPersonale } from './SezioneQuadernoPersonale'
 import { analizzaMarkdown, type NodoBlocco, type NodoInline } from '@shared/markdown'
@@ -301,7 +302,7 @@ export function PannelloQuaderno({ cwd, cartelle, onChiudi }: Props): React.JSX.
             {riordino.note > 0 && riordino.tolte.length > 0 ? (
               <details>
                 <summary style={{ cursor: 'pointer' }}>
-                  {riordino.tolte.length === 1 ? '1 voce resta fuori' : `${riordino.tolte.length} voci restano fuori`} per il tetto di 200 voci o 32 KB: guardale prima di confermare (restano anche nel recupero 30 giorni)
+                  {riordino.tolte.length === 1 ? '1 voce resta fuori' : `${riordino.tolte.length} voci restano fuori`} per il tetto di {VOCI_MAX} voci o {BYTE_MAX / 1024} KB: guardale prima di confermare (restano anche nel recupero 30 giorni)
                 </summary>
                 <ul style={{ maxHeight: 200, overflowY: 'auto', margin: '4px 0' }}>
                   {riordino.tolte.map((t) => (

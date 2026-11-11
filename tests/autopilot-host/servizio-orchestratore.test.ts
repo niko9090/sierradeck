@@ -12,7 +12,7 @@ import type { AvviaProcesso, ProcessoClaude } from '../../src/autopilot-host/orc
 import type { Git } from '../../src/autopilot-host/worktree'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
 import { pianoVuoto, scriviPiano, type VistaOrchestratore } from '@shared/piano-orchestratore'
-import { DOMANDA_VECCHIA_MS, FERMO_DOPO_MS, SPINTE_MAX } from '../../src/autopilot-host/servizio-orchestratore'
+import { DOMANDA_VECCHIA_MS, FERMO_DOPO_MS } from '../../src/autopilot-host/servizio-orchestratore'
 import type { VistaCoda } from '@shared/coda-richieste'
 import { attendi } from '../setup/attendi'
 import { orologioDa } from '../setup/orologio'
@@ -59,7 +59,7 @@ function ap(p: Partial<Autopilota> = {}): Autopilota {
   }
 }
 
-async function avviaServizio(prima: Autopilota[] = [], extra: { git?: Git; adesso?: () => string; raccoltaEventiMs?: number; unioneDaSola?: boolean } = {}): Promise<void> {
+async function avviaServizio(prima: Autopilota[] = [], extra: { git?: Git; adesso?: () => string; raccoltaEventiMs?: number; unioneDaSola?: boolean; avvisa?: (tipo: string, a: Autopilota, testo?: string) => Promise<void> } = {}): Promise<void> {
   const orologio = orologioDa('2026-10-30T08:00:00.000Z')
   archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'ap-unico-')))
   for (const a of prima) archivio.scrivi(a)
@@ -74,7 +74,7 @@ async function avviaServizio(prima: Autopilota[] = [], extra: { git?: Git; adess
     versione: '0.86.3',
     esegui: () => Promise.resolve({ codice: 1, uscita: 'non ancora' }),
     avviaLavoro: () => Promise.resolve(),
-    avvisa: () => Promise.resolve(),
+    avvisa: extra.avvisa ?? (() => Promise.resolve()),
     domande,
     ultimoDetto: () => undefined,
     scadenzaDomandaMs: 5000,
@@ -563,13 +563,15 @@ describe('il motore non si ferma (0.89.4)', () => {
     await attendi(() => p0.scritte.some((x) => testoScritto(x).includes('unione')), { cosa: 'evento unione' })
   })
 
-  it('unione da sola alla fine dello specialista; il lavoro fermo sveglia l’autopilota, poi smette', async () => {
+  // 11/11: prima «poi smette» (due spinte e basta): il lavoro restava fermo in silenzio.
+  it('unione da sola alla fine dello specialista; il lavoro fermo sveglia l’autopilota sempre più di rado, senza smettere, e dalla terza volta lo sa anche Nicholas', async () => {
     zitto()
     let avanti = 0
     const base = orologioDa('2026-10-30T08:00:00.000Z')
     const adesso = (): string => new Date(base.ms() + avanti).toISOString()
     const senzaGit: Git = () => ({ codice: 128, uscita: 'fatal: not a git repository' })
-    await avviaServizio([ap({ chats: [] })], { git: senzaGit, adesso, raccoltaEventiMs: 5 })
+    const avvisi: { tipo: string; testo?: string }[] = []
+    await avviaServizio([ap({ chats: [] })], { git: senzaGit, adesso, raccoltaEventiMs: 5, avvisa: (tipo, _a, testo) => { avvisi.push({ tipo, ...(testo !== undefined ? { testo } : {}) }); return Promise.resolve() } })
     migra()
     await posta('/orchestratore/messaggio', { ws: 'Lavoro', testo: 'il reset e poi la prova' })
     await attendi(() => processi.length > 0, { cosa: 'processo' })
@@ -606,15 +608,50 @@ describe('il motore non si ferma (0.89.4)', () => {
     await attendi(() => sveglie() === 1, { cosa: 'sveglia 1' })
     expect(testoScritto(p0.scritte.at(-1)!)).toContain('k-2 pronto da affidare')
     fine('Va bene.')
-    // Lo stesso stato: una seconda volta più tardi, poi basta.
-    avanti += 2 * FERMO_DOPO_MS
+    // Lo stesso stato: una seconda volta dopo il doppio della quiete.
+    avanti += 2 * FERMO_DOPO_MS - 1000
+    server!.controllaChatFerme()
+    await new Promise((ris) => setTimeout(ris, 30))
+    expect(sveglie()).toBe(1)
+    avanti += 1000
     server!.controllaChatFerme()
     await attendi(() => sveglie() === 2)
     fine('Va bene.')
-    avanti += 20 * FERMO_DOPO_MS
+    const fermoANicholas = (): { tipo: string; testo?: string }[] => avvisi.filter((v) => v.testo?.startsWith('Lavoro fermo') === true)
+    expect(fermoANicholas()).toEqual([])
+    // La terza dopo il doppio ancora: non smette. E adesso lo sa anche Nicholas, con una riga che non è una domanda.
+    avanti += 4 * FERMO_DOPO_MS
     server!.controllaChatFerme()
-    await new Promise((ris) => setTimeout(ris, 50))
-    expect(sveglie()).toBe(SPINTE_MAX)
+    await attendi(() => sveglie() === 3, { cosa: 'sveglia 3' })
+    expect(fermoANicholas()).toHaveLength(1)
+    expect(fermoANicholas()[0]!.tipo).toBe('avviso')
+    expect(fermoANicholas()[0]!.testo).toMatch(/^Lavoro fermo da \d+ minuti \(una cosa in sospeso\): ho svegliato l’autopilota 3 volte/u)
+    expect(fermoANicholas()[0]!.testo).not.toContain('?')
+    expect(archivio.leggi(orch.impostazioni('Lavoro').autopilota!)!.annuncio?.titolo).toBe('Lavoro fermo')
+    // Mentre l'autopilota lavora (il turno della terza spinta è ancora aperto) niente spinte, e il conto resta.
+    avanti += 8 * FERMO_DOPO_MS
+    server!.controllaChatFerme()
+    await new Promise((ris) => setTimeout(ris, 30))
+    expect(sveglie()).toBe(3)
+    fine('Va bene.')
+    // La quiete riparte da quando ha finito: subito dopo, ancora niente.
+    server!.controllaChatFerme()
+    avanti += 8 * FERMO_DOPO_MS - 1000
+    server!.controllaChatFerme()
+    await new Promise((ris) => setTimeout(ris, 30))
+    expect(sveglie()).toBe(3)
+    avanti += 1000
+    server!.controllaChatFerme()
+    await attendi(() => sveglie() === 4, { cosa: 'sveglia 4' })
+    fine('Va bene.')
+    // Avanti così, con il tetto di un'ora fra una spinta e l'altra: mai un'ultima. E a Nicholas una riga sola.
+    for (let n = 5; n <= 8; n += 1) {
+      avanti += 60 * 60_000
+      server!.controllaChatFerme()
+      await attendi(() => sveglie() === n, { cosa: `sveglia ${n}` })
+      fine('Va bene.')
+    }
+    expect(fermoANicholas()).toHaveLength(1)
   })
 
   /**
