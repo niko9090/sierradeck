@@ -21,7 +21,8 @@ import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 import { esecutoreNelMosaico } from './nel-mosaico'
 import { creaRegistroDomande } from './domande'
 import { ultimoMessaggioAssistente } from './trascrizione'
-import { creaAvvisatore, invioReale, leggiConfigurazione } from './telegram'
+import { annunciaAperte, avvisaNelGiornale, conGiornale } from './avvisi-servizio'
+import { apriGiornaleAvvisi, FILE_GIORNALE_AVVISI } from './giornale-avvisi'
 import { gitAsincronoReale, gitReale } from './worktree'
 import { avviaSpiaRitardo } from './ritardo-ciclo'
 import { creaMisuratore } from './misura-pc'
@@ -175,38 +176,8 @@ function cartellaStato(): string {
 /** Quanto la chat resta ferma ad aspettare una risposta prima di lasciar perdere. */
 const SCADENZA_DOMANDA_MS = 5 * 60_000
 
-/**
- * Dove cercare la configurazione del bot Telegram.
- *
- * Dove cercarla lo dice chi la usa: la variabile d'ambiente, o la cartella dei
- * dati del programma. Nessun percorso di nessuno scritto qui dentro — un
- * percorso che vale su una macchina sola non ha niente da fare nel codice.
- */
-function percorsiConfigTelegram(): string[] {
-  const daAmbiente = process.env.SIERRADECK_AVVISI_CONFIG ?? process.env.GESTORE_TELEGRAM_CONFIG
-  return [
-    ...(daAmbiente !== undefined && daAmbiente.trim() !== '' ? [daAmbiente] : []),
-    join(cartellaStato(), '..', 'telegram_config.json')
-  ]
-}
-
-/** La riga che dice che Telegram non c'è. */
-export const RIGA_TELEGRAM_ASSENTE = '[autopilota] nessuna configurazione Telegram trovata: avvisi disattivati'
-let telegramAssenteDetto = false
-/**
- * Dice una volta per processo che Telegram non è configurato (0.86.2, audit
- * M7). Il registro ne aveva 72: la riga partiva a ogni avvio del servizio,
- * anche dei doppioni che escono subito perché la porta è già presa. Adesso la
- * dice solo il servizio che resta in ascolto, e una volta sola.
- */
-export function diciTelegramAssente(configurazione: unknown, dici: (riga: string) => void = (r) => { console.warn(r) }): boolean {
-  if (configurazione !== undefined || telegramAssenteDetto) return false
-  telegramAssenteDetto = true
-  dici(RIGA_TELEGRAM_ASSENTE)
-  return true
-}
-/** Solo per le prove: torna come all'avvio del processo. */
-export function dimenticaTelegramAssente(): void { telegramAssenteDetto = false }
+// 11/11: Telegram lo manda il programma, dal registro degli avvisi (`main/avvisi-telegram.ts`).
+export { diciTelegramAssente, dimenticaTelegramAssente, RIGA_TELEGRAM_ASSENTE } from './telegram'
 
 /**
  * La rete di sicurezza di **questo** processo.
@@ -293,12 +264,15 @@ export function avviaServizio(): void {
   reteDiSicurezza()
   const archivio = apriArchivio(cartellaStato())
   // Su disco (0.71.0): una domanda aperta sopravvive al riavvio del servizio.
-  const domande = creaRegistroDomande({ adesso: () => Date.now(), file: join(archivio.cartella, 'servizio', 'domande-aperte.json') })
+  // 11/11: ogni domanda che Nicholas deve vedere, e com'è finita, va nel giornale degli avvisi:
+  // lo legge il programma, che avvisa il telefono, la pagina e Telegram da un registro solo.
+  const giornale = apriGiornaleAvvisi({ file: join(archivio.cartella, 'servizio', FILE_GIORNALE_AVVISI) })
+  const doveDomanda = (id: string): { workspace: string } | undefined => { const a = archivio.leggi(id); return a === undefined ? undefined : { workspace: a.workspace ?? a.nome } }
+  const domande = conGiornale(creaRegistroDomande({ adesso: () => Date.now(), file: join(archivio.cartella, 'servizio', 'domande-aperte.json') }), giornale, doveDomanda)
+  try { const n = annunciaAperte(domande, giornale, doveDomanda); if (n > 0) console.info(`[avviso] ${n} domande già aperte scritte nel giornale degli avvisi`) } catch (err) { console.error('[avviso] domande aperte non scritte nel giornale:', err) }
 
-  const configurazione = leggiConfigurazione(percorsiConfigTelegram())
-  // Senza Telegram l'autopilota lavora comunque: si dice una volta, quando il
-  // servizio è davvero in ascolto (più sotto), non a ogni doppione che esce.
-  const avvisa = creaAvvisatore({ configurazione, manda: invioReale })
+  // «Fatta: …» e «Lavoro fermo» vanno nel giornale. Telegram (11/11) lo manda il programma, dal registro degli avvisi.
+  const avvisa = avvisaNelGiornale(giornale)
 
   // Le istruzioni che il Gestore verra a ritirare per scriverle dentro le
   // chat. Il servizio non puo chiamarlo: fra i due il confine va in una
@@ -444,8 +418,6 @@ export function avviaServizio(): void {
   // Solo 127.0.0.1: un servizio che avvia processi non va esposto alla rete.
   server.listen(PORTA, '127.0.0.1', () => {
     console.info(`[autopilota] in ascolto su 127.0.0.1:${PORTA}`)
-    // Non è un errore: dirlo evita però di cercare a lungo un avviso che non arriverà mai.
-    diciTelegramAssente(configurazione)
     // 0.91.0: Node.js e Git installati dal programma mentre il servizio girava
     // non sono nel suo PATH; ogni minuto si aggiungono, e da lì li trovano
     // l'autopilota, gli specialisti e i criteri, senza riavviare.

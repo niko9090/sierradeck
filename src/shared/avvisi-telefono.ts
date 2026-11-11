@@ -244,6 +244,37 @@ export function bozzaFatto(f: FattoFatto): BozzaAvviso {
   }
 }
 
+/**
+ * Com'è finita una domanda chiusa senza la risposta di Nicholas, dal motivo
+ * che il servizio scrive (`servizio-orchestratore.ts`, `chiudiDomandeVecchie`;
+ * un test tiene in pari le frasi): la consigliata scelta dal programma dopo
+ * un'ora, la strada prudente decisa dall'autopilota, un giorno senza
+ * risposta, o non serve più.
+ */
+export function chiusuraDaMotivo(motivo: string): { come: ComeChiuso; testo?: string } {
+  const m = motivo.trim()
+  const scelta = /^nessuna risposta in un’ora: scelta la consigliata, «(.+)»$/u.exec(m)
+  if (scelta !== null) return { come: 'programma', testo: scelta[1]! }
+  if (m.startsWith('nessuna risposta in un’ora')) return { come: 'programma' }
+  if (m.startsWith('nessuna risposta in un giorno')) return { come: 'scaduta' }
+  return { come: 'ritirata' }
+}
+
+const testoValido = (x: unknown): x is string => typeof x === 'string'
+
+/** Una notizia del giornale del servizio, letta dal disco: quella buona, o niente. */
+export function notiziaValida(x: unknown): x is Notizia {
+  const o = typeof x === 'object' && x !== null ? x as Record<string, unknown> : undefined
+  if (o === undefined || typeof o.n !== 'number' || !Number.isFinite(o.n) || !testoValido(o.quando) || !testoValido(o.id) || o.id === '') return false
+  switch (o.cosa) {
+    case 'domanda': return testoValido(o.workspace) && testoValido(o.domanda) && (o.scelte === undefined || Array.isArray(o.scelte))
+    case 'domanda-chiusa': return (COME_CHIUSO as readonly unknown[]).includes(o.come)
+    case 'fermo': return testoValido(o.workspace) && testoValido(o.motivo)
+    case 'fatto': return testoValido(o.workspace) && testoValido(o.titolo)
+    default: return false
+  }
+}
+
 /** Da un fatto del servizio: l'avviso che nasce, o quello che si chiude. */
 export function daFatto(f: Fatto): { nasce: BozzaAvviso } | { chiude: { id: string; come: ComeChiuso; testo?: string } } {
   if (f.cosa === 'domanda') return { nasce: bozzaDomanda(f) }
