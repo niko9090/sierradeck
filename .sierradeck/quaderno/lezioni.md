@@ -34,6 +34,7 @@
 
 - Il ramo di lavoro può essere indietro a main (manca spazio-drive-pieno): prima di correggere, rebase su main. _(2026-11-10)_
 - con l'harness, ogni comando git che nomina la cartella principale viene rifiutato anche con `git -C` o in una pipe: per leggerla usare percorsi assoluti e comandi non-git. _(2026-11-10)_
+- Una copia con `android/app/build` non si toglie con `git worktree remove` («Filename too long»): staccare la junction di `node_modules`, controllare che dentro non ci siano altri collegamenti, poi `Remove-Item -LiteralPath '\\?\<percorso>' -Recurse -Force` e `git worktree prune`. _(2026-11-11)_
 
 ## android
 
@@ -42,6 +43,10 @@
 - gradle testDebugUnitTest resta UP-TO-DATE se cambia solo un .ts letto dai test Kotlin (PonteTest): serve --rerun _(2026-11-10)_
 - per l'app le procedure lunghe conviene tenerle sul PC e far rileggere la vista all'app: la pagina le fa girare nel browser, l'app perderebbe il passo con la linea _(2026-11-10)_
 - Se android/ non cambia per una release, versionName resta quello vecchio: la 0.98.0 era ancora 2.96.0. _(2026-11-10)_
+- Sull’emulatore in sessione RDP l’avvio si blocca (Vulkan e finestra dei crash): partire con `-gpu swangle -crash-report-mode disabled`. _(2026-11-11)_
+- Dalla 3.0.0 le foto delle schermate dell’app le fa `gradle testDebugUnitTest` (Robolectric + Roborazzi) in `android/app/build/foto-schermate/`: guardarle prima di pubblicare, hanno trovato difetti che le prove non vedono. _(2026-11-11)_
+- Prova dell’app dal vero: copia del PC con `SIERRADECK_PROVA` e porte 47650/47651 dentro `preferenze`, emulatore su `10.0.2.2:47650`; l’APK 2.99.0 di rilascio installato e poi `adb install -r` della 3.0.0 prova che l’aggiornamento non chiede un nuovo accoppiamento. _(2026-11-11)_
+- Dopo un `AGGIORNA=1` di `impostazioni.json` vanno rilanciate anche le prove Kotlin che leggono quell’asset (`ImpostazioniVociTest`), non solo i vitest. _(2026-11-11)_
 
 ## release
 
@@ -64,6 +69,7 @@
 - Con `gh release create --draft` la release resta «untagged» nell'URL, ma electron-builder la riempie lo stesso e `gh release view` mostra il tag giusto; verificare i 5 file prima di `--draft=false`. _(2026-11-11)_
 - Una release pubblicata da un ramo (push su origin/main) lascia indietro la cartella principale: fino alla 0.99.4 si riallinea a mano con `git merge origin/main` da una chat aperta lì; dalla 0.100.0 lo fa il programma ogni 10 minuti. _(2026-11-11)_
 - Dalla 0.100.0 pubblica lo specialista «rilascio», che lavora nella cartella principale senza Edit/Write: versione e novità le prepara prima uno sviluppatore, nel suo ramo. _(2026-11-11)_
+- L’installatore locale si chiama `dist/SierraDeck Setup X.exe` (con gli spazi), l’asset su GitHub `SierraDeck-Setup-X.exe`: per confrontare lo sha512 con `latest.yml` scaricare l’asset o usare il nome con gli spazi. _(2026-11-11)_
 
 ## git
 
@@ -254,6 +260,7 @@
 - l'installer uccide anche il servizio autopiloti: memoria persa (messaggi e specialisti). Ripresa dal disco con `ripresaDopoRiavvio`, non basta il «lavoro fermo» (3 min, 2 spinte). _(2026-11-09)_
 - riprendiLavori({servizioAppenaPartito}) gira anche all'avvio del PC e dopo un crash, non solo dopo un aggiornamento: quello che fa lì va pensato come avvio normale _(2026-11-09)_
 - «rispondi» a una domanda usa ancora l'attesa di 3 s (autopilot-client.ts:411-415): la 0.95.5 ha alzato a 30 s solo il dialogo. Ogni POST che scrive deve passare attesaScrittura. _(2026-11-10)_
+- Dalla 0.101.0 telefono, pagina e Telegram leggono lo stesso registro degli avvisi (`src/main/avvisi.ts`, `/api/eventi`): una regola su quando avvisare va lì, non nelle schermate; `avvisi=0` vuol dire «da capo» e l’attesa deve svegliarsi per ogni avviso nato dopo. _(2026-11-11)_
 
 ## registro
 
