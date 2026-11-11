@@ -293,6 +293,30 @@ describe('un Agent rifiutato o rilanciato non azzera un compito (11/11, k-133)',
   })
 })
 
+describe('meno rumore: «unione in fila» non apre un turno dell’autopilota (11/11)', () => {
+  it('la seconda unione va in fila e lo dice lo stato; nessun evento, nessun turno in più', async () => {
+    zitto()
+    let sblocca = (): void => {}
+    const porte: Porte = { merge: [], rami: { [R1]: 1, [R2]: 1 }, blocca: new Promise<void>((ris) => { sblocca = ris }) }
+    await avviaServizio(porte)
+    orch.scriviPiano(WS, { versione: 1, compiti: [compito('k-1'), compito('k-2')] })
+    await lanciaAgent('k-1: il primo', { task: 'a1111111111111111' })
+    finisciUltimo()
+    await attendi(() => porte.merge.length === 1, { cosa: 'la prima unione è in corso' })
+    await lanciaAgent('k-2: il secondo', { task: 'a2222222222222222' })
+    finisciUltimo()
+    await attendi(() => k('k-2')?.stato === 'in-revisione', { cosa: 'k-2 finito' })
+    const prima = processi[0]!.scritte.length
+    // Più della raccolta degli eventi (20 ms qui): se «in fila» fosse un evento, sarebbe partito un turno.
+    await pausa(120)
+    expect(scritteDa(prima)).toBe('')
+    expect(await strumento('stato', {})).toContain('k-2: in fila, 2ª')
+    sblocca()
+    await attendi(() => k('k-1')?.stato === 'unito' && k('k-2')?.stato === 'unito', { cosa: 'tutte e due unite' })
+    expect(porte.merge).toEqual([R1, R2])
+  })
+})
+
 describe('compiti zombie: si chiudono da soli con la loro richiesta, o con piano_chiudi (11/11)', () => {
   it('chiusa la richiesta, i suoi compiti non fatti escono dallo stato dell’autopilota', async () => {
     zitto()

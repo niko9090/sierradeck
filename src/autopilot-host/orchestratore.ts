@@ -49,8 +49,9 @@ export function ambientePulito(base: NodeJS.ProcessEnv): Record<string, string> 
  *   `--bare` (ignorerebbe il login dell'abbonamento), e niente
  *   `ANTHROPIC_API_KEY` nell'ambiente del figlio;
  * - il processo si spegne dopo 10 minuti senza turni né specialisti al
- *   lavoro, e riparte con `--resume`; oltre 80k token di contesto la sessione
- *   ruota (quella nuova riceve lo stato e le ultime 10 battute);
+ *   lavoro, e riparte con `--resume`; quando il contesto cresce troppo sopra il
+ *   primo turno della sessione (`sogliaDiRotazione`, 11/11) la sessione ruota
+ *   (quella nuova riceve lo stato e le ultime 10 battute);
  * - un turno alla volta per workspace e al più 2 su tutto il PC: quello che
  *   arriva durante un turno aspetta e parte insieme, alla fine del turno.
  */
@@ -78,6 +79,16 @@ export const MODELLO_ORCHESTRATORE = 'opus'
 export const RACCOLTA_EVENTI_MS = 30_000
 export const CHIAMATE_PC_MAX = 2
 export const ROTAZIONE_TOKEN = 80_000
+/**
+ * 11/11: la soglia vale **sopra la base della sessione**. Una sessione nuova parte già da 52-63k token (regole,
+ * agenti, strumenti, stato): con 80k fissi ruotava ogni 3-8 turni (76 rotazioni in dodici giorni), e ogni volta
+ * rileggeva tutto e perdeva il filo. Ora ruota quando il contesto cresce di tre quarti della soglia sopra il
+ * primo turno della sessione (60k con la soglia di serie), mai sotto la soglia e mai oltre il doppio.
+ */
+export const MARGINE_ROTAZIONE = 0.75
+export function sogliaDiRotazione(soglia: number, base: number | undefined): number {
+  return Math.min(2 * soglia, Math.max(soglia, (base ?? 0) + Math.round(MARGINE_ROTAZIONE * soglia)))
+}
 export const BATTUTE_SEMINA = 10
 export const INATTIVO_MS = 10 * 60_000
 export const SILENZIO_SPECIALISTA_MS = 20 * 60_000
@@ -326,6 +337,8 @@ type StatoWs = {
   /** Quello che il turno in corso ha portato: torna in attesa se il processo muore. */
   inviati?: { messaggi: MessaggioUtente[]; eventi: EventoOrchestratore[] }
   ruota: boolean
+  /** 11/11: il contesto del primo turno della sessione di adesso: la soglia di rotazione si conta da lì. */
+  baseContesto?: number
   /** Guasti di fila: dal secondo si aspetta sempre di più, senza fermarsi mai. */
   tentativi: number
   /** Dopo un guasto si aspetta (backoff) prima del turno dopo. */
@@ -443,8 +456,10 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
     if (s.proc === undefined || inTurno(s) || specialistiAlLavoro(s.flusso).length > 0 || pronto(s)) return
     if (s.ruota) {
       s.ruota = false
+      const limite = sogliaDiRotazione(soglia, s.baseContesto)
+      s.baseContesto = undefined
       d.cambiaImpostazioni(ws, (i) => ({ ...i, sessione: undefined, daSeminare: true, rotazioni: (i.rotazioni ?? 0) + 1 }))
-      spegniSe(ws, s, `contesto oltre ${soglia} token: la prossima volta una sessione nuova, con lo stato e le ultime ${BATTUTE_SEMINA} battute`)
+      spegniSe(ws, s, `contesto oltre ${limite} token: la prossima volta una sessione nuova, con lo stato e le ultime ${BATTUTE_SEMINA} battute`)
       return
     }
     s.inattivo = setTimeout(() => { s.inattivo = undefined; if (!inTurno(s) && specialistiAlLavoro(s.flusso).length === 0) spegniSe(ws, s, `fermo da ${Math.round(inattivoMs / 60_000)} minuti; riparte con --resume`) }, inattivoMs)
@@ -456,7 +471,9 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
       if (e.tipo === 'sessione') d.cambiaImpostazioni(ws, (i) => ({ ...i, sessione: e.id, daSeminare: undefined }))
       else if (e.tipo === 'costo') {
         if (e.costo.contesto > 0) d.cambiaImpostazioni(ws, (i) => ({ ...i, contesto: e.costo.contesto }))
-        if (e.costo.contesto > soglia) s.ruota = true
+        // 11/11: la soglia si conta dal primo turno della sessione, non da zero (vedi `sogliaDiRotazione`).
+        if (s.baseContesto === undefined && e.costo.contesto > 0) s.baseContesto = e.costo.contesto
+        if (e.costo.contesto > sogliaDiRotazione(soglia, s.baseContesto)) s.ruota = true
       } else if (e.tipo === 'risposta') {
         if (e.errore !== undefined) {
           // Il turno è fallito: i messaggi non si perdono, e si riparte da soli con attesa crescente.
@@ -515,6 +532,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
         const motivo = separaAvvisiNode(stderr).resto.slice(-400) || `uscito con ${String(codice)}`
         if (!nuovaSess && sessionePersa(motivo) && !s.persa) {
           d.cambiaImpostazioni(ws, (i) => ({ ...i, sessione: undefined, daSeminare: true, rotazioni: (i.rotazioni ?? 0) + 1 }))
+          s.baseContesto = undefined
           s.persa = true
           metti(ws)
           return

@@ -988,7 +988,9 @@ ${NOTA_SENZA_GIT}`,
     fila.push({ chiave, chi: p.specialista ?? p.compito ?? p.ramo ?? '?', ...(idCompito !== undefined ? { compito: idCompito } : {}), p, tentativi: 0, inCorso: false })
     filaUnioni.set(ws, fila)
     if (fila.length === 1) void giraFila(ws)
-    else evento(ws, { tipo: 'unione', quando: x.adesso(), ...(p.specialista !== undefined ? { chat: p.specialista } : {}), testo: `${p.specialista ?? p.compito ?? p.ramo ?? '?'}: unione in fila, ${fila.length}ª: parte da sola quando ${fila[fila.length - 2]!.chi} ha finito` })
+    // 11/11: «in fila, Nª» sta già nello stato (UNIONI) e nella risposta di unisci. Come evento apriva ogni volta
+    // un turno dell'autopilota solo per dirlo a Nicholas (cinque in una mattina): non lo è più.
+    else console.info(`[orchestratore] ${ws} — ${p.specialista ?? p.compito ?? p.ramo ?? '?'}: unione in fila, ${fila.length}ª, dopo ${fila[fila.length - 2]!.chi}`)
     return fila.length
   }
   /** I compiti del workspace che hanno già un posto prenotato o sono nella lista d'attesa dei posti. */
