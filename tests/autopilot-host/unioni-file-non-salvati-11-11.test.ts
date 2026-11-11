@@ -212,6 +212,11 @@ describe('file non salvati nella cartella principale: la fila non resta ferma (1
     expect(domande.aperte()).toEqual([])
     expect(salvataggi(porte)).toEqual([])
     expect(porte.sporchi).toEqual(['pannello.js'])
+    // Voce 14: dopo l'unione la copia dello specialista si toglie ancora (adesso passando dallo stacco dei collegamenti), poi il ramo.
+    await attendi(() => porte.comandi.some((c) => verbo(c) === 'branch' && c.includes(R1)), { cosa: 'la copia e il ramo tolti dopo l’unione' })
+    const togli = porte.comandi.findIndex((c) => verbo(c) === 'worktree' && c[1] === 'remove')
+    expect(porte.comandi[togli]).toEqual(['worktree', 'remove', '--force', join(radice, '.claude', 'worktrees', 'agent-a1111111111111111')])
+    expect(togli).toBeLessThan(porte.comandi.findIndex((c) => verbo(c) === 'branch' && c.includes(R1)))
     maiVietati(porte)
   })
 

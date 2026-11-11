@@ -64,6 +64,7 @@ import { eErroreDiRete } from '@shared/errori-rete'
 import type { ArchivioAttesa } from './attesa-store'
 import { creaCambi, type Cambi } from '@shared/spinta-specialisti'
 import { attesaDopoScadenza, UNIONE_MAX_MS } from './tempi-unione'
+import { togliCopiaUnita } from './autopulizia'
 
 /** 0.89.4: dopo quanto il lavoro fermo sveglia l'autopilota. 11/11: senza un tetto di spinte (`lavoro-fermo.ts`). */
 export const FERMO_DOPO_MS = 3 * 60_000
@@ -1283,9 +1284,8 @@ ${NOTA_SENZA_GIT}`,
       s.add(o.sub.id)
       uniti.set(ws, s)
       if (o.cartella !== undefined && g !== undefined) {
-        void g(['worktree', 'remove', '--force', o.cartella], a.cwd)
-          .then(() => g(['branch', '-d', o.ramo], a.cwd))
-          .catch(() => { /* la pulizia lo ritrova */ })
+        // 11/11: prima si staccano i collegamenti (la giunzione a node_modules), poi git toglie la copia.
+        void togliCopiaUnita(g, { cwd: a.cwd, cartella: o.cartella, ramo: o.ramo }).catch(() => { /* la pulizia lo ritrova */ })
       }
     }
     if (sub !== undefined || (cartellaRitrovata && ramo !== undefined)) {
@@ -1296,9 +1296,8 @@ ${NOTA_SENZA_GIT}`,
       }
       // Il worktree del subagente non serve più: via (il ramo unito resta nella storia).
       if (cartella !== undefined && g !== undefined) {
-        void g(['worktree', 'remove', '--force', cartella], a.cwd)
-          .then(() => g(['branch', '-d', ramo!], a.cwd))
-          .catch(() => { /* la pulizia lo ritrova */ })
+        // 11/11: prima si staccano i collegamenti (la giunzione a node_modules), poi git toglie la copia.
+        void togliCopiaUnita(g, { cwd: a.cwd, cartella, ramo: ramo! }).catch(() => { /* la pulizia lo ritrova */ })
       }
     }
     const fresco = unicoDi(ws)

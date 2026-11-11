@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, lstatSync, symlinkSync, unlinkSync } from 'node:fs'
+import { copyFileSync, existsSync, lstatSync, rmdirSync, symlinkSync, unlinkSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import type { EsitoVerifica } from './verifiche'
 
@@ -75,7 +75,19 @@ export function preparaCopia(copia: string, principale: string): Preparazione {
 export function togliCollegamenti(copia: string): string[] {
   const moduli = join(copia, 'node_modules')
   if (!eCollegamento(moduli)) return []
-  try { unlinkSync(moduli); return ['node_modules'] } catch { return [] }
+  // Una giunzione si toglie con unlink o con rmdir a seconda del sistema: tutti e due tolgono solo il collegamento.
+  try { unlinkSync(moduli); return ['node_modules'] } catch {
+    try { rmdirSync(moduli); return ['node_modules'] } catch { return [] }
+  }
+}
+
+/**
+ * 11/11: il collegamento a `node_modules` è ancora lì? Chi sta per togliere la
+ * copia lo chiede dopo `togliCollegamenti`: se non si è staccato la copia non
+ * si tocca, perché dentro la giunzione c'è la cartella vera.
+ */
+export function collegamentoRimasto(copia: string): boolean {
+  return eCollegamento(join(copia, 'node_modules'))
 }
 
 /**
