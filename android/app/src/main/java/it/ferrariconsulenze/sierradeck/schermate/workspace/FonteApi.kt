@@ -24,9 +24,10 @@ class FonteApi(private val api: Api, private val id: String, private val workspa
     } != null
 }
 
-/** Le chat accese di quel workspace: quelle dell'archivio del PC col suo nome, che hanno un terminale. */
+/** Le chat accese di quel workspace (PC 0.82: `workspace` sulla chat; prima, dall'archivio per sessione). */
 fun chatDelWorkspace(s: Stato?, workspace: String): List<ChatDelWorkspace> {
-    if (s == null) return emptyList()
+    if (s == null || workspace.isBlank()) return emptyList()
     val sessioni = s.workspace.chat.filter { it.workspace == workspace }.map { it.sessione }.toSet()
-    return s.chat.filter { it.sessione != null && it.sessione in sessioni }.map { ChatDelWorkspace(it.id, it.nome ?: it.titolo.ifBlank { "Chat" }) }
+    return s.chat.filter { it.workspace == workspace || (it.workspace == null && it.sessione != null && it.sessione in sessioni) }
+        .map { ChatDelWorkspace(it.id, it.nome ?: it.titolo.ifBlank { "Chat" }) }
 }

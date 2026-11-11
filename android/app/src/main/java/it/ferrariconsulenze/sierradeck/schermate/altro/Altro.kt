@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import it.ferrariconsulenze.sierradeck.nucleo.Chat
 import it.ferrariconsulenze.sierradeck.rete.Api
 import it.ferrariconsulenze.sierradeck.schermate.comune.Aiuto
+import it.ferrariconsulenze.sierradeck.schermate.comune.TastoAzioniChat
 import it.ferrariconsulenze.sierradeck.schermate.comune.tocco
 import it.ferrariconsulenze.sierradeck.schermate.radice.SezioneAltro
 import it.ferrariconsulenze.sierradeck.schermate.tema.Banco
@@ -126,52 +127,21 @@ fun ElencoAltro(onApri: (SezioneAltro) -> Unit) {
 /** Tutte le chat del PC: tocco = la apre; «⋯» Rinomina e Chiudi (con conferma). */
 @Composable
 fun TutteLeChat(api: Api?, chat: List<Chat>, onApriChat: (String) -> Unit) {
-    var rinomina by remember { mutableStateOf<Chat?>(null) }
-    var chiudi by remember { mutableStateOf<Chat?>(null) }
     var nota by remember { mutableStateOf<String?>(null) }
-    val ambito = rememberCoroutineScope()
-    fun fai(cosa: suspend () -> Unit) = ambito.launch {
-        nota = try { cosa(); "Fatto." } catch (e: Api.Errore) { "Il computer non l’ha presa." } catch (e: Exception) { "Il computer non risponde. Riprova fra poco." }
-    }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 8.dp)) {
         nota?.let { item { Text(it, color = Banco.testoQuieto, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) } }
         if (chat.isEmpty()) item { Text("Nessuna chat accesa.", color = Banco.testoQuieto, modifier = Modifier.padding(16.dp)) }
         items(chat, key = { it.id }) { c ->
-            var menu by remember { mutableStateOf(false) }
+            val titolo = c.nome ?: c.titolo.ifBlank { "Chat" }
             Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f).tocco { onApriChat(c.id) }.padding(horizontal = 16.dp, vertical = 10.dp)) {
-                    Text(c.nome ?: c.titolo.ifBlank { "Chat" }, style = MaterialTheme.typography.titleSmall, color = Banco.testo, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    val sotto = when { c.chiede -> "aspetta te"; c.aspetta -> "ha finito, aspetta te"; c.governata -> "la guida l’autopilota"; else -> null }
-                    sotto?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = if (c.chiede) Banco.ambra else Banco.testoQuieto) }
+                    Text(titolo, style = MaterialTheme.typography.titleSmall, color = Banco.testo, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    val sotto = listOfNotNull(c.workspace, when { c.chiede -> "aspetta te"; c.aspetta -> "ha finito, aspetta te"; c.governata -> "la guida l’autopilota"; else -> null }).joinToString(" · ")
+                    if (sotto.isNotEmpty()) Text(sotto, style = MaterialTheme.typography.bodySmall, color = if (c.chiede) Banco.ambra else Banco.testoQuieto)
                 }
-                Box {
-                    IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Altro per questa chat") }
-                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                        DropdownMenuItem(text = { Text("Rinomina") }, onClick = { menu = false; rinomina = c })
-                        DropdownMenuItem(text = { Text("Chiudi") }, onClick = { menu = false; chiudi = c })
-                    }
-                }
+                TastoAzioniChat(api, c.id, titolo, onEsito = { nota = it })
             }
         }
-    }
-    rinomina?.let { c ->
-        var nome by remember(c.id) { mutableStateOf(c.nome ?: c.titolo) }
-        AlertDialog(
-            onDismissRequest = { rinomina = null },
-            title = { Text("Rinomina") },
-            text = { OutlinedTextField(nome, { nome = it }, singleLine = true) },
-            confirmButton = { Button(onClick = { rinomina = null; val n = nome.trim(); if (n.isNotEmpty() && api != null) fai { api.rinominaChat(c.id, n) } }) { Text("Salva") } },
-            dismissButton = { TextButton(onClick = { rinomina = null }) { Text("Annulla") } }
-        )
-    }
-    chiudi?.let { c ->
-        AlertDialog(
-            onDismissRequest = { chiudi = null },
-            title = { Text("Chiudere «${c.nome ?: c.titolo}»?") },
-            text = { Text("Il lavoro salvato resta; la chat si riapre dal PC.") },
-            confirmButton = { Button(onClick = { chiudi = null; if (api != null) fai { api.chiudiChat(c.id) } }) { Text("Chiudi") } },
-            dismissButton = { TextButton(onClick = { chiudi = null }) { Text("Annulla") } }
-        )
     }
 }
 

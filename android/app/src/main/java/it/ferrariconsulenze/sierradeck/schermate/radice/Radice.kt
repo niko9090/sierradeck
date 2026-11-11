@@ -67,6 +67,8 @@ import it.ferrariconsulenze.sierradeck.dati.Collegamento
 import it.ferrariconsulenze.sierradeck.dati.Deposito
 import it.ferrariconsulenze.sierradeck.nucleo.ComponiWorkspace
 import it.ferrariconsulenze.sierradeck.schermate.lavoro.SchermataLavoro
+import it.ferrariconsulenze.sierradeck.schermate.chat.SchermataDettaglioChat
+import it.ferrariconsulenze.sierradeck.schermate.chat.fonteStoria
 import it.ferrariconsulenze.sierradeck.schermate.altro.SchermataAltro
 import it.ferrariconsulenze.sierradeck.sottofondo.ToccoAvviso
 import it.ferrariconsulenze.sierradeck.schermate.workspace.FonteApi
@@ -144,14 +146,14 @@ private fun Collegata(vm: RadiceViewModel, pc: PcNoto, onEsci: () -> Unit) {
 
     BackHandler(enabled = true) { if (!vm.indietro()) onEsci() }
     // Le notifiche e le schermate di prima chiedono ancora un posto con `Apertura`.
-    LaunchedEffect(Apertura.richiesta) {
-        Apertura.richiesta?.let { (r, suPc) ->
+    // Il tocco su una notifica: dove porta, anche su un altro PC accoppiato.
+    val tocco by ToccoAvviso.richiesta.collectAsStateWithLifecycle()
+    LaunchedEffect(tocco) {
+        ToccoAvviso.prendiConPc()?.let { (r, suPc) ->
             if (suPc != null && suPc != pc.id && elenco.any { it.id == suPc }) vm.scegli(suPc)
-            vm.verso(r); Apertura.richiesta = null
+            vm.verso(r)
         }
     }
-    // Il tocco su una notifica (ramo delle notifiche): dove porta.
-    LaunchedEffect(ToccoAvviso.richiesta) { ToccoAvviso.prendi()?.let { vm.verso(it) } }
     LaunchedEffect(Apertura.schedaRichiesta) {
         Apertura.schedaRichiesta?.let { vm.verso(it); Apertura.schedaRichiesta = null }
     }
@@ -207,7 +209,7 @@ private fun Collegata(vm: RadiceViewModel, pc: PcNoto, onEsci: () -> Unit) {
 
 /** La riga in alto: il nome del PC (tocca per cambiarlo) e una parola colorata (tocca per riprovare). */
 @Composable
-private fun RigaInAlto(pc: PcNoto, parola: Parola, elenco: List<PcNoto>, onRiprova: () -> Unit, onScegli: (String) -> Unit, onAggiungi: () -> Unit) {
+internal fun RigaInAlto(pc: PcNoto, parola: Parola, elenco: List<PcNoto>, onRiprova: () -> Unit, onScegli: (String) -> Unit, onAggiungi: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     val colore = colorePer(parola.tono)
     Row(
@@ -243,7 +245,7 @@ internal fun colorePer(t: Parola.Tono): Color = when (t) {
 }
 
 @Composable
-private fun BarraTre(voce: VoceBarra, domande: Int, onTocca: (VoceBarra) -> Unit) {
+internal fun BarraTre(voce: VoceBarra, domande: Int, onTocca: (VoceBarra) -> Unit) {
     NavigationBar(containerColor = Banco.chassis) {
         for (v in VoceBarra.entries) {
             val pallino = v == VoceBarra.LAVORO && domande > 0
@@ -281,8 +283,8 @@ private fun iconaDi(v: VoceBarra): ImageVector = when (v) {
 private fun GuscioLavoro(pc: PcNoto, api: Api, dettaglio: Dettaglio?, copia: Deposito.Copia, collegamento: Collegamento, onApri: (Dettaglio) -> Unit, onIndietro: () -> Unit, onVersione: () -> Unit) {
     when (dettaglio) {
         is Dettaglio.Chat -> {
-            LaunchedEffect(dettaglio) { Apertura.chatRichiesta = dettaglio.id }
-            SchermataChat(api, copia.stato, collegamento)
+            val fonte = remember(api, dettaglio.id) { fonteStoria(api, dettaglio.id) }
+            SchermataDettaglioChat(pc.id, copia.stato?.chat?.firstOrNull { it.id == dettaglio.id }, dettaglio.id, fonte, api, onIndietro)
         }
         is Dettaglio.Autopilota -> {
             val a = copia.stato?.autopiloti?.firstOrNull { it.id == dettaglio.id }

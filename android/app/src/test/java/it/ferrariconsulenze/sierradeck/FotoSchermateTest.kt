@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import com.github.takahirom.roborazzi.captureRoboImage
@@ -37,6 +38,18 @@ import it.ferrariconsulenze.sierradeck.schermate.tema.Banco
 import it.ferrariconsulenze.sierradeck.schermate.tema.TemaSierraDeck
 import it.ferrariconsulenze.sierradeck.schermate.workspace.ChatDelWorkspace
 import it.ferrariconsulenze.sierradeck.schermate.workspace.CorpoWorkspace
+import it.ferrariconsulenze.sierradeck.schermate.radice.RigaInAlto
+import it.ferrariconsulenze.sierradeck.rete.PcNoto
+import it.ferrariconsulenze.sierradeck.schermate.radice.Parola
+import it.ferrariconsulenze.sierradeck.schermate.radice.BarraTre
+import it.ferrariconsulenze.sierradeck.schermate.radice.VoceBarra
+import it.ferrariconsulenze.sierradeck.nucleo.RigheChat
+import it.ferrariconsulenze.sierradeck.nucleo.Storia
+import it.ferrariconsulenze.sierradeck.nucleo.Scelte
+import it.ferrariconsulenze.sierradeck.nucleo.Opzione
+import it.ferrariconsulenze.sierradeck.schermate.chat.SchermataDettaglioChat
+import androidx.compose.material3.Scaffold
+import androidx.compose.foundation.layout.Box
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -128,6 +141,41 @@ class FotoSchermateTest {
             RichiestaCoda("r2", titoloParole = "Ricerca per ingredienti", stato = "in-coda", percento = 0.0)
         ))
         CorpoWorkspace("pc-finto", "a1", testa, emptyList(), true, ComponiWorkspace.chiLavora("Sito delle ricette", attesa, null), ComponiWorkspace.richieste(coda), emptyList(), linguettaIniziale = 1)
+    }
+
+    /** La radice intera, come la vede Nicholas: la riga in alto, Lavoro, la barra in basso. */
+    @Test fun radiceIntera() = foto("radice-lavoro") {
+        Scaffold(
+            containerColor = Banco.fondo,
+            topBar = { RigaInAlto(PcNoto("pc-finto", "PC dello studio", "x"), Parola("in WiFi", Parola.Tono.BENE), emptyList(), {}, {}, {}) },
+            bottomBar = { BarraTre(VoceBarra.LAVORO, 1) {} }
+        ) { spazi ->
+            Box(Modifier.padding(spazi)) {
+                val c = domanda("d1", "Pubblico la versione nuova dell’app del meteo?",
+                    listOf(SceltaScheda("Sì, pubblica", consigliata = true), SceltaScheda("Aspetta")), scade = "2026-11-11T10:40:00Z")
+                CorpoLavoro(ComponiLavoro.componi(Stato(autopiloti = autopiloti), ora, false, listOf(c), emptyMap(), ora))
+            }
+        }
+    }
+
+    @Test fun dettaglioChat() = foto("chat") {
+        val righe = listOf(
+            "> Aggiungi la pagina dei dolci",
+            "",
+            "● Leggo le pagine che ci sono già.",
+            "  ⎿  Lette 4 pagine",
+            "",
+            "● Preparo la pagina con le foto grandi.",
+            "  ⎿  Scritta pagine/dolci.html (120 righe)",
+            "",
+            "Vuoi che la pubblichi adesso?"
+        )
+        val r = RigheChat().unisci(Storia(da = 40, righe = righe))
+        val scelte = Scelte(listOf(Opzione(1, "Sì"), Opzione(2, "No, aspetta")))
+        SchermataDettaglioChat(
+            "pc-finto", Chat(id = "c1", titolo = "Pagina dei dolci", chiede = true), "c1",
+            { Storia(da = 48, righe = listOf("Vuoi che la pubblichi adesso?"), scelte = scelte) }, null, {}, iniziali = r, scelteIniziali = scelte
+        )
     }
 
     @Test fun altroElenco() = foto("altro") { ElencoAltro {} }
