@@ -842,6 +842,8 @@ contextBridge.exposeInMainWorld('gestore', {
     apri: (r: { cwd: string; sessionUuid: string; titolo: string; caso: string; titoloDiagnosi: string; dettaglio: string; ultimeRighe: string[] }): Promise<{ ptyId: string; dossier: string }> =>
       ipcRenderer.invoke('risoluzione:apri', r)
   },
+  /** L'elenco dei modelli: quello fisso più i nuovi che il programma ha scoperto. */
+  modelli: (): Promise<import('@shared/modelli').Modello[]> => ipcRenderer.invoke('modelli:elenco'),
   autopilota: {
     elenca: (): Promise<Autopilota[]> => ipcRenderer.invoke('autopilota:elenca'),
     /** Spinta a evento: uno specialista è partito, finito o ha cambiato posto in lista. */

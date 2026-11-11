@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fraseStatoOrchestratore, type VistaOrchestratore } from '@shared/piano-orchestratore'
+import { modelliAutopilota } from '@shared/modelli'
+import { useModelli } from '../modelli'
 import { creaSondaggio, useSondaggio, type Sondaggio } from '../state/sondaggio'
 import { Aiuto } from './Aiuto'
 
@@ -40,6 +42,7 @@ export function TestaOrchestratore({ workspace, children }: { workspace: string;
   const [errore, setErrore] = useState<string | undefined>(undefined)
   const [finitiAperti, setFinitiAperti] = useState(false)
   const [tendina, setTendina] = useState(false)
+  const modelliCoordinare = modelliAutopilota(useModelli())
   // Un servizio di prima, senza l'orchestratore: il resto si vede com'era.
   if (v === undefined) return <>{children}</>
   // 0.89.2: una frase su cosa succede adesso; i numeri solo del lavoro aperto.
@@ -48,7 +51,7 @@ export function TestaOrchestratore({ workspace, children }: { workspace: string;
   const daPianificare = v.richieste?.daPianificare ?? 0
   const attivi = v.specialisti.filter((c) => c.stato === 'lavoro' || c.stato === 'avviato')
   const finiti = v.specialisti.filter((c) => c.stato !== 'lavoro' && c.stato !== 'avviato')
-  const cambia = (p: { modello?: 'sonnet' | 'opus'; tettoSpecialisti?: number }): void => {
+  const cambia = (p: { modello?: string; tettoSpecialisti?: number }): void => {
     setErrore(undefined)
     window.gestore.autopilota.impostaOrchestratore(workspace, p)
       .then(() => s.rileggi())
@@ -103,9 +106,13 @@ export function TestaOrchestratore({ workspace, children }: { workspace: string;
         <div className="coda-ws__corpo">
           <label>
             Modello{' '}
-            <select value={v.modello} onChange={(e) => cambia({ modello: e.target.value === 'opus' ? 'opus' : 'sonnet' })}>
-              <option value="opus">Opus (il migliore, consigliato per chi coordina)</option>
-              <option value="sonnet">Sonnet (consuma meno, meno preciso nel coordinare)</option>
+            <select value={v.modello} onChange={(e) => cambia({ modello: e.target.value })}>
+              {modelliCoordinare.some((m) => m.valore === v.modello) ? null : <option value={v.modello}>{v.modello}</option>}
+              {modelliCoordinare.map((m) => (
+                <option key={m.valore} value={m.valore}>
+                  {m.valore === 'opus' ? 'Opus — l’ultimo (consigliato per chi coordina)' : m.valore === 'sonnet' ? 'Sonnet — l’ultimo (consuma meno)' : m.etichetta}
+                </option>
+              ))}
             </select>
           </label>{' '}
           <label>

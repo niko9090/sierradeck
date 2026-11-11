@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { modelloAutopilotaAmmesso } from '@shared/modelli'
 import { existsSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { createInterface } from 'node:readline'
@@ -468,7 +469,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
     const nuovaSess = imp.sessione === undefined
     const id = imp.sessione ?? nuova()
     const args = argomentiOrchestratore({
-      modello: imp.modello === 'sonnet' ? 'sonnet' : MODELLO_ORCHESTRATORE,
+      modello: modelloAutopilotaAmmesso(imp.modello) && imp.modello !== 'opus' ? imp.modello : MODELLO_ORCHESTRATORE,
       sessione: { id, nuova: nuovaSess },
       mcpConfig: ctx.mcpConfig, agenti: ctx.agenti, impostazioni: ctx.impostazioniCli
     })

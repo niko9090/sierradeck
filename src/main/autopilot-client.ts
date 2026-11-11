@@ -162,7 +162,7 @@ export type ClientAutopilota = {
   orchestratore: (ws: string) => Promise<VistaOrchestratore | undefined>
   /** 0.90.0: la conversazione di uno specialista. */
   specialista: (ws: string, id: string) => Promise<TrascrizioneSpecialista | undefined>
-  impostaOrchestratore: (ws: string, p: { modello?: 'sonnet' | 'opus'; tettoSpecialisti?: number }) => Promise<VistaOrchestratore>
+  impostaOrchestratore: (ws: string, p: { modello?: string; tettoSpecialisti?: number }) => Promise<VistaOrchestratore>
   /** k-48: la lista d'attesa degli specialisti. Un servizio vecchio non ce l'ha: `undefined`. */
   attesaSpecialisti: () => Promise<VistaAttesa | undefined>
   prioritaAttesa: (id: string, mossa: MossaAttesa) => Promise<VistaAttesa | undefined>
