@@ -114,6 +114,35 @@ describe('errori di rete passeggeri', () => {
     }
   })
 
+  // 11/11: il download dell'installer fallisce con un Error semplice, senza statusCode e senza Headers.
+  const scarico = (n: number, frase = ''): string => `Cannot download "https://github.com/esempio/prova/releases/download/v9.9.9/SierraDeck-Setup-9.9.9.exe", status ${n}: ${frase}`
+
+  it('«Cannot download "<url>", status 504:» è passeggero come gli altri 502, 503 e 504', () => {
+    for (const n of [502, 503, 504]) {
+      expect(eErroreDiReteTransitorio(scarico(n))).toBe(true)
+      expect(eErroreDiReteTransitorio(scarico(n, 'Gateway Time-out'))).toBe(true)
+      const { a, righe } = nuovo()
+      h.updater.emit('error', new Error(`${scarico(n)}\n    at ClientRequest.<anonymous> (httpExecutor.js:245:34)`))
+      expect(a.stato().fase).not.toBe('errore')
+      expect(righe.filter((r) => r.startsWith('ERRORE'))).toEqual([])
+      expect(righe.filter((r) => /passeggero/.test(r))).toHaveLength(1)
+      const l = creaLoggerUpdater({ info: (m) => righe.push(`info ${m}`), errore: (m) => righe.push(`ERRORE ${m}`) })
+      l.error(scarico(n))
+      expect(righe.some((r) => r.startsWith('ERRORE'))).toBe(false)
+    }
+  })
+
+  it('«status» con un altro codice, o fuori dal download, resta com’era', () => {
+    expect(eErroreDiReteTransitorio(scarico(500, 'Internal Server Error'))).toBe(false)
+    expect(eErroreDiReteTransitorio(scarico(404, 'Not Found'))).toBe(false)
+    expect(eErroreDiReteTransitorio(scarico(5040))).toBe(false)
+    expect(eErroreDiReteTransitorio('lo status 504 di un altro posto')).toBe(false)
+    expect(eErroreDiReteTransitorio(`Cannot download differentially, fallback to full download: Error: ${scarico(504)}`)).toBe(false)
+    const { a } = nuovo()
+    h.updater.emit('error', new Error(scarico(500, 'Internal Server Error')))
+    expect(a.stato().fase).toBe('errore')
+  })
+
   it('un 501, un 404 e un 504 nel mezzo del testo restano errori', () => {
     for (const e of [httpSenzaCodice(501, 'Not Implemented'), httpSenzaCodice(404, 'Not Found'), new Error('errore alla riga 504 del file'), new Error('errore 504\nHeaders: {}')]) {
       const { a } = nuovo()
