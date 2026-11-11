@@ -1,8 +1,26 @@
-import type { Autopilota, ChatGovernata, Traguardo } from './autopilota'
+import type { Autopilota, ChatGovernata, ScambioDialogo, Traguardo } from './autopilota'
 import { FERMA_DA_DIRE_MS, SILENZIO_DA_DIRE_MS } from './autopilota'
 import { vociDecisioni } from './diario-autopilota'
 import { RUOLI } from './ruoli-agenti'
 import { leggiRigaRisposta } from './risposte-in-viaggio'
+import { campiScadenza, decisaDaDialogo, scadenzaDaTesto } from './scadenza-domanda'
+import type { DecisaDomanda } from './scheda-domanda'
+
+/**
+ * 11/11: i campi di una sua domanda nella chat. Aperta: i tasti, la
+ * consigliata, la scadenza. Chiusa: come è finita (dalle righe dopo di lei;
+ * senza, non serve più).
+ */
+function campiBolla(s: ScambioDialogo, dialogo: readonly ScambioDialogo[]): Pick<Battuta, 'domanda' | 'decisa'> {
+  const d = s.domanda
+  if (d === undefined) return {}
+  if (d.chiusa === true) {
+    const dopo = dialogo.slice(dialogo.indexOf(s) + 1)
+    return { decisa: decisaDaDialogo(s.testo, dopo) ?? { come: 'ritirata', testo: 'Non serve più', quando: s.quando } }
+  }
+  if (d.scelte.length === 0) return {}
+  return { domanda: { id: d.id, scelte: d.scelte, ...(d.scelte[0] !== undefined ? { consigliata: d.scelte[0] } : {}), ...campiScadenza(scadenzaDaTesto(s.testo, s.quando)) } }
+}
 
 /**
  * Una riga della chat con l'autopilota.
@@ -26,8 +44,14 @@ export type Battuta = {
   tono?: 'domanda' | 'decisione' | 'correzione' | 'preparazione' | 'lavoro' | 'pronto' | 'fine' | 'fermo' | 'traguardo'
   /** Quante volte di fila la stessa nota: dieci riprese uguali sono una riga. */
   volte?: number
-  /** 0.96.0: una sua domanda ancora aperta, con le scelte da toccare (sul PC). */
-  domanda?: { id: string; scelte: string[] }
+  /**
+   * 0.96.0: una sua domanda ancora aperta, con le scelte da toccare (sul PC).
+   * 11/11: `consigliata` (la prima scelta, come la segna il servizio), e se e
+   * quando sceglie il programma (`scadeIl` ISO, `rischiosa`: `scadenza-domanda.ts`).
+   */
+  domanda?: { id: string; scelte: string[]; consigliata?: string; scadeIl?: string; rischiosa?: boolean }
+  /** 11/11: una sua domanda della chat già chiusa: come è finita («Hai risposto», «Ha scelto il programma», «Non serve più»). */
+  decisa?: DecisaDomanda
 }
 
 /**
@@ -102,7 +126,7 @@ export function conversazione(a: Autopilota): Battuta[] {
     // 0.96.0: una sua domanda nuova sta prima di tutto qui, ben visibile; i tasti
     // restano finché non ha risposta.
     if (s.da === 'lui' && s.domanda !== undefined) {
-      metti({ quando: s.quando, da: 'lui', testo: s.testo, tono: 'domanda', ...(s.domanda.chiusa !== true && s.domanda.scelte.length > 0 ? { domanda: { id: s.domanda.id, scelte: s.domanda.scelte } } : {}) })
+      metti({ quando: s.quando, da: 'lui', testo: s.testo, tono: 'domanda', ...campiBolla(s, a.dialogo) })
       continue
     }
     metti({
@@ -122,7 +146,8 @@ export function conversazione(a: Autopilota): Battuta[] {
     metti({
       quando: a.ultimoEvento,
       da: 'nota',
-      testo: a.stato === 'pronto' ? 'Aspetta il tuo via: è nella linguetta «Domande» qui sotto.' : 'Ti ha fatto una domanda: è nella linguetta «Domande» qui sotto.'
+      // 11/11: senza dire dove: l'app nuova non ha la linguetta «Domande», e la domanda sta nella chat o nelle Domande.
+      testo: a.stato === 'pronto' ? 'Aspetta il tuo via.' : 'Ti ha fatto una domanda: aspetta la tua risposta.'
     })
   } else if (a.stato === 'finito') {
     metti({ quando: a.ultimoEvento, da: 'nota', testo: 'Ha finito.', tono: 'fine' })

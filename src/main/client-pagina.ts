@@ -38,6 +38,7 @@ import { testoEsito } from '@shared/quaderno-personale'
 import { FRASE_GROSSO_FUORI, drivePienoDa, eseguiPasso, grossoFuoriDaSierraDeck, passiDa, percentualeDrive, ripartizioneDrive, righeDa, riepilogoFinale } from '@shared/libera-spazio'
 import { RECUPERO_DRIVE_PIENO_DEFAULT } from '@shared/spazio-drive'
 import { ATTIVITA, ATTIVITA_ORDINE, COLORI, TITOLO_LEGENDA } from '@shared/colori-attivita'
+import { rigaDecisa, rigaSeNonRispondi } from '@shared/scadenza-domanda'
 
 /** I segni delle quattro voci nella fascia (0.83.0): si leggono anche in piccolo, mai emoji. */
 const ICONE_TELEFONO: Record<IdTelefono, string> = { adesso: '◉', chat: '▭', progetti: '▦', altro: '☰' }
@@ -743,6 +744,9 @@ var CONFERME = ${JSON.stringify({
 // Il recupero dei workspace (0.81.0): il «?» e la riga sotto il nome, come sul PC e nell'app.
 var AIUTO_ELIMINA_WS = ${JSON.stringify(AIUTO_ELIMINA_WORKSPACE)}
 ${rigaEliminato.toString()}
+// 11/11: sotto una domanda, se e quando sceglie il programma, e come è finita (src/shared/scadenza-domanda.ts).
+${rigaSeNonRispondi.toString()}
+${rigaDecisa.toString()}
 // Il menu dei workspace (0.82.0): i gruppi e le azioni dietro «⋯», gli stessi del PC (src/shared/menu-workspace.ts).
 ${gruppiMenuWorkspace.toString()}
 ${azioniMenuWorkspace.toString()}
@@ -1048,6 +1052,22 @@ async function chiediAp(percorso, corpo, conEtag) {
  */
 /** I colori degli stati in una parola (0.70.0), come sul PC. */
 const COLORE_VISTA = { verde: 'var(--verde,#3c9)', ambra: 'var(--ambra,#e0a33c)', rosso: 'var(--rosso,#dc5f5f)', blu: 'var(--blu,#4aa3ff)', quieto: 'var(--testo-quieto,#9aa1a9)' }
+/** 11/11: il colore della frase di adesso, dal suo tono (lo stesso della riga sotto la percentuale sul PC). */
+const COLORE_TONO = { lavora: 'var(--verde,#3c9)', aspetta: 'var(--ambra,#e0a33c)', fermo: 'var(--rosso,#dc5f5f)', riposo: 'var(--testo-quieto,#9aa1a9)' }
+/** 11/11: cosa succede adesso, in una frase scritta dal PC; da un PC di prima lo stato in una parola. */
+function fraseApHtml(a) {
+  if (a.adesso && a.adesso.testo) return '<b style="color:' + (COLORE_TONO[a.adesso.tono] || COLORE_TONO.riposo) + '">' + esc(a.adesso.testo) + '</b>'
+  return a.vista ? '<b style="color:' + COLORE_VISTA[a.vista.stato.colore] + '">' + esc(a.vista.stato.parola) + '</b>' : ''
+}
+/** 11/11: la riga sotto il nome: la frase, la percentuale vera (al posto di «criteri —») e quanto manca. */
+function sottoApHtml(a, coda) {
+  const av = a.avanzamento || {}
+  const pezzi = [fraseApHtml(a)]
+  if (typeof av.percento === 'number') pezzi.push(av.percento + '%')
+  if (typeof av.mancaMin === 'number') pezzi.push('mancano ~' + (av.mancaMin >= 90 ? Math.round(av.mancaMin / 60) + ' ore' : av.mancaMin + ' min'))
+  else if (a.vista && a.vista.da) pezzi.push('da ' + esc(a.vista.da))
+  return '<span class="voce__sotto">' + pezzi.filter(Boolean).join(' · ') + (coda || '') + '</span>' + (a.vista && a.vista.ultima ? '<span class="voce__sotto">' + esc(a.vista.ultima) + '</span>' : '')
+}
 /**
  * Il riquadro «Adesso» (0.81.0, come sul PC): una riga per chat, cosa fa, da
  * quanto, e se è ferma perché. Le righe arrivano calcolate dal computer.
@@ -1130,7 +1150,7 @@ function altriApHtml() {
           '<span class="voce__testo"><span class="voce__nome">' + esc(a.nome) + '</span>' +
           // 0.73.0: le stesse parole delle righe di questo PC (la vista calcolata là); le vecchie solo per un PC che non la manda.
           (a.vista
-            ? '<span class="voce__sotto"><b style="color:' + COLORE_VISTA[a.vista.stato.colore] + '">' + esc(a.vista.stato.parola) + '</b>' + (a.vista.da ? ' · da ' + esc(a.vista.da) : '') + ' · criteri ' + esc(a.vista.criteri.testo) + ' · gira su ' + esc(p.nome) + '</span>' + (a.vista.ultima ? '<span class="voce__sotto">' + esc(a.vista.ultima) + '</span>' : '')
+            ? sottoApHtml(a, ' · gira su ' + esc(p.nome))
             : '<span class="voce__sotto">gira su ' + esc(p.nome) + ' · ' + esc(a.strategia ? 'bloccato, provo: ' + a.strategia : (a.motivo || a.stato)) + (a.criteri !== undefined ? ' · ' + a.fatti + '/' + a.criteri : '') + '</span>' + dalVivoHtml(a.dalVivo)) + '</span>' +
           '<span class="voce__freccia">›</span></button>').join('')).join('')
 }
@@ -1341,6 +1361,13 @@ function richiestaDi(r, testo) {
  * ★), il campo «Scrivi tu», e il resto dietro il «?». Nessuna cronologia.
  * \`tasto(c)\` fa il tasto di una scelta; \`campo\` il campo e il tasto per mandare.
  */
+/** 11/11: la riga sotto una domanda: se e quando sceglie il programma, o come è finita. */
+function sottoDomandaHtml(seNonRispondi, decisa, tag) {
+  const t = tag || 'span'
+  const riga = decisa ? rigaDecisa(decisa) : seNonRispondi
+  if (!riga) return ''
+  return '<' + t + ' class="' + (t === 'span' ? 'battuta__esito' : 'sotto') + ' sotto-domanda">' + esc(riga) + '</' + t + '>'
+}
 function schedaDomandaHtml(s, k, tasto, campo) {
   var dettagli = (s.dettagli || []).map(function (d) {
     return '<div class="serigrafia" style="margin-top:6px">' + esc(d.etichetta) + '</div><div style="white-space:pre-wrap">' + esc(d.testo) + '</div>'
@@ -1348,8 +1375,12 @@ function schedaDomandaHtml(s, k, tasto, campo) {
   return '<div class="sotto" style="display:flex;gap:6px;align-items:center">' + esc(s.chi) +
       (s.poi ? ' · poi ' + (s.poi === 1 ? 'un’altra' : 'altre ' + s.poi) : '') + (dettagli ? aiuto('sd-' + k, dettagli) : '') + '</div>' +
     '<div class="grande domanda-ap" style="font-weight:600">' + esc(s.domanda) + '</div>' +
-    (s.risposta ? '<div class="sotto" style="color:var(--verde)">risposta dall’autopilota: ' + esc(s.risposta) + '</div>' : '') +
-    (s.superata ? '<div class="sotto">chiusa senza risposta, non serve più: ' + esc(s.superata) + '</div>' : '') +
+    // 11/11: come è finita («Ha scelto il programma: …») dal PC; da un PC di prima le righe di prima.
+    (s.decisa ? '<div class="sotto"' + (s.decisa.come === 'ritirata' ? '' : ' style="color:var(--verde)"') + '>' + esc(rigaDecisa(s.decisa)) + '</div>' : '') +
+    (!s.decisa && s.risposta ? '<div class="sotto" style="color:var(--verde)">risposta dall’autopilota: ' + esc(s.risposta) + '</div>' : '') +
+    (!s.decisa && s.superata ? '<div class="sotto">chiusa senza risposta, non serve più: ' + esc(s.superata) + '</div>' : '') +
+    // 11/11: «Se non rispondi: fra 40 min scelgo io «X»» o «Aspetta te».
+    (!s.decisa && !s.risposta && !s.superata ? sottoDomandaHtml(rigaSeNonRispondi(s.scadeIl, s.rischiosa, ((s.scelte || []).find(function (c) { return c.consigliata }) || {}).testo, Date.now()), undefined, 'div') : '') +
     sceltePagina(s.scelte || [], function (c) { return c.libera ? tastoScrivi(c, campo.id) : tasto(c) }) +
     apriAltroveHtml(s) +
     '<div class="riga"><textarea id="' + campo.id + '" rows="2" placeholder="' + esc(s.segnaposto || 'Scrivi tu') + '"></textarea></div>' +
@@ -2226,7 +2257,7 @@ function pannello(s) {
     inMoto.map((a) =>
       '<div class="polso"><span class="led ' + led(a) + '"></span>' +
       '<span class="polso__nome">' + esc(a.nome) + '</span>' +
-      '<span class="polso__misura">' + (a.criteri ? Math.round(a.fatti / a.criteri * 100) : 0) + '%</span></div>'
+      '<span class="polso__misura">' + (a.avanzamento && typeof a.avanzamento.percento === 'number' ? a.avanzamento.percento + '%' : (a.criteri ? Math.round(a.fatti / a.criteri * 100) + '%' : '')) + '</span></div>'
     ).join('') +
     chatInMoto.map(rigaChatPolso).join('') +
     (chatAltre.length > 0 ? '<div class="serigrafia riga-polso" style="margin-top:var(--s2)">ALTRE CHAT<span>' + chatAltre.length + '</span></div>' + chatAltre.map(rigaChatPolso).join('') : '')
@@ -2290,7 +2321,7 @@ function pannello(s) {
     <div class="piastrella \${apRiassunto ? 'riassunto-aperto' : 'riassunto-chiuso'}">
       <div class="solo-riassunto">
       <div style="\${panoramicaAp && panoramicaAp.situazione ? 'display:none' : ''}">
-      <div class="sotto">\${apAperto.vista ? '<b style="color:' + COLORE_VISTA[apAperto.vista.stato.colore] + '">' + esc(apAperto.vista.stato.parola) + '</b>' + (apAperto.vista.da ? ' · da ' + esc(apAperto.vista.da) : '') + (apAperto.vista.stato.ragione ? ' · ' + esc(apAperto.vista.stato.ragione) : '') : esc(apAperto.strategia ? 'bloccato, provo: ' + apAperto.strategia : (apAperto.motivo || apAperto.stato))}</div>
+      <div class="sotto">\${apAperto.vista ? fraseApHtml(apAperto) + (apAperto.vista.da ? ' · da ' + esc(apAperto.vista.da) : '') + (apAperto.vista.stato.ragione ? ' · ' + esc(apAperto.vista.stato.ragione) : '') : esc(apAperto.strategia ? 'bloccato, provo: ' + apAperto.strategia : (apAperto.motivo || apAperto.stato))}</div>
       \${percentoAvanzamento(apAvanzamento) !== undefined ? '<div class="misura-riga">' + Math.round(percentoAvanzamento(apAvanzamento)) + '%</div><div class="barra"><i style="width:' + Math.max(0, Math.min(100, Math.round(percentoAvanzamento(apAvanzamento)))) + '%"></i></div>' : ''}
       </div>
       \${apDettaglio ? panoramicaHtml(panoramicaAp, 'testa') : ''}
@@ -2311,7 +2342,7 @@ function pannello(s) {
       <span class="voce__testo">
         <span class="voce__nome">\${esc(a.nome)}</span>
         \${a.vista
-          ? '<span class="voce__sotto"><b style="color:' + COLORE_VISTA[a.vista.stato.colore] + '">' + esc(a.vista.stato.parola) + '</b>' + (a.vista.da ? ' · da ' + esc(a.vista.da) : '') + ' · criteri ' + esc(a.vista.criteri.testo) + '</span>' + (a.vista.ultima ? '<span class="voce__sotto">' + esc(a.vista.ultima) + '</span>' : '')
+          ? sottoApHtml(a)
           : '<span class="voce__sotto">' + esc(a.strategia ? 'bloccato, provo: ' + a.strategia : (a.motivo || a.stato)) + ' · ' + a.fatti + '/' + a.criteri + '</span>' + dalVivoHtml(a.dalVivo)}
       </span>
       <span class="voce__freccia">›</span>
@@ -3310,7 +3341,7 @@ function panoramicaRestoHtml(p) {
 /** La Panoramica della 0.77.0, per un PC che non manda ancora situazione e piano. */
 function panoramicaVecchiaHtml(p) {
   const r = p.riassunto
-  const riga = r ? '<div class="pan-tel-riga"><b>' + esc(r.obiettivo) + '</b><span class="pan-tel-stato pan-tel-stato--' + esc(r.stato.colore) + '">' + esc(r.stato.parola) + '</span><span class="sotto">criteri ' + esc(r.criteri.testo) + '</span></div>' : ''
+  const riga = r ? '<div class="pan-tel-riga"><b>' + esc(r.obiettivo) + '</b><span class="pan-tel-stato pan-tel-stato--' + esc(r.stato.colore) + '">' + esc(r.stato.parola) + '</span>' + (r.criteri && r.criteri.testo && r.criteri.testo !== '—' ? '<span class="sotto">criteri ' + esc(r.criteri.testo) + '</span>' : '') + '</div>' : ''
   return '<div class="pan-tel">' + riga + '<div class="serigrafia" style="margin-top:8px">Panoramica</div>' + (p.schede.map((s) => schedaTelHtml(s, 2)).join('') || '<div class="sotto">Nessuna chat: l’autopilota le apre quando serve.</div>') + '</div>'
 }
 window.apriDaPanoramica = async (id) => {
@@ -3330,6 +3361,8 @@ function riassuntoApTesto(ap, d) {
   const parole = { lavoro: 'al lavoro', intervista: 'si prepara', attesa: 'aspetta te', pronto: 'pronto', sospeso: 'fermo', fallito: 'guasto', finito: 'finito' }
   pezzi.push(ap.vista ? ap.vista.stato.parola : (parole[ap.stato] || ap.stato))
   if (ap.criteri) pezzi.push('criteri ' + ap.fatti + '/' + ap.criteri)
+  // 11/11: la percentuale vera del workspace, dal PC.
+  else if (ap.avanzamento && typeof ap.avanzamento.percento === 'number') pezzi.push(ap.avanzamento.percento + '%')
   const chat = d && d.chats ? d.chats.length : 0
   if (chat > 0) pezzi.push(chat + ' chat')
   const giri = (d && d.cicli) || 0
@@ -3368,6 +3401,7 @@ function vistaAutopilota(a) {
       '<span class="battuta__chi">' + (b.da === 'lui' ? esc(a.nome || 'lui') : 'tu') + ' · ' + ora(b.quando) + '</span>' +
       '<span>' + esc(b.testo) + '</span>' +
       (b.dettaglio ? '<span class="battuta__esito">' + esc(b.dettaglio) + '</span>' : '') +
+      sottoDomandaHtml(b.domanda ? rigaSeNonRispondi(b.domanda.scadeIl, b.domanda.rischiosa, b.domanda.consigliata, Date.now()) : '', b.decisa) +
       '</div>'
   }).join('')
   const pensa = a.pensa
@@ -3387,7 +3421,7 @@ function vistaAutopilota(a) {
       micHtml('dialogo-' + a.id) +
       // I file dal telefono (0.50.0): nella sua cartella, e il messaggio nel suo dialogo.
       '<button data-ap="' + esc(a.id) + '" onclick="scegliFileAp(this.dataset.ap)" title="Scegli file: lo mandi a questo autopilota (fino a 100 MB). Finisce nella sua cartella di lavoro, in .sierradeck/allegati, fuori da git, e lui lo trova nel dialogo. Se nella casella hai scritto qualcosa, va come nota.">📎 Allega</button>' +
-      '<span class="sotto info-ap" role="note" tabindex="0" aria-label="Spiegazione: come parlare all’autopilota" title="Qui parli con l’autopilota, non con la chat che esegue. Risponde con parole sue; se è un’istruzione la applica e la consegna alla chat alla fine del turno che ha in mano. Se ha una domanda aperta, quello che scrivi è la risposta e arriva subito.">?</span>' +
+      '<span class="sotto info-ap" role="note" tabindex="0" aria-label="Spiegazione: come parlare all’autopilota" title="Qui parli con l’autopilota, non con la chat che esegue. Risponde con parole sue; se è un’istruzione la applica e la consegna alla chat alla fine del turno che ha in mano. Se ti ha fatto una domanda qui in chat, tocca una scelta o scrivi il suo numero: un testo libero vale come risposta solo nella prima mezz’ora, poi è un messaggio nuovo. Una domanda su cose tue (cancellare, account, soldi) resta aperta finché non rispondi.">?</span>' +
     '</div>' +
     (notaDialogo ? '<div class="errore">' + esc(notaDialogo) + '</div>' : '') +
     (allegatoNota ? '<div class="sotto">' + esc(allegatoNota) + '</div>' : '') + '</div>'

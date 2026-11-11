@@ -1,6 +1,7 @@
 import type { Autopilota } from './autopilota'
 import { conversazione } from './chat-autopilota'
 import { SUPERATA, eSuperata, leggiIdChatAltroPc, type OpzioneScelta, type VoceDomanda } from './domande-telefono'
+import { campiScadenza, decisaDaRisolta, rigaDecisa, scadenzaDi } from './scadenza-domanda'
 import { chiDi, fraseDomanda, opzioneInItaliano, schedaDaParti, schedaDaTesto, scelteDiChat, type ApriChatAltrove, type DettaglioScheda, type SchedaDomanda } from './scheda-domanda'
 
 /**
@@ -157,6 +158,8 @@ export function conversazioniDomande(p: {
         ? schedaDaParti(chi, v.parti, { ...(v.avvertenza !== undefined ? { avvertenza: v.avvertenza } : {}), segnaposto: segnapostoAp })
         : schedaDaTesto(chi, v.testo, (v.opzioni ?? []).map((testo) => ({ testo })), segnapostoAp)
       if (v.origine === 'intervista') scheda.dettagli.unshift({ etichetta: 'Quando', testo: 'Si sta preparando: senza la tua risposta non comincia.' })
+      // 11/11: se e quando sceglie il programma (`scadenza-domanda.ts`).
+      Object.assign(scheda, campiScadenza(scadenzaDi({ ...(v.apertaIl !== undefined ? { apertaIl: v.apertaIl } : {}), contesto: v.rischio })))
       fuori.push({
         chiave,
         tipo: 'autopilota',
@@ -322,9 +325,13 @@ export function conversazioniDomande(p: {
     // Una domanda superata (0.84.0) non ha avuto risposta: si dice che è
     // stata chiusa e perché (collaudo 0.84.1).
     const superata = eSuperata(v)
+    // 11/11: come è finita, e «Ha scelto il programma: X» quando l'ha decisa il programma.
+    const decisa = decisaDaRisolta(v)
     const coppia: MessaggioConversazione[] = [
       { da: 'lui', testo: `${v.chatTitolo !== undefined ? `La chat «${v.chatTitolo}» ha chiesto` : 'La chat ha chiesto'}: ${v.domanda}`, quando: v.quando },
-      superata
+      superata && decisa.come === 'programma'
+        ? { da: 'nota', testo: rigaDecisa(decisa), quando: v.quando, tono: 'risolta' }
+        : superata
         ? { da: 'nota', testo: `chiusa senza risposta, non serve più: ${v.risposta.slice(SUPERATA.length)}`, quando: v.quando, tono: 'risolta' }
         : { da: 'nota', testo: `risposta dall’autopilota: ${v.risposta}`, quando: v.quando, tono: 'risolta' }
     ]
@@ -345,6 +352,7 @@ export function conversazioniDomande(p: {
           dettagli: [{ etichetta: v.chatTitolo !== undefined ? `La domanda della chat «${v.chatTitolo}»` : 'La domanda della sua chat', testo: v.domanda }],
           // Una superata non ha risposta (collaudo 0.84.1): solo il motivo.
           ...(superata ? { superata: v.risposta.slice(SUPERATA.length) } : { risposta: v.risposta }),
+          decisa,
           segnaposto: 'Scrivigli se la risposta non va bene'
         },
         messaggi: [],

@@ -4538,6 +4538,8 @@ if (!app.requestSingleInstanceLock()) {
           const [orchestratore, coda] = await Promise.all([clientAutopilota.orchestratore(ws), clientAutopilota.coda(ws)])
           return { ...(orchestratore !== undefined ? { orchestratore } : {}), ...(coda !== undefined ? { coda } : {}) }
         },
+        // 11/11: solo la vista dell'orchestratore, per lo stato del telefono in `/api/stato`.
+        orchestratoreWorkspace: (ws: string) => clientAutopilota.orchestratore(ws),
         specialistaAutopilota: (ws: string, id: string) => clientAutopilota.specialista(ws, id),
         attesaSpecialisti: () => clientAutopilota.attesaSpecialisti(),
         prioritaAttesaSpecialisti: (id: string, mossa: import('@shared/attesa-specialisti').MossaAttesa) => clientAutopilota.prioritaAttesa(id, mossa),
