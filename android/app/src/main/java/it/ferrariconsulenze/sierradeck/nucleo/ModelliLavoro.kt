@@ -173,7 +173,7 @@ data class AvanzamentoAutopilota(
 
 /** Quanto è scesa la percentuale, e perché («aggiunti 2 punti a r-12»). */
 @Serializable
-data class CaloPercento(val da: Double = 0.0, val a: Double = 0.0, val perche: String = "", val il: String = "")
+data class CaloPercento(val da: Double = 0.0, val a: Double = 0.0, val perche: String = "", val il: String = "", val percheParole: String? = null)
 
 /** `GET /orchestratore?ws=` del servizio, quanto serve all'app. */
 @Serializable
@@ -197,7 +197,13 @@ data class SpecialistaOrchestratore(
     val stato: String = "",
     val attivita: String? = null,
     val durata: String? = null,
-    val adottata: Boolean = false
+    val adottata: Boolean = false,
+    val compitoId: String? = null,
+    // PC 0.101: in parole, con il colore del ruolo.
+    val titoloParole: String? = null,
+    val ruoloParole: String? = null,
+    val colore: String? = null,
+    val statoParole: String? = null
 )
 
 /** Quanti compiti ha il piano, e quanti sono già uniti. */
@@ -220,7 +226,9 @@ data class RichiestaCoda(
     val titolo: String = "",
     val testo: String = "",
     val stato: String = "in-coda",
-    val percento: Double = 0.0
+    val percento: Double = 0.0,
+    val titoloParole: String? = null,
+    val statoParole: String? = null
 )
 
 /** Le parole e i conti dell'avanzamento, senza Compose (così si provano). */
@@ -266,7 +274,21 @@ data class Battuta(
     val testo: String = "",
     val dettaglio: String? = null,
     val tono: String? = null,
-    val volte: Int? = null
+    val volte: Int? = null,
+    /** PC 0.96/0.101: una sua domanda aperta nella chat, con i tasti dentro la bolla. */
+    val domanda: DomandaBolla? = null,
+    /** PC 0.101: una sua domanda della chat già chiusa, com'è finita. */
+    val decisa: Decisa? = null
+)
+
+/** La domanda dentro una bolla: le scelte, la consigliata, se e quando sceglie il programma. */
+@Serializable
+data class DomandaBolla(
+    val id: String = "",
+    val scelte: List<String> = emptyList(),
+    val consigliata: String? = null,
+    val scadeIl: String? = null,
+    val rischiosa: Boolean? = null
 )
 
 /** Una chat che esegue per l'autopilota: `stato` è lavoro | bloccata | finita. */
