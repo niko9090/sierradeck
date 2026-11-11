@@ -28,10 +28,18 @@ import { conScadenza, PROVA_MAX_MS } from './tempi-unione'
 import { improntaCodiceAsincrona, misuraCriteri, type MemoriaCriteri } from './criteri-veloci'
 import { motivoProveRotte, peggioratiDelRamo, preparaCopia, radiceDellaCopia } from './ambiente-copia'
 import { criteriPerLaProva } from './criteri-prova'
-import { TURNI_PC, TurnoScaduto, type TurniCriteri } from './turni-criteri'
+import { TURNI_PC, TurnoScaduto, turniSenzaFila, type TurniCriteri } from './turni-criteri'
 import { giudicaPesanteAspettando, idAgente, rendiTurnoDopoComando, type GuardiaPc } from './guardia-pc'
 import { giudicaRuolo, giudicaStrumento, rispostaPreTool } from './divieti'
-import { creaConsensi, testoDomandaCancellazione, DURATA_CONSENSO_MS, SCELTA_NO, SCELTA_SI } from './consenso-cancellazione'
+import { creaConsensi, DURATA_CONSENSO_MS } from './consenso-cancellazione'
+import { CLASSI, conPermesso, leggiRispostaPermesso, partiDomandaPermesso, sceltePermesso, statoPermesso, type ClassePermesso, type PermessiScelti } from '@shared/permessi-nicholas'
+import { DOMANDA_PERMESSO_VALE_MS, DURATA_PERMESSO_MS, concessoDa, creaPermessi } from './permessi-nicholas'
+import { testoDomanda } from '@shared/domanda-strutturata'
+import { LIMITI_DI_SERIE, type LimitiPc } from '@shared/limiti-pc'
+import type { ArchivioLimiti } from './limiti-store'
+
+/** Oltre cinque minuti un hook non aspetta: è il tempo che la CLI gli concede (`TIMEOUT_PRETOOL_S`). */
+const ATTESA_HOOK_MAX_MS = 5 * 60_000
 import { ultimoRapportoDa } from './trascrizione'
 import { apriMemoria, type Memoria } from './memoria'
 import { aperteSulloStesso } from './domande-doppie'
@@ -120,6 +128,8 @@ export type Dipendenze = {
   guardiaPc?: GuardiaPc
   /** 11/11, per i test: i tetti dell'attesa di un comando pesante dentro l'hook (PC carico, turno) e ogni quanto si riguarda. */
   attesaPesante?: { tettoMs?: number; tettoTurnoMs?: number; riprovaMs?: number }
+  /** 11/11: i limiti del PC decisi da Nicholas (`limiti-store.ts`). Assente: i valori di serie, non si cambiano. */
+  limiti?: ArchivioLimiti
   /** Chiude una chat adottata finita (0.82.0): il riquadro si chiude; con `alRecupero` esce dall'elenco (P2). */
   chiudiChat?: (autopilotaId: string, chatId: string | undefined, chi: { sessionId: string; workspace?: string; alRecupero?: boolean; fine?: 'unita' | 'abbandonata' }) => void
   /** L'autopulizia (0.85.2), per «Pulisci adesso». */
@@ -622,13 +632,34 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   // ── Le domande a Nicholas ──
   /** I consensi di Nicholas a cancellare percorsi precisi fuori dalle cartelle dell'autopilota (breve durata). */
   const consensiCancella = creaConsensi(() => Date.parse(deps.adesso()))
+  /**
+   * 11/11: i sì di Nicholas alle altre azioni protette (push forzato, posti protetti, installazione, sottofondo…):
+   * `permessi-nicholas.ts`. Come per le cancellazioni, nascono solo in `rispondiAllaDomanda`.
+   */
+  const permessiNicholas = creaPermessi(() => Date.parse(deps.adesso()))
+  const permessiDi = (a: Pick<Autopilota, 'cwd' | 'workspace'>): PermessiScelti | undefined => deps.orchestratori.impostazioni(chiaveWorkspace(a)).permessi
+  /** «Sì, sempre»: la classe non si chiede più in quel progetto. Lo scrive solo il programma, da una risposta di Nicholas. */
+  const portaASempre = (apId: string, classe: ClassePermesso): void => {
+    const ap = deps.archivio.leggi(apId)
+    if (ap === undefined) return
+    deps.orchestratori.cambiaImpostazioni(chiaveWorkspace(ap), (i) => ({ ...i, permessi: conPermesso(i.permessi, classe, 'sempre') }))
+    console.info(`[domande] ${apId} — «${CLASSI[classe].nome}»: Nicholas ha detto «sempre» per questo progetto`)
+  }
   /** Di chi è ogni domanda, e cosa chiedeva: serve alla risposta tardiva. */
   const contesto = new Map<string, ContestoDomanda>()
   const ricordaContesto = (id: string, x: ContestoDomanda): void => {
     contesto.set(id, x)
     deps.domande.ricorda?.(id, x)
   }
-  for (const d of deps.domande.aperte()) if (d.contesto !== undefined) contesto.set(d.id, { ...d.contesto, trattenuta: false })
+  for (const d of deps.domande.aperte()) {
+    if (d.contesto === undefined) continue
+    contesto.set(d.id, { ...d.contesto, trattenuta: false })
+    // 11/11: una domanda di permesso ancora aperta dopo un riavvio torna nel registro: la risposta vale lo stesso.
+    const p = d.contesto.permesso
+    if (p === undefined) continue
+    if (p.classe === 'cancellazioni') consensiCancella.chiesta(d.autopilotaId, p.azioni, d.id)
+    else permessiNicholas.chiesta(d.autopilotaId, p.classe, p.azioni, d.id, p.soloVolta === true)
+  }
 
   // La risposta arriva quando nessuno la aspetta più (quasi sempre): va all'orchestratore del suo workspace.
   deps.domande.suRispostaTardiva((idDomanda, risposta, da, chiesta) => {
@@ -643,17 +674,31 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   /** La risposta a una domanda del registro. Falso se la domanda non c'è più. */
   const rispondiAllaDomanda = (idDomanda: string, testo: string, da: 'telegram' | 'modale'): boolean => {
     const chiesta = deps.domande.aperte().find((d) => d.id === idDomanda)
+    const diCancella = consensiCancella.riguarda(idDomanda)
+    const diPermesso = diCancella || permessiNicholas.riguarda(idDomanda)
     if (chiesta !== undefined) {
       const ap = deps.archivio.leggi(chiesta.autopilotaId)
       const laDomanda = chiesta.parti?.domanda ?? chiesta.contesto?.grezza ?? chiesta.testo
       memoria.ricordaRisposta(chiesta.autopilotaId, laDomanda, testo, deps.adesso(), chiesta.contesto?.chatId ?? contesto.get(chiesta.id)?.chatId)
       // 11/11: fra le decisioni del quaderno non vanno i permessi, i consensi a cancellare e i «no» senza lavoro.
-      if (ap !== undefined && decisioneDaRicordare({ domanda: laDomanda, risposta: testo, diConsenso: consensiCancella.riguarda(idDomanda) })) memoria.ricordaDecisione(ap.cwd, `«${laDomanda.slice(0, 200)}» → ${testo}`, deps.adesso())
+      if (ap !== undefined && decisioneDaRicordare({ domanda: laDomanda, risposta: testo, diConsenso: diPermesso })) memoria.ricordaDecisione(ap.cwd, `«${laDomanda.slice(0, 200)}» → ${testo}`, deps.adesso())
       console.info(`[domande] ${chiesta.autopilotaId} — la tua risposta «${breveRisposta(testo)}» (${da}): ricevuta`)
     }
     if (!deps.domande.rispondi(idDomanda, testo, da)) return false
     // Il consenso a cancellare nasce solo qui: da una risposta di Nicholas registrata dal programma.
-    if (consensiCancella.risposta(idDomanda, testo)) console.info(`[domande] ${chiesta?.autopilotaId ?? '-'} — consenso a cancellare registrato per ${DURATA_CONSENSO_MS / 60_000} minuti`)
+    if (consensiCancella.risposta(idDomanda, testo)) {
+      console.info(`[domande] ${chiesta?.autopilotaId ?? '-'} — consenso a cancellare registrato per ${DURATA_CONSENSO_MS / 60_000} minuti`)
+      // 11/11: «Sì, sempre» toglie la domanda per le cancellazioni fuori dalle cartelle in quel progetto (il pavimento resta;
+      // una cartella di lavoro intera si chiede comunque ogni volta).
+      const pc = chiesta?.contesto?.permesso ?? contesto.get(idDomanda)?.permesso
+      if (chiesta !== undefined && pc?.classe === 'cancellazioni' && leggiRispostaPermesso('cancellazioni', testo, pc.soloVolta === true) === 'sempre') portaASempre(chiesta.autopilotaId, 'cancellazioni')
+    }
+    // Gli altri permessi di Nicholas nascono solo qui, allo stesso modo.
+    const esitoPermesso = permessiNicholas.risposta(idDomanda, testo)
+    if (esitoPermesso !== undefined) {
+      console.info(`[domande] ${esitoPermesso.ap} — permesso «${esitoPermesso.classe}»: ${esitoPermesso.esito === 'no' ? 'negato' : `dato (${esitoPermesso.esito === 'sempre' ? 'sempre' : `per ${DURATA_PERMESSO_MS / 60_000} minuti`})`}`)
+      if (esitoPermesso.esito === 'sempre') portaASempre(esitoPermesso.ap, esitoPermesso.classe)
+    }
     if (chiesta === undefined) return true
     // Una risposta vale per tutte le domande uguali ancora aperte (0.81.0).
     const laDomanda = chiesta.parti?.domanda ?? chiesta.contesto?.grezza ?? chiesta.testo
@@ -775,7 +820,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       // pesanti): il tentativo dopo non aspetta una suite fantasma. I tempi vanno nel registro.
       const r = await conScadenza(
         (segnale, iniziata) => corpo(segnale, iniziata).catch((err: unknown) => { if (err instanceof TurnoScaduto) return 'scaduta' as const; throw err }),
-        deps.provaMaxMs ?? PROVA_MAX_MS,
+        // 11/11: la durata massima della prova la decide Nicholas (di serie `PROVA_MAX_MS`).
+        deps.provaMaxMs ?? (deps.limiti !== undefined ? deps.limiti.leggi().provaMaxMin * 60_000 : PROVA_MAX_MS),
         { scrivi: (t) => { console.info(`[unione di prova] ${ramo}: attesa del turno ${Math.round(t.attesaMs / 1000)} s, prova ${Math.round(t.esecuzioneMs / 1000)} s${t.scaduta ? ' (scaduta)' : ''}`) } }
       )
       if (!r.scaduta && r.valore !== 'scaduta') return r.valore
@@ -1112,6 +1158,20 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           return
         }
 
+        // 11/11: i limiti del PC (tetti e interruttori). Li legge e li cambia Nicholas dalla pagina delle impostazioni.
+        if (percorso === '/limiti' && (metodo === 'GET' || metodo === 'POST')) {
+          // Con i limiti, i progetti dove Nicholas ha tolto una classe di permessi («Sì, sempre»): la pagina li mostra e li rimette.
+          const sempre = unici().filter((a) => a.archiviato !== true).map((a) => ({ ws: chiaveWorkspace(a), nome: a.nome, permessi: permessiDi(a) ?? {} })).filter((v) => Object.keys(v.permessi).length > 0)
+          if (deps.limiti === undefined) { rispondi(res, 200, { limiti: LIMITI_DI_SERIE, fissi: true, sempre }); return }
+          if (metodo === 'POST') {
+            const prima = deps.limiti.leggi()
+            const dopo = deps.limiti.cambia(await leggiCorpo(req))
+            const cambiati = (Object.keys(dopo) as (keyof LimitiPc)[]).filter((k) => dopo[k] !== prima[k])
+            if (cambiati.length > 0) console.info(`[limiti] cambiati da Nicholas: ${cambiati.map((k) => `${k} ${String(prima[k])} → ${String(dopo[k])}`).join(', ')}`)
+          }
+          rispondi(res, 200, { limiti: deps.limiti.leggi(), sempre })
+          return
+        }
         // L'autopilota del workspace: la vista, le impostazioni, il messaggio.
         if (percorso === '/orchestratore' || percorso.startsWith('/orchestratore/')) {
           if (metodo === 'GET' && percorso === '/orchestratore') {
@@ -1163,7 +1223,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             const corpo = (await leggiCorpo(req)) as Record<string, unknown> | undefined
             const ws = testoDi(corpo?.ws).trim()
             if (ws === '') { rispondi(res, 400, { errore: 'manca il workspace' }); return }
-            servizio().imposta(ws, { modello: corpo?.modello, tettoSpecialisti: corpo?.tettoSpecialisti })
+            // 11/11: anche i permessi del progetto (rimettere «chiedi», o «sempre»): li cambia Nicholas dalla pagina delle impostazioni.
+            servizio().imposta(ws, { modello: corpo?.modello, tettoSpecialisti: corpo?.tettoSpecialisti, ...(corpo?.permessi !== undefined ? { permessi: corpo.permessi } : {}) })
             rispondi(res, 200, servizio().vista(ws))
             return
           }
@@ -1433,26 +1494,35 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           if (chatPre !== undefined && chatPre !== idAp && ID_VALIDO.test(chatPre)) segnaPartenza(idAp, chatPre)
           preparaCopiaDelloSpecialista(a, corpo)
           const ruoloPre = chatPre !== undefined ? a.chats.find((c) => c.id === chatPre)?.ruolo : undefined
-          const gRuolo = giudicaRuolo(corpo, ruoloPre)
-          let g = gRuolo.ok ? giudicaStrumento(corpo, cartelleDi(a), { consenso: consensiCancella.per(idAp) }) : gRuolo
+          // 11/11: il sì di Nicholas («sempre» nel progetto, o «questa volta» per quell'azione) sblocca le azioni protette.
+          const concesso = concessoDa(permessiNicholas, () => permessiDi(a), idAp)
+          const gRuolo = giudicaRuolo(corpo, ruoloPre, { concesso })
+          let g = gRuolo.ok ? giudicaStrumento(corpo, cartelleDi(a), { consenso: consensiCancella.per(idAp), sempre: statoPermesso(permessiDi(a), 'cancellazioni') === 'sempre', concesso, ...(deps.porta !== undefined ? { portaServizio: deps.porta } : {}) }) : gRuolo
           // Una cancellazione fuori dalle cartelle che Nicholas potrebbe aver chiesto: la domanda la apre il programma, con i percorsi esatti.
           if (!g.ok && g.consensoPer !== undefined && g.consensoPer.length > 0) {
             const percorsi = g.consensoPer
             if (consensiCancella.aperta(idAp, percorsi) === undefined) {
-              const testoDomanda = testoDomandaCancellazione(percorsi)
-              const d = deps.domande.apri({ autopilotaId: idAp, testo: testoDomanda, scadenzaMs: deps.scadenzaDomandaMs, opzioni: [SCELTA_NO, SCELTA_SI] })
+              // 11/11: tre scelte («No», «Sì, questa volta», «Sì, sempre»), e la domanda non scade né si decide da sola.
+              const soloVolta = g.soloVolta === true
+              const parti = partiDomandaPermesso({ classe: 'cancellazioni', azioni: percorsi, progetto: chiaveWorkspace(a), soloVolta })
+              const testoD = testoDomanda(a.nome, parti)
+              const d = deps.domande.apri({ autopilotaId: idAp, testo: testoD, scadenzaMs: DOMANDA_PERMESSO_VALE_MS, opzioni: sceltePermesso('cancellazioni', soloVolta), parti })
+              ricordaContesto(d.id, { autopilotaId: idAp, testo: testoD, grezza: `${parti.domanda}\n${percorsi.join('\n')}`, maiDaSola: true, permesso: { classe: 'cancellazioni', azioni: percorsi, ...(soloVolta ? { soloVolta: true as const } : {}) } })
               consensiCancella.chiesta(idAp, percorsi, d.id)
-              void deps.avvisa('domanda', a, testoDomanda).catch(() => { /* la domanda resta nelle Domande */ })
+              void deps.avvisa('domanda', a, parti.domanda).catch(() => { /* la domanda resta nelle Domande */ })
             }
           }
           if (g.ok && (chatPre === undefined || chatPre === idAp)) g = servizio().preTool(a, corpo)
           const chiPre = `${idAp}::${idAgente(corpo) ?? chatPre ?? '-'}`
           if (g.ok) {
-            const pesante = { chi: chiPre, cwd: typeof corpo.cwd === 'string' && corpo.cwd !== '' ? corpo.cwd : a.cwd, turni: deps.turni ?? TURNI_PC, ...(deps.guardiaPc !== undefined ? { guardia: deps.guardiaPc } : {}) }
+            // 11/11: la guardia del PC, «un pesante alla volta» e i secondi di attesa li decide Nicholas (`limiti-pc.ts`).
+            const lim = deps.limiti?.leggi()
+            const turniChat = lim?.unPesanteAllaVolta === false ? turniSenzaFila(deps.turni ?? TURNI_PC) : (deps.turni ?? TURNI_PC)
+            const pesante = { chi: chiPre, cwd: typeof corpo.cwd === 'string' && corpo.cwd !== '' ? corpo.cwd : a.cwd, turni: turniChat, ...(deps.guardiaPc !== undefined && lim?.guardiaPc !== false ? { guardia: deps.guardiaPc } : {}) }
             // Lo specialista non sa aspettare (sleep bloccato): aspetta il programma, nell'hook, fino al tetto.
             // 11/11: anche le chat adottate aspettano qui invece di ricevere il «no» (il loro hook ha il tempo per farlo,
             // `TIMEOUT_PRETOOL_CHAT_S`); per gli specialisti niente «appena liberato»: il turno li mette già in fila.
-            g = await giudicaPesanteAspettando(corpo, { ...pesante, ...(idAgente(corpo) !== undefined ? { senzaQuiete: true } : {}), ...(deps.attesaPesante ?? {}) })
+            g = await giudicaPesanteAspettando(corpo, { ...pesante, ...(idAgente(corpo) !== undefined ? { senzaQuiete: true } : {}), ...(deps.attesaPesante ?? (lim !== undefined ? { tettoMs: Math.min(lim.attesaPcCaricoS * 1000, ATTESA_HOOK_MAX_MS) } : {})) })
           }
           if (!g.ok && g.pcCarico === true) console.info(`[guardia-pc] ${chiPre} comando pesante rimandato: ${g.motivo}`)
           else if (!g.ok) {
@@ -1548,6 +1618,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     riallinea: riallineaPrincipale,
     memoriaCriteri,
     ricordaContesto,
+    permessi: permessiNicholas,
+    ...(deps.limiti !== undefined ? { limiti: () => deps.limiti!.leggi() } : {}),
     ultimoSegnale: (id, chat) => ultimoSegnale(chiaveTurno(id, chat)),
     ...(deps.raccoltaEventiMs !== undefined ? { raccoltaEventiMs: deps.raccoltaEventiMs } : {}),
     ...(deps.inattivoOrchestratoreMs !== undefined ? { inattivoMs: deps.inattivoOrchestratoreMs } : {}),

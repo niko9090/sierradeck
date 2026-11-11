@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { scriviAtomico } from '@shared/scrittura-atomica'
 import { modelloAutopilotaAmmesso } from '@shared/modelli'
 import { leggiPiano, pianoVuoto, type PercentoWs, type Piano } from '@shared/piano-orchestratore'
+import { leggiPermessi, type PermessiScelti } from '@shared/permessi-nicholas'
 import { cartellaWorkspace } from './coda-store'
 
 /**
@@ -30,7 +31,7 @@ export type ImpostazioniOrchestratore = {
    * scritto dalle versioni di prima diventa Opus.
    */
   modelloScelto?: boolean
-  /** Quanti specialisti insieme in questo workspace: 3 di serie, al più 4. */
+  /** Quanti specialisti insieme in questo workspace: 3 di serie. 11/11: il massimo lo decide Nicholas, non più il programma (era 4). */
   tettoSpecialisti: number
   /** La sessione di `claude -p`, ripresa con `--resume`. */
   sessione?: string
@@ -52,6 +53,11 @@ export type ImpostazioniOrchestratore = {
    * viveva nella sessione di `claude`, che si spegne dopo 10 minuti di quiete, e non suonava mai.
    */
   sveglie?: Sveglia[]
+  /**
+   * 11/11: le classi di azioni protette che Nicholas ha tolto per questo progetto con «Sì, sempre»
+   * (`@shared/permessi-nicholas`). Le scrive solo il programma, da una sua risposta o dalle impostazioni.
+   */
+  permessi?: PermessiScelti
 }
 
 export type Sveglia = { il: string; perche: string; chiesta: string }
@@ -71,7 +77,7 @@ export function leggiImpostazioni(x: unknown): ImpostazioniOrchestratore {
   const d = impostazioniPredefinite()
   if (typeof x !== 'object' || x === null) return d
   const o = x as Record<string, unknown>
-  const tetto = typeof o.tettoSpecialisti === 'number' && Number.isInteger(o.tettoSpecialisti) ? Math.min(TETTO_SPECIALISTI_MAX, Math.max(1, o.tettoSpecialisti)) : d.tettoSpecialisti
+  const tetto = typeof o.tettoSpecialisti === 'number' && Number.isInteger(o.tettoSpecialisti) ? Math.max(1, o.tettoSpecialisti) : d.tettoSpecialisti
   const p = o.percento as Record<string, unknown> | undefined
   const percento: PercentoWs | undefined = typeof p === 'object' && p !== null && typeof p.il === 'string'
     ? {
@@ -96,7 +102,8 @@ export function leggiImpostazioni(x: unknown): ImpostazioniOrchestratore {
     ...(Array.isArray(o.domande) ? { domande: o.domande.filter((q): q is string => typeof q === 'string').slice(-20) } : {}),
     ...(Array.isArray(o.assorbiti) ? { assorbiti: o.assorbiti.filter((q): q is string => typeof q === 'string') } : {}),
     ...(Array.isArray(o.ramiSegnalati) ? { ramiSegnalati: o.ramiSegnalati.filter((q): q is string => typeof q === 'string').slice(-RAMI_SEGNALATI_MAX) } : {}),
-    ...(leggiSveglie(o.sveglie).length > 0 ? { sveglie: leggiSveglie(o.sveglie) } : {})
+    ...(leggiSveglie(o.sveglie).length > 0 ? { sveglie: leggiSveglie(o.sveglie) } : {}),
+    ...(Object.keys(leggiPermessi(o.permessi)).length > 0 ? { permessi: leggiPermessi(o.permessi) } : {})
   }
 }
 
@@ -109,7 +116,8 @@ function leggiSveglie(x: unknown): Sveglia[] {
   }).slice(0, SVEGLIE_MAX)
 }
 
-export type RigaDialogo ={ quando: string; da: 'tu' | 'lui' | 'evento'; testo: string; domanda?: { id: string; scelte: string[] } }
+/** `nicholas` (11/11): la riga l'ha scritta lui a mano nel dialogo (non il programma, non una risposta riportata): serve a sapere cosa ha chiesto davvero. */
+export type RigaDialogo ={ quando: string; da: 'tu' | 'lui' | 'evento'; testo: string; domanda?: { id: string; scelte: string[] }; nicholas?: true }
 
 export type ArchivioOrchestratori = {
   impostazioni: (ws: string) => ImpostazioniOrchestratore

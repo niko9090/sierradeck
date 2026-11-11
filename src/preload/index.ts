@@ -883,7 +883,10 @@ contextBridge.exposeInMainWorld('gestore', {
     attesaSpecialisti: (): Promise<import('@shared/attesa-specialisti').VistaAttesa | undefined> => ipcRenderer.invoke('autopilota:attesaSpecialisti'),
     prioritaAttesa: (id: string, mossa: import('@shared/attesa-specialisti').MossaAttesa): Promise<import('@shared/attesa-specialisti').VistaAttesa | undefined> => ipcRenderer.invoke('autopilota:prioritaAttesa', id, mossa),
     togliAttesa: (id: string): Promise<import('@shared/attesa-specialisti').VistaAttesa | undefined> => ipcRenderer.invoke('autopilota:togliAttesa', id),
-    impostaOrchestratore: (ws: string, p: { modello?: 'sonnet' | 'opus'; tettoSpecialisti?: number }): Promise<import('@shared/piano-orchestratore').VistaOrchestratore> => ipcRenderer.invoke('autopilota:impostaOrchestratore', ws, p),
+    impostaOrchestratore: (ws: string, p: { modello?: 'sonnet' | 'opus'; tettoSpecialisti?: number; permessi?: import('@shared/permessi-nicholas').PermessiScelti }): Promise<import('@shared/piano-orchestratore').VistaOrchestratore> => ipcRenderer.invoke('autopilota:impostaOrchestratore', ws, p),
+    /** 11/11: i limiti del PC e i permessi «sempre» dei progetti, per la sezione «Limiti». */
+    limiti: (): Promise<import('@shared/limiti-pc').VistaLimiti | undefined> => ipcRenderer.invoke('autopilota:limiti'),
+    impostaLimiti: (p: Partial<import('@shared/limiti-pc').LimitiPc>): Promise<import('@shared/limiti-pc').VistaLimiti | undefined> => ipcRenderer.invoke('autopilota:impostaLimiti', p),
     rispondi: (idDomanda: string, risposta: string): Promise<void> =>
       ipcRenderer.invoke('autopilota:rispondi', idDomanda, risposta),
     avvioAlLogin: (attivare?: boolean): Promise<{ installato: boolean; percorso: string }> =>

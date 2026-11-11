@@ -117,9 +117,18 @@ export function TestaOrchestratore({ workspace, children }: { workspace: string;
           </label>{' '}
           <label>
             Specialisti insieme{' '}
-            <select value={v.tettoSpecialisti} onChange={(e) => cambia({ tettoSpecialisti: Number(e.target.value) })}>
-              {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
+            {/* 11/11: il numero lo decide Nicholas, senza il massimo di 4 (quello del PC sta in Impostazioni › Limiti). */}
+            <input
+              className="campo"
+              type="number"
+              min={1}
+              style={{ width: 64 }}
+              defaultValue={v.tettoSpecialisti}
+              key={v.tettoSpecialisti}
+              aria-label="Specialisti insieme in questo workspace"
+              onBlur={(e) => { const n = Number(e.target.value); if (Number.isInteger(n) && n >= 1 && n !== v.tettoSpecialisti) cambia({ tettoSpecialisti: n }) }}
+              onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
+            />
           </label>
         </div>
       ) : null}

@@ -460,6 +460,8 @@ export type VistaOrchestratore = {
   autopilota?: string
   modello: string
   tettoSpecialisti: number
+  /** 11/11: le classi di azioni protette che Nicholas ha tolto in questo progetto («Sì, sempre»). */
+  permessi?: import('./permessi-nicholas').PermessiScelti
   percento?: number
   calo?: CaloPercento
   /** Una chiamata è in volo adesso, o un messaggio la aspetta: la vista dice «sta pensando». */

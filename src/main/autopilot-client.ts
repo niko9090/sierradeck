@@ -10,6 +10,8 @@ import { ATTESA_CAMBI_MS } from '@shared/spinta-specialisti'
 import type { MossaAttesa, VistaAttesa } from '@shared/attesa-specialisti'
 import type { TrascrizioneSpecialista, VistaOrchestratore } from '@shared/piano-orchestratore'
 import type { RichiestaDoppioni } from '@shared/autopiloti-doppioni'
+import type { LimitiPc, VistaLimiti } from '@shared/limiti-pc'
+import type { PermessiScelti } from '@shared/permessi-nicholas'
 
 /**
  * Il primo messaggio a un workspace (P4): l'autopilota del workspace nasce se
@@ -167,7 +169,11 @@ export type ClientAutopilota = {
   orchestratore: (ws: string) => Promise<VistaOrchestratore | undefined>
   /** 0.90.0: la conversazione di uno specialista. */
   specialista: (ws: string, id: string) => Promise<TrascrizioneSpecialista | undefined>
-  impostaOrchestratore: (ws: string, p: { modello?: string; tettoSpecialisti?: number }) => Promise<VistaOrchestratore>
+  impostaOrchestratore: (ws: string, p: { modello?: string; tettoSpecialisti?: number; permessi?: PermessiScelti }) => Promise<VistaOrchestratore>
+  /** 11/11: i limiti del PC e i permessi «sempre» dei progetti. Un servizio vecchio non ce li ha: `undefined`. */
+  limiti: () => Promise<VistaLimiti | undefined>
+  /** 11/11: Nicholas cambia un limite del PC. Torna la vista di adesso. */
+  impostaLimiti: (p: Partial<LimitiPc>) => Promise<VistaLimiti | undefined>
   /** k-48: la lista d'attesa degli specialisti. Un servizio vecchio non ce l'ha: `undefined`. */
   attesaSpecialisti: () => Promise<VistaAttesa | undefined>
   prioritaAttesa: (id: string, mossa: MossaAttesa) => Promise<VistaAttesa | undefined>
@@ -184,6 +190,8 @@ export type ClientAutopilota = {
 export type UnioneAMano = { ids: string[]; testo: string; titolo?: string; punti: PuntoProposto[]; perche: string }
 
 const vistaAttesaValida = (r: unknown): VistaAttesa | undefined => (typeof r === 'object' && r !== null && Array.isArray((r as VistaAttesa).inFila) && Array.isArray((r as VistaAttesa).alLavoro) ? r as VistaAttesa : undefined)
+
+const vistaLimitiValida = (r: unknown): VistaLimiti | undefined => (typeof r === 'object' && r !== null && typeof (r as VistaLimiti).limiti === 'object' && (r as VistaLimiti).limiti !== null ? { ...(r as VistaLimiti), sempre: Array.isArray((r as VistaLimiti).sempre) ? (r as VistaLimiti).sempre : [] } : undefined)
 
 const ATTESA_PREDEFINITA_MS = 3000
 /** Le POST che scrivono (dialogo, nota, adozione): un servizio occupato ci mette di piu' di una lettura (k-42). */
@@ -487,6 +495,9 @@ export function creaClientAutopilota(p: {
       }
     },
     impostaOrchestratore: async (ws, p) => (await chiama('/orchestratore/impostazioni', 'POST', { ws, ...p }, attesaScrittura)) as VistaOrchestratore,
+    // 11/11: un servizio di prima dei limiti non conosce la rotta: niente sezione, non un errore.
+    limiti: async () => { try { return vistaLimitiValida(await chiama('/limiti', 'GET')) } catch { return undefined } },
+    impostaLimiti: async (p) => vistaLimitiValida(await chiama('/limiti', 'POST', p, attesaScrittura)),
     async attesaSpecialisti() {
       try { return vistaAttesaValida(await chiama('/orchestratore/attesa', 'GET')) } catch { return undefined }
     },
