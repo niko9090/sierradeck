@@ -335,6 +335,42 @@
       ]
     },
     {
+      "id": "avvisi",
+      "sezione": "notifiche",
+      "titolo": "Cosa ti avvisa e come",
+      "spiega": "Per Domande, Lavoro fermo, Fatto e Da sapere scegli se la notifica suona, arriva muta o non arriva; vale per telefono, pagina e Telegram di questo computer. Qui anche la chat ferma da tre minuti, le ore di silenzio e «Prova notifica».",
+      "parole": [
+        "avvisi",
+        "suono",
+        "silenzio",
+        "prova",
+        "telegram",
+        "chat ferma",
+        "muta"
+      ],
+      "dove": [
+        "pc",
+        "app",
+        "pagina"
+      ]
+    },
+    {
+      "id": "avvisi-ultimi",
+      "sezione": "notifiche",
+      "titolo": "Ultime notifiche",
+      "spiega": "Le ultime venti notifiche partite da questo computer, con l’ora e com’è finita ognuna: risposta data, scelta del programma, non serve più o scaduta. Serve a capire se un avviso è partito.",
+      "parole": [
+        "storico",
+        "elenco",
+        "arrivate"
+      ],
+      "dove": [
+        "pc",
+        "app",
+        "pagina"
+      ]
+    },
+    {
       "id": "fumetti-sincronia",
       "sezione": "notifiche",
       "titolo": "Avvisi del salvataggio automatico",
@@ -566,6 +602,8 @@
         "posto-autopilota",
         "account-google",
         "torna-indietro",
+        "avvisi",
+        "avvisi-ultimi",
         "fumetti-sincronia",
         "avviso-windows-aggiornamento",
         "colore",
@@ -590,6 +628,8 @@
         "cambia-computer",
         "quaderno-personale",
         "account-google",
+        "avvisi",
+        "avvisi-ultimi",
         "colore",
         "stile",
         "controllo-continuo",
@@ -607,6 +647,8 @@
         "ultimo-tentativo",
         "quaderno-personale",
         "account-google",
+        "avvisi",
+        "avvisi-ultimi",
         "notifiche-pagina",
         "errori",
         "copia-dettagli",
@@ -805,6 +847,8 @@
       "q": "notifiche",
       "dove": "pc",
       "trovate": [
+        "avvisi",
+        "avvisi-ultimi",
         "fumetti-sincronia",
         "avviso-windows-aggiornamento"
       ]
@@ -813,6 +857,8 @@
       "q": "notifiche",
       "dove": "app",
       "trovate": [
+        "avvisi",
+        "avvisi-ultimi",
         "controllo-continuo",
         "notifiche-android"
       ]
@@ -821,6 +867,8 @@
       "q": "notifiche",
       "dove": "pagina",
       "trovate": [
+        "avvisi",
+        "avvisi-ultimi",
         "notifiche-pagina"
       ]
     }
