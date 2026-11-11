@@ -15,7 +15,7 @@ import { RUOLI } from '@shared/ruoli-agenti'
 import { modelloAutopilotaAmmesso } from '@shared/modelli'
 import { righeLezioni } from '@shared/lezioni-chat'
 import { esaminaComando, principaleSporca } from '@shared/controllo-comandi'
-import { domandaControllataSubito, domandaPerRegistro } from '@shared/domanda-strutturata'
+import { domandaControllataSubito, domandaPerRegistro, testoDomanda } from '@shared/domanda-strutturata'
 import type { ArchivioCode } from './coda-store'
 import { migraAutopiloti, misuraDaAutopiloti } from './coda-autopiloti'
 import { soloInChat, type ContestoDomanda, type RegistroDomande } from './domande'
@@ -26,7 +26,10 @@ import { criteriPerLaProva } from './criteri-prova'
 import { fallitiDavvero, nonMisurati, type Esecutore } from './verifiche'
 import type { Memoria } from './memoria'
 import type { TipoAvviso } from './telegram'
-import { comeAsincrono, ramoCorrente, ramoGiaChiusoAsincrono, salvaLavoroAsincrono, type Git, type GitAsincrono } from './worktree'
+import { comeAsincrono, ramoCorrente, ramoGiaChiusoAsincrono, salvaFileAsincrono, salvaLavoroAsincrono, type Git, type GitAsincrono } from './worktree'
+import {
+  CHIEDI_SALVA_DOPO_MS, COMMIT_SALVA, DOMANDA_SALVA_VALE_MS, FILE_DA_CHIEDERE_MAX, partiDomandaSalva, rispostaSalva, SPORCA_IN_FONDO_DOPO_MS
+} from './principale-sporca'
 import {
   creaGettoniOrchestratore, configMcpOrchestratore, rispondiMcpOrchestratore, specialistiVivi, SPECIALISTI_PC_MAX, ATTESA_PERMESSO_MS,
   type AmbienteOrchestratore, type EsitoAmbiente
@@ -74,7 +77,8 @@ export const UNIONE_RIPROVA_MS = 30_000
 export const UNIONE_TENTATIVI_MAX = 3
 /** L'unione non è fallita per colpa del ramo: va riprovata (cartella principale occupata, o tempo massimo superato). */
 class RiprovaUnione extends Error {
-  constructor(readonly tipo: 'sporca' | 'scaduta', readonly perche: string, readonly file: string[] = []) { super(perche) }
+  /** `misura` (11/11): il ramo è già unito, resta da rimisurare il criterio (rosso con file non salvati nella principale). */
+  constructor(readonly tipo: 'sporca' | 'scaduta', readonly perche: string, readonly file: string[] = [], readonly misura = false) { super(perche) }
 }
 /** «: a, b, c (+2)» con i file che tengono ferma la fila; vuoto se non si sanno. */
 export function elencoFile(file: string[]): string {
@@ -141,6 +145,9 @@ export type ContestoUnico = {
   unioneMaxMs?: number
   unioneRiprovaMs?: number
   unioneTentativiMax?: number
+  /** 11/11, per i test: dopo quanto il programma chiede a Nicholas dei file non salvati (5 minuti), e dopo quanto l'unione ferma va in fondo (10). */
+  chiediSalvaDopoMs?: number
+  sporcaInFondoDopoMs?: number
   /** 0.94.0: la stessa memoria dell'unione di prova, perché il criterio dopo l'unione non rifaccia le sue misure. */
   memoriaCriteri?: MemoriaCriteri
   ricordaContesto: (idDomanda: string, c: ContestoDomanda) => void
@@ -856,13 +863,28 @@ ${NOTA_SENZA_GIT}`,
    * riprovava). `avviaUnione` torna la posizione in fila (1 = parte subito) o
    * `undefined` se la stessa unione è già lì.
    */
+  /** Quello che un tentativo di unione e la fila si passano: la scadenza, e il rosso già misurato con la principale sporca (11/11). */
+  type ScambioUnione = { scaduto: boolean; rossoSporco?: string; ramoUnito?: string }
   /** `nonPrima` (11/11, ms): un'unione scaduta aspetta il suo momento in fondo alla fila, senza fermare le altre. */
-  type LavoroUnione = { chiave: string; chi: string; compito?: string; p: { compito?: string; specialista?: string; ramo?: string }; tentativi: number; inCorso: boolean; nonPrima?: number }
+  type LavoroUnione = {
+    chiave: string; chi: string; compito?: string; p: { compito?: string; specialista?: string; ramo?: string }; tentativi: number; inCorso: boolean; nonPrima?: number
+    /** 11/11, file non salvati nella principale: da quando è ferma (ms), se lo si è già detto, e la domanda del programma a Nicholas. */
+    sporcaDal?: number
+    dettoMisura?: boolean
+    chiestoSalva?: boolean
+    fileChiesti?: string[]
+    domandaSalva?: string
+    rispostaSalva?: 'si' | 'no'
+    salvato?: boolean
+    /** Il criterio già misurato rosso con questi file non salvati: non si rimisura finché non cambiano. */
+    rossoSporco?: string
+    /** Il ramo già unito in quel caso: al tentativo dopo si riparte da lui, senza cercarlo di nuovo. */
+    ramoUnito?: string
+  }
   const filaUnioni = new Map<string, LavoroUnione[]>()
   /** Workspace per cui si è già detto che la cartella principale ha file di Nicholas a metà (una volta sola). */
   const sporcoDetto = new Set<string>()
-  const dormi = (ms: number): Promise<void> => new Promise((ris) => { const t = setTimeout(ris, ms); t.unref?.() })
-  /** 11/11: la fila che dorme aspettando il momento di riprovare si sveglia se arriva un'unione nuova. */
+  /** 11/11: la fila che dorme aspettando il momento di riprovare si sveglia se arriva un'unione nuova, o la risposta di Nicholas. */
   const sveglieFila = new Map<string, () => void>()
   const dormiFila = (ws: string, ms: number): Promise<void> => new Promise((ris) => {
     const fatto = (): void => { clearTimeout(t); if (sveglieFila.get(ws) === fatto) sveglieFila.delete(ws); ris() }
@@ -871,7 +893,59 @@ ${NOTA_SENZA_GIT}`,
     sveglieFila.set(ws, fatto)
   })
   const prontaOra = (l: LavoroUnione, ora: number): boolean => l.inCorso || (l.nonPrima ?? 0) <= ora
-  const avviaUnione = (ws: string, p: { compito?: string; specialista?: string; ramo?: string }): number | undefined => {
+  /**
+   * **La domanda del programma sui file non salvati** (11/11, `principale-sporca.ts`).
+   * La apre il programma, non l'autopilota, una volta sola per unione. Finché
+   * qualcuno la aspetta il registro non la chiude da solo: un commit dei file
+   * di Nicholas si fa solo col suo sì.
+   */
+  const aspettaSalva = (ws: string, lavoro: LavoroUnione, id: string): void => {
+    lavoro.domandaSalva = id
+    void x.domande.attendi(id).then((r) => {
+      if (lavoro.domandaSalva !== id) return
+      if (r !== undefined) {
+        lavoro.domandaSalva = undefined
+        lavoro.rispostaSalva = rispostaSalva(r.risposta) ? 'si' : 'no'
+        sveglieFila.get(ws)?.()
+        return
+      }
+      // L'attesa è finita senza risposta: se la domanda è ancora aperta e non scaduta, si torna ad aspettarla.
+      lavoro.domandaSalva = undefined
+      const a = unicoDi(ws)
+      const aperta = a === undefined ? undefined : x.domande.aperte(a.id).find((d) => d.id === id)
+      if (aperta !== undefined && aperta.scadeIl > oraMs() && (filaUnioni.get(ws) ?? []).includes(lavoro)) aspettaSalva(ws, lavoro, id)
+    }).catch(() => { /* resta la fila che riprova */ })
+  }
+  /** Il testo che riconosce la domanda: dipende solo dai file. */
+  const grezzaSalva = (file: string[]): string => { const q = partiDomandaSalva(file, ''); return `${q.domanda}\n${q.perche}` }
+  /** Dopo un riavvio la domanda può essere già aperta: si torna ad aspettare quella, senza rifarla. */
+  const riprendiDomandaSalva = (ws: string, a: Autopilota, lavoro: LavoroUnione, file: string[]): boolean => {
+    const gia = x.domande.aperte(a.id).find((d) => d.contesto?.maiDaSola === true && d.contesto.grezza === grezzaSalva(file))
+    if (gia === undefined) return false
+    lavoro.chiestoSalva = true
+    lavoro.fileChiesti = file
+    aspettaSalva(ws, lavoro, gia.id)
+    return true
+  }
+  const apriDomandaSalva = (ws: string, a: Autopilota, lavoro: LavoroUnione, file: string[], cosa: string): void => {
+    if (riprendiDomandaSalva(ws, a, lavoro, file)) return
+    lavoro.chiestoSalva = true
+    lavoro.fileChiesti = file
+    const parti = partiDomandaSalva(file, cosa)
+    const testo = testoDomanda(a.nome, parti)
+    const d = x.domande.apri({ autopilotaId: a.id, testo, scadenzaMs: DOMANDA_SALVA_VALE_MS, opzioni: parti.scelte.map((s) => s.scelta), parti })
+    x.ricordaContesto(d.id, { autopilotaId: a.id, testo, grezza: grezzaSalva(file), maiDaSola: true })
+    aspettaSalva(ws, lavoro, d.id)
+    void x.avvisa('domanda', a, parti.domanda).catch(() => { /* la domanda resta nelle Domande */ })
+    console.info(`[orchestratore] ${ws} — ${lavoro.chi}: chiesto a Nicholas se salvare ${file.length} file non salvati della cartella principale`)
+  }
+  /** La domanda non serve più (l'unione è passata, o i file non la fermano più): si ritira. */
+  const ritiraDomandaSalva = (lavoro: LavoroUnione, perche: string): void => {
+    const id = lavoro.domandaSalva
+    lavoro.domandaSalva = undefined
+    if (id !== undefined) x.domande.ritira?.(id, perche)
+  }
+  const avviaUnione =(ws: string, p: { compito?: string; specialista?: string; ramo?: string }): number | undefined => {
     const chi = p.compito ?? daUnire(ws, p).sub?.compito ?? p.specialista ?? p.ramo ?? ''
     const chiave = `${ws}|${chi}`
     const fila = filaUnioni.get(ws) ?? []
@@ -916,15 +990,20 @@ ${NOTA_SENZA_GIT}`,
       const lavoro = fila[0] as LavoroUnione
       lavoro.inCorso = true
       const { p, chi } = lavoro
-      const scambio = { scaduto: false }
+      const scambio: ScambioUnione = { scaduto: false, ...(lavoro.rossoSporco !== undefined ? { rossoSporco: lavoro.rossoSporco } : {}) }
       let testo: string | undefined
       let ancora: RiprovaUnione | undefined
       try {
-        const corsa = cancelloOra(ws, p, scambio)
+        // 11/11: il ramo è già unito e resta solo da rimisurare il criterio: si riparte da quel ramo.
+        const corsa = cancelloOra(ws, lavoro.ramoUnito !== undefined && p.ramo === undefined ? { ...p, ramo: lavoro.ramoUnito } : p, scambio)
         corsa.catch(() => {})
         let timer: ReturnType<typeof setTimeout> | undefined
         const scadenza = new Promise<never>((_, no) => { timer = setTimeout(() => { scambio.scaduto = true; no(new RiprovaUnione('scaduta', `ha superato i ${Math.max(1, Math.round(max / 60_000))} minuti`)) }, max); timer.unref?.() })
-        try { testo = await Promise.race([corsa, scadenza]) } finally { if (timer !== undefined) clearTimeout(timer) }
+        try { testo = await Promise.race([corsa, scadenza]) } finally {
+          if (timer !== undefined) clearTimeout(timer)
+          lavoro.rossoSporco = scambio.rossoSporco
+          if (scambio.ramoUnito !== undefined) lavoro.ramoUnito = scambio.ramoUnito
+        }
       } catch (err) {
         if (err instanceof RiprovaUnione) ancora = err
         else testo = `${chi}: unione non riuscita per un errore (${err instanceof Error ? err.message : String(err)})`
@@ -932,6 +1011,7 @@ ${NOTA_SENZA_GIT}`,
       if (ancora === undefined) {
         sporcoDetto.delete(ws)
         fila.shift()
+        ritiraDomandaSalva(lavoro, 'l’unione è passata: non serve più')
         // 10/11: l'unione è finita (verde o rossa): l'autopilota si sveglia SUBITO, anche se aveva chiuso il turno,
         // e con l'esito riceve i compiti diventati pronti, da lanciare adesso.
         // Solo i compiti che aspettavano questo, se l'unione è riuscita, e non quelli già nella lista d'attesa dei posti.
@@ -946,15 +1026,65 @@ ${NOTA_SENZA_GIT}`,
       lavoro.inCorso = false
       const compito = p.compito !== undefined ? x.orchestratori.piano(ws).compiti.find((k) => k.id === p.compito) : undefined
       if (ancora.tipo === 'sporca') {
-        // Il lavoro di Nicholas non si tocca: la fila aspetta, lo dice una volta sola, riprova da sola.
-        if (!sporcoDetto.has(ws)) {
-          sporcoDetto.add(ws)
-          if (compito !== undefined) cambiaCompito(ws, compito.id, (k) => ({ ...k, esito: 'unione in fila: la cartella principale ha modifiche non salvate che non sono del programma' }))
-          evento(ws, { tipo: 'unione', quando: x.adesso(), ...(p.specialista !== undefined ? { chat: p.specialista } : {}), testo: `${chi}: unione in attesa, file non salvati nella cartella principale${elencoFile(ancora.file)} (non del programma: non li tocco). Riprovo da sola ogni ${Math.max(1, Math.round(riprova / 1000))}s, nessun riavvio da fare.` })
+        const adessoMs = Date.now()
+        lavoro.sporcaDal ??= adessoMs
+        const dove = p.specialista !== undefined ? { chat: p.specialista } : {}
+        const sporchi = ancora.file
+        if (ancora.misura) {
+          // 11/11: il ramo è unito, il criterio è rosso ma con file non salvati nella principale: non è un
+          // rosso del lavoro. Si rimisura da soli quando quei file cambiano; lo si dice una volta.
+          if (lavoro.dettoMisura !== true) {
+            lavoro.dettoMisura = true
+            if (compito !== undefined) cambiaCompito(ws, compito.id, (k) => ({ ...k, esito: `ramo unito, criterio da rimisurare: rosso con file non salvati nella cartella principale${elencoFile(sporchi)}` }))
+            evento(ws, { tipo: 'unione', quando: x.adesso(), ...dove, testo: `${chi}: ramo unito, ma il criterio è rosso con file non salvati nella cartella principale${elencoFile(sporchi)}. Può dipendere da quelli: non lo conto rosso e lo rimisuro da sola appena cambiano. Non affidare correzioni e non chiederlo a Nicholas.` })
+          }
+        } else {
+          // Il lavoro di Nicholas non si tocca: la fila aspetta, lo dice una volta sola, riprova da sola.
+          // 11/11: succede solo se il ramo tocca proprio quei file (`iniziaProvaPassi`).
+          if (!sporcoDetto.has(ws)) {
+            sporcoDetto.add(ws)
+            if (compito !== undefined) cambiaCompito(ws, compito.id, (k) => ({ ...k, esito: 'unione in fila: la cartella principale ha modifiche non salvate che non sono del programma' }))
+            evento(ws, { tipo: 'unione', quando: x.adesso(), ...dove, testo: `${chi}: unione in attesa, file non salvati nella cartella principale${elencoFile(ancora.file)} (non del programma: non li tocco). Riprovo da sola ogni ${Math.max(1, Math.round(riprova / 1000))}s, nessun riavvio da fare. Non chiederlo tu a Nicholas: se restano lì glielo chiedo io.` })
+          }
+          const a = unicoDi(ws)
+          const g = gitA()
+          if (a !== undefined && lavoro.rispostaSalva === 'si' && lavoro.salvato !== true && lavoro.fileChiesti !== undefined && g !== undefined) {
+            // Col sì di Nicholas: un commit di quei file e basta. Poi si riprova subito.
+            lavoro.salvato = true
+            const fatto = await salvaFileAsincrono(g, { cwd: a.cwd, file: lavoro.fileChiesti, messaggio: COMMIT_SALVA }).catch(() => false)
+            console.info(`[orchestratore] ${ws} — ${chi}: ${fatto ? 'salvati con un commit' : 'non salvati'} i file della cartella principale, col consenso di Nicholas`)
+            evento(ws, { tipo: 'unione', quando: x.adesso(), ...dove, testo: fatto
+              ? `${chi}: Nicholas ha detto di salvare i file non salvati della cartella principale: fatto con un commit, riprovo l’unione adesso.`
+              : `${chi}: Nicholas ha detto di salvare i file non salvati, ma il commit non è riuscito (forse sono già cambiati): riprovo l’unione da sola.` })
+            continue
+          }
+          if (a !== undefined && lavoro.chiestoSalva !== true && ancora.file.length > 0) {
+            const file = [...ancora.file].sort()
+            if (riprendiDomandaSalva(ws, a, lavoro, file)) { /* era già aperta da prima di un riavvio */ }
+            else if (adessoMs - lavoro.sporcaDal >= (x.chiediSalvaDopoMs ?? CHIEDI_SALVA_DOPO_MS)) {
+              if (file.length > FILE_DA_CHIEDERE_MAX) {
+                lavoro.chiestoSalva = true
+                evento(ws, { tipo: 'unione', quando: x.adesso(), ...dove, testo: `${chi}: i file non salvati che fermano l’unione sono ${file.length}, troppi per chiedere a Nicholas di salvarli uno per uno: aspetto che li sistemi lui.` })
+              } else {
+                apriDomandaSalva(ws, a, lavoro, file, cosaDel(compito?.titolo ?? chi))
+                evento(ws, { tipo: 'unione', quando: x.adesso(), ...dove, testo: `${chi}: i file non salvati sono ancora lì${elencoFile(file)}. Non chiederlo tu a Nicholas, gliel’ho chiesto io: se dice di sì li salvo con un commit e unisco, se no aspetto. L’unione riparte da sola.` })
+              }
+            }
+          }
         }
-        await dormi(riprova)
+        // 11/11: dopo un po' la voce ferma va in fondo e le altre provano (lei riprova ogni volta che tocca a lei).
+        if (adessoMs - lavoro.sporcaDal >= (x.sporcaInFondoDopoMs ?? SPORCA_IN_FONDO_DOPO_MS) && fila.length > 1) {
+          lavoro.nonPrima = adessoMs + riprova
+          fila.shift()
+          fila.push(lavoro)
+          continue
+        }
+        await dormiFila(ws, riprova)
         continue
       }
+      // Non è più ferma per i file non salvati: la domanda, se c'era, non serve più.
+      lavoro.sporcaDal = undefined
+      ritiraDomandaSalva(lavoro, 'l’unione non è più ferma per quei file: non serve più')
       // Scaduta: chiusa, e di nuovo in fila (in coda alle altre). 11/11: mai fuori dalla fila
       // (il 07/11 sette lavori finiti restarono fuori dal principale dopo tre scadenze):
       // riprova da sola, sempre più di rado, e intanto le altre unioni passano.
@@ -973,7 +1103,7 @@ ${NOTA_SENZA_GIT}`,
       }
     }
   }
-  const cancelloOra = async (ws: string, p0: { compito?: string; specialista?: string; ramo?: string }, scambio: { scaduto: boolean } = { scaduto: false }): Promise<string> => {
+  const cancelloOra = async (ws: string, p0: { compito?: string; specialista?: string; ramo?: string }, scambio: ScambioUnione = { scaduto: false }): Promise<string> => {
     let p = p0
     // 06/11 (k-60): chiesta l'unione di uno specialista che fa parte di un compito, vale il compito:
     // i rami di tutti i suoi specialisti. Il ramo «vuoto» di un verificatore non dichiara unito
@@ -1107,19 +1237,18 @@ ${NOTA_SENZA_GIT}`,
     const grezzo = compito !== undefined ? comandoDelCriterio(compito.criterio) : undefined
     const comando = grezzo !== undefined ? criteriPerLaProva([{ descrizione: '', comando: grezzo, soddisfatto: false }])[0]?.comando ?? grezzo : undefined
     let verde = true
-    let nonMisurato = false
     let dettaglio = compito === undefined ? 'nessun compito del piano: vale l’unione senza regressioni' : 'il criterio non ha un comando: vale l’unione senza regressioni'
     // 08/11: dopo un'unione il codice è un altro, un rosso ricordato non vale più.
     dimenticaIRossi(memoriaCriteri)
     // 08/11: un file seguito modificato a mano nella principale fa rosso ogni criterio: non è colpa del lavoro.
+    // 11/11: ma si misura lo stesso. Verde vale. Rosso non conta come rosso del lavoro e non si
+    // segna «non misurato» aspettando che qualcuno rimisuri (nessuno lo faceva): l'unione resta
+    // in fila e rimisura da sola quando quei file cambiano.
     const sporca = comando !== undefined && g !== undefined && !senzaGit
       ? principaleSporca((await g(['status', '--porcelain'], a.cwd).catch(() => undefined))?.uscita ?? '')
       : { sporca: false, file: [] as string[] }
-    if (comando !== undefined && sporca.sporca) {
-      verde = false
-      nonMisurato = true
-      dettaglio = `principale sporca: ${sporca.file.slice(0, 5).join(', ')}${sporca.file.length > 5 ? ` (+${sporca.file.length - 5})` : ''}. Il criterio non è stato misurato: salva o annulla quel file nella cartella principale, poi rimisura`
-    } else if (comando !== undefined) {
+    const ROSSO_SPORCO = 'criterio rosso con file non salvati nella cartella principale'
+    if (comando !== undefined) {
       const esame = esaminaComando(comando)
       if (!esame.ok) {
         verde = false
@@ -1127,22 +1256,27 @@ ${NOTA_SENZA_GIT}`,
       } else {
         // 0.94.0: con l'impronta del codice, un comando già misurato nell'unione di prova non si rilancia.
         const impronta = g !== undefined && !senzaGit ? await improntaCodiceAsincrona(g, a.cwd) : undefined
+        // Già misurato rosso con questi stessi file non salvati: non si rilancia finché non cambiano.
+        const firmaSporca = sporca.sporca ? `${impronta ?? ''}|${sporca.file.join('\n')}` : undefined
+        if (firmaSporca !== undefined && scambio.rossoSporco === firmaSporca) throw new RiprovaUnione('sporca', ROSSO_SPORCO, sporca.file, true)
         const m = await misuraCriteri([{ descrizione: compito!.criterio, comando, soddisfatto: false }], a.cwd, x.esegui, { memoria: memoriaCriteri, adesso: Date.now, tutti: true, ...(impronta !== undefined ? { impronta } : {}) })
         const falliti = fallitiDavvero(m.esiti)
         const ignoti = nonMisurati(m.esiti)
         verde = m.esiti.length > 0 && falliti.length === 0 && ignoti.length === 0
         const uscita = m.esiti[0]?.uscita.trim().split(/\r?\n/u).slice(-6).join(' | ').slice(0, 400) ?? ''
         dettaglio = verde ? `\`${comando}\` passa` : ignoti.length > 0 ? `\`${comando}\` non si è potuto misurare: ${uscita}` : `\`${comando}\` non passa: ${uscita}`
+        if (!verde && firmaSporca !== undefined && !scambio.scaduto) {
+          scambio.rossoSporco = firmaSporca
+          if (ramo !== undefined) scambio.ramoUnito = ramo
+          throw new RiprovaUnione('sporca', ROSSO_SPORCO, sporca.file, true)
+        }
+        scambio.rossoSporco = undefined
       }
     }
     // Scaduta mentre misurava: l'esito non vale più, l'unione è già stata rimessa in fila.
     if (scambio.scaduto) return `${nome}: unione scaduta`
     if (compito !== undefined) {
-      cambiaCompito(ws, compito.id, (k) => {
-        const dopo: CompitoPiano = { ...k, stato: 'unito', criterioVerde: verde, unitoIl: il, esito: dettaglio }
-        if (nonMisurato) delete dopo.criterioVerde // né verde né rosso: da misurare
-        return dopo
-      })
+      cambiaCompito(ws, compito.id, (k) => ({ ...k, stato: 'unito', criterioVerde: verde, unitoIl: il, esito: dettaglio }))
     }
     for (const o of assorbiti) {
       const s = uniti.get(ws) ?? new Set<string>()
@@ -1184,7 +1318,6 @@ ${NOTA_SENZA_GIT}`,
     ricalcola(ws, `${compito?.id ?? nome} unito${verde ? '' : ' con il criterio rosso'}`)
     const dove = ramo !== undefined ? `ramo ${ramo} unito nel principale` : fuoriDaiRami ? 'lavoro fuori dai rami (scritto in un’altra cartella): niente da unire, vale il criterio' : soloLettura ? 'analisi in sola lettura, niente da unire' : 'lavoro già nella cartella del progetto'
     const chi = compito?.id !== undefined && compito.id !== nome ? `${compito.id} (${nome})` : nome
-    if (nonMisurato) return `${chi}: ${dove}. Criterio NON MISURATO — ${dettaglio}. Non è un rosso del lavoro: nessuno specialista da affidare.`
     return `${chi}: ${dove}. Criterio ${verde ? 'VERDE' : 'ROSSO'}: ${dettaglio}.${verde ? '' : ' Il compito resta da correggere: affidalo a uno specialista, dicendo cosa non va.'}`
   }
 

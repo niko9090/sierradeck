@@ -137,12 +137,15 @@ export type Dipendenze = {
   inattivoOrchestratoreMs?: number
   /** Per i test di `unisci` chiamato a mano: `false` spegne l'unione da sola alla fine di uno specialista (0.89.4). */
   unioneDaSola?: boolean
-  /** 06/11: dopo quanto un'unione di prova nel principale si chiude e si rimette in fila (di serie 15 minuti). */
+  /** 06/11: dopo quanto un'unione di prova nel principale si chiude e si rimette in fila (di serie 45 minuti, `tempi-unione.ts`). */
   provaMaxMs?: number
   /** 06/11, per i test: tempi della fila delle unioni (vedi `ContestoUnico`). */
   unioneMaxMs?: number
   unioneRiprovaMs?: number
   unioneTentativiMax?: number
+  /** 11/11, per i test: i tempi dei file non salvati nella principale (vedi `ContestoUnico`). */
+  chiediSalvaDopoMs?: number
+  sporcaInFondoDopoMs?: number
   /** 31/10: gli autopiloti archiviati come doppioni. Assente: `servizio/doppioni-archiviati.json` accanto agli autopiloti. */
   doppioni?: ArchivioDoppioni
   /** k-48: la lista d'attesa degli specialisti. Assente: `servizio/attesa-specialisti.json` accanto agli autopiloti. */
@@ -1482,6 +1485,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     ...(deps.unioneMaxMs !== undefined ? { unioneMaxMs: deps.unioneMaxMs } : {}),
     ...(deps.unioneRiprovaMs !== undefined ? { unioneRiprovaMs: deps.unioneRiprovaMs } : {}),
     ...(deps.unioneTentativiMax !== undefined ? { unioneTentativiMax: deps.unioneTentativiMax } : {}),
+    ...(deps.chiediSalvaDopoMs !== undefined ? { chiediSalvaDopoMs: deps.chiediSalvaDopoMs } : {}),
+    ...(deps.sporcaInFondoDopoMs !== undefined ? { sporcaInFondoDopoMs: deps.sporcaInFondoDopoMs } : {}),
     doppioni: deps.doppioni ?? apriDoppioni(join(deps.archivio.cartella, 'servizio', 'doppioni-archiviati.json')),
     attesa: deps.attesa ?? apriAttesa(join(deps.archivio.cartella, 'servizio', 'attesa-specialisti.json')),
     // Nel recupero del riassetto (30 giorni, «Annulla» lo rimette), come gli altri passi del servizio.

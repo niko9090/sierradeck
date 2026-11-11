@@ -49,6 +49,12 @@ export type ContestoDomanda = {
   chatId?: string
   /** 0.96.0: la richiesta della coda (r-N) da cui nasce la domanda: chiusa lei, la domanda si ritira. */
   richiestaId?: string
+  /**
+   * 11/11: una domanda che non si chiude mai con una scelta automatica (né per
+   * il tempo, né perché Nicholas ha scritto altro): vale solo la sua risposta.
+   * La usa il programma per «salvo io i tuoi file non salvati?».
+   */
+  maiDaSola?: true
   pubblica?: boolean
   /** Altre chat che hanno chiesto la stessa cosa (0.81.0): la risposta riprende anche loro. */
   ancheChat?: string[]
@@ -93,6 +99,14 @@ export type RegistroDomande = {
    * fra le risolte, con la domanda intera e il motivo. `false` se non c'era.
    */
   superata: (id: string, motivo: string, extra?: Pick<DomandaRisolta, 'chatId' | 'chatTitolo'>) => boolean
+  /**
+   * 11/11: chi ha aperto la domanda la **ritira** perché non serve più, anche
+   * se la sta ancora aspettando (`superata` in quel caso non la tocca): chi
+   * aspettava è libero, senza risposta. Resta fra le risolte con il motivo.
+   * `false` se non c'era o aveva già una risposta. Facoltativa: i registri di
+   * prova possono non averla.
+   */
+  ritira?: (id: string, motivo: string) => boolean
   /**
    * Chiamata quando una risposta arriva dopo la scadenza dell'attesa, con la
    * domanda (0.84.4): senza il suo contesto la risposta va lo stesso al
@@ -288,6 +302,24 @@ export function creaRegistroDomande(deps: {
         risposta: `${SUPERATA}${motivo}`,
         quando: new Date(deps.adesso()).toISOString()
       }]
+      salva()
+      return true
+    },
+
+    ritira(id, motivo) {
+      const voce = voci.get(id)
+      if (voce === undefined || voce.risposta !== undefined) return false
+      // Chi aspettava (il programma stesso) è libero: non è una risposta.
+      const attese = voce.attese
+      voce.attese = []
+      for (const r of attese) r(undefined)
+      voci.delete(id)
+      const d = voce.domanda
+      dicoChiusa(d)
+      if (!soloInChat(d)) {
+        const domanda = (d.parti?.domanda !== undefined && d.parti.domanda !== '' ? d.parti.domanda : d.testo).trim().slice(0, RISOLTA_MAX)
+        risolte = [...fresche(), { autopilotaId: d.autopilotaId, domanda, risposta: `${SUPERATA}${motivo}`, quando: new Date(deps.adesso()).toISOString() }]
+      }
       salva()
       return true
     },

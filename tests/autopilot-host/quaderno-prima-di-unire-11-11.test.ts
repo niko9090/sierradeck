@@ -66,20 +66,41 @@ describe('k-136: il quaderno salvato prima di unire, anche riscritto (11/11)', (
     expect(git(['merge-base', '--is-ancestor', ramo, 'main'], progetto).codice).toBe(0)
   })
 
-  it('stesso quaderno riscritto, ma con anche un file del codice modificato: l’unione si ferma ancora, e lo dice', async () => {
+  // 11/11 (voce 3): prima «l'unione si ferma ancora» per qualunque file del codice modificato.
+  // Adesso la ferma solo un file che il ramo tocca; il quaderno si salva comunque, e solo lui.
+  it('stesso quaderno riscritto, con anche un file del codice modificato che il ramo non tocca: il quaderno si salva, l’unione parte, il file resta com’è', async () => {
     quadernoSalvato()
     const ramo = ramoDiChat()
     quadernoRiscritto()
     writeFileSync(join(progetto, 'a.txt'), 'a metà di Nicholas\n')
-    const prima = esegui(['rev-parse', 'HEAD'], progetto)
 
-    const r = await iniziaProvaAsincrono(ga, { cwd: progetto, ramo, base: 'main' })
-    expect(r).toMatchObject({ ok: false, motivo: 'la cartella di lavoro ha modifiche non salvate' })
-    expect(r.ok === false ? r.file : []).toContain('a.txt')
+    expect(await iniziaProvaAsincrono(ga, { cwd: progetto, ramo, base: 'main' })).toEqual({ ok: true })
 
-    // Nessun commit del programma sul principale; il file di Nicholas non è toccato.
-    expect(esegui(['rev-parse', 'HEAD'], progetto)).toBe(prima)
+    // Il commit del programma porta solo il quaderno; il file di Nicholas non è toccato né salvato.
+    expect(esegui(['log', '-1', '--format=%s', 'HEAD'], progetto)).toBe('quaderno: le note del programma, prima di unire')
+    expect(esegui(['show', '--stat', '--format=', 'HEAD'], progetto)).not.toContain('a.txt')
     expect(readFileSync(join(progetto, 'a.txt'), 'utf8')).toBe('a metà di Nicholas\n')
     expect(readFileSync(decisioni(progetto), 'utf8')).toBe('- scelta tre\n- scelta uno (×2)\n- scelta due\n- scelta quattro\n')
+    expect(await chiudiProvaAsincrono(ga, { cwd: progetto, tieni: true })).toBe(true)
+    expect(git(['merge-base', '--is-ancestor', ramo, 'main'], progetto).codice).toBe(0)
+    expect(readFileSync(join(progetto, 'a.txt'), 'utf8')).toBe('a metà di Nicholas\n')
+    expect(git(['status', '--porcelain', '--untracked-files=no'], progetto).uscita).toMatch(/^M a\.txt$/)
+  })
+
+  it('se invece il ramo tocca quel file del codice, l’unione si ferma e lo dice: il file di Nicholas non è toccato', async () => {
+    quadernoSalvato()
+    const wt = creaWorktree(git, { cwd: progetto, autopilota: 'ap1', chat: 'c-137', base: 'main' })
+    if (!wt.ok) throw new Error('worktree non creato')
+    writeFileSync(join(wt.cartella, 'a.txt'), 'uno\ndalla chat\n')
+    salvaLavoro(git, wt.cartella, 'tocca a.txt')
+    quadernoRiscritto()
+    writeFileSync(join(progetto, 'a.txt'), 'a metà di Nicholas\n')
+
+    const r = await iniziaProvaAsincrono(ga, { cwd: progetto, ramo: wt.ramo, base: 'main' })
+    expect(r).toEqual({ ok: false, motivo: 'la cartella di lavoro ha modifiche non salvate', file: ['a.txt'] })
+
+    expect(readFileSync(join(progetto, 'a.txt'), 'utf8')).toBe('a metà di Nicholas\n')
+    expect(readFileSync(decisioni(progetto), 'utf8')).toBe('- scelta tre\n- scelta uno (×2)\n- scelta due\n- scelta quattro\n')
+    expect(git(['status', '--porcelain', '--untracked-files=no'], progetto).uscita).toMatch(/^M a\.txt$/)
   })
 })
