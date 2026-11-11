@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { nuovoAutopilota, riparteDaSolo, type Autopilota } from '../../src/shared/autopilota'
 import { rotteClient, type DipendenzeRotte } from '../../src/main/client-rotte'
 import { apriDispositivi } from '../../src/main/dispositivi'
-import { paginaClient } from '../../src/main/client-pagina'
+import { avvisaNelGiornale } from '../../src/autopilot-host/avvisi-servizio'
 
 /**
  * Notifiche solo utili (0.81.0): un fermo che riparte da solo (limiti del
@@ -54,14 +54,17 @@ describe('/api/stato lo dice a pagina e app', () => {
   })
 })
 
-describe('la pagina non annuncia un fermo che riparte da solo', () => {
-  const html = paginaClient()
-  const script = html.slice(html.indexOf('<script>') + 8, html.lastIndexOf('</script>'))
-  it('lo salta, ma annuncia ancora gli altri', () => {
-    expect(script).toContain("a.riparteDaSolo === true")
-    // Il filtro sta sulla riga che decide se annunciare il fermo, prima del «si è fermato».
-    const i = script.indexOf("a.riparteDaSolo === true")
-    expect(i).toBeGreaterThan(0)
-    expect(script.indexOf(' si è fermato', i)).toBeGreaterThan(i)
+describe('il giornale degli avvisi non annuncia un fermo che riparte da solo', () => {
+  // 11/11: pagina, app e Telegram leggono lo stesso giornale degli avvisi; la regola sta dove nasce l'avviso.
+  it('lo salta, ma annuncia ancora gli altri', async () => {
+    const notizie: { cosa: string; autopilota?: string }[] = []
+    const g = { annota: (n: { cosa: string; autopilota?: string }) => { notizie.push(n); return n } } as unknown as Parameters<typeof avvisaNelGiornale>[0]
+    const avvisa = avvisaNelGiornale(g)
+    const pausa = { ...nuovoAutopilota({ id: 'ap-pausa', nome: 'p', cwd: 'C:/x', obiettivo: 'o', iniziatoIl: '2026-11-11T10:00:00.000Z' }), stato: 'sospeso', fermatoPerAggiornamento: true } as Autopilota
+    const rotto = { ...nuovoAutopilota({ id: 'ap-rotto', nome: 'r', cwd: 'C:/x', obiettivo: 'o', iniziatoIl: '2026-11-11T10:00:00.000Z' }), stato: 'sospeso', motivoSospensione: 'la verifica non parte' } as Autopilota
+    expect(riparteDaSolo(pausa)).toBe(true)
+    await avvisa('sospeso', pausa)
+    await avvisa('sospeso', rotto)
+    expect(notizie.map((n) => [n.cosa, n.autopilota])).toEqual([['fermo', 'ap-rotto']])
   })
 })
