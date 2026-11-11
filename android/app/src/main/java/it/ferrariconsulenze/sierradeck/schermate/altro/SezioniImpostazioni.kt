@@ -114,36 +114,6 @@ fun SezioneAvvisi() {
 }
 
 @Composable
-fun SezioneInfo(api: Api) {
-    val contesto = LocalContext.current
-    var versionePc by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(Unit) { versionePc = try { api.ciao().versione } catch (_: Exception) { null } }
-        // ─── Info (0.52.1) ───
-        // Quale app hai in mano, scritto per intero: per controllare che sia
-        // la 2.51 o successiva senza aprire le impostazioni di Android.
-        Sezione("Info")
-        Text(
-            "App installata: SierraDeck ${BuildConfig.VERSION_NAME} (codice di versione ${BuildConfig.VERSION_CODE}).",
-            color = Banco.testo, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp)
-        )
-        Text(
-            "Computer collegato: " + (versionePc?.let { "SierraDeck $it" } ?: "versione non ancora letta") + ". " +
-                "SierraDeck è di Nicholas Ferrari / Ferrari Consulenze.",
-            color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-        )
-        // «Copia i dettagli» (app 2.56.0): versioni e collegamento in un testo solo, per chiedere aiuto. Niente chiavi.
-        TextButton(onClick = {
-            val l = Collegamenti.di(Collegamenti.ACCOPPIATO)
-            val testo = Dettagli.testo(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE, PcCorrente.nome, versionePc, l, System.currentTimeMillis())
-            val cm = contesto.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-            cm.setPrimaryClip(android.content.ClipData.newPlainText("SierraDeck", testo))
-            Nota.mostra("Dettagli copiati: incollali dove chiedi aiuto. Non ci sono chiavi né password.")
-        }) { Text("Copia i dettagli") }
-        // Lo storico degli errori (app 2.81.0): quello del PC, con «Copia» e «Manda al PC di sviluppo».
-        SezioneErroriApp(api)
-}
-
-@Composable
 internal fun Sezione(titolo: String, aiuto: String? = null) {
     TitoloConAiuto(titolo, aiuto)
     Spacer(Modifier.height(8.dp))

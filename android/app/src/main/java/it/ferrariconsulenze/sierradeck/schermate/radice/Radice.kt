@@ -96,7 +96,6 @@ import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneConsumi
 import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneDrive
 import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneErroriApp
 import it.ferrariconsulenze.sierradeck.schermate.file.SezioneFile
-import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneInfo
 import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneQuadernoPersonale
 import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneSalute
 import it.ferrariconsulenze.sierradeck.sottofondo.ErroriApp

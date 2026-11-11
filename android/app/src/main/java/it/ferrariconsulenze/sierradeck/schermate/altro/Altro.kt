@@ -52,7 +52,6 @@ import it.ferrariconsulenze.sierradeck.schermate.notifiche.SchermataNotifiche
 import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneConsumi
 import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneDrive
 import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneErroriApp
-import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneInfo
 import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneQuadernoPersonale
 import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneSalute
 import kotlinx.coroutines.launch
@@ -89,11 +88,7 @@ fun SchermataAltro(
                 SezioneAltro.DRIVE -> Linguette(listOf("Drive", "Quaderno personale")) { i ->
                     if (i == 0) Column(Modifier.verticalScroll(rememberScrollState())) { SezioneDrive(api) } else SezioneQuadernoPersonale(api)
                 }
-                SezioneAltro.INFO -> Column(Modifier.verticalScroll(rememberScrollState())) {
-                    SezioneInfo(api)
-                    SezioneErroriApp(api)
-                    Scollega(onScollega)
-                }
+                SezioneAltro.INFO -> SchermataAiuto(api, onScollega)
             }
         }
     }

@@ -6,6 +6,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.onLast
@@ -32,6 +33,7 @@ import it.ferrariconsulenze.sierradeck.nucleo.VistaAttesa
 import it.ferrariconsulenze.sierradeck.nucleo.VistaCoda
 import it.ferrariconsulenze.sierradeck.nucleo.VoceAttesa
 import it.ferrariconsulenze.sierradeck.schermate.altro.ElencoAltro
+import it.ferrariconsulenze.sierradeck.schermate.altro.CorpoAiuto
 import it.ferrariconsulenze.sierradeck.schermate.altro.Scollega
 import it.ferrariconsulenze.sierradeck.schermate.altro.TutteLeChat
 import it.ferrariconsulenze.sierradeck.schermate.lavoro.CorpoLavoro
@@ -210,6 +212,10 @@ class FotoSchermateTest {
     }
 
     @Test fun altroElenco() = foto("altro") { ElencoAltro {} }
+
+    @Test fun altroAiuto() = foto("altro-aiuto") {
+        CorpoAiuto("2.101.0", "0.101.0", onCopia = {}, errori = { androidx.compose.material3.Text("Errori · nessuno negli ultimi giorni", modifier = androidx.compose.ui.Modifier.padding(horizontal = 16.dp)) }, scollega = { Scollega { null } })
+    }
 
     @Test fun altroTutteLeChat() = foto("altro-tutte-le-chat") {
         TutteLeChat(null, listOf(
