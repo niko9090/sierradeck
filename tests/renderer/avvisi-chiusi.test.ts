@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest'
 import { componiAvvisi, chiavePreparazione, ricordaChiusi, AVVISI_CHIUSI_MAX, type FontiAvvisi } from '../../src/renderer/avvisi'
 import { nuovoAutopilota, chiaveFermo, conMomentoDelFermo, parseAutopilota, type Autopilota } from '@shared/autopilota'
 import { normalizzaPreferenze, PREFERENZE_PREDEFINITE } from '@shared/preferenze'
-import { paginaClient } from '../../src/main/client-pagina'
 
 /**
  * La banda degli autopiloti fermi si chiude (0.37.0). Nicholas: un autopilota
@@ -93,58 +92,5 @@ describe('il momento del fermo (servizio)', () => {
   })
 })
 
-describe('le notifiche della pagina per un autopilota fermo', () => {
-  const html = paginaClient()
-  const script = html.slice(html.indexOf('<script>') + 8, html.lastIndexOf('</script>'))
-  const estrai = (nome: string): string => {
-    const inizio = script.indexOf(`function ${nome}(`)
-    let profondita = 0
-    for (let i = script.indexOf('{', inizio); i < script.length; i++) {
-      if (script[i] === '{') profondita++
-      else if (script[i] === '}' && --profondita === 0) return script.slice(inizio, i + 1)
-    }
-    throw new Error('non si chiude')
-  }
-  const giro = (): ((stato: unknown) => void) & { mandate: string[] } => {
-    const mandate: string[] = []
-    const f = new Function('mandate', `
-      var avvisati = {}; var primoAvviso = false; var ultimoAvvisoIl = undefined
-      function Notification(titolo) { mandate.push(titolo) }
-      Notification.permission = 'granted'
-      function chiedi() { return Promise.resolve() }
-      ${estrai('avvisiDaMostrare')}
-      ${estrai('sceltaDaAnnunciare')}
-      ${estrai('avvisaSeServe')}
-      return avvisaSeServe`)(mandate) as (stato: unknown) => void
-    return Object.assign(f, { mandate })
-  }
-  const fermo = (chiave: string, extra: Record<string, unknown> = {}) => ({ id: 'ap-1', nome: 'Lavoro', stato: 'sospeso', motivo: 'm', fermo: chiave, ...extra })
-
-  it('lo stesso fermo si annuncia una volta, anche se il servizio sparisce e torna; uno nuovo si annuncia', () => {
-    const g = giro()
-    g({ autopiloti: [fermo('ap-1|sospeso|t1|m')] })
-    g({ autopiloti: [fermo('ap-1|sospeso|t1|m')] })
-    // Il servizio non risponde: elenco vuoto, ma «non letto».
-    g({ autopiloti: [], autopilotiLetti: false })
-    g({ autopiloti: [fermo('ap-1|sospeso|t1|m')] })
-    expect(g.mandate).toEqual(['Lavoro si è fermato'])
-    g({ autopiloti: [fermo('ap-1|sospeso|t2|m')] })
-    expect(g.mandate).toHaveLength(2)
-  })
-
-  it('0.81.0: un fermo che riparte da solo tace; se poi resta fermo davvero (stessa chiave) si annuncia', () => {
-    const g = giro()
-    g({ autopiloti: [fermo('ap-1|sospeso|t1|limiti', { riparteDaSolo: true })] })
-    g({ autopiloti: [fermo('ap-1|sospeso|t1|limiti', { riparteDaSolo: true })] })
-    expect(g.mandate).toEqual([])
-    // La ripartenza non è riuscita: il PC toglie la pausa, il fermo è vero.
-    g({ autopiloti: [fermo('ap-1|sospeso|t1|limiti')] })
-    expect(g.mandate).toEqual(['Lavoro si è fermato'])
-  })
-
-  it('un archiviato non manda notifiche', () => {
-    const g = giro()
-    g({ autopiloti: [fermo('ap-1|sospeso|t1|m', { archiviato: true })] })
-    expect(g.mandate).toEqual([])
-  })
-})
+// Le notifiche della pagina per un fermo (11/11): non più dallo stato, dal registro degli avvisi del PC
+// (un fermo si annuncia una volta per id: tests/main/avvisi.test.ts, client-pagina-spunte-e-schede).

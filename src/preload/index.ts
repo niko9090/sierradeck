@@ -631,6 +631,12 @@ contextBridge.exposeInMainWorld('gestore', {
       return () => ipcRenderer.off('quadernoPersonale:cambiato', h)
     }
   },
+  /** Le notifiche (11/11): le stesse impostazioni e le stesse ultime di app e pagina. */
+  avvisi: {
+    stato: (): Promise<import('@shared/avvisi-telefono').VistaAvvisi> => ipcRenderer.invoke('avvisi:stato'),
+    imposta: (x: unknown): Promise<import('@shared/avvisi-telefono').ImpostazioniAvvisi> => ipcRenderer.invoke('avvisi:imposta', x),
+    prova: (): Promise<import('@shared/avvisi-telefono').VistaAvvisi> => ipcRenderer.invoke('avvisi:prova')
+  },
   /** I file dal PC al telefono (0.54.0): «📱 Manda al telefono» e la sua coda. */
   alTelefono: {
     stato: (): Promise<import('@shared/file-telefono').StatoAlTelefono> => ipcRenderer.invoke('alTelefono:stato'),

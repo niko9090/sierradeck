@@ -591,7 +591,7 @@ Di lato è larghezza, sopra o sotto è altezza: è sempre la stessa
         ) : null}
         {vede('scorciatoie') ? <SezioneScorciatoie p={p} cambia={cambia} /> : null}
 
-        {vede('fumetti-sincronia', 'avviso-windows-aggiornamento') ? (
+        {vede('avvisi', 'avvisi-ultimi', 'fumetti-sincronia', 'avviso-windows-aggiornamento') ? (
           <section className="impostazioni__gruppo">
             <Testa id="notifiche" />
             <SezioneNotifiche p={p} cambia={cambia} vede={vede} />

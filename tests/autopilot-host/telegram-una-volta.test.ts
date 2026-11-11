@@ -22,12 +22,9 @@ describe('Telegram assente: detto una volta', () => {
     expect(righe).toEqual([])
   })
 
-  it('la dice il servizio in ascolto, non chi parte e trova la porta occupata', () => {
+  it('11/11: il servizio non la dice più (Telegram lo manda il programma, dal registro degli avvisi)', () => {
     const sorgente = readFileSync('src/autopilot-host/index.ts', 'utf8')
-    const ascolto = sorgente.indexOf("server.listen(PORTA, '127.0.0.1', () => {")
-    const chiamata = sorgente.indexOf('diciTelegramAssente(configurazione)')
-    expect(ascolto).toBeGreaterThan(0)
-    expect(chiamata).toBeGreaterThan(ascolto)
+    expect(sorgente).not.toContain('diciTelegramAssente(configurazione)')
     expect(sorgente.match(/console\.warn\('\[autopilota\] nessuna configurazione Telegram/g)).toBeNull()
   })
 })

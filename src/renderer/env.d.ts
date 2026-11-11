@@ -331,6 +331,11 @@ declare global {
         revoca: (sessione: string, voce: string) => Promise<boolean>
         quandoCambia: (f: () => void) => () => void
       }
+      avvisi: {
+        stato: () => Promise<import('../shared/avvisi-telefono').VistaAvvisi>
+        imposta: (x: unknown) => Promise<import('../shared/avvisi-telefono').ImpostazioniAvvisi>
+        prova: () => Promise<import('../shared/avvisi-telefono').VistaAvvisi>
+      }
       alTelefono: {
         stato: () => Promise<import('../shared/file-telefono').StatoAlTelefono>
         manda: (percorso: string, telefono: string, nota?: string) => Promise<import('../shared/file-telefono').EsitoMandaAlTelefono>

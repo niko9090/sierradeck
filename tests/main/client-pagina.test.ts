@@ -541,16 +541,7 @@ describe('la profondita, e i bordi', () => {
     expect(stile).toMatch(/\.cartella__dove\s*\{[^}]*direction:\s*rtl/)
   })
 
-  it('il permesso di avvisare si chiede alla prima domanda vera', () => {
-    // Chiederlo al primo disegno significa chiederlo prima che esista un
-    // motivo per dire di si' — e chi dice di no, dice di no per sempre.
-    const f = script.slice(script.indexOf('function avvisaSeServe('))
-    expect(f.slice(0, 700)).toContain('requestPermission')
-    expect(f.slice(0, 700)).toContain('(stato.domande || []).length > 0')
-    // E all'apertura non si chiede piu' niente.
-    const c = script.slice(script.indexOf('function chiediDiAvvisare('))
-    expect(c.slice(0, 120)).not.toContain('requestPermission')
-  })
+  // Il permesso alla prima domanda vera (11/11): ora dal registro degli avvisi, provato in client-pagina-spunte-e-schede.
 
   it('c e un solo momento animato, e si puo spegnere', () => {
     expect(stile).toContain('@keyframes entra')
