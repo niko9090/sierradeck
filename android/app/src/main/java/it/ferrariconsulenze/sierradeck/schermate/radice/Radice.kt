@@ -67,6 +67,8 @@ import it.ferrariconsulenze.sierradeck.dati.Collegamento
 import it.ferrariconsulenze.sierradeck.dati.Deposito
 import it.ferrariconsulenze.sierradeck.nucleo.ComponiWorkspace
 import it.ferrariconsulenze.sierradeck.schermate.lavoro.SchermataLavoro
+import it.ferrariconsulenze.sierradeck.schermate.file.SchermataFile
+import it.ferrariconsulenze.sierradeck.nucleo.RegoleSchermate
 import it.ferrariconsulenze.sierradeck.schermate.chat.SchermataDettaglioChat
 import it.ferrariconsulenze.sierradeck.schermate.chat.fonteStoria
 import it.ferrariconsulenze.sierradeck.schermate.altro.SchermataAltro
@@ -186,7 +188,7 @@ private fun Collegata(vm: RadiceViewModel, pc: PcNoto, onEsci: () -> Unit) {
         Box(Modifier.padding(spazi).fillMaxSize()) {
             when (posto.voce) {
                 VoceBarra.LAVORO -> GuscioLavoro(pc, api, posto.dettaglio, copia, collegamento, onApri = vm::apri, onIndietro = { vm.indietro() }, onVersione = { vm.apri(Dettaglio.Sezione(SezioneAltro.AGGIORNAMENTI)) })
-                VoceBarra.FILE -> SezioneFile(api)
+                VoceBarra.FILE -> SchermataFile(pc.id, RegoleSchermate.schedeWorkspace(copia.stato?.autopiloti.orEmpty())) { SezioneFile(api) }
                 VoceBarra.ALTRO -> SchermataAltro(
                     api = api, chat = copia.stato?.chat.orEmpty(),
                     aperta = (posto.dettaglio as? Dettaglio.Sezione)?.sezione,

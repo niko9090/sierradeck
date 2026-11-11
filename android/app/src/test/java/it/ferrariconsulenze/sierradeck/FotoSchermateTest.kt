@@ -50,6 +50,9 @@ import it.ferrariconsulenze.sierradeck.nucleo.Opzione
 import it.ferrariconsulenze.sierradeck.schermate.chat.SchermataDettaglioChat
 import androidx.compose.material3.Scaffold
 import androidx.compose.foundation.layout.Box
+import it.ferrariconsulenze.sierradeck.schermate.file.CorpoFile
+import it.ferrariconsulenze.sierradeck.dati.CodaFile
+import it.ferrariconsulenze.sierradeck.sottofondo.Ricevuto
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -175,6 +178,19 @@ class FotoSchermateTest {
         SchermataDettaglioChat(
             "pc-finto", Chat(id = "c1", titolo = "Pagina dei dolci", chiede = true), "c1",
             { Storia(da = 48, righe = listOf("Vuoi che la pubblichi adesso?"), scelte = scelte) }, null, {}, iniziali = r, scelteIniziali = scelte
+        )
+    }
+
+    @Test fun file() = foto("file") {
+        CorpoFile(
+            inViaggio = listOf(
+                CodaFile.Voce("v1", "pc-finto", "foto-torta.jpg", 2_400_000, null, "autopilota", "a1", "Sito delle ricette", 0, stato = "invio", fatti = 1_500_000),
+                CodaFile.Voce("v2", "pc-finto", "menu.pdf", 300_000, null, "autopilota", "a2", "App del meteo", 0, stato = "attesa", messaggio = "spento")
+            ),
+            ricevuti = listOf(
+                Ricevuto("r1", "elenco-ingredienti.txt", "/finto/elenco.txt", 2_048, "PC dello studio", ora, nota = "Quello di ieri"),
+                Ricevuto("r2", "copertina.png", "/finto/copertina.png", 820_000, "PC dello studio", ora - 3_600_000, salvatoIn = "Download/SierraDeck")
+            )
         )
     }
 

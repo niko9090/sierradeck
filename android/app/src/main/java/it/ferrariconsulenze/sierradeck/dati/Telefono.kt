@@ -3,7 +3,11 @@ package it.ferrariconsulenze.sierradeck.dati
 import android.content.Context
 import android.content.SharedPreferences
 import it.ferrariconsulenze.sierradeck.nucleo.Davanti
+import it.ferrariconsulenze.sierradeck.rete.Api
 import it.ferrariconsulenze.sierradeck.rete.Centralino
+import it.ferrariconsulenze.sierradeck.nucleo.DestinazioneFile
+import it.ferrariconsulenze.sierradeck.nucleo.Invio
+import it.ferrariconsulenze.sierradeck.nucleo.SorgenteFile
 import it.ferrariconsulenze.sierradeck.rete.Contatto
 import it.ferrariconsulenze.sierradeck.rete.Diario
 import it.ferrariconsulenze.sierradeck.rete.RetiAndroid
@@ -60,6 +64,19 @@ object Telefono {
         CodaInvii.avvia(
             File(app.filesDir, "dati"), ambito,
             manda = { inv -> centralino.chiama(inv.pc, inv.rotta, inv.corpo, inv.id) },
+            collegati = centralino.contatti.map { m -> m.filterValues { it is Contatto.Collegato }.keys }.distinctUntilChanged()
+        )
+        // I file verso i PC: stessa ripresa automatica.
+        CodaFile.avvia(
+            File(app.filesDir, "dati"), ambito,
+            manda = { v, copia, avanza ->
+                val chiave = rubrica.pc(v.pc)?.chiave
+                Invio.manda(
+                    Api(v.pc, chiave).trasporto(),
+                    SorgenteFile(v.nome, v.byte, v.sha256) { copia.inputStream() },
+                    DestinazioneFile(v.tipo, v.destId, v.destNome), "", v.id, onAvanzamento = avanza
+                )
+            },
             collegati = centralino.contatti.map { m -> m.filterValues { it is Contatto.Collegato }.keys }.distinctUntilChanged()
         )
         return i
