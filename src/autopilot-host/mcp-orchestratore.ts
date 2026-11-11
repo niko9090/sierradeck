@@ -1,10 +1,11 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import type { Autopilota, ChatGovernata } from '@shared/autopilota'
 import { chiudi as chiudiCoda, unisci as unisciCoda, COME_CHIUSA, type Coda, type ComeChiusa, type Modifica, type PuntoProposto } from '@shared/coda-richieste'
-import { scriviPiano, type Piano } from '@shared/piano-orchestratore'
+import { apriSeguiti, scriviPiano, type Piano } from '@shared/piano-orchestratore'
 import type { Specialista } from '@shared/flusso-orchestratore'
 import { LEZIONE_MAX } from '@shared/lezioni-chat'
 import { gettoneBearer, rispondiRpc, type EsitoStrumento, type ServerMcpMinimo, type StrumentoMcp } from '@shared/mcp-minimo'
+import { argomentoDi } from '@shared/argomento-testo'
 
 /**
  * **Gli strumenti dell'orchestratore unico** (P3, 30/10/2026): il server MCP
@@ -15,9 +16,9 @@ import { gettoneBearer, rispondiRpc, type EsitoStrumento, type ServerMcpMinimo, 
  * - `coda_unisci`: l'invariante della coda, nessun punto perso;
  * - `piano_scrivi`: niente cicli nelle dipendenze, richieste aperte;
  * - `unisci`: il cancello, che il modello non può scavalcare;
- * - `permesso`: il `--permission-prompt-tool` della CLI; quello che chiede
- *   ancora un permesso diventa una domanda nel riquadro, e la risposta torna
- *   come esito dello strumento.
+ * - `permesso`: il `--permission-prompt-tool` della CLI; decide il programma
+ *   (`permessi-automatici.ts`): concede o nega con il motivo. Dall'11/11 non
+ *   diventa più una domanda a Nicholas.
  *
  * Gli specialisti sono subagenti nativi (`--agents`): li apre, li segue e li
  * chiude la CLI; il tetto è `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`.
@@ -73,7 +74,10 @@ export function creaGettoniOrchestratore(): GettoniOrchestratore {
   }
 }
 
-/** Quanto aspetta, al più, una risposta di Nicholas a un permesso (lo strumento `permesso`). */
+/**
+ * Quanto aspettava, al più, una risposta di Nicholas a un permesso. Dall'11/11 i
+ * permessi li decide subito il programma: resta solo come base del tetto qui sotto.
+ */
 export const ATTESA_PERMESSO_MS = 10 * 60_000
 /**
  * Il tetto di una chiamata a uno strumento del nostro server, per la CLI.
@@ -115,15 +119,21 @@ export type AmbienteOrchestratore = {
   specialisti: (ws: string) => Specialista[]
   /** Avvia il cancello: l'esito arriva dopo, come evento. */
   unisci: (ws: string, p: { compito?: string; specialista?: string; ramo?: string }) => EsitoAmbiente
-  /** Una richiesta di permesso della CLI: si risolve con la risposta di Nicholas (o con un no allo scadere). */
+  /** Una richiesta di permesso della CLI: la decide il programma, subito (11/11: mai una domanda a Nicholas). */
   permesso: (ws: string, strumento: string, input: unknown) => Promise<{ consenti: boolean; motivo?: string }>
   /** Apre la domanda (registro, doppioni); il tetto all'ora lo guarda lo strumento. */
-  chiedi: (ws: string, domanda: string, scelte: string[], perche?: string, richiesta?: string) => EsitoAmbiente
+  chiedi: (ws: string, domanda: string, scelte: string[], perche?: string, richiesta?: string, opz?: { rischiosa?: boolean }) => EsitoAmbiente
   /** Ritira una propria domanda superata (0.92.1). */
   ritira: (ws: string, id: string, perche: string) => EsitoAmbiente
   /** Le domande partite nell'ultima ora. */
   domandeUltimaOra: (ws: string) => number
   annota: (ws: string, testo: string, tag: string) => EsitoAmbiente
+  /** 11/11: il progetto di questo workspace è SierraDeck stesso (lì «la installi?» non è una domanda). */
+  eIlProgramma?: (ws: string) => boolean
+  /** 11/11: la domanda parla di una cosa già successa (versione già installata, chat già chiusa)? Il perché, o `undefined`. */
+  giaSuccesso?: (ws: string, testo: string) => string | undefined
+  /** 11/11: una riga di avviso a Nicholas nella chat, senza risposta richiesta. Uguale a una recente non si ripete. */
+  avviso?: (ws: string, testo: string) => void
   /** Ricalcola la percentuale dopo un cambio, con il perché se scende. */
   ricalcola: (ws: string, perche: string) => void
   riassunto: (ws: string) => string
@@ -185,7 +195,7 @@ export const STRUMENTI_ORCHESTRATORE: readonly StrumentoMcp[] = [
   {
     name: 'piano_scrivi',
     title: 'Scrivi il piano dei compiti',
-    description: 'Registra (o aggiorna per id) i compiti in cui dividi le richieste aperte. Ogni compito: id tuo, richiesta (r-N), titolo, criterio (come si dice fatto; un comando fra apici inversi, per esempio `npm test`, il programma lo misura davvero), dopo (id dei compiti da unire prima), peso 1-3. Le dipendenze non possono fare cicli: il piano si rifiuta intero.',
+    description: 'Registra (o aggiorna per id) i compiti in cui dividi le richieste aperte. Ogni compito: id tuo, richiesta (r-N), titolo, criterio (come si dice fatto; un comando fra apici inversi, per esempio `npm test`, il programma lo misura davvero), dopo (id dei compiti da unire prima), peso 1-3. Le dipendenze non possono fare cicli: il piano si rifiuta intero. Un compito nuovo su una richiesta già fatta (per esempio i difetti trovati da una revisione) non si rifiuta: il programma apre da solo il «seguito» di quella richiesta e te lo dice, al più due per richiesta.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -224,14 +234,15 @@ export const STRUMENTI_ORCHESTRATORE: readonly StrumentoMcp[] = [
   {
     name: 'chiedi_utente',
     title: 'Chiedi a Nicholas',
-    description: 'Una domanda a Nicholas, solo quando serve davvero una sua decisione (cosa vuole, quando pubblicare, un rischio da accettare), non per cose che puoi leggere nel codice. Scrivila in parole semplici, come a chi non legge il codice: niente comandi, nomi di file, rami o sigle (k-N, r-N). Non chiedergli mai di fare a mano un lavoro tecnico (git, comandi, file): quello lo fa uno specialista. Compare subito nella chat di Nicholas con le scelte da toccare (risponde lì); se in dieci minuti nessuno la vede, passa nelle Domande di SierraDeck e su Telegram. Al più poche all’ora; una domanda uguale a una aperta o già risposta si rifiuta. La risposta ti arriva come messaggio.',
+    description: 'Una domanda a Nicholas, solo per quello che è suo: cancellare cose sue, i suoi account, i suoi dati personali, i soldi, una versione maggiore, o come deve essere una cosa che vede lui quando non si ricava da quello che ha già detto. Non per cose che puoi leggere nel codice, non per «procedo?», «li correggo?» o «pubblico adesso?», non per unioni, rami, prove, specialisti o file non salvati (lì decidi tu e lo scrivi in una riga), e non per l’installazione di SierraDeck (è un avviso, non una domanda). Scrivila in parole semplici, come a chi non legge il codice: una frase sola, al più 200 caratteri, niente comandi, nomi di file, rami o sigle (k-N, r-N). Non chiedergli mai di fare a mano un lavoro tecnico (git, comandi, file): quello lo fa uno specialista. Compare subito nella chat di Nicholas con le scelte da toccare (risponde lì); se in dieci minuti nessuno la vede, passa nelle Domande di SierraDeck e su Telegram. Al più poche all’ora; una domanda uguale a una aperta o già risposta si rifiuta, e una che non si capisce ti torna indietro una volta. La risposta ti arriva come messaggio.',
     inputSchema: {
       type: 'object',
       properties: {
         domanda: { type: 'string', description: 'Una domanda sola, breve.' },
         perche: { type: 'string', description: 'Una frase: perché serve la sua decisione e cosa cambia, in parole semplici.' },
         scelte: { type: 'array', items: { type: 'string' }, description: 'Da 2 a 4 risposte possibili, la consigliata per prima. Ognuna «scelta → cosa succede dopo».' },
-        richiesta: { type: 'string', description: 'Facoltativo: la richiesta della coda da cui nasce la domanda (r-N). Quando è fatta o chiusa, la domanda si ritira da sola.' }
+        richiesta: { type: 'string', description: 'Facoltativo: la richiesta della coda da cui nasce la domanda (r-N). Quando è fatta o chiusa, la domanda si ritira da sola.' },
+        rischiosa: { type: 'boolean', description: 'Facoltativo: true se la scelta tocca cose di Nicholas che non si rimettono a posto (cancellare, account, dati personali, soldi, spegnere o fermare cose sue), o se la risposta è un fatto che sa solo lui. Allora la domanda resta aperta finché non risponde. Senza, dopo un’ora il programma sceglie la consigliata (la prima scelta) e glielo scrive.' }
       },
       required: ['domanda', 'perche']
     }
@@ -252,7 +263,7 @@ export const STRUMENTI_ORCHESTRATORE: readonly StrumentoMcp[] = [
   {
     name: 'permesso',
     title: 'Permesso per uno strumento',
-    description: 'Lo usa la CLI da sola quando uno strumento chiede un permesso: la domanda va a Nicholas nel riquadro. Non chiamarlo tu.',
+    description: 'Lo usa la CLI da sola quando uno strumento chiede un permesso: decide il programma, che concede o nega con il motivo (Nicholas non viene disturbato). Non chiamarlo tu.',
     inputSchema: {
       type: 'object',
       properties: { tool_name: { type: 'string' }, input: { type: 'object' }, tool_use_id: { type: 'string' } },
@@ -339,13 +350,20 @@ export async function chiamaStrumento(amb: AmbienteOrchestratore, ws: string, no
 
     case 'piano_scrivi': {
       const prima = amb.piano(ws)
-      const e = scriviPiano(prima, amb.coda(ws), arg.compiti, amb.adesso())
+      // 11/11: un compito nuovo su una richiesta già fatta apre il suo seguito, invece di un rifiuto
+      // che finiva in una domanda a Nicholas («Li correggo?») solo per avere una richiesta aperta.
+      const s = apriSeguiti(prima, amb.coda(ws), arg.compiti, amb.adesso())
+      if (!s.ok) return no(s.errore)
+      const e = scriviPiano(prima, s.coda, s.compiti, amb.adesso())
       if (!e.ok) return no(e.errore)
-      amb.cambiaCoda(ws, () => e.coda)
+      amb.cambiaCoda(ws, () => ({ coda: e.coda.coda, eventi: [...s.eventi, ...e.coda.eventi] }))
       amb.scriviPiano(ws, e.piano)
       const toccate = [...new Set(e.piano.compiti.filter((c) => e.nuovi.includes(c.id)).map((c) => c.richiesta))]
       amb.ricalcola(ws, e.nuovi.length > 0 ? `${e.nuovi.length === 1 ? 'un compito nuovo' : `${e.nuovi.length} compiti nuovi`} nel piano (${toccate.join(', ')})` : 'piano aggiornato')
-      return si(`Piano registrato: ${e.nuovi.length} nuovi${e.nuovi.length > 0 ? ` (${e.nuovi.join(', ')})` : ''}, ${e.cambiati.length} aggiornati. ${e.piano.compiti.length} compiti in tutto.`)
+      const seguiti = s.seguiti.length === 0 ? '' : ` ${s.seguiti.map((x) => (x.riusata
+        ? `La richiesta ${x.di} è già fatta: i compiti nuovi sono nel suo seguito ${x.nuova}, ancora aperto.`
+        : `La richiesta ${x.di} è già fatta: ho aperto il seguito ${x.nuova} e ci ho messo i compiti nuovi.`)).join(' ')} Di’ a Nicholas in una riga cosa correggi e perché, senza chiedere.`
+      return si(`Piano registrato: ${e.nuovi.length} nuovi${e.nuovi.length > 0 ? ` (${e.nuovi.join(', ')})` : ''}, ${e.cambiati.length} aggiornati. ${e.piano.compiti.length} compiti in tutto.${seguiti}`)
     }
 
     case 'unisci': {
@@ -372,7 +390,7 @@ export async function chiamaStrumento(amb: AmbienteOrchestratore, ws: string, no
       const input = typeof arg.input === 'object' && arg.input !== null ? arg.input : {}
       const r = await amb.permesso(ws, strumento, input)
       // La risposta che la CLI si aspetta: un JSON nel testo.
-      return si(JSON.stringify(r.consenti ? { behavior: 'allow', updatedInput: input } : { behavior: 'deny', message: r.motivo ?? 'Nicholas non l’ha permesso' }))
+      return si(JSON.stringify(r.consenti ? { behavior: 'allow', updatedInput: input } : { behavior: 'deny', message: r.motivo ?? 'il programma non lo permette' }))
     }
 
     case 'chiedi_utente': {
@@ -386,13 +404,24 @@ export async function chiamaStrumento(amb: AmbienteOrchestratore, ws: string, no
       if (/\bgit\s+(checkout|reset|merge|stash|commit|push|pull|rebase|restore|clean)\b|\bnpm\s+(run|install|ci)\b|\bnpx\s/iu.test(`${domanda} ${scelte.join(' ')}`)) {
         return no('non chiedere a Nicholas di lanciare comandi: il lavoro tecnico lo fa uno specialista (o il programma). Chiedigli solo la decisione, in parole semplici')
       }
+      // 11/11: una cosa già successa non si chiede (20/10: «Installi tu la 0.80.0?» con la 0.80.1 già installata).
+      const gia = amb.giaSuccesso?.(ws, domanda)
+      if (gia !== undefined) return si(`Già fatto: ${gia}. Non lo chiedo a Nicholas: vai avanti tenendone conto.`)
+      // 11/11: «Quando la installi?» non è una domanda che scade e «decide da sola»: è un avviso.
+      const etichette = scelte.map((s) => s.split(/\s*(?:→|->)\s*/u, 1)[0] ?? s)
+      if (domandaSullInstallazione(domanda, etichette, amb.eIlProgramma?.(ws) === true)) {
+        if (amb.avviso === undefined) return no(`${MOTIVO_INSTALLAZIONE} Scrivi tu una riga di avviso nel tuo messaggio («La X è pronta: quando la installi, succede Y») e vai avanti con il resto, senza aspettare.`)
+        amb.avviso(ws, avvisoInstallazione(domanda))
+        return no(`${MOTIVO_INSTALLAZIONE} L’ho scritto io a Nicholas come avviso, senza risposta richiesta: non ripeterlo come domanda e vai avanti con il resto, senza aspettare.`)
+      }
       // 06/11: l'autopilota è autosufficiente: riavvii, programmi da chiudere e lavoro a mano si risolvono da soli.
       const inutile = motivoDomandaInutile(`${domanda} ${scelte.join(' ')}`)
       if (inutile !== undefined) return no(inutile)
       const n = amb.domandeUltimaOra(ws)
       if (n >= DOMANDE_ORA_ORCHESTRATORE) return no(`hai già fatto ${n} domande nell’ultima ora: decidi tu con la scelta più prudente e dillo nel dialogo`)
       const richiesta = str(arg.richiesta)
-      const e = amb.chiedi(ws, domanda, scelte, perche !== '' ? perche : undefined, richiesta !== '' ? richiesta : undefined)
+      // 11/11: `rischiosa` è facoltativo: le parole di rischio le guarda comunque il programma.
+      const e = amb.chiedi(ws, domanda, scelte, perche !== '' ? perche : undefined, richiesta !== '' ? richiesta : undefined, arg.rischiosa === true ? { rischiosa: true } : undefined)
       return e.ok ? si(e.testo) : no(e.motivo)
     }
 
@@ -433,8 +462,52 @@ export function motivoDomandaInutile(testo: string): string | undefined {
   if (/\b(lanci\w*|esegu\w*|digit\w*|scrivi)\b[^.?!]{0,40}\b(comando|terminale|prompt|powershell|bash|cmd)\b|\b(da terminale|a mano)\b[^.?!]{0,60}\b(lanci\w*|esegu\w*|fai\w*|sistem\w*|copi\w*|cancell\w*)\b|\b(lanci\w*|esegu\w*|fai\w*)\b[^.?!]{0,30}\ba mano\b/iu.test(t)) {
     return 'non chiedere a Nicholas di fare a mano lavoro tecnico o di lanciare comandi: affidalo a uno specialista, o al programma, e chiedigli solo una decisione sua'
   }
+  // 11/11: cinque volte in due settimane («Nella cartella principale c'è una modifica non salvata… Come faccio?»,
+  // «La fila delle unioni è ferma da 7 ore… Come vuoi fare?», «…saltando la fila?»). Di questo si occupa il programma.
+  if (UNIONI_FERME.test(t)) return MOTIVO_UNIONI_FERME
   return undefined
 }
+
+export const MOTIVO_INSTALLAZIONE = 'l’installazione di SierraDeck la fa Nicholas quando vuole: non è una domanda e non ha una scadenza.'
+
+/**
+ * **«Quando la installi?»** (11/11). Installare SierraDeck spetta solo a
+ * Nicholas, quindi non c'è niente da decidere: la domanda dell'11/11 offriva
+ * «La installo adesso (consigliata)» e prometteva «fra un giorno decido io con
+ * la scelta consigliata», cioè una cosa che l'autopilota non può fare.
+ *
+ * Vale per SierraDeck e basta: se il testo lo nomina, oppure se il progetto del
+ * workspace è SierraDeck e si parla di una versione o di un aggiornamento.
+ * «Installo il servizio sul NAS?» di un altro progetto non c'entra. Si guardano
+ * la domanda e i tasti, non le conseguenze («…poi una release che installi
+ * tu»), e non conta un «senza installarla».
+ */
+export function domandaSullInstallazione(domanda: string, etichette: string[], suSierraDeck: boolean): boolean {
+  const t = `${domanda} ${etichette.join(' ')}`.replace(/\s+/gu, ' ')
+  const senzaNegate = t.replace(/(?<![\p{L}])(?:senza|non|mai)\s+(?:[\p{L}’']+\s+){0,2}?install[\p{L}]*/giu, ' ')
+  if (!argomentoDi(senzaNegate).installa) return false
+  if (/(?<![\p{L}])sierradeck(?![\p{L}])/iu.test(t)) return true
+  return suSierraDeck && (argomentoDi(t).versioni.length > 0 || /(?<![\p{L}])(?:aggiornament[\p{L}]*|versione|release)(?![\p{L}])/iu.test(t))
+}
+
+/**
+ * La riga di avviso al posto della domanda: quello che la domanda diceva prima
+ * del punto interrogativo, e «installala quando vuoi». Senza risposta richiesta.
+ */
+export function avvisoInstallazione(domanda: string): string {
+  const coda = 'non serve rispondere, intanto vado avanti con il resto.'
+  const frasi = domanda.replace(/\s+/gu, ' ').trim().split(/(?<=[.!?])\s+/u)
+  const premessa = frasi.filter((f) => !f.trim().endsWith('?')).join(' ').trim()
+  if (premessa !== '') return `${premessa} Installala quando vuoi: ${coda}`
+  const versione = argomentoDi(domanda).versioni[0]
+  return versione !== undefined
+    ? `Quando vuoi puoi installare la ${versione}: ${coda}`
+    : `Quando vuoi puoi installare la versione nuova di SierraDeck: ${coda}`
+}
+
+/** File non salvati, cartella principale, fila delle unioni ferma o da saltare: non sono domande dell'autopilota. */
+const UNIONI_FERME = /\b(?:modific\w*|file|note|righe)\b[^.?!]{0,60}\bnon\s+salvat\w*|\bnon\s+salvat\w*[^.?!]{0,60}\b(?:cartella|union\w*|fila)\b|\bcartella\s+principale\b|\bfila\s+(?:delle\s+|di\s+)?union\w*|\bunion\w*\b[^.?!]{0,50}\b(?:ferm\w*|scad\w*|bloccat\w*|rifiutat\w*|in\s+fila|in\s+attesa)\b|\b(?:ferm\w*|scad\w*|bloccat\w*|rifiutat\w*)\b[^.?!]{0,50}\bunion\w*|\bsalt\w*\s+la\s+fila\b/iu
+export const MOTIVO_UNIONI_FERME = 'non chiedere a Nicholas di file non salvati, della cartella principale o della fila delle unioni: gliel’ha già chiesto il programma, tu vai avanti con il resto'
 
 export const ISTRUZIONI_MCP_ORCHESTRATORE = 'SierraDeck, l’autopilota unico del workspace: coda delle richieste, piano dei compiti, specialisti, cancello di unione, domande a Nicholas, quaderno. Ogni chiamata la valida il programma: se rifiuta, leggi il motivo e cambia strada.'
 

@@ -35,7 +35,7 @@ import { ultimoRapportoDa } from './trascrizione'
 import { apriMemoria, type Memoria } from './memoria'
 import { aperteSulloStesso } from './domande-doppie'
 import type { RegistroDomande, ContestoDomanda } from './domande'
-import { rispostaScritta, scelteDaToccare } from './domande-in-chat'
+import { decisioneDaRicordare, domandaRispostaInChat, rispostaScritta, scelteDaToccare } from './domande-in-chat'
 import type { TipoAvviso } from './telegram'
 import { avanzaFine, inizioFine } from './fine-chat'
 import { chatAlLavoroSulPc, daChiudereDaSole, RICHIUDI_DOPO_MS } from './posti'
@@ -611,7 +611,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       const ap = deps.archivio.leggi(chiesta.autopilotaId)
       const laDomanda = chiesta.parti?.domanda ?? chiesta.contesto?.grezza ?? chiesta.testo
       memoria.ricordaRisposta(chiesta.autopilotaId, laDomanda, testo, deps.adesso(), chiesta.contesto?.chatId ?? contesto.get(chiesta.id)?.chatId)
-      if (ap !== undefined) memoria.ricordaDecisione(ap.cwd, `«${laDomanda.slice(0, 200)}» → ${testo}`, deps.adesso())
+      // 11/11: fra le decisioni del quaderno non vanno i permessi, i consensi a cancellare e i «no» senza lavoro.
+      if (ap !== undefined && decisioneDaRicordare({ domanda: laDomanda, risposta: testo, diConsenso: consensiCancella.riguarda(idDomanda) })) memoria.ricordaDecisione(ap.cwd, `«${laDomanda.slice(0, 200)}» → ${testo}`, deps.adesso())
       console.info(`[domande] ${chiesta.autopilotaId} — la tua risposta «${breveRisposta(testo)}» (${da}): ricevuta`)
     }
     if (!deps.domande.rispondi(idDomanda, testo, da)) return false
@@ -867,7 +868,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     if (ws === '') return { stato: 400, corpo: { errore: 'manca il workspace' } }
     const gia = servizio().unicoDi(ws)
     if (gia === undefined && (cwd === '' || !existsSync(cwd) || !statSync(cwd).isDirectory())) return { stato: 400, corpo: { errore: `cartella non utilizzabile: ${cwd}` } }
-    const e = servizio().assicura(ws, { ...(cwd !== '' ? { cwd } : {}), obiettivo: testo })
+    // 11/11: un messaggio del programma (controllo dei PC, errori arrivati) non conta come «Nicholas ha scritto».
+    const e = servizio().assicura(ws, { ...(cwd !== '' ? { cwd } : {}), obiettivo: testo, ...(corpo?.daProgramma === true ? { daProgramma: true } : {}) })
     return e.ok ? { stato: 200, corpo: e.unico } : { stato: 400, corpo: { errore: e.motivo } }
   }
 
@@ -1190,7 +1192,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
               if (dialoghiRicevuti.size > 500) dialoghiRicevuti.delete(dialoghiRicevuti.values().next().value as string)
             }
             // 0.96.0: con una sua domanda nata in chat ancora aperta, quello che scrivi è la risposta.
-            const inChat = deps.domande.aperte(a.id).filter((d) => d.inChat !== undefined).sort((p, q) => p.apertaIl - q.apertaIl)[0]
+            // 11/11: non più sempre, e non più alla più vecchia. Un numero o una scelta sì; un testo libero solo
+            // entro mezz'ora dalla domanda, e sempre per la più recente (`domandaRispostaInChat`). Il resto è
+            // un messaggio nuovo, non la risposta a una domanda vecchia.
+            const inChat = domandaRispostaInChat(testo, deps.domande.aperte(a.id).filter((d) => d.inChat !== undefined), Date.parse(deps.adesso()))
             if (inChat !== undefined && rispondiAllaDomanda(inChat.id, rispostaScritta(testo, scelteDaToccare(inChat)), 'modale')) {
               ricorda()
               rispondi(res, 202, { ricevuto: true, autopilota: deps.archivio.leggi(a.id) ?? a })

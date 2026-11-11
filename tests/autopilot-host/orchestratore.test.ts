@@ -302,4 +302,29 @@ describe('istruzioni dell’autopilota (06/11)', () => {
     expect(r).toMatch(/riavviare il servizio, di chiudere programmi o di fare a mano lavoro tecnico/)
     expect(r).toMatch(/tetto è pieno: non è fallito/)
   })
+
+  // 11/11, Nicholas: «riduci domande idiote». In due settimane circa 24 domande, 6 davvero sue.
+  it('11/11: una regola sola dice cosa è di Nicholas, e il resto lo decide l’autopilota', () => {
+    const r = REGOLE_ORCHESTRATORE
+    expect(r).toMatch(/Cosa è di Nicholas, e solo questo si chiede: cancellare cose sue, i suoi account, i suoi dati personali, i soldi, una versione maggiore/)
+    expect(r).toMatch(/Tutto il resto lo decidi tu, con la strada più prudente, e lo scrivi in una riga/)
+    expect(r).toMatch(/mai domande su unioni, rami, prove, specialisti, file non salvati o cartella principale/)
+    // I difetti trovati si correggono senza chiedere; il seguito lo apre piano_scrivi.
+    expect(r).toMatch(/li correggi senza chiedere/)
+    expect(r).toMatch(/piano_scrivi apre da solo il suo seguito/)
+    // Pubblicare con le prove verdi senza chiedere, mai installare, e l'avviso.
+    expect(r).toMatch(/pubblica senza chiedere «pubblico adesso\?»/)
+    expect(r).toMatch(/Mai installare\. Poi scrivi a Nicholas «Pubblicata la X: installala quando vuoi»/)
+    expect(r).toMatch(/Chiedi solo per una versione maggiore/)
+    // L'installazione è un avviso, non una domanda.
+    expect(r).toMatch(/Non installare mai una versione di SierraDeck: la installa solo Nicholas, quando vuole\. Non chiedergli quando/)
+    // La scadenza e i permessi.
+    expect(r).toMatch(/la decide il programma dopo un’ora con la consigliata/)
+    expect(r).toMatch(/I permessi li decide il programma da solo, mai Nicholas/)
+    // Le regole di prima che spingevano a chiedere non ci sono più.
+    expect(r).not.toMatch(/per esempio quando pubblicare/)
+    expect(r).not.toMatch(/si rilancia subito, non si aspetta Nicholas/)
+    // Niente che cambi nel prompt (resta in cache): né date né versioni vere.
+    expect(r).not.toMatch(/\d{1,2}\/\d{1,2}|\b0\.\d+\.\d+\b/)
+  })
 })

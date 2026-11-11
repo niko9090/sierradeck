@@ -3,7 +3,7 @@ import { aggiungi, codaVuota, type Coda, type Modifica } from '@shared/coda-rich
 import { pianoVuoto, type Piano } from '@shared/piano-orchestratore'
 import type { Specialista } from '@shared/flusso-orchestratore'
 import {
-  chiamaStrumento, creaGettoniOrchestratore, configMcpOrchestratore, rispondiMcpOrchestratore, DOMANDE_ORA_ORCHESTRATORE, STRUMENTI_ORCHESTRATORE, motivoDomandaInutile,
+  avvisoInstallazione, chiamaStrumento, creaGettoniOrchestratore, configMcpOrchestratore, domandaSullInstallazione, rispondiMcpOrchestratore, DOMANDE_ORA_ORCHESTRATORE, STRUMENTI_ORCHESTRATORE, motivoDomandaInutile, MOTIVO_INSTALLAZIONE, MOTIVO_UNIONI_FERME,
   type AmbienteOrchestratore
 } from '../../src/autopilot-host/mcp-orchestratore'
 
@@ -49,6 +49,20 @@ describe('strumenti dell’orchestratore', () => {
     expect(nomi.some((n) => n.startsWith('specialista_'))).toBe(false)
   })
 
+  it('11/11: le descrizioni non spingono più a chiedere, e dicono cosa decide il programma', () => {
+    const di = (nome: string): { description?: string; inputSchema: { properties?: Record<string, unknown>; required?: string[] } } => STRUMENTI_ORCHESTRATORE.find((s) => s.name === nome)! as never
+    const chiedi = di('chiedi_utente')
+    expect(chiedi.description).toMatch(/solo per quello che è suo/)
+    expect(chiedi.description).not.toMatch(/quando pubblicare/)
+    expect(chiedi.description).toMatch(/non per l’installazione di SierraDeck/)
+    // «rischiosa» c'è, ma non è obbligatorio.
+    expect(Object.keys(chiedi.inputSchema.properties ?? {})).toContain('rischiosa')
+    expect(chiedi.inputSchema.required).toEqual(['domanda', 'perche'])
+    expect(di('permesso').description).toMatch(/decide il programma/)
+    expect(di('permesso').description).not.toMatch(/la domanda va a Nicholas/)
+    expect(di('piano_scrivi').description).toMatch(/seguito/)
+  })
+
   it('coda_unisci rifiuta un’unione che perde un punto, e accetta quella che li nomina tutti', async () => {
     const a = ambiente()
     const persa = await chiamaStrumento(a, 'Lavoro', 'coda_unisci', { ids: ['r-1', 'r-2'], testo: 'la barra con numero e colore', punti: [{ id: 'p-1' }], perche: 'stessa barra' })
@@ -70,6 +84,35 @@ describe('strumenti dell’orchestratore', () => {
     const ok = await chiamaStrumento(a, 'Lavoro', 'piano_scrivi', { compiti: [{ id: 'k1', richiesta: 'r-1', titolo: 'a', criterio: 'passa `npm test`' }] })
     expect(ok?.errore).toBe(false)
     expect(a.stato.piano.compiti.map((c) => c.id)).toEqual(['k1'])
+  })
+
+  // 11/11: prima il rifiuto «è già fatta» finiva in una domanda a Nicholas («Li correggo?»).
+  it('11/11: piano_scrivi su una richiesta già fatta apre il seguito e lo dice; al terzo seguito rifiuta', async () => {
+    const a = ambiente()
+    const faiFatta = (id: string): void => { a.stato.coda = { ...a.stato.coda, richieste: a.stato.coda.richieste.map((r) => (r.id === id ? { ...r, stato: 'fatta' as const, fattaIl: ADESSO } : r)) } }
+    faiFatta('r-1')
+    const uno = await chiamaStrumento(a, 'Lavoro', 'piano_scrivi', { compiti: [{ id: 'd1', richiesta: 'r-1', titolo: 'correggi il primo difetto', criterio: 'passa `npx vitest run tests/a.test.ts`' }] })
+    expect(uno?.errore).toBe(false)
+    expect(uno?.testo).toMatch(/La richiesta r-1 è già fatta: ho aperto il seguito r-3/)
+    expect(uno?.testo).toMatch(/senza chiedere/)
+    expect(a.stato.coda.richieste.find((r) => r.id === 'r-3')).toMatchObject({ segue: 'r-1', stato: 'pianificata', compiti: ['d1'] })
+    expect(a.stato.piano.compiti.find((k) => k.id === 'd1')?.richiesta).toBe('r-3')
+    // Un rifiuto del piano (ciclo) non lascia in coda un seguito a vuoto.
+    faiFatta('r-3')
+    const prima = a.stato.coda.richieste.length
+    const ciclo = await chiamaStrumento(a, 'Lavoro', 'piano_scrivi', { compiti: [
+      { id: 'd2', richiesta: 'r-1', titolo: 'a', criterio: 'x', dopo: ['d3'] },
+      { id: 'd3', richiesta: 'r-1', titolo: 'b', criterio: 'x', dopo: ['d2'] }
+    ] })
+    expect(ciclo?.errore).toBe(true)
+    expect(a.stato.coda.richieste).toHaveLength(prima)
+    const due = await chiamaStrumento(a, 'Lavoro', 'piano_scrivi', { compiti: [{ id: 'd2', richiesta: 'r-1', titolo: 'correggi il secondo', criterio: 'x' }] })
+    expect(due?.errore).toBe(false)
+    faiFatta('r-4')
+    const tre = await chiamaStrumento(a, 'Lavoro', 'piano_scrivi', { compiti: [{ id: 'd3', richiesta: 'r-1', titolo: 'correggi il terzo', criterio: 'x' }] })
+    expect(tre?.errore).toBe(true)
+    expect(tre?.testo).toMatch(/ha già 2 seguiti/)
+    expect(a.stato.coda.richieste).toHaveLength(prima + 1)
   })
 
   it('unisci vuole un compito del piano, uno specialista noto o un ramo valido', async () => {
@@ -124,6 +167,81 @@ describe('strumenti dell’orchestratore', () => {
     expect(a.stato.domande).toHaveLength(0)
     expect(motivoDomandaInutile('Pubblico la 1.2.0 o aspetto?')).toBeUndefined()
     expect(motivoDomandaInutile('Tengo il tema scuro o chiaro per le nuove schermate?')).toBeUndefined()
+  })
+
+  // 11/11: le domande vere del 31/10, 07/11, 10/11 e 11/11 («fai tu tu», «risolvi tutti questi problemi!!!!»).
+  it('chiedi_utente (11/11): file non salvati, cartella principale e fila delle unioni non si chiedono a Nicholas', async () => {
+    const a = ambiente()
+    const rifiutate = [
+      { domanda: 'Nella cartella principale di SierraDeck c’è una modifica non salvata, forse fatta da una tua chat. Da 5 ore tiene ferma l’unione della correzione per la rete. Come faccio?', scelte: ['È roba di una mia chat, la faccio salvare a lei', 'Lasciala com’è, aspetto io'] },
+      { domanda: 'La fila delle unioni è ferma da 7 ore per due note del quaderno non salvate. Come vuoi fare?' },
+      { domanda: 'Le unioni continuano a scadere e nessun lavoro entra. Faccio unire tutto da uno specialista, saltando la fila del programma?' },
+      { domanda: 'L’unione della correzione è rifiutata due volte: ci sono file non salvati. Li salvo io?' },
+      { domanda: 'Come procediamo con il lavoro pronto?', scelte: ['Salto la fila e unisco subito', 'Aspetto'] }
+    ]
+    for (const r of rifiutate) {
+      const e = await chiamaStrumento(a, 'Lavoro', 'chiedi_utente', r)
+      expect(e?.errore, r.domanda).toBe(true)
+      expect(e?.testo, r.domanda).toMatch(/gliel’ha già chiesto il programma, tu vai avanti con il resto/)
+    }
+    expect(a.stato.domande).toHaveLength(0)
+    expect(motivoDomandaInutile('La fila delle unioni è ferma: come faccio?')).toBe(MOTIVO_UNIONI_FERME)
+    // Le domande che restano sue passano.
+    for (const buona of [
+      'Con il Drive pieno, le chat vecchie che hanno già una copia sul PC le cancello subito dal Drive, oppure le tengo nel recupero di 30 giorni?',
+      'La macchina virtuale di Linux occupa 15 GB di memoria e lascia libero solo il 5%. Posso spegnerla?',
+      'Unisco in una sola le due richieste sulla barra delle chat?',
+      'Le note del quaderno le tengo anche sul Drive?'
+    ]) expect(motivoDomandaInutile(buona), buona).toBeUndefined()
+  })
+
+  // 11/11: «La 0.99.3 è pronta… Quando la installi?», con «La installo adesso (consigliata)» e «fra un giorno decido io».
+  it('chiedi_utente (11/11): «quando la installi?» non è una domanda, diventa una riga di avviso', async () => {
+    const avvisi: string[] = []
+    const a = ambiente({ eIlProgramma: () => true, avviso: (_ws, t) => { avvisi.push(t) } })
+    const e = await chiamaStrumento(a, 'Lavoro', 'chiedi_utente', {
+      domanda: 'La 0.99.3 è pronta e una prova conferma che fa ripartire il lavoro. Quando la installi?',
+      perche: 'senza l’installazione le correzioni restano fuori',
+      scelte: ['La installo adesso → il lavoro riparte', 'Più tardi → resta tutto fermo']
+    })
+    expect(e?.errore).toBe(true)
+    expect(e?.testo).toContain(MOTIVO_INSTALLAZIONE)
+    expect(e?.testo).toMatch(/L’ho scritto io a Nicholas come avviso/)
+    expect(a.stato.domande).toHaveLength(0)
+    expect(avvisi).toEqual(['La 0.99.3 è pronta e una prova conferma che fa ripartire il lavoro. Installala quando vuoi: non serve rispondere, intanto vado avanti con il resto.'])
+    // Senza un posto dove scrivere l'avviso lo scrive l'autopilota nel suo messaggio.
+    const senza = await chiamaStrumento(ambiente({ eIlProgramma: () => true }), 'Lavoro', 'chiedi_utente', { domanda: 'Installi tu la 0.99.3 su questo PC?' })
+    expect(senza?.errore).toBe(true)
+    expect(senza?.testo).toMatch(/Scrivi tu una riga di avviso/)
+  })
+
+  it('11/11: il filtro sull’installazione vale solo per SierraDeck, e guarda domanda e tasti', () => {
+    // Nel progetto SierraDeck basta una versione o la parola «aggiornamento».
+    expect(domandaSullInstallazione('Installi tu la 0.80.0 su questo PC?', [], true)).toBe(true)
+    expect(domandaSullInstallazione('Will you install the 0.80.0 on this PC?', [], true)).toBe(true)
+    expect(domandaSullInstallazione('L’aggiornamento è pronto. Come procediamo?', ['Lo installo adesso', 'Più tardi'], true)).toBe(true)
+    // In un altro progetto no, a meno che non si nomini SierraDeck.
+    expect(domandaSullInstallazione('Installo la 0.14.0 sul server di prova?', [], false)).toBe(false)
+    expect(domandaSullInstallazione('Installo il servizio di copia sul NAS?', [], true)).toBe(false)
+    expect(domandaSullInstallazione('Quando installi il nuovo SierraDeck?', [], false)).toBe(true)
+    // «Senza installarla» e «non la installo» non sono la richiesta di installare.
+    expect(domandaSullInstallazione('Correggo i difetti e pubblico la 0.97.3, senza installarla?', [], true)).toBe(false)
+    expect(domandaSullInstallazione('Pubblico la 2.0.0? Non la installo io.', [], true)).toBe(false)
+    // Le conseguenze dei tasti non contano: il chiamante passa solo le etichette.
+    expect(domandaSullInstallazione('Tengo il tema scuro per la versione nuova?', ['Sì', 'No'], true)).toBe(false)
+    // L'avviso: la premessa se c'è, altrimenti la versione, altrimenti una frase generica.
+    expect(avvisoInstallazione('Installi tu la 0.80.0 su questo PC?')).toBe('Quando vuoi puoi installare la 0.80.0: non serve rispondere, intanto vado avanti con il resto.')
+    expect(avvisoInstallazione('Quando installi l’aggiornamento?')).toBe('Quando vuoi puoi installare la versione nuova di SierraDeck: non serve rispondere, intanto vado avanti con il resto.')
+  })
+
+  it('chiedi_utente (11/11): una cosa già successa non si chiede, e l’autopilota lo sa', async () => {
+    const a = ambiente({ eIlProgramma: () => true, avviso: () => { throw new Error('nessun avviso per una cosa già fatta') }, giaSuccesso: (_ws, t) => (t.includes('0.80.0') ? 'su questo PC è già installata la 0.80.1' : undefined) })
+    const e = await chiamaStrumento(a, 'Lavoro', 'chiedi_utente', { domanda: 'Installi tu la 0.80.0 su questo PC?' })
+    expect(e?.errore).toBe(false)
+    expect(e?.testo).toBe('Già fatto: su questo PC è già installata la 0.80.1. Non lo chiedo a Nicholas: vai avanti tenendone conto.')
+    expect(a.stato.domande).toHaveLength(0)
+    expect((await chiamaStrumento(a, 'Lavoro', 'chiedi_utente', { domanda: 'Tengo il colore verde per la barra?', scelte: ['Sì', 'No'] }))?.errore).toBe(false)
+    expect(a.stato.domande).toHaveLength(1)
   })
 
   it('permesso: la risposta è il JSON che la CLI si aspetta', async () => {

@@ -23,6 +23,11 @@ export type NuovoAutopilota = {
   workspace?: string
   /** Dalle versioni di prima: si ignora (il nome lo decide il workspace). */
   nome?: string
+  /**
+   * 11/11: lo scrive il programma, non Nicholas («Controllo di tutti i PC…»,
+   * «Errori arrivati…»). Non chiude le domande aperte: lui non ha scritto niente.
+   */
+  daProgramma?: boolean
 }
 
 export type DomandaAperta = {
@@ -343,7 +348,7 @@ export function creaClientAutopilota(p: {
       return inViaggio
     },
     versioneDettaglio: (id) => dettagliTenuti.get(id)?.etag,
-    crea: async (nuovo) => (await chiama('/orchestratore/messaggio', 'POST', { testo: nuovo.obiettivo, cwd: nuovo.cwd, ...(nuovo.workspace !== undefined ? { workspace: nuovo.workspace } : {}) }, attesaScrittura)) as Autopilota,
+    crea: async (nuovo) => (await chiama('/orchestratore/messaggio', 'POST', { testo: nuovo.obiettivo, cwd: nuovo.cwd, ...(nuovo.workspace !== undefined ? { workspace: nuovo.workspace } : {}), ...(nuovo.daProgramma === true ? { daProgramma: true } : {}) }, attesaScrittura)) as Autopilota,
     dialoga: async (id, testo) => {
       const percorso = `/autopiloti/${encodeURIComponent(id)}/dialogo`
       // Lo stesso id a ogni tentativo: il servizio scarta il doppione (k-42).

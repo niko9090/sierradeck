@@ -1,6 +1,6 @@
 import { join, parse } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { statSync } from 'node:fs'
+import { readFileSync, statSync } from 'node:fs'
 import { DIALOGO_RICORDATO, type Autopilota, type ChatGovernata, type Traguardo, NOTA_TRAGUARDO_MAX } from '@shared/autopilota'
 import {
   aggiungi, avanzamentoCoda, candidatiUnione, chiaveWorkspace, daSeguire,
@@ -15,12 +15,15 @@ import { RUOLI } from '@shared/ruoli-agenti'
 import { modelloAutopilotaAmmesso } from '@shared/modelli'
 import { righeLezioni } from '@shared/lezioni-chat'
 import { esaminaComando, principaleSporca } from '@shared/controllo-comandi'
-import { domandaControllataSubito, domandaPerRegistro } from '@shared/domanda-strutturata'
+import { DOMANDA_MAX, domandaControllataSubito, domandaPerRegistro, noteSulTesto, testoDomanda } from '@shared/domanda-strutturata'
 import type { ArchivioCode } from './coda-store'
 import { migraAutopiloti, misuraDaAutopiloti } from './coda-autopiloti'
 import { soloInChat, type ContestoDomanda, type RegistroDomande } from './domande'
-import { devePassareAlleDomande, richiestaChiusa, richiestaDellaDomanda, rispostaInCoda, scelteDaToccare } from './domande-in-chat'
-import { aperteSulloStesso } from './domande-doppie'
+import {
+  chiusaDopoLaDomanda, devePassareAlleDomande, domandaRischiosa, richiestaChiusa, richiestaDellaDomanda, rispostaInCoda, scadenzaDomanda,
+  scelteDaToccare, scelteProposte, seNonRispondi
+} from './domande-in-chat'
+import { aperteSulloStesso, risoltaDalloStato } from './domande-doppie'
 import { dimenticaIRossi, improntaCodiceAsincrona, misuraCriteri, type MemoriaCriteri } from './criteri-veloci'
 import { criteriPerLaProva } from './criteri-prova'
 import { fallitiDavvero, nonMisurati, type Esecutore } from './verifiche'
@@ -28,7 +31,7 @@ import type { Memoria } from './memoria'
 import type { TipoAvviso } from './telegram'
 import { comeAsincrono, ramoCorrente, ramoGiaChiusoAsincrono, salvaLavoroAsincrono, type Git, type GitAsincrono } from './worktree'
 import {
-  creaGettoniOrchestratore, configMcpOrchestratore, rispondiMcpOrchestratore, specialistiVivi, SPECIALISTI_PC_MAX, ATTESA_PERMESSO_MS,
+  creaGettoniOrchestratore, configMcpOrchestratore, rispondiMcpOrchestratore, specialistiVivi, SPECIALISTI_PC_MAX,
   type AmbienteOrchestratore, type EsitoAmbiente
 } from './mcp-orchestratore'
 import {
@@ -58,6 +61,7 @@ import { nomeWorkspace } from '@shared/attesa-vista'
 import { PESO_PREDEFINITO, stimaLista, titoloBreve, type DurataVera, type PesoCompito } from '@shared/stima-specialisti'
 import { rigaUltimaAzione } from '@shared/specialisti'
 import { eErroreDiRete } from '@shared/errori-rete'
+import { motivoInItaliano, stessaRigaDiPrima } from './turno-non-riuscito'
 import type { ArchivioAttesa } from './attesa-store'
 import { creaCambi, type Cambi } from '@shared/spinta-specialisti'
 
@@ -152,8 +156,6 @@ export type ContestoUnico = {
   inattivoMs?: number
   /** `false` (solo i test di `unisci` a mano): lo specialista finito non si unisce da solo. */
   unioneDaSola?: boolean
-  /** Quanto aspetta, al più, una risposta di Nicholas a un permesso. */
-  attesaPermessoMs?: number
   /** 0.90.0: dove Claude Code tiene le trascrizioni (nei test, una cartella di prova). */
   cartellaClaude?: string
   /** 31/10: gli autopiloti già archiviati come doppioni (non si riguardano, non rinascono). Assente: nessuno. */
@@ -190,7 +192,7 @@ export type ServizioUnico = {
    * L'autopilota del workspace, creato se non c'è ancora, con gli autopiloti
    * di prima passati a lui; con `obiettivo`, il primo messaggio.
    */
-  assicura: (ws: string, p?: { cwd?: string; obiettivo?: string }) => { ok: true; unico: Autopilota } | { ok: false; motivo: string }
+  assicura: (ws: string, p?: { cwd?: string; obiettivo?: string; daProgramma?: boolean }) => { ok: true; unico: Autopilota } | { ok: false; motivo: string }
   /** All'avvio: ogni workspace con autopiloti di prima passa al suo unico. Torna quanti workspace. */
   migraVecchi: () => number
   /** k-59: gli autopiloti di prima del workspace non ancora passati al suo unico (per l'autoriparazione). */
@@ -198,7 +200,7 @@ export type ServizioUnico = {
   /** 0.89.0: un autopilota di quella cartella ha un turno in volo o specialisti al lavoro (le loro copie non si toccano). */
   agentiAlLavoro: (cartella: string) => boolean
   imposta: (ws: string, p: { modello?: unknown; tettoSpecialisti?: unknown }) => ImpostazioniOrchestratore
-  messaggio: (a: Autopilota, testo: string, quando?: string) => Autopilota
+  messaggio: (a: Autopilota, testo: string, quando?: string, opz?: { daProgramma?: boolean }) => Autopilota
   /** Lo Stop di una chat **adottata**: registra e fa un evento, senza modello. */
   fermata: (a: Autopilota, chatId: string, corpo: Record<string, unknown>) => Record<string, unknown>
   notifica: (a: Autopilota, chatId: string | undefined, corpo: Record<string, unknown>) => void
@@ -264,6 +266,9 @@ const cosaDel = (t: string): string => { const x = t.replace(/^\s*[kr]-\d+\s*[:�
  * e «Nega», e valgono esatte. Un testo libero vale sì solo se comincia con
  * una parola di consenso intera e non contiene nessun no: «sicuramente no»,
  * «okay, no», «non consentire» restano no. Nel dubbio, no.
+ *
+ * 11/11: il servizio non la usa più (i permessi li decide il programma, senza
+ * domanda); resta, con le sue prove, per chi deve leggere un sì scritto a mano.
  */
 export function permessoConcesso(risposta: string): boolean {
   const t = risposta.trim().toLowerCase().replace(/\s+/gu, ' ')
@@ -459,8 +464,6 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
   /** 06/11: i compiti con il criterio rosso dopo l'unione, per workspace, e i promemoria già mandati. */
   const rossiVisti = new Map<string, Map<string, RossoVisto>>()
   const fermiVisti = new Map<string, { firma: string; dal: number; spinte: number }>()
-  /** I permessi che aspettano Nicholas, per workspace: intanto il cane da guardia del turno non morde. */
-  const permessiInAttesa = new Map<string, number>()
   const memoriaCriteri: MemoriaCriteri = x.memoriaCriteri ?? new Map()
   /** Gli specialisti già uniti, per workspace (sopravvivono al flusso in memoria). */
   const uniti = new Map<string, Set<string>>()
@@ -519,8 +522,24 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
     const chats = [...(u?.chats ?? []), ...subagenti(ws).map((s) => ({ id: s.id, ...(s.attivita !== undefined ? { ultimaAzione: s.attivita } : {}) }))]
     return misuraUnita(misuraDalPiano(x.orchestratori.piano(ws), chats), misuraDaAutopiloti(u !== undefined ? [u] : []))
   }
+  /**
+   * 11/11: il progetto del workspace è SierraDeck stesso? Si legge dal nome nel suo
+   * `package.json`, al più ogni dieci minuti. Solo lì la versione in uso dice qualcosa
+   * («la installi?» a versione già installata) e l'installazione è cosa di Nicholas.
+   */
+  const programmaVisto = new Map<string, { si: boolean; il: number }>()
+  const eIlProgramma = (ws: string): boolean => {
+    const cwd = unicoDi(ws)?.cwd
+    if (cwd === undefined) return false
+    const v = programmaVisto.get(cwd)
+    if (v !== undefined && Date.now() - v.il < 10 * 60_000) return v.si
+    let si = false
+    try { si = (JSON.parse(readFileSync(join(cwd, 'package.json'), 'utf8')) as { name?: unknown }).name === 'sierradeck' } catch { si = false }
+    programmaVisto.set(cwd, { si, il: Date.now() })
+    return si
+  }
   const coda = (ws: string): Coda => x.code.leggi(ws)
-  const allineaOra = (ws: string): Coda => x.code.cambia(ws, (c) => allineaConPiano(c, x.orchestratori.piano(ws), x.adesso()))
+  const allineaOra =(ws: string): Coda => x.code.cambia(ws, (c) => allineaConPiano(c, x.orchestratori.piano(ws), x.adesso()))
   const cambiaCompito = (ws: string, id: string | undefined, f: (c: CompitoPiano) => CompitoPiano): void => {
     if (id === undefined || !x.orchestratori.piano(ws).compiti.some((c) => c.id === id)) return
     x.orchestratori.scriviPiano(ws, conCompito(x.orchestratori.piano(ws), id, f))
@@ -808,17 +827,22 @@ ${NOTA_SENZA_GIT}`,
       else console.error(`[orchestratore] ${ws} — turno non riuscito: ${motivo}`)
       const u = unicoDi(ws)
       if (u === undefined) return
-      x.orchestratori.aggiungiDialogo(ws, { quando: x.adesso(), da: 'evento', testo: `turno non riuscito: ${motivo}` })
+      // 11/11: a Nicholas in italiano, e una volta sola. Il 09/11: «turno non riuscito: You've hit your weekly
+      // limit · resets 1am», 11 righe in 70 minuti, una per tentativo. Nel registro resta il motivo com'è.
+      const detto = motivoInItaliano(motivo)
+      const riga = `turno non riuscito: ${detto}`
+      if (stessaRigaDiPrima(x.orchestratori.ultimeDialogo(ws, 1).at(-1), riga)) return
+      x.orchestratori.aggiungiDialogo(ws, { quando: x.adesso(), da: 'evento', testo: riga })
       const dopo = { ...u }
-      x.annota(dopo, `l’autopilota non ha potuto rispondere (${motivo.slice(0, 200)}): i tuoi messaggi restano in attesa e partono con il prossimo turno`)
+      x.annota(dopo, `l’autopilota non ha potuto rispondere (${detto.slice(0, 200)}): i tuoi messaggi restano in attesa e partono con il prossimo turno`)
       x.salva(dopo)
     },
     flusso: suFlusso,
     adesso: x.adesso,
     ...(x.raccoltaEventiMs !== undefined ? { raccoltaMs: x.raccoltaEventiMs } : {}),
     ...(x.chiamateMax !== undefined ? { globaliMax: x.chiamateMax } : {}),
-    ...(x.inattivoMs !== undefined ? { inattivoMs: x.inattivoMs } : {}),
-    attendeNicholas: (ws) => (permessiInAttesa.get(ws) ?? 0) > 0
+    ...(x.inattivoMs !== undefined ? { inattivoMs: x.inattivoMs } : {})
+    // 11/11: nessun permesso aspetta più Nicholas (decide il programma): niente `attendeNicholas`.
   })
 
   // ---------------------------------------------------------------- il cancello
@@ -1163,24 +1187,32 @@ ${NOTA_SENZA_GIT}`,
 
   /**
    * `inChat` (0.96.0): la domanda nasce nella chat dell'autopilota; nelle Domande,
-   * nel conteggio e nelle notifiche passa dopo (`emergiDomande`). I permessi no:
-   * uno specialista li aspetta e sono urgenti.
+   * nel conteggio e nelle notifiche passa dopo (`emergiDomande`). Dall'11/11 i
+   * permessi non passano più di qui: li decide il programma.
    */
-  const apriDomanda = (a: Autopilota, ws: string, domanda: string, scelte: string[], perche: string, opz: { inChat?: boolean; richiestaId?: string } = {}): ReturnType<RegistroDomande['apri']> => {
+  const apriDomanda = (a: Autopilota, ws: string, domanda: string, scelte: string[], perche: string, opz: { inChat?: boolean; richiestaId?: string; rischiosa?: boolean } = {}): { id: string; rischiosa: boolean; conScelte: boolean } => {
     // 0.89.4: «cosa sta facendo» dice il lavoro vero, non «coordino gli specialisti».
     const inLavoro = coda(ws).richieste.filter((r) => r.stato !== 'fatta' && r.compiti.length > 0).map((r) => r.titolo)
-    const pronta = domandaControllataSubito(a.nome, {
+    const proposte = scelteProposte(scelte)
+    // 11/11: la scadenza dipende dal rischio. Rischiosa se lo dice l'autopilota o lo dicono le parole
+    // (della domanda e delle scelte, non del perché: lì si racconta, e ogni racconto ha un «fermo»).
+    const rischiosa = opz.rischiosa === true || domandaRischiosa([domanda, ...scelte].join(' '))
+    const controllata = domandaControllataSubito(a.nome, {
       staFacendo: inLavoro.length > 0 ? `lavora a: ${inLavoro.slice(0, 2).map((t) => `«${t.slice(0, 80)}»`).join(', ')}${inLavoro.length > 2 ? ` e altre ${inLavoro.length - 2}` : ''}` : 'aspetta la tua decisione per andare avanti',
       domanda,
       perche,
-      scelte: scelte.map((s, i) => {
-        const [scelta, conseguenza] = s.split(/\s*(?:→|->)\s*/u, 2)
-        return { scelta: (scelta ?? s).trim(), conseguenza: (conseguenza ?? '').trim(), ...(i === 0 ? { consigliata: true } : {}) }
-      }),
-      seNonRispondi: 'intanto porto avanti il resto; fra un giorno la domanda si chiude e decido io con la scelta consigliata, se non è rischiosa'
+      scelte: proposte,
+      // Prima, per tutte: «fra un giorno la domanda si chiude e decido io con la scelta consigliata, se non è rischiosa».
+      seNonRispondi: seNonRispondi({ rischiosa, ...(proposte[0] !== undefined ? { consigliata: proposte[0].scelta } : {}) })
     })
+    // 11/11: l'avvertenza «⚠ Domanda incompleta anche dopo la riscrittura» arriva a Nicholas solo se il
+    // testo non va ancora dopo che è tornato indietro una volta (`chiedi`). Le scelte senza conseguenza
+    // o una risposta libera non sono un difetto da mostrargli: non può farci niente.
+    const pronta = noteSulTesto(controllata.parti).length > 0
+      ? controllata
+      : { testo: testoDomanda(a.nome, controllata.parti), opzioni: controllata.opzioni, parti: controllata.parti }
     const d = x.domande.apri({ autopilotaId: a.id, testo: pronta.testo, scadenzaMs: x.scadenzaDomandaMs, ...domandaPerRegistro(pronta), ...(opz.inChat === true ? { inChat: true } : {}) })
-    x.ricordaContesto(d.id, { autopilotaId: a.id, testo: pronta.testo, grezza: domanda, ...(opz.richiestaId !== undefined ? { richiestaId: opz.richiestaId } : {}) })
+    x.ricordaContesto(d.id, { autopilotaId: a.id, testo: pronta.testo, grezza: domanda, rischiosa, ...(opz.richiestaId !== undefined ? { richiestaId: opz.richiestaId } : {}) })
     x.orchestratori.cambiaImpostazioni(ws, (i) => ({ ...i, domande: [...(i.domande ?? []), x.adesso()].slice(-20) }))
     if (opz.inChat === true) {
       // Nella chat: il testo intero con le scelte, e i tasti da toccare (sul PC). Si risponde anche scrivendo.
@@ -1190,11 +1222,17 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     } else {
       void x.avvisa('domanda', a, domanda)
     }
-    return d
+    return { id: d.id, rischiosa, conScelte: proposte.length > 0 }
   }
 
   /** 0.96.0: l'ultima volta che la chat di ogni workspace è stata davanti a Nicholas (ms). */
   const vistoIl = new Map<string, number>()
+  /**
+   * 11/11: quando l'ultima domanda del workspace è tornata indietro per il testo. La seconda, entro
+   * dieci minuti, passa comunque (una domanda zoppa è meglio di un lavoro fermo); dopo si ricomincia.
+   */
+  const testoRimandato = new Map<string, number>()
+  const RIMANDATA_VALE_MS = 10 * 60_000
   // Una domanda chiusa (risposta, superata, ritirata): i suoi tasti spariscono dalla chat.
   x.domande.suChiusa((d) => {
     const a = x.archivio.leggi(d.autopilotaId)
@@ -1222,24 +1260,17 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       const a = unicoDi(ws)
       if (a === undefined) return { consenti: false, motivo: 'l’autopilota unico non c’è' }
       // 0.89.5: scrivere un file o leggere il web non è una domanda per Nicholas (BG4, k-4 fermo al 37%).
+      // 11/11: nessun permesso lo è più. Il 06/11 «…chiede il permesso per Monitor: {json}. Lo permetto?»
+      // gli è arrivata due volte: ora il programma concede o nega da solo, e chi ha chiesto legge il motivo.
       const da = permessoDaSolo(strumento, input, a.cwd)
       if (da.concesso) {
         console.info(`[orchestratore] ${ws} — permesso concesso dal programma: ${strumento}, ${da.perche}`)
         return { consenti: true }
       }
-      const cosa = JSON.stringify(input).slice(0, 600)
-      const d = apriDomanda(a, ws, `Uno specialista chiede il permesso per ${strumento}: ${cosa}. Lo permetto?`, ['Nega', 'Consenti'], 'il programma non lo permette da solo')
-      const attesa = x.attesaPermessoMs ?? ATTESA_PERMESSO_MS
-      permessiInAttesa.set(ws, (permessiInAttesa.get(ws) ?? 0) + 1)
-      const r = await Promise.race([x.domande.attendi(d.id), new Promise<undefined>((ris) => { const t = setTimeout(() => ris(undefined), attesa); t.unref?.() })])
-        .finally(() => { permessiInAttesa.set(ws, Math.max(0, (permessiInAttesa.get(ws) ?? 1) - 1)) })
-      if (r === undefined) {
-        x.domande.superata(d.id, 'nessuna risposta in tempo: negato, l’autopilota cerca un’altra strada')
-        return { consenti: false, motivo: 'Nicholas non ha risposto in tempo: trova un’altra strada, o chiedi con chiedi_utente' }
-      }
-      return permessoConcesso(r.risposta) ? { consenti: true } : { consenti: false, motivo: `Nicholas ha risposto: ${r.risposta}` }
+      console.info(`[orchestratore] ${ws} — permesso negato dal programma: ${strumento}, ${da.motivo}`)
+      return { consenti: false, motivo: `${strumento}: ${da.motivo}` }
     },
-    chiedi(ws, domanda, scelte, perche, richiesta) {
+    chiedi(ws, domanda, scelte, perche, richiesta, opz) {
       const a = unicoDi(ws)
       if (a === undefined) return { ok: false, motivo: 'l’autopilota unico non c’è' }
       const aperte = x.domande.aperte(a.id).map((d) => ({ ...d, testo: d.parti?.domanda ?? d.testo }))
@@ -1248,9 +1279,24 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       const gia = x.memoria?.rispostaPer(a.id, domanda)
       const giaData = gia?.esatta ?? gia?.simile
       if (giaData !== undefined) return { ok: true, testo: `Nicholas ha già risposto a questa domanda (${giaData.quando.slice(0, 10)}): «${giaData.risposta}». Non la rifaccio.` }
-      const richiestaId = richiestaDellaDomanda(coda(ws), richiesta, domanda)
-      const d = apriDomanda(a, ws, domanda, scelte, perche ?? 'è una decisione che spetta a te', { inChat: true, ...(richiestaId !== undefined ? { richiestaId } : {}) })
-      return { ok: true, testo: `Domanda aperta per Nicholas (${d.id}): la risposta ti arriva come suo messaggio. Intanto vai avanti con il resto.` }
+      // 11/11: il testo si controlla prima di aprire, e la domanda torna a chi l'ha scritta (una volta sola).
+      // Prima passava con «⚠ Domanda incompleta anche dopo la riscrittura», che nessuno aveva chiesto.
+      const note = noteSulTesto({ staFacendo: '', domanda, perche: perche ?? '', scelte: scelteProposte(scelte), seNonRispondi: '' })
+      const ora = Date.parse(x.adesso())
+      if (note.length > 0 && ora - (testoRimandato.get(ws) ?? -Infinity) > RIMANDATA_VALE_MS) {
+        testoRimandato.set(ws, ora)
+        return { ok: false, motivo:`la domanda non si capisce abbastanza: ${note.join('; ')}. Riscrivila e richiamami: una frase sola con un solo punto interrogativo, al più ${DOMANDA_MAX} caratteri, in italiano semplice, senza sigle. Il resto mettilo in «perche»` }
+      }
+      testoRimandato.delete(ws)
+      const richiestaId =richiestaDellaDomanda(coda(ws), richiesta, domanda)
+      const d = apriDomanda(a, ws, domanda, scelte, perche ?? 'è una decisione che spetta a te', { inChat: true, ...(richiestaId !== undefined ? { richiestaId } : {}), ...(opz?.rischiosa === true ? { rischiosa: true } : {}) })
+      // 11/11: l'autopilota sa subito cosa succede senza risposta.
+      const poi = d.rischiosa
+        ? 'È una cosa sua: resta aperta finché non risponde, non decidere al posto suo.'
+        : d.conScelte
+          ? 'Non è rischiosa: se non risponde entro un’ora il programma sceglie la consigliata (la prima scelta), glielo scrive e te lo dice.'
+          : 'Non è rischiosa: se non risponde entro un’ora il programma la chiude e decidi tu la strada più prudente.'
+      return { ok: true, testo: `Domanda aperta per Nicholas (${d.id}): la risposta ti arriva come suo messaggio. Intanto vai avanti con il resto. ${poi}` }
     },
     ritira(ws, id, perche) {
       const a = unicoDi(ws)
@@ -1271,6 +1317,26 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       const r = x.lezioni(a.cwd, [{ tag, testo }], x.adesso())
       return { ok: true, testo: r.nuove > 0 ? 'Annotata nel quaderno.' : 'C’era già nel quaderno: confermata.' }
     },
+    eIlProgramma,
+    // 11/11: i fatti che il servizio conosce davvero. La versione in uso solo se il progetto è SierraDeck;
+    // le release e i rami non si leggono qui (non scartano niente): scartare una domanda vera è peggio.
+    giaSuccesso(ws, testo) {
+      const a = unicoDi(ws)
+      if (a === undefined) return undefined
+      const versione = eIlProgramma(ws) && /^\d+\.\d+\.\d+/u.test(x.versione) && x.versione !== '0.0.0' ? x.versione : undefined
+      return risoltaDalloStato(testo, {
+        ...(versione !== undefined ? { versioneInstallata: versione } : {}),
+        chat: a.chats.map((c) => ({ id: c.id, ...(c.ramo !== undefined ? { ramo: c.ramo } : {}), finita: c.stato === 'finita' }))
+      })
+    },
+    avviso(ws, testo) {
+      const riga = testo.replace(/\s+/gu, ' ').trim().slice(0, 600)
+      if (riga === '' || unicoDi(ws) === undefined) return
+      // Lo stesso avviso non si ripete: se è fra le ultime battute, basta quello.
+      if (x.orchestratori.ultimeDialogo(ws, 30).some((r) => r.da === 'lui' && r.testo === riga)) return
+      console.info(`[orchestratore] ${ws} — avviso a Nicholas al posto di una domanda: ${riga.slice(0, 160)}`)
+      nelDialogo(ws, { quando: x.adesso(), da: 'lui', testo: riga })
+    },
     ricalcola,
     riassunto
   }
@@ -1280,12 +1346,12 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
   /** L’ultimo registro dei progetti mandato dal programma (con i doppioni): per non far rinascere un doppione. */
   let ultimoRegistro: RichiestaDoppioni | undefined
 
-  const assicura = (ws: string, p: { cwd?: string; obiettivo?: string } = {}): { ok: true; unico: Autopilota } | { ok: false; motivo: string } => {
+  const assicura = (ws: string, p: { cwd?: string; obiettivo?: string; daProgramma?: boolean } = {}): { ok: true; unico: Autopilota } | { ok: false; motivo: string } => {
     const gia = unicoDi(ws)
     const loro = vecchiDel(ws)
     const quando = x.adesso()
     const conObiettivo = (u: Autopilota): { ok: true; unico: Autopilota } => (
-      p.obiettivo !== undefined && p.obiettivo.trim() !== '' ? { ok: true, unico: messaggio(u, p.obiettivo.trim(), quando) } : { ok: true, unico: u }
+      p.obiettivo !== undefined && p.obiettivo.trim() !== '' ? { ok: true, unico: messaggio(u, p.obiettivo.trim(), quando, { daProgramma: p.daProgramma === true }) } : { ok: true, unico: u }
     )
     if (gia !== undefined && loro.length === 0) return conObiettivo(gia)
     const cwd = gia?.cwd ?? p.cwd ?? cartellaDelWorkspace(loro)
@@ -1360,7 +1426,12 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     return ws.size
   }
 
-  const messaggio = (a: Autopilota, testo: string, quando: string = x.adesso()): Autopilota => {
+  /**
+   * `daProgramma` (11/11): il messaggio lo scrive il programma («Controllo di tutti i PC…»,
+   * «Errori arrivati…»), non Nicholas: le domande aperte restano aperte. Il 07/11 un controllo
+   * dei PC ha chiuso la domanda sulla scheda video dopo sei minuti, e l'autopilota l'ha rifatta.
+   */
+  const messaggio = (a: Autopilota, testo: string, quando: string = x.adesso(), opz: { daProgramma?: boolean } = {}): Autopilota => {
     const ws = wsDi(a)
     // Ogni richiesta in coda (le parole intere), con le candidate all'unione in vista: le unisce l'orchestratore.
     let riga = ''
@@ -1378,11 +1449,18 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     ricalcola(ws, `richiesta nuova: «${testo.replace(/\s+/gu, ' ').slice(0, 60)}»`)
     // k-44: se Nicholas scrive nel dialogo, le domande rimaste aperte prima del suo messaggio sono superate
     // (ha parlato lui): spariscono dalle Domande e l'autopilota lo legge qui.
-    const chiuse = x.domande.aperte(a.id).filter((d) => d.apertaIl <= Date.parse(quando) && x.domande.superata(d.id, 'Nicholas ha scritto nel dialogo dopo la domanda'))
+    // 11/11: non per un messaggio del programma, mai per una domanda segnata «mai da sola», e non per una
+    // rischiosa: quella aspetta la sua risposta vera (chiuderla qui la farebbe solo rifare all'autopilota).
+    const chiuse = opz.daProgramma === true ? [] : x.domande.aperte(a.id).filter((d) => d.contesto?.maiDaSola !== true && d.contesto?.rischiosa !== true && d.apertaIl <= Date.parse(quando) && x.domande.superata(d.id, 'Nicholas ha scritto nel dialogo dopo la domanda'))
     const nota = chiuse.length > 0
       ? ` [Il programma ha chiuso ${chiuse.length === 1 ? 'una tua domanda aperta' : `${chiuse.length} tue domande aperte`}, perché hai scritto nel dialogo dopo: ${chiuse.map((d) => `«${(d.parti?.domanda ?? d.testo).replace(/\s+/gu, ' ').slice(0, 120)}»`).join(', ')}. Se serve ancora la risposta, rifalla.]`
       : ''
-    orchestratore.messaggio(ws, { quando, testo: `${testo}${nota}` })
+    // 11/11: le domande rischiose restano aperte. Se questo messaggio risponde a una, lo capisce l'autopilota.
+    const restano = opz.daProgramma === true ? [] : x.domande.aperte(a.id).filter((d) => d.contesto?.rischiosa === true && d.apertaIl <= Date.parse(quando))
+    const ancora = restano.length > 0
+      ? ` [${restano.length === 1 ? 'Resta aperta una tua domanda a Nicholas' : `Restano aperte ${restano.length} tue domande a Nicholas`}: ${restano.map((d) => `«${(d.parti?.domanda ?? d.testo).replace(/\s+/gu, ' ').slice(0, 120)}»`).join(', ')}. Se questo messaggio risponde, tienine conto e ritirala con ritira_domanda; se no lasciala lì e non rifarla.]`
+      : ''
+    orchestratore.messaggio(ws, { quando, testo: `${testo}${nota}${ancora}` })
     return x.archivio.leggi(a.id) ?? conTua
   }
 
@@ -1414,17 +1492,17 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     evento(wsDi(a), { tipo: 'domanda', quando: x.adesso(), chat: chatId, testo })
   }
 
-  const risposta = (autopilotaId: string, domanda: string, testo: string, richiestaId?: string): boolean => {
-    const a = x.archivio.leggi(autopilotaId)
-    if (a === undefined || !eUnico(a)) return false
-    const ws = wsDi(a)
-    const quando = x.adesso()
-    // k-64: la risposta entra nella coda (punto, richiesta riaperta o nuova), così piano_scrivi ha una richiesta aperta.
+  /**
+   * k-64: la risposta entra nella coda (punto, richiesta riaperta o nuova), così piano_scrivi ha una
+   * richiesta aperta. Torna la nota per l'autopilota. `chi: 'programma'` (11/11): la scelta l'ha fatta
+   * il programma alla scadenza di una domanda non rischiosa.
+   */
+  const rispostaNellaCoda = (ws: string, p: { domanda: string; risposta: string; quando: string; richiestaId?: string; chi?: 'programma' }): string => {
     let nota = ''
     try {
       let esito: ReturnType<typeof rispostaInCoda> | undefined
       x.code.cambia(ws, (c) => {
-        esito = rispostaInCoda(c, { domanda, risposta: testo, quando, ...(richiestaId !== undefined ? { richiestaId } : {}) })
+        esito = rispostaInCoda(c, { domanda: p.domanda, risposta: p.risposta, quando: p.quando, ...(p.richiestaId !== undefined ? { richiestaId: p.richiestaId } : {}), ...(p.chi !== undefined ? { chi: p.chi } : {}) })
         return { coda: esito.coda, eventi: [] }
       })
       if (esito !== undefined && esito.richiesta !== undefined && esito.esito !== 'niente' && esito.esito !== 'nota') {
@@ -1433,12 +1511,35 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
           : esito.esito === 'riaperta'
             ? ` [La richiesta ${esito.richiesta} era chiusa: l'ho riaperta con la risposta (${esito.punto}). piano_scrivi la accetta.]`
             : ` [Ho aperto la richiesta ${esito.richiesta} con la domanda e la risposta: piano_scrivi la accetta, parti subito.]`
-        ricalcola(ws, `la risposta di Nicholas è lavoro (${esito.richiesta})`)
+        ricalcola(ws, p.chi === 'programma' ? `la scelta consigliata è lavoro (${esito.richiesta})` : `la risposta di Nicholas è lavoro (${esito.richiesta})`)
       } else if (esito?.esito === 'nota') nota = ' [Nessun lavoro: non creo nessuna richiesta.]'
     } catch (err) { console.error('[orchestratore] risposta non registrata nella coda:', err) }
+    return nota
+  }
+
+  const risposta = (autopilotaId: string, domanda: string, testo: string, richiestaId?: string): boolean => {
+    const a = x.archivio.leggi(autopilotaId)
+    if (a === undefined || !eUnico(a)) return false
+    const ws = wsDi(a)
+    const quando = x.adesso()
+    const nota = rispostaNellaCoda(ws, { domanda, risposta: testo, quando, ...(richiestaId !== undefined ? { richiestaId } : {}) })
     x.orchestratori.aggiungiDialogo(ws, { quando, da: 'tu', testo: `Hai risposto a «${domanda.slice(0, 200)}»: ${testo}` })
     orchestratore.messaggio(ws, { quando, testo: `Risposta alla tua domanda «${domanda.replace(/\s+/gu, ' ').slice(0, 300)}»: ${testo}${nota}` })
     return true
+  }
+
+  /**
+   * 11/11: un'ora senza risposta a una domanda **non rischiosa**. Il programma sceglie la consigliata,
+   * lo scrive a Nicholas in una riga e passa la scelta all'autopilota come fa `risposta`, ma senza
+   * dire che ha risposto lui: arriva come evento, non come suo messaggio.
+   */
+  const sceltaDalProgramma = (a: Autopilota, d: { contesto?: ContestoDomanda; parti?: { domanda: string }; testo: string }, scelta: string): void => {
+    const ws = wsDi(a)
+    const quando = x.adesso()
+    const domanda = (d.contesto?.grezza ?? d.parti?.domanda ?? d.testo).replace(/\s+/gu, ' ').trim()
+    const nota = rispostaNellaCoda(ws, { domanda, risposta: scelta, quando, chi: 'programma', ...(d.contesto?.richiestaId !== undefined ? { richiestaId: d.contesto.richiestaId } : {}) })
+    nelDialogo(ws, { quando, da: 'lui', testo: `Non hai risposto a «${domanda.slice(0, 200)}»: ho scelto «${scelta}», la scelta consigliata. Se non va bene scrivimelo e cambio strada.` })
+    evento(ws, { tipo: 'domanda-scaduta', quando, testo: `Nessuna risposta in un’ora a «${domanda.slice(0, 300)}». Non era rischiosa: il programma ha scelto la consigliata, «${scelta}», e l’ha già scritto a Nicholas. Vai avanti con quella, senza rifare la domanda.${nota}` })
   }
 
   /**
@@ -1452,7 +1553,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       const ws = wsDi(a)
       const attesa = orchestratore.inAttesa(ws)
       const occupato = orchestratore.inVolo(ws) || attesa.messaggi > 0 || attesa.eventi > 0
-        || alLavoroNel(ws) > 0 || specialistiVivi(a).some((c) => c.stato === 'lavoro') || unioniIn(ws) > 0 || (permessiInAttesa.get(ws) ?? 0) > 0
+        || alLavoroNel(ws) > 0 || specialistiVivi(a).some((c) => c.stato === 'lavoro') || unioniIn(ws) > 0
       const vivi = new Set(subagenti(ws).filter((y) => y.stato === 'avviato' || y.stato === 'lavoro').map((y) => y.id))
       const f = occupato ? undefined : lavoroFermo({ coda: coda(ws), piano: x.orchestratori.piano(ws), alLavoro: vivi, inUnione: new Set(compitiInUnione(ws)) })
       if (f === undefined) { fermiVisti.delete(ws); continue }
@@ -1491,6 +1592,11 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
    * 0.89.4: una domanda dell'autopilota senza risposta da un giorno è superata
    * (sul PC di sviluppo ce n'era una del 31/10 sulla 0.88.6, ancora aperta il
    * 02/11). Si chiude, e l'autopilota decide con la consigliata o la rifà.
+   *
+   * 11/11: un giorno era troppo per una scelta che non rischia niente, e «decido
+   * io» era sbagliato per una che spetta a Nicholas. Ora: rischiosa (o «mai da
+   * sola») resta aperta; non rischiosa, dopo un'ora sceglie il programma la
+   * consigliata e glielo scrive; le altre, un giorno come prima.
    */
   const chiudiDomandeVecchie = (ora: number): void => {
     // 0.92.1: le domande di un autopilota che non c'è più (archiviato, o di prima dell'autopilota unico).
@@ -1514,25 +1620,34 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       if (x.domande.superata(d.id, 'l’autopilota che l’aveva fatta non c’è più')) console.info(`[orchestratore] domanda di un autopilota che non c’è più, chiusa: ${(d.parti?.domanda ?? d.testo).slice(0, 120)}`)
     }
     for (const a of unici()) {
-      // 0.92.1: tutto il lavoro in coda è finito dopo la domanda: non è più attuale.
+      // 11/11: via la regola «tutto il lavoro in coda è finito dopo la domanda» (0.92.1). L'08/11 ha chiuso
+      // senza risposta una domanda sui dati del Drive, che poi è stata rifatta. Una domanda superata la
+      // ritira l'autopilota con ritira_domanda, o la chiusura della richiesta da cui nasce (qui sotto).
       const c = coda(wsDi(a))
-      const finite = c.richieste.length > 0 && c.richieste.every((r) => r.stato === 'fatta')
-      const ultimaFatta = finite ? Math.max(...c.richieste.map((r) => Date.parse(r.fattaIl ?? r.chiusa?.il ?? '') || 0)) : 0
       for (const d of x.domande.aperte(a.id)) {
-        if (finite && ultimaFatta > d.apertaIl && x.domande.superata(d.id, 'il lavoro in coda è finito dopo la domanda: non serve più')) {
-          console.info(`[orchestratore] ${wsDi(a)} — domanda superata dal lavoro finito, chiusa: ${(d.parti?.domanda ?? d.testo).slice(0, 120)}`)
-          continue
-        }
+        // 11/11: una domanda che il programma apre «mai da sola» non si chiude e non si decide da sé, in nessun modo.
+        if (d.contesto?.maiDaSola === true) continue
         // 0.96.0: la richiesta da cui nasce è chiusa o unita: la domanda non serve più.
+        // 11/11: solo se la chiusura è arrivata dopo la domanda (mai per una richiesta già chiusa quando è nata).
         const rid = d.contesto?.richiestaId
         const chiusa = rid !== undefined ? richiestaChiusa(c, rid) : undefined
-        if (rid !== undefined && chiusa?.chiusa === true && x.domande.superata(d.id, `la richiesta ${rid} è ${chiusa.come ?? 'chiusa'}: non serve più`)) {
+        if (rid !== undefined && chiusa?.chiusa === true && chiusaDopoLaDomanda(chiusa, d.apertaIl) && x.domande.superata(d.id, `la richiesta ${rid} è ${chiusa.come ?? 'chiusa'}: non serve più`)) {
           console.info(`[orchestratore] ${wsDi(a)} — domanda superata dalla richiesta ${rid} (${chiusa.come ?? 'chiusa'}), chiusa: ${(d.parti?.domanda ?? d.testo).slice(0, 120)}`)
           continue
         }
-        if (ora - d.apertaIl < DOMANDA_VECCHIA_MS) continue
-        if (!x.domande.superata(d.id, 'nessuna risposta in un giorno: l’autopilota decide con la scelta consigliata, o la rifà aggiornata')) continue
+        // 11/11: la scadenza dipende dal rischio (`scadenzaDomanda`). Rischiosa o «mai da sola»: resta.
+        // Non rischiosa: dopo un'ora sceglie il programma. Le altre (di prima, o il consenso a cancellare): un giorno, com'era.
+        const s = scadenzaDomanda(d, ora, DOMANDA_VECCHIA_MS)
+        if (s.cosa === 'resta') continue
         const testo = (d.parti?.domanda ?? d.testo).replace(/\s+/gu, ' ').slice(0, 300)
+        if (s.cosa === 'decide') {
+          if (!x.domande.superata(d.id, s.scelta !== undefined ? `nessuna risposta in un’ora: scelta la consigliata, «${s.scelta}»` : 'nessuna risposta in un’ora: decide l’autopilota, con la strada più prudente')) continue
+          console.info(`[orchestratore] ${wsDi(a)} — domanda non rischiosa senza risposta da un’ora: ${s.scelta !== undefined ? `scelta la consigliata «${s.scelta}»` : 'decide l’autopilota'}: ${testo.slice(0, 120)}`)
+          if (s.scelta !== undefined) sceltaDalProgramma(a, d, s.scelta)
+          else evento(wsDi(a), { tipo: 'domanda-scaduta', quando: x.adesso(), testo: `Nessuna risposta in un’ora a «${testo}»: l’ho chiusa. Non era rischiosa: decidi tu la strada più prudente, scrivila a Nicholas in una riga e vai avanti, senza rifare la domanda.` })
+          continue
+        }
+        if (!x.domande.superata(d.id, 'nessuna risposta in un giorno: l’autopilota decide con la scelta consigliata, o la rifà aggiornata')) continue
         console.info(`[orchestratore] ${wsDi(a)} — domanda senza risposta da un giorno, chiusa: ${testo.slice(0, 120)}`)
         evento(wsDi(a), { tipo: 'domanda-scaduta', quando: x.adesso(), testo: `La tua domanda «${testo}» è rimasta senza risposta per un giorno: l’ho chiusa. Se serve ancora, vai avanti con la scelta consigliata quando non è rischiosa (e dillo), altrimenti rifalla aggiornata con chiedi_utente.` })
       }

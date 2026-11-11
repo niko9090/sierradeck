@@ -49,6 +49,20 @@ export type ContestoDomanda = {
   chatId?: string
   /** 0.96.0: la richiesta della coda (r-N) da cui nasce la domanda: chiusa lei, la domanda si ritira. */
   richiestaId?: string
+  /**
+   * 11/11, la scadenza. `true`: tocca cose di Nicholas (cancellare, account,
+   * dati, soldi, installare, spegnere) o chiede un fatto che sa solo lui: non
+   * scade mai e nessuno decide al posto suo. `false`: dopo un'ora senza
+   * risposta il programma sceglie la consigliata e glielo scrive. Assente (le
+   * domande di prima, o non aperte dall'autopilota): si chiude dopo un giorno,
+   * senza decidere niente.
+   */
+  rischiosa?: boolean
+  /**
+   * 11/11: una domanda che apre il programma e che non deve mai chiudersi né
+   * decidersi da sola, qualunque cosa dica il testo. La scadenza la rispetta.
+   */
+  maiDaSola?: boolean
   pubblica?: boolean
   /** Altre chat che hanno chiesto la stessa cosa (0.81.0): la risposta riprende anche loro. */
   ancheChat?: string[]
