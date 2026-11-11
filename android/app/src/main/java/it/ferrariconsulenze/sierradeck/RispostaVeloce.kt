@@ -1,196 +1,92 @@
 package it.ferrariconsulenze.sierradeck
 
-import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import androidx.core.app.NotificationCompat
 import androidx.core.app.RemoteInput
-import kotlin.concurrent.thread
-import it.ferrariconsulenze.sierradeck.dati.Collegamento
-import it.ferrariconsulenze.sierradeck.rete.Api
-import kotlinx.coroutines.runBlocking
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
+import it.ferrariconsulenze.sierradeck.sottofondo.Avvisatore
+import it.ferrariconsulenze.sierradeck.sottofondo.CodaRisposte
+import it.ferrariconsulenze.sierradeck.sottofondo.EsitoInvio
+import it.ferrariconsulenze.sierradeck.sottofondo.InvioRisposta
+import it.ferrariconsulenze.sierradeck.sottofondo.InvioRisposte
+import it.ferrariconsulenze.sierradeck.sottofondo.Porte
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import java.util.UUID
 
 /**
- * Rispondere dalla notifica, senza aprire niente.
+ * Rispondere dalla notifica, senza aprire niente (app 2.100.0).
  *
- * Una notifica che dice «ti sta chiedendo una cosa» e poi ti obbliga ad aprire
- * l'app, trovare la chat e scrivere lì è una notifica che ti fa perdere il
- * momento: la risposta l'avevi già in testa mentre leggevi. Android sa fare di
- * meglio — un campo dentro la notifica stessa — e questa è la differenza fra
- * essere avvisato e poter rispondere.
- *
- * Vale per due cose diverse, che da qui si distinguono per quale extra arriva:
- * la **risposta a una domanda** di un autopilota, e il **messaggio a una chat**
- * che ha finito di scrivere e aspetta te.
+ * Arriva da un tasto con la risposta pronta («Sì», la consigliata…) o da
+ * «Scrivi…» col testo battuto. Si prova subito (`goAsync`, al più 8 s); se il
+ * computer non si raggiunge la notifica dice «Non inviata, riprovo da solo» e
+ * la risposta entra nella coda di [InvioRisposte], con lo stesso id della
+ * richiesta a ogni tentativo: il PC non la conta due volte.
  */
 class RispostaVeloce : BroadcastReceiver() {
 
     override fun onReceive(contesto: Context, intent: Intent) {
-        val testo = RemoteInput.getResultsFromIntent(intent)
-            ?.getCharSequence(CHIAVE_TESTO)?.toString()?.trim()
-        val idNotifica = intent.getIntExtra(EXTRA_NOTIFICA, 0)
-        if (testo.isNullOrEmpty()) {
-            // Invio a vuoto: si toglie e basta. Insistere con un errore su una
-            // notifica sarebbe rumore per un gesto che non voleva dire niente.
-            annulla(contesto, idNotifica)
-            return
-        }
-
-        val domanda = intent.getStringExtra(EXTRA_DOMANDA)
-        val chat = intent.getStringExtra(EXTRA_CHAT)
-
-        // Subito un riscontro: da qui in poi la rete può metterci un secondo, e
-        // una notifica che resta identica dopo aver premuto «Manda» sembra non
-        // aver ricevuto niente.
-        aggiorna(contesto, idNotifica, "Mando…")
-
-        // `goAsync` (11/11): senza, Android considera finito il ricevitore appena
-        // `onReceive` ritorna e può chiudere il processo con la risposta ancora per
-        // strada. È lo stesso patto di `Sentinella`.
+        val avviso = intent.getStringExtra(EXTRA_AVVISO) ?: return
+        val testo = (intent.getStringExtra(EXTRA_RISPOSTA)
+            ?: RemoteInput.getResultsFromIntent(intent)?.getCharSequence(CHIAVE_TESTO)?.toString())?.trim()
+        // Invio a vuoto: la notifica resta com'era.
+        if (testo.isNullOrEmpty()) return
+        val app = contesto.applicationContext
+        val invio = InvioRisposta(
+            idRichiesta = UUID.randomUUID().toString(),
+            avviso = avviso,
+            titolo = intent.getStringExtra(EXTRA_TITOLO) ?: "SierraDeck",
+            cosa = intent.getStringExtra(EXTRA_COSA) ?: "domanda",
+            bersaglio = intent.getStringExtra(EXTRA_BERSAGLIO) ?: return,
+            pc = intent.getStringExtra(EXTRA_PC),
+            testo = testo,
+            domanda = intent.getStringExtra(EXTRA_TESTO_DOMANDA) ?: "",
+            creata = System.currentTimeMillis()
+        )
+        // Subito un riscontro: una notifica identica dopo il tocco sembra non aver sentito.
+        Avvisatore.inInvio(app, invio.avviso, invio.titolo, invio.testo)
         val attesa = goAsync()
-        thread(start = true) {
-            try { mandaEAggiorna(contesto.applicationContext, intent, testo, idNotifica, domanda, chat) } finally { attesa.finish() }
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            try { prova(app, invio) } catch (e: Exception) {
+                Log.e("SierraDeck", "risposta dalla notifica non partita", e)
+                InvioRisposte.accoda(app, invio)
+                Avvisatore.nonInviata(app, invio.avviso, invio.titolo, invio.testo)
+            } finally { attesa.finish() }
         }
     }
 
-    private fun mandaEAggiorna(contesto: Context, intent: Intent, testo: String, idNotifica: Int, domanda: String?, chat: String?) {
-        run {
-            val collegamento = Collegamento(contesto)
-            val riuscito = when {
-                domanda != null -> manda(
-                    collegamento,
-                    "/api/rispondi",
-                    """{"domanda":${virgolette(domanda)},"risposta":${virgolette(testo)}}"""
-                )
-                chat != null -> manda(
-                    collegamento,
-                    "/api/scrivi",
-                    """{"chat":${virgolette(chat)},"testo":${virgolette(testo)}}"""
-                )
-                else -> false
+    private suspend fun prova(c: Context, invio: InvioRisposta) {
+        val esito = withTimeoutOrNull(8_000) {
+            val porta = Porte.delPc(c) ?: return@withTimeoutOrNull null
+            CodaRisposte.manda(porta, invio)
+        }
+        when (esito?.let { CodaRisposte.esito(it) } ?: EsitoInvio.RIPROVA) {
+            EsitoInvio.PRESA -> Avvisatore.risposto(c, invio.avviso, invio.titolo, invio.domanda, invio.testo)
+            EsitoInvio.RIFIUTATA -> Avvisatore.rifiutata(c, invio.avviso, invio.titolo, (esito as? it.ferrariconsulenze.sierradeck.rete.Esito.Rifiuto)?.motivo)
+            EsitoInvio.RIPROVA -> {
+                InvioRisposte.accoda(c, invio)
+                Avvisatore.nonInviata(c, invio.avviso, invio.titolo, invio.testo)
             }
-            // 0.84.0: la notifica non sparisce, mostra la domanda intera con la
-            // tua risposta sotto, come la conversazione su PC, pagina e app.
-            if (riuscito) {
-                val chiesta = intent.getStringExtra(EXTRA_TESTO_DOMANDA)
-                if (domanda != null && !chiesta.isNullOrBlank()) risposto(contesto, idNotifica, testoDopoRisposta(chiesta, testo))
-                else annulla(contesto, idNotifica)
-            } else aggiorna(contesto, idNotifica, "Non sono riuscito a mandarlo. Apri l'app e riprova.")
         }
     }
-
-    /**
-     * Una POST autenticata, **dalla rete giusta**.
-     *
-     * Era una `HttpURLConnection` nuda — «qui non serve un client intero» — e
-     * quindi usciva dalla rete che Android giudica migliore. Con una VPN accesa
-     * o un wifi ritenuto scadente, una richiesta a `192.168.x.x` prende i dati
-     * mobili o entra nel tunnel, e da li' quell'indirizzo non esiste: rispondevi
-     * dalla notifica e la risposta non arrivava. Il client di `Rete` non e' un
-     * lusso, e' la parte che sceglie da dove uscire.
-     */
-    private fun manda(collegamento: Collegamento, percorso: String, corpo: String): Boolean {
-        if (!collegamento.pronto) return false
-        return try {
-            // Dal Centralino (11/11): la strada giusta, la prova d'identità, l'id
-            // della richiesta (un secondo tocco non fa un doppione sul PC).
-            runBlocking { Api(collegamento.indirizzo, collegamento.chiave).grezzo(percorso, corpo) }
-            true
-        } catch (e: Exception) {
-            Log.e("SierraDeck", "risposta dalla notifica non partita", e)
-            false
-        }
-    }
-
-
-    private fun aggiorna(contesto: Context, id: Int, testo: String) {
-        if (id == 0) return
-        try {
-            val notifica = NotificationCompat.Builder(contesto, CANALE_RISPOSTE)
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
-                .setContentText(testo)
-                .setPriority(NotificationCompat.PRIORITY_LOW)
-                .setAutoCancel(true)
-                .build()
-            gestore(contesto).notify(id, notifica)
-        } catch (e: Exception) {
-            Log.e("SierraDeck", "notifica non aggiornata", e)
-        }
-    }
-
-    /** La domanda con la risposta sotto: si toglie da sola dopo qualche minuto. */
-    private fun risposto(contesto: Context, id: Int, testo: String) {
-        if (id == 0) return
-        try {
-            val notifica = NotificationCompat.Builder(contesto, CANALE_RISPOSTE)
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
-                .setContentTitle("Hai risposto")
-                .setContentText(testo.substringAfterLast("Hai risposto: "))
-                .setStyle(NotificationCompat.BigTextStyle().bigText(testo))
-                .setPriority(NotificationCompat.PRIORITY_LOW)
-                .setOnlyAlertOnce(true)
-                .setSilent(true)
-                .setAutoCancel(true)
-                .setTimeoutAfter(RISPOSTO_PER_MS)
-                .build()
-            gestore(contesto).notify(id, notifica)
-        } catch (e: Exception) {
-            Log.e("SierraDeck", "notifica della risposta non mostrata", e)
-            annulla(contesto, id)
-        }
-    }
-
-    private fun annulla(contesto: Context, id: Int) {
-        if (id == 0) return
-        try {
-            gestore(contesto).cancel(id)
-        } catch (e: Exception) {
-            Log.e("SierraDeck", "notifica non tolta", e)
-        }
-    }
-
-    private fun gestore(contesto: Context): NotificationManager =
-        contesto.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
     companion object {
         const val CHIAVE_TESTO = "testo"
-        const val EXTRA_DOMANDA = "domanda"
-        const val EXTRA_CHAT = "chat"
-        const val EXTRA_NOTIFICA = "notifica"
-        const val CANALE_RISPOSTE = "domande"
+        const val EXTRA_AVVISO = "avviso"
+        const val EXTRA_TITOLO = "titolo"
+        const val EXTRA_COSA = "cosa"
+        const val EXTRA_BERSAGLIO = "bersaglio"
+        const val EXTRA_PC = "pc"
+        const val EXTRA_RISPOSTA = "risposta"
         /** Il testo intero della domanda (0.84.0): resta nella notifica sopra la risposta. */
         const val EXTRA_TESTO_DOMANDA = "testoDomanda"
-        /** Quanto resta la notifica «Hai risposto». */
-        const val RISPOSTO_PER_MS = 10 * 60_000L
 
         /** La domanda intera e, sotto, «Hai risposto: …» (0.84.0). */
         fun testoDopoRisposta(domanda: String, risposta: String): String =
             "${domanda.trim()}\n\nHai risposto: ${risposta.trim()}"
-
-        /**
-         * Il testo dentro le virgolette di JSON.
-         *
-         * Scritto a mano perché qui non c'è un serializzatore e non ne vale uno:
-         * ma **va** scritto, perché una risposta contiene virgolette e a capo
-         * più spesso di quanto sembri, e senza questo il messaggio arriverebbe
-         * troncato — o non arriverebbe.
-         */
-        fun virgolette(testo: String): String {
-            val b = StringBuilder("\"")
-            for (c in testo) {
-                when (c) {
-                    '"' -> b.append("\\\"")
-                    Char(92) -> b.append(Char(92)).append(Char(92))
-                    '\n' -> b.append("\\n")
-                    '\r' -> b.append("\\r")
-                    '\t' -> b.append("\\t")
-                    else -> if (c.code < 0x20) b.append("\\u%04x".format(c.code)) else b.append(c)
-                }
-            }
-            return b.append('"').toString()
-        }
     }
 }
