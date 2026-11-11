@@ -431,6 +431,26 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
   }
 
   /**
+   * 11/11: col processo muoiono anche i suoi specialisti. Prima, dopo un turno appeso (il processo lo spegne
+   * il programma, e la sua uscita non si guarda più) restavano «al lavoro» per sempre: occupavano i posti del
+   * PC, il rilancio era rifiutato come doppione, niente spinte del lavoro fermo e niente autopulizia, fino al
+   * riavvio del servizio. E quando il processo usciva da solo erano «fermati», ma nessuno lo diceva al piano.
+   * `diLo`: lo si dice al servizio (il compito torna da fare); senza, si segnano soltanto.
+   */
+  const fermaSpecialisti = (ws: string, s: StatoWs, diLo: boolean): void => {
+    const vivi = specialistiAlLavoro(s.flusso)
+    if (vivi.length === 0) return
+    const quando = adesso()
+    const fermati = vivi.map((y) => ({ ...y, stato: 'fermato' as const, fine: quando }))
+    s.flusso = { ...s.flusso, specialisti: s.flusso.specialisti.map((y) => fermati.find((f) => f.id === y.id) ?? y) }
+    if (!diLo) return
+    // Subito dopo, non adesso: chi chiama sta ancora sistemando il turno e il processo.
+    queueMicrotask(() => {
+      try { d.flusso?.(ws, fermati.map((specialista) => ({ tipo: 'specialista-finito' as const, specialista })), s.flusso) } catch (err) { console.error(`[orchestratore] ${ws} — specialisti fermati non registrati:`, err) }
+    })
+  }
+
+  /**
    * Il cane da guardia del turno: una CLI appesa (nessuna riga da 20 minuti,
    * e nessun permesso che aspetta Nicholas) terrebbe per sempre uno dei due
    * turni del PC. Si spegne, quello che il turno portava torna in attesa e si
@@ -448,6 +468,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
       const minuti = Math.round(mutoMs / 60_000)
       console.error(`[orchestratore] ${ws} — turno appeso: nessuna riga da ${minuti} minuti`)
       spegniSe(ws, s, `turno appeso (nessuna riga da ${minuti} minuti)`)
+      fermaSpecialisti(ws, s, true)
       guasto(ws, s, `il turno era appeso (nessuna risposta dalla CLI da ${minuti} minuti): l’ho fermato`, false)
     }, mutoMs)
     s.cane.unref?.()
@@ -526,7 +547,9 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
       s.proc = undefined
       if (s.cane !== undefined) { clearTimeout(s.cane); s.cane = undefined }
       const eraInTurno = s.flusso.inTurno
-      s.flusso = { ...s.flusso, inTurno: false, specialisti: s.flusso.specialisti.map((x) => (specialistiAlLavoro({ ...s.flusso, specialisti: [x] }).length > 0 ? { ...x, stato: 'fermato' as const, fine: adesso() } : x)) }
+      s.flusso = { ...s.flusso, inTurno: false }
+      // 11/11: gli specialisti morti col processo si dicono anche al piano (prima restavano «in corso» fino alla spinta del lavoro fermo).
+      fermaSpecialisti(ws, s, true)
       if (s.inattivo !== undefined) { clearTimeout(s.inattivo); s.inattivo = undefined }
       if (eraInTurno || s.inviati !== undefined) {
         // Quello che il turno portava non si perde: torna in attesa.
@@ -623,6 +646,8 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
       s.inattivo = undefined
       s.inviati = undefined
       spegniSe(ws, s, 'interruttore spento')
+      // 11/11: spento l'interruttore non resta nessuno «al lavoro» (senza dirlo al piano: l'autopilota è fermo apposta).
+      fermaSpecialisti(ws, s, false)
       forseQuiete()
     },
     spegni() {
