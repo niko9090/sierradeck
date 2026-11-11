@@ -25,7 +25,8 @@ import { creaAvvisatore, invioReale, leggiConfigurazione } from './telegram'
 import { gitAsincronoReale, gitReale } from './worktree'
 import { avviaSpiaRitardo } from './ritardo-ciclo'
 import { creaMisuratore } from './misura-pc'
-import { cercaProgrammaReale, creaGuardiaPc } from './guardia-pc'
+import { cercaProgrammaReale, creaGuardiaPc, guardiaSpegnibile } from './guardia-pc'
+import { apriLimiti } from './limiti-store'
 import { AUTOPULIZIA_OGNI_MS, cartelleProgettiDelServizio, creaAutopulizia } from './autopulizia'
 import { apriCode } from './coda-store'
 import { apriOrchestratori } from './orchestratore-store'
@@ -348,10 +349,13 @@ export function avviaServizio(): void {
   // chat nuove né comandi pesanti, e nell'indicatore chi consuma di più.
   const misuraGuardia = creaMisuratore()
   let processoriGuardia = 1
-  const guardiaPc = creaGuardiaPc({
+  // 11/11: i limiti del PC (tetti e interruttori) li decide Nicholas: un file accanto agli altri del servizio.
+  const limiti = apriLimiti(join(cartellaStato(), '..', 'limiti.json'))
+  // La guardia con il suo interruttore: spenta da lui, nessun comando aspetta il PC e nessuno lo trova «carico».
+  const guardiaPc = guardiaSpegnibile(creaGuardiaPc({
     misura: () => { const m = misuraGuardia(); processoriGuardia = m.processori; return m },
     cerca: cercaProgrammaReale(() => processoriGuardia)
-  })
+  }), () => limiti.leggi().guardiaPc)
   // 0.85.2: la guardia misura da sola ogni 5 s, non solo quando qualcuno chiede.
   guardiaPc.avvia?.()
 
@@ -422,6 +426,7 @@ export function avviaServizio(): void {
     coda: apriCode(join(cartellaStato(), '..', 'orchestratori')),
     // P3/P4: l'autopilota di ogni workspace, accanto alla sua coda. Sempre acceso.
     orchestratori: apriOrchestratori(join(cartellaStato(), '..', 'orchestratori')),
+    limiti,
     avviaProcesso: avviaProcessoReale(claudeCmd()),
     porta: PORTA,
     indiceQuaderno: (cwd) => quadernoLezioni.indice(cwd)

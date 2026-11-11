@@ -134,6 +134,8 @@ export type AmbienteOrchestratore = {
   ritira: (ws: string, id: string, perche: string) => EsitoAmbiente
   /** Le domande partite nell'ultima ora. */
   domandeUltimaOra: (ws: string) => number
+  /** 11/11: quante domande all'ora, al più (di serie `DOMANDE_ORA_ORCHESTRATORE`): lo decide Nicholas. */
+  domandeOraMax?: () => number
   annota: (ws: string, testo: string, tag: string) => EsitoAmbiente
   /** 11/11: il progetto di questo workspace è SierraDeck stesso (lì «la installi?» non è una domanda). */
   eIlProgramma?: (ws: string) => boolean
@@ -512,7 +514,8 @@ export async function chiamaStrumento(amb: AmbienteOrchestratore, ws: string, no
       const inutile = motivoDomandaInutile(`${domanda} ${scelte.join(' ')}`)
       if (inutile !== undefined) return no(inutile)
       const n = amb.domandeUltimaOra(ws)
-      if (n >= DOMANDE_ORA_ORCHESTRATORE) return no(`hai già fatto ${n} domande nell’ultima ora: decidi tu con la scelta più prudente e dillo nel dialogo`)
+      // 11/11: quante all'ora lo decide Nicholas (limiti-pc.ts).
+      if (n >= (amb.domandeOraMax?.() ?? DOMANDE_ORA_ORCHESTRATORE)) return no(`hai già fatto ${n} domande nell’ultima ora: decidi tu con la scelta più prudente e dillo nel dialogo`)
       const richiesta = str(arg.richiesta)
       // 11/11: `rischiosa` è facoltativo: le parole di rischio le guarda comunque il programma.
       const e = amb.chiedi(ws, domanda, scelte, perche !== '' ? perche : undefined, richiesta !== '' ? richiesta : undefined, arg.rischiosa === true ? { rischiosa: true } : undefined)

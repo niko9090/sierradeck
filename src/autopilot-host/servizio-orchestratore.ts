@@ -46,7 +46,8 @@ import {
   type AvviaProcesso, type ContestoTurno, type EventoOrchestratore, type Orchestratore
 } from './orchestratore'
 import type { ArchivioOrchestratori, ImpostazioniOrchestratore, RigaDialogo } from './orchestratore-store'
-import { RAMI_SEGNALATI_MAX, SVEGLIE_MAX, TETTO_SPECIALISTI_MAX } from './orchestratore-store'
+import { RAMI_SEGNALATI_MAX, SVEGLIE_MAX } from './orchestratore-store'
+import type { LimitiPc } from '@shared/limiti-pc'
 import { POSTI_MAX } from '@shared/posti-chat'
 import { fermataSpecialista } from './stop-specialista'
 import { cartellaDelWorkspace, hookAdottato, nuovoUnico, obiettiviInCoda, passaAllUnico, type CampiVecchi, type Vecchio } from './migra-orchestratore'
@@ -61,7 +62,7 @@ import { intervalloSpinta, lavoroFermo, rigaFermoPerNicholas, SPINTE_PRIMA_DI_DI
 import { aspettaDipendenze, righeDopoUnione, rigaUnioneEPoi } from './dipendenze'
 import { promemoriaRosso, type RossoVisto } from './criterio-rosso'
 import { permessoDaSolo } from './permessi-automatici'
-import { CLASSI, DURATA_PERMESSO_MIN, SOLO_QUESTA_VOLTA, partiDomandaPermesso } from '@shared/permessi-nicholas'
+import { CLASSI, DURATA_PERMESSO_MIN, SOLO_QUESTA_VOLTA, leggiPermessi, partiDomandaPermesso } from '@shared/permessi-nicholas'
 import { DOMANDA_PERMESSO_VALE_MS, concessoDa, type Concesso, type PermessiNicholas } from './permessi-nicholas'
 import { leggiRichiestaConsenso, nicholasHaChiestoDiInstallare } from './richiesta-consenso'
 import { leggiTrascrizione, trovaTrascrizione } from './trascrizione-specialista'
@@ -171,6 +172,8 @@ export type ContestoUnico = {
   ricordaContesto: (idDomanda: string, c: ContestoDomanda) => void
   /** 11/11: il registro dei sì di Nicholas alle azioni protette (`permessi-nicholas.ts`). Assente: nessun permesso, tutto resta bloccato. */
   permessi?: PermessiNicholas
+  /** 11/11: i limiti del PC decisi da Nicholas (`@shared/limiti-pc`), letti a ogni uso. Assente: i valori di serie. */
+  limiti?: () => LimitiPc
   /** L'ultimo segno di vita di una chat adottata (hook, battiti), in ms. */
   ultimoSegnale: (autopilotaId: string, chatId: string) => number | undefined
   /** Per i test. */
@@ -226,7 +229,7 @@ export type ServizioUnico = {
   copieVive: (cartella: string) => Set<string>
   /** 11/11: i rami degli specialisti che servono ancora (compiti aperti, unioni in fila, specialisti al lavoro): l'autopulizia non li toglie. */
   ramiCitati: (cartella: string) => Set<string>
-  imposta: (ws: string, p: { modello?: unknown; tettoSpecialisti?: unknown }) => ImpostazioniOrchestratore
+  imposta: (ws: string, p: { modello?: unknown; tettoSpecialisti?: unknown; permessi?: unknown }) => ImpostazioniOrchestratore
   messaggio: (a: Autopilota, testo: string, quando?: string, opz?: { daProgramma?: boolean }) => Autopilota
   /** Lo Stop di una chat **adottata**: registra e fa un evento, senza modello. */
   fermata: (a: Autopilota, chatId: string, corpo: Record<string, unknown>) => Record<string, unknown>
@@ -681,7 +684,9 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
   const archivioAttesa: ArchivioAttesa = { leggi: () => archivioAttesaBase.leggi(), scrivi: (st) => { archivioAttesaBase.scrivi(st); cambiSpecialisti.segna() } }
   const scelti = (): number | undefined => x.postiScelti?.()
   const capPc = (): number => (scelti() !== undefined ? POSTI_MAX : SPECIALISTI_PC_MAX)
-  const tettoPc = (): number => Math.max(1, Math.min(x.posti(), capPc()))
+  // 11/11: se Nicholas ha scritto lui quanti specialisti insieme sul PC, vale quel numero così com'è, senza un massimo.
+  const sceltiPc = (): number | undefined => x.limiti?.().specialistiPc ?? undefined
+  const tettoPc = (): number => Math.max(1, sceltiPc() ?? Math.min(x.posti(), capPc()))
   const liberiPc = (escludi?: string): number => Math.max(0, tettoPc() - orchestratore.specialistiSulPc(escludi))
   const oraMs = (): number => Date.parse(x.adesso())
   /** Scrive la lista e sveglia gli autopiloti dei primi in fila (e avvisa chi è caduto). */
@@ -828,7 +833,7 @@ Il posto è tuo per 5 minuti.` })
       ws, coda: coda(ws), piano: x.orchestratori.piano(ws), unico: u, misura: m,
       ...(i.percento !== undefined ? { percento: i.percento } : {}),
       eventi: recenti.get(ws) ?? [],
-      tetti: { ws: i.tettoSpecialisti, pc: Math.min(x.posti(), capPc()), alLavoroPc: x.chatAlLavoroSulPc() },
+      tetti: { ws: i.tettoSpecialisti, pc: sceltiPc() ?? Math.min(x.posti(), capPc()), alLavoroPc: x.chatAlLavoroSulPc() },
       domandeAperte: u === undefined ? 0 : x.domande.aperte(u.id).length,
       domande: u === undefined ? [] : x.domande.aperte(u.id).map((q) => ({ id: q.id, testo: q.parti?.domanda ?? q.testo, apertaIl: q.apertaIl })),
       subagenti: subagenti(ws),
@@ -866,7 +871,8 @@ ${NOTA_SENZA_GIT}`,
       impostazioniCli: x.orchestratori.scriviFile(ws, 'impostazioni-cli.json', fileImpostazioniCli(x.porta, u.id)),
       mcpConfig: x.orchestratori.scriviFile(ws, 'mcp.json', configMcpOrchestratore(x.porta, ws, gettoni.di(ws))),
       // Il tetto del workspace, dentro i posti del PC; senza git uno solo (lavorano nella stessa cartella).
-      tetto: git ? (scelti() !== undefined ? Math.max(1, Math.min(POSTI_MAX, x.posti())) : Math.max(1, Math.min(i.tettoSpecialisti, TETTO_SPECIALISTI_MAX, Math.max(1, x.posti())))) : 1,
+      // 11/11: il tetto del workspace non ha più il massimo di 4 messo dal programma: lo decide Nicholas (e il tetto del PC, se l'ha scritto lui).
+      tetto: git ? (sceltiPc() !== undefined ? Math.max(1, Math.min(i.tettoSpecialisti, sceltiPc()!)) : scelti() !== undefined ? Math.max(1, Math.min(POSTI_MAX, x.posti())) : Math.max(1, Math.min(i.tettoSpecialisti, Math.max(1, x.posti())))) : 1,
       ...(git && scelti() !== undefined ? { scelti: scelti() as number } : {})
     }
   }
@@ -1015,7 +1021,8 @@ ${NOTA_SENZA_GIT}`,
     flusso: suFlusso,
     adesso: x.adesso,
     ...(x.raccoltaEventiMs !== undefined ? { raccoltaMs: x.raccoltaEventiMs } : {}),
-    ...(x.chiamateMax !== undefined ? { globaliMax: x.chiamateMax } : {}),
+    // 11/11: quanti autopiloti hanno il turno insieme lo decide Nicholas, e vale subito.
+    ...(x.chiamateMax !== undefined ? { globaliMax: x.chiamateMax } : x.limiti !== undefined ? { globaliMax: () => x.limiti!().turniAutopilota } : {}),
     ...(x.inattivoMs !== undefined ? { inattivoMs: x.inattivoMs } : {}),
     // 11/11: nessun permesso aspetta più Nicholas (decide il programma): niente `attendeNicholas`.
     limite: limiteRaggiunto,
@@ -1183,7 +1190,9 @@ ${NOTA_SENZA_GIT}`,
     return i === 0 ? `- ${l.chi}: in corso${l.tentativi > 0 ? ` (tentativo ${l.tentativi + 1})` : ''}` : `- ${l.chi}: in fila, ${i + 1}ª`
   })
   const giraFila = async (ws: string): Promise<void> => {
-    const max = x.unioneMaxMs ?? UNIONE_MAX_MS
+    // 11/11: la durata massima di un'unione la decide Nicholas (letta a ogni giro della fila).
+    const maxDiSerie = (): number => x.unioneMaxMs ?? (x.limiti !== undefined ? x.limiti().unioneMaxMin * 60_000 : UNIONE_MAX_MS)
+    let max = maxDiSerie()
     const riprova = x.unioneRiprovaMs ?? UNIONE_RIPROVA_MS
     const tentativiMax = x.unioneTentativiMax ?? UNIONE_TENTATIVI_MAX
     for (;;) {
@@ -1199,6 +1208,7 @@ ${NOTA_SENZA_GIT}`,
       if (prima > 0) fila.unshift(...fila.splice(prima, 1))
       const lavoro = fila[0] as LavoroUnione
       lavoro.inCorso = true
+      max = maxDiSerie()
       const { p, chi } = lavoro
       const scambio: ScambioUnione = { scaduto: false, ...(lavoro.rossoSporco !== undefined ? { rossoSporco: lavoro.rossoSporco } : {}) }
       let testo: string | undefined
@@ -1794,6 +1804,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       ricordaEvento(ws, { tipo: 'domanda-scaduta', quando: x.adesso(), testo: `ritirata la domanda «${(d.parti?.domanda ?? d.testo).slice(0, 120)}»: ${perche}` })
       return { ok: true, testo: 'Domanda ritirata: non compare più nelle Domande di Nicholas.' }
     },
+    ...(x.limiti !== undefined ? { domandeOraMax: () => x.limiti!().domandeOra } : {}),
     domandeUltimaOra(ws) {
       const ora = Date.parse(x.adesso())
       return (imp(ws).domande ?? []).filter((q) => ora - Date.parse(q) < 3_600_000).length
@@ -2633,6 +2644,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
         ...(u !== undefined ? { autopilota: u.id } : {}),
         modello: i.modello,
         tettoSpecialisti: i.tettoSpecialisti,
+        permessi: i.permessi ?? {},
         ...(valore !== undefined ? { percento: valore } : {}),
         ...(i.percento?.calo !== undefined ? { calo: i.percento.calo } : {}),
         pensa: orchestratore.inVolo(ws) || orchestratore.inAttesa(ws).messaggi > 0,
@@ -2669,7 +2681,9 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       return x.orchestratori.cambiaImpostazioni(ws, (i) => ({
         ...i,
         ...(modelloAutopilotaAmmesso(p.modello) ? { modello: p.modello, modelloScelto: true } : {}),
-        ...(typeof p.tettoSpecialisti === 'number' && Number.isInteger(p.tettoSpecialisti) ? { tettoSpecialisti: Math.min(TETTO_SPECIALISTI_MAX, Math.max(1, p.tettoSpecialisti)) } : {})
+        ...(typeof p.tettoSpecialisti === 'number' && Number.isInteger(p.tettoSpecialisti) ? { tettoSpecialisti: Math.max(1, p.tettoSpecialisti) } : {}),
+        // 11/11: dalla pagina delle impostazioni Nicholas rimette «chiedi» (o mette «sempre») a una classe di permessi.
+        ...(p.permessi !== undefined ? { permessi: leggiPermessi(p.permessi) } : {})
       }))
     },
     messaggio,
@@ -2693,6 +2707,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
         radice: a.cwd,
         tipiSpecialisti: RUOLI_AGENTI,
         concesso: concessoPer(a),
+        ...(x.limiti !== undefined ? { sleepMaxS: x.limiti().sleepMaxS } : {}),
         ...(conGit(a.cwd) ? {} : { senzaGit: true, specialistiDelWorkspace: alLavoroNel(wsDi(a), idUso) }),
         specialistiSulPc: orchestratore.specialistiSulPc(idUso),
         tettoPc: tettoPc(),

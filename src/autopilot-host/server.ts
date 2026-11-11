@@ -28,13 +28,18 @@ import { conScadenza, PROVA_MAX_MS } from './tempi-unione'
 import { improntaCodiceAsincrona, misuraCriteri, type MemoriaCriteri } from './criteri-veloci'
 import { motivoProveRotte, peggioratiDelRamo, preparaCopia, radiceDellaCopia } from './ambiente-copia'
 import { criteriPerLaProva } from './criteri-prova'
-import { TURNI_PC, TurnoScaduto, type TurniCriteri } from './turni-criteri'
+import { TURNI_PC, TurnoScaduto, turniSenzaFila, type TurniCriteri } from './turni-criteri'
 import { giudicaPesanteAspettando, idAgente, rendiTurnoDopoComando, type GuardiaPc } from './guardia-pc'
 import { giudicaRuolo, giudicaStrumento, rispostaPreTool } from './divieti'
 import { creaConsensi, DURATA_CONSENSO_MS } from './consenso-cancellazione'
 import { CLASSI, conPermesso, leggiRispostaPermesso, partiDomandaPermesso, sceltePermesso, statoPermesso, type ClassePermesso, type PermessiScelti } from '@shared/permessi-nicholas'
 import { DOMANDA_PERMESSO_VALE_MS, DURATA_PERMESSO_MS, concessoDa, creaPermessi } from './permessi-nicholas'
 import { testoDomanda } from '@shared/domanda-strutturata'
+import { LIMITI_DI_SERIE, type LimitiPc } from '@shared/limiti-pc'
+import type { ArchivioLimiti } from './limiti-store'
+
+/** Oltre cinque minuti un hook non aspetta: è il tempo che la CLI gli concede (`TIMEOUT_PRETOOL_S`). */
+const ATTESA_HOOK_MAX_MS = 5 * 60_000
 import { ultimoRapportoDa } from './trascrizione'
 import { apriMemoria, type Memoria } from './memoria'
 import { aperteSulloStesso } from './domande-doppie'
@@ -123,6 +128,8 @@ export type Dipendenze = {
   guardiaPc?: GuardiaPc
   /** 11/11, per i test: i tetti dell'attesa di un comando pesante dentro l'hook (PC carico, turno) e ogni quanto si riguarda. */
   attesaPesante?: { tettoMs?: number; tettoTurnoMs?: number; riprovaMs?: number }
+  /** 11/11: i limiti del PC decisi da Nicholas (`limiti-store.ts`). Assente: i valori di serie, non si cambiano. */
+  limiti?: ArchivioLimiti
   /** Chiude una chat adottata finita (0.82.0): il riquadro si chiude; con `alRecupero` esce dall'elenco (P2). */
   chiudiChat?: (autopilotaId: string, chatId: string | undefined, chi: { sessionId: string; workspace?: string; alRecupero?: boolean; fine?: 'unita' | 'abbandonata' }) => void
   /** L'autopulizia (0.85.2), per «Pulisci adesso». */
@@ -813,7 +820,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       // pesanti): il tentativo dopo non aspetta una suite fantasma. I tempi vanno nel registro.
       const r = await conScadenza(
         (segnale, iniziata) => corpo(segnale, iniziata).catch((err: unknown) => { if (err instanceof TurnoScaduto) return 'scaduta' as const; throw err }),
-        deps.provaMaxMs ?? PROVA_MAX_MS,
+        // 11/11: la durata massima della prova la decide Nicholas (di serie `PROVA_MAX_MS`).
+        deps.provaMaxMs ?? (deps.limiti !== undefined ? deps.limiti.leggi().provaMaxMin * 60_000 : PROVA_MAX_MS),
         { scrivi: (t) => { console.info(`[unione di prova] ${ramo}: attesa del turno ${Math.round(t.attesaMs / 1000)} s, prova ${Math.round(t.esecuzioneMs / 1000)} s${t.scaduta ? ' (scaduta)' : ''}`) } }
       )
       if (!r.scaduta && r.valore !== 'scaduta') return r.valore
@@ -1150,6 +1158,18 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           return
         }
 
+        // 11/11: i limiti del PC (tetti e interruttori). Li legge e li cambia Nicholas dalla pagina delle impostazioni.
+        if (percorso === '/limiti' && (metodo === 'GET' || metodo === 'POST')) {
+          if (deps.limiti === undefined) { rispondi(res, 200, { limiti: LIMITI_DI_SERIE, fissi: true }); return }
+          if (metodo === 'POST') {
+            const prima = deps.limiti.leggi()
+            const dopo = deps.limiti.cambia(await leggiCorpo(req))
+            const cambiati = (Object.keys(dopo) as (keyof LimitiPc)[]).filter((k) => dopo[k] !== prima[k])
+            if (cambiati.length > 0) console.info(`[limiti] cambiati da Nicholas: ${cambiati.map((k) => `${k} ${String(prima[k])} → ${String(dopo[k])}`).join(', ')}`)
+          }
+          rispondi(res, 200, { limiti: deps.limiti.leggi() })
+          return
+        }
         // L'autopilota del workspace: la vista, le impostazioni, il messaggio.
         if (percorso === '/orchestratore' || percorso.startsWith('/orchestratore/')) {
           if (metodo === 'GET' && percorso === '/orchestratore') {
@@ -1201,7 +1221,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             const corpo = (await leggiCorpo(req)) as Record<string, unknown> | undefined
             const ws = testoDi(corpo?.ws).trim()
             if (ws === '') { rispondi(res, 400, { errore: 'manca il workspace' }); return }
-            servizio().imposta(ws, { modello: corpo?.modello, tettoSpecialisti: corpo?.tettoSpecialisti })
+            // 11/11: anche i permessi del progetto (rimettere «chiedi», o «sempre»): li cambia Nicholas dalla pagina delle impostazioni.
+            servizio().imposta(ws, { modello: corpo?.modello, tettoSpecialisti: corpo?.tettoSpecialisti, ...(corpo?.permessi !== undefined ? { permessi: corpo.permessi } : {}) })
             rispondi(res, 200, servizio().vista(ws))
             return
           }
@@ -1492,11 +1513,14 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           if (g.ok && (chatPre === undefined || chatPre === idAp)) g = servizio().preTool(a, corpo)
           const chiPre = `${idAp}::${idAgente(corpo) ?? chatPre ?? '-'}`
           if (g.ok) {
-            const pesante = { chi: chiPre, cwd: typeof corpo.cwd === 'string' && corpo.cwd !== '' ? corpo.cwd : a.cwd, turni: deps.turni ?? TURNI_PC, ...(deps.guardiaPc !== undefined ? { guardia: deps.guardiaPc } : {}) }
+            // 11/11: la guardia del PC, «un pesante alla volta» e i secondi di attesa li decide Nicholas (`limiti-pc.ts`).
+            const lim = deps.limiti?.leggi()
+            const turniChat = lim?.unPesanteAllaVolta === false ? turniSenzaFila(deps.turni ?? TURNI_PC) : (deps.turni ?? TURNI_PC)
+            const pesante = { chi: chiPre, cwd: typeof corpo.cwd === 'string' && corpo.cwd !== '' ? corpo.cwd : a.cwd, turni: turniChat, ...(deps.guardiaPc !== undefined && lim?.guardiaPc !== false ? { guardia: deps.guardiaPc } : {}) }
             // Lo specialista non sa aspettare (sleep bloccato): aspetta il programma, nell'hook, fino al tetto.
             // 11/11: anche le chat adottate aspettano qui invece di ricevere il «no» (il loro hook ha il tempo per farlo,
             // `TIMEOUT_PRETOOL_CHAT_S`); per gli specialisti niente «appena liberato»: il turno li mette già in fila.
-            g = await giudicaPesanteAspettando(corpo, { ...pesante, ...(idAgente(corpo) !== undefined ? { senzaQuiete: true } : {}), ...(deps.attesaPesante ?? {}) })
+            g = await giudicaPesanteAspettando(corpo, { ...pesante, ...(idAgente(corpo) !== undefined ? { senzaQuiete: true } : {}), ...(deps.attesaPesante ?? (lim !== undefined ? { tettoMs: Math.min(lim.attesaPcCaricoS * 1000, ATTESA_HOOK_MAX_MS) } : {})) })
           }
           if (!g.ok && g.pcCarico === true) console.info(`[guardia-pc] ${chiPre} comando pesante rimandato: ${g.motivo}`)
           else if (!g.ok) {
@@ -1593,6 +1617,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     memoriaCriteri,
     ricordaContesto,
     permessi: permessiNicholas,
+    ...(deps.limiti !== undefined ? { limiti: () => deps.limiti!.leggi() } : {}),
     ultimoSegnale: (id, chat) => ultimoSegnale(chiaveTurno(id, chat)),
     ...(deps.raccoltaEventiMs !== undefined ? { raccoltaEventiMs: deps.raccoltaEventiMs } : {}),
     ...(deps.inattivoOrchestratoreMs !== undefined ? { inattivoMs: deps.inattivoOrchestratoreMs } : {}),

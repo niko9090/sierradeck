@@ -31,7 +31,7 @@ export type ImpostazioniOrchestratore = {
    * scritto dalle versioni di prima diventa Opus.
    */
   modelloScelto?: boolean
-  /** Quanti specialisti insieme in questo workspace: 3 di serie, al più 4. */
+  /** Quanti specialisti insieme in questo workspace: 3 di serie. 11/11: il massimo lo decide Nicholas, non più il programma (era 4). */
   tettoSpecialisti: number
   /** La sessione di `claude -p`, ripresa con `--resume`. */
   sessione?: string
@@ -77,7 +77,7 @@ export function leggiImpostazioni(x: unknown): ImpostazioniOrchestratore {
   const d = impostazioniPredefinite()
   if (typeof x !== 'object' || x === null) return d
   const o = x as Record<string, unknown>
-  const tetto = typeof o.tettoSpecialisti === 'number' && Number.isInteger(o.tettoSpecialisti) ? Math.min(TETTO_SPECIALISTI_MAX, Math.max(1, o.tettoSpecialisti)) : d.tettoSpecialisti
+  const tetto = typeof o.tettoSpecialisti === 'number' && Number.isInteger(o.tettoSpecialisti) ? Math.max(1, o.tettoSpecialisti) : d.tettoSpecialisti
   const p = o.percento as Record<string, unknown> | undefined
   const percento: PercentoWs | undefined = typeof p === 'object' && p !== null && typeof p.il === 'string'
     ? {

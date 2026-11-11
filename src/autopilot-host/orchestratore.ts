@@ -268,7 +268,7 @@ export function sessionePersa(testo: string): boolean {
 
 /** L'ambiente del figlio: ripulito, git nel PATH, il tetto dei subagenti, e mai la chiave API (vale l'abbonamento). */
 export function ambienteOrchestratore(base: NodeJS.ProcessEnv, tetto: number): Record<string, string> {
-  const env: Record<string, string> = { ...ambientePulito(base), ...gitPerLeChat(), CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS: String(Math.min(POSTI_MAX, Math.max(1, tetto))) }
+  const env: Record<string, string> = { ...ambientePulito(base), ...gitPerLeChat(), CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS: String(Math.max(1, Math.round(tetto))) }
   delete env.ANTHROPIC_API_KEY
   return env
 }
@@ -305,7 +305,8 @@ export type DipendenzeOrchestratore = {
   nuovaSessione?: () => string
   ambiente?: (tetto: number) => Record<string, string>
   raccoltaMs?: number
-  globaliMax?: number
+  /** Quanti turni insieme sul PC: un numero, o (11/11) una funzione letta a ogni uso (lo decide Nicholas). */
+  globaliMax?: number | (() => number)
   sogliaRotazione?: number
   inattivoMs?: number
   /** Il cane da guardia: un turno senza righe per tanto si dà per appeso. */
@@ -381,7 +382,8 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
   const stati = new Map<string, StatoWs>()
   const fila: string[] = []
   const raccoltaMs = d.raccoltaMs ?? RACCOLTA_EVENTI_MS
-  const globali = d.globaliMax ?? CHIAMATE_PC_MAX
+  // 11/11: il tetto dei turni lo decide Nicholas (limiti-pc.ts): si legge a ogni uso, vale subito.
+  const globali = (): number => { const g = typeof d.globaliMax === 'function' ? d.globaliMax() : d.globaliMax; return Math.max(1, g ?? CHIAMATE_PC_MAX) }
   const soglia = d.sogliaRotazione ?? ROTAZIONE_TOKEN
   const inattivoMs = d.inattivoMs ?? INATTIVO_MS
   const mutoMs = d.mutoMs ?? TURNO_MUTO_MS
@@ -408,7 +410,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
   }
   const avanza = (): void => {
     for (const ws of [...fila]) {
-      if (turniPc() >= globali) break
+      if (turniPc() >= globali()) break
       const s = di(ws)
       if (!pronto(s)) { if (!inTurno(s)) fila.splice(fila.indexOf(ws), 1); continue }
       fila.splice(fila.indexOf(ws), 1)
