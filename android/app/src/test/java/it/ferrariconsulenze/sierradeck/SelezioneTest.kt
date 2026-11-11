@@ -3,6 +3,9 @@ package it.ferrariconsulenze.sierradeck
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.MossaSelezione
+import it.ferrariconsulenze.sierradeck.nucleo.Selezione
+import it.ferrariconsulenze.sierradeck.schermate.comune.tocco
 
 /**
  * La scelta del computer dal selettore in alto (app 2.52.2). Nicholas (07/10):

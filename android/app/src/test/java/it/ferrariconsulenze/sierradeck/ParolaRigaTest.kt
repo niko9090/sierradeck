@@ -3,6 +3,9 @@ package it.ferrariconsulenze.sierradeck
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.leggiChat
+import it.ferrariconsulenze.sierradeck.nucleo.parolaPerRiga
+import it.ferrariconsulenze.sierradeck.schermate.tema.sopra
 
 /** Le parole di stato nelle righe strette (0.43.0): brevi sotto i 380 dp, intere sopra. */
 class ParolaRigaTest {

@@ -48,8 +48,7 @@ describe('0.78.1: nessun «Mosaico» né «a elenco» nei testi che vede Nichola
     'src/renderer/App.tsx', 'src/renderer/components/WorkspacePanoramica.tsx',
     'src/renderer/components/Console.tsx', 'src/renderer/components/PannelloAutopiloti.tsx', 'src/renderer/components/RigaMigrazione.tsx',
     'src/shared/novita.ts', 'src/shared/scorciatoie.ts', 'src/shared/impostazioni-struttura.ts', 'src/main/client-pagina.ts',
-    'android/app/src/main/assets/impostazioni.json', 'android/app/src/main/java/it/ferrariconsulenze/sierradeck/Migrazione.kt',
-    'android/app/src/main/java/it/ferrariconsulenze/sierradeck/Panoramica.kt'
+    'android/app/src/main/assets/impostazioni.json'
   ]
   for (const f of file) {
     it(f, () => {

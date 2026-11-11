@@ -8,6 +8,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.Davanti
 
 /** 2.80.0: con l'app dietro i controlli delle schermate chiedevano al PC ogni 2 s. */
 class DavantiTest {

@@ -9,6 +9,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import it.ferrariconsulenze.sierradeck.nucleo.Ricomponi
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.Blocco
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.blocchiAdattati
 
 /**
  * Lo schermo ricomposto per la larghezza del telefono (2.52.6). Nicholas

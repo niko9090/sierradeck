@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.schermate.comune.Spiegazioni
 
 /**
  * Il tasto «?» (app 2.62.0): la spiegazione completa sta dietro al «?», e un

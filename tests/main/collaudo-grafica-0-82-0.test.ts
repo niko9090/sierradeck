@@ -117,9 +117,8 @@ describe('difetto 4: la trasformazione non promette autopiloti che Autopiloti no
     expect(fatta(2)).not.toMatch(/autopilot[ai] nuov/)
     expect(fatta(1)).not.toMatch(/autopilot[ai] nuov/)
   })
-  it('pagina e app dicono la stessa cosa del PC', () => {
+  it('la pagina dice la stessa cosa del PC', () => {
     expect(script).not.toMatch(/autopiloti nuovi, fermi/)
-    expect(leggi('android/app/src/main/java/it/ferrariconsulenze/sierradeck/Migrazione.kt')).not.toMatch(/autopiloti nuovi, fermi/)
   })
 })
 

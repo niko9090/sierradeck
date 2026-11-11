@@ -17,6 +17,23 @@ import com.google.android.gms.common.moduleinstall.ModuleInstallRequest
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
+import it.ferrariconsulenze.sierradeck.dati.Collegamento
+import it.ferrariconsulenze.sierradeck.nucleo.Davanti
+import it.ferrariconsulenze.sierradeck.rete.Percorsi
+import it.ferrariconsulenze.sierradeck.rete.Scoperta
+import it.ferrariconsulenze.sierradeck.schermate.comune.DialogoGuasto
+import it.ferrariconsulenze.sierradeck.schermate.tema.TemaSierraDeck
+import it.ferrariconsulenze.sierradeck.schermate.radice.Radice
+import it.ferrariconsulenze.sierradeck.sottofondo.Installazione
+import it.ferrariconsulenze.sierradeck.sottofondo.RicevitoreConsegne
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.Apertura
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.Condivisione
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.Nota
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.Scheda
+import it.ferrariconsulenze.sierradeck.sottofondo.Aggiornamenti
+import it.ferrariconsulenze.sierradeck.sottofondo.ControlloApp
+import it.ferrariconsulenze.sierradeck.sottofondo.Guasti
+import it.ferrariconsulenze.sierradeck.sottofondo.Ronda
 
 /**
  * L'app nativa: nessuna WebView, solo Compose.
@@ -31,25 +48,25 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(salvato: Bundle?) {
         super.onCreate(salvato)
-        // Da qui in avanti un errore che chiuderebbe l'app lascia una traccia da
-        // leggere al riavvio, invece di sparire senza una parola.
-        Rete.ricorda(this)
-        // Se il telefono cambia rete (WiFi di casa, VPN, dati) l'app sceglie da sola l'indirizzo giusto (k-50).
-        Percorsi.osserva(this)
-        Guasti.prendiNota(applicationContext)
+        // Contesto, rete e gestore dei guasti li prepara `SierraDeckApp`, per ogni processo.
         chiediPermessoNotifiche()
         preparaScanner()
         // L'app cerca da sola la versione nuova (0.43.0): ogni otto ore e
         // adesso, su GitHub, anche a computer spento e ad app chiusa.
         try { ControlloApp.programma(applicationContext) } catch (e: Exception) { android.util.Log.i("SierraDeck", "controllo dell'app non programmato: ${e.message}") }
 
-        val deposito = Collegamento(this)
+        // Le sveglie di sempre: la guardia a schermo spento, i file dal PC.
+        try {
+            Sentinella.programma(applicationContext)
+            RicevitoreConsegne.programma(applicationContext)
+            if (Collegamento(this).controlloContinuo) GuardiaService.avvia(applicationContext)
+        } catch (e: Exception) { android.util.Log.i("SierraDeck", "sveglie non programmate: ${e.message}") }
+        Installazione.riprendi(applicationContext)
+
         apriDoveChiede(intent)
         setContent {
             TemaSierraDeck {
-                // L'aggiornamento dell'app vive dentro `App` (una striscia in
-                // alto che si chiude), non piu' qui come finestra all'avvio.
-                App(deposito = deposito, scansionaQr = ::scansionaQr)
+                Radice(scansionaQr = ::scansionaQr, onEsci = { finish() })
 
                 // La nota dell'ultima caduta. La si scriveva gia' e non la
                 // leggeva nessuno: l'app spariva, e al riavvio non restava una

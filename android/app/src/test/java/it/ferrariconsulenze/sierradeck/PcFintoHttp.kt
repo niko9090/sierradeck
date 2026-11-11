@@ -6,6 +6,7 @@ import java.io.BufferedInputStream
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
+import it.ferrariconsulenze.sierradeck.rete.Api
 
 /**
  * Un PC finto per i test (app 2.55.0): un socket vero su 127.0.0.1 con le
@@ -23,6 +24,8 @@ class PcFintoHttp(
 
     /** Gli `If-None-Match` arrivati, uno per richiesta (null se mancava). */
     val seNonCambiato: MutableList<String?> = java.util.Collections.synchronizedList(mutableListOf<String?>())
+    /** Per ogni richiesta: la rotta, la chiave arrivata (null se mancava) e l'id della richiesta. */
+    val arrivate: MutableList<Triple<String, String?, String?>> = java.util.Collections.synchronizedList(mutableListOf())
     private val socket = ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))
     val porta: Int get() = socket.localPort
 
@@ -49,12 +52,17 @@ class PcFintoHttp(
         val percorso = riga().split(' ').getOrElse(1) { "/" }
         var lunghezza = 0
         var seNon: String? = null
+        var chiave: String? = null
+        var idRichiesta: String? = null
         while (true) {
             val h = riga()
             if (h.isEmpty()) break
             if (h.lowercase().startsWith("content-length:")) lunghezza = h.substringAfter(':').trim().toInt()
             if (h.lowercase().startsWith("if-none-match:")) seNon = h.substringAfter(':').trim()
+            if (h.lowercase().startsWith("x-sierradeck-chiave:")) chiave = h.substringAfter(':').trim()
+            if (h.lowercase().startsWith("x-sierradeck-richiesta:")) idRichiesta = h.substringAfter(':').trim()
         }
+        arrivate += Triple(percorso, chiave, idRichiesta)
         seNonCambiato += seNon
         val dati = ByteArray(lunghezza)
         var letti = 0

@@ -10,7 +10,6 @@ import { paginaClient } from '../../src/main/client-pagina'
  * L'inventario per esteso: `.sierradeck/quaderno/menu-rifatti-0-61-0-inventario.md`.
  */
 const leggi = (p: string): string => readFileSync(p, 'utf8')
-const kt = (f: string): string => leggi(join('android', 'app', 'src', 'main', 'java', 'it', 'ferrariconsulenze', 'sierradeck', f))
 
 describe('il menu principale', () => {
   it('sette voci, in ordine d’importanza', () => {
@@ -105,15 +104,8 @@ describe('nella pagina e nell’app: la stessa struttura', () => {
       writeFileSync(file, `${JSON.stringify(fatto, null, 2)}\n`)
     }
     expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual(fatto)
-    const a = kt('App.kt')
-    // App 2.90.0: Chat è una lista sola, il Negozio sta in Altro.
-    for (const t of ['VoceBarra.ADESSO -> Adesso(', 'VoceBarra.CHAT -> Chat(', 'VoceBarra.PROGETTI -> ConLinguette', 'VoceBarra.ALTRO -> Altro(', 'BarraVoci(posto.voce']) expect(a, t).toContain(t)
-    expect(kt('Altro.kt')).toContain('SezioneAltro.NEGOZIO -> ')
-    expect(a).not.toContain('Scheda.COMPUTER')
-    expect(a).not.toContain('ParteComputer')
-    // In Adesso: le domande in cima, poi gli autopiloti (Lavori).
-    // (dalla 0.83.0 c'è anche la firma dello stato, per rileggerle solo quando cambiano)
-    expect(kt('Adesso.kt')).toContain('domandeInCima(api, domande')
+    // L'app nuova (11/11) ha tre voci sue (Lavoro · File · Altro): la navigazione
+    // la prova NavigazioneTest, sul comportamento, non sul testo dei sorgenti.
   })
   it('il telefono: quattro voci che contengono ognuna delle sette, una volta sola', () => {
     expect(MENU_TELEFONO.map((v) => v.nome)).toEqual(['Workspace', 'Chat', 'Progetti', 'Altro'])

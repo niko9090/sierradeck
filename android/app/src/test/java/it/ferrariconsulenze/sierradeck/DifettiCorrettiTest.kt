@@ -7,6 +7,11 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.dati.Collegamento
+import it.ferrariconsulenze.sierradeck.nucleo.Storia
+import it.ferrariconsulenze.sierradeck.sottofondo.Aggiornamenti
+import it.ferrariconsulenze.sierradeck.sottofondo.Avvisi
+import it.ferrariconsulenze.sierradeck.sottofondo.Scaricamento
 
 /**
  * I difetti noti dell'app, con una prova ciascuno.

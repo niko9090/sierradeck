@@ -2,6 +2,12 @@ package it.ferrariconsulenze.sierradeck
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.AutopilotaBreve
+import it.ferrariconsulenze.sierradeck.nucleo.StatoVistaDrive
+import it.ferrariconsulenze.sierradeck.nucleo.VistaAutopilotaApp
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.riassuntoLavori
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.statoInParole
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.urgenzaAp
 
 /**
  * 2.73.0: la lista degli autopiloti chiara e uguale al PC. Un autopilota «al

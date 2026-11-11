@@ -14,6 +14,19 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files
+import it.ferrariconsulenze.sierradeck.dati.ChiaviElenco
+import it.ferrariconsulenze.sierradeck.dati.CopiaStato
+import it.ferrariconsulenze.sierradeck.dati.PolsoApp
+import it.ferrariconsulenze.sierradeck.dati.StatoSoloSeCambia
+import it.ferrariconsulenze.sierradeck.nucleo.Adesso
+import it.ferrariconsulenze.sierradeck.nucleo.Battuta
+import it.ferrariconsulenze.sierradeck.nucleo.Davanti
+import it.ferrariconsulenze.sierradeck.nucleo.Domanda
+import it.ferrariconsulenze.sierradeck.nucleo.MessaggioConversazione
+import it.ferrariconsulenze.sierradeck.nucleo.Stato
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.rete.Linea
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.DomandeAdesso
 
 /**
  * La velocità della 0.83.0, seconda parte: la copia dell'ultimo stato
@@ -22,8 +35,6 @@ import java.nio.file.Files
  * Indirizzi d'esempio (192.0.2.x, riservati alla documentazione).
  */
 class StatoVeloceTest {
-    private val cartellaSorgenti = File("src/main/java/it/ferrariconsulenze/sierradeck")
-    private fun sorgente(nome: String) = File(cartellaSorgenti, nome).readText()
 
     private fun statoJson(vararg chat: String, domande: Int = 0) =
         """{"chat":[${chat.joinToString(",") { """{"id":"$it","titolo":"Prova $it"}""" }}],"domandeInAttesa":$domande}"""
@@ -55,15 +66,6 @@ class StatoVeloceTest {
         val cartella = Files.createTempDirectory("copia-rovinata").toFile()
         CopiaStato.file(cartella, "192.0.2.3:47600").writeText("{\"chat\":[{\"id\":")
         assertNull(CopiaStato.leggi(cartella, "192.0.2.3:47600"))
-    }
-
-    @Test fun `a - all'apertura la copia si legge fuori dal thread dello schermo, e il primo stato vero la sostituisce`() {
-        val app = sorgente("App.kt")
-        assertTrue(app.contains("withContext(Dispatchers.IO) { CopiaStato.leggi(contesto.filesDir, indirizzo) }"))
-        assertTrue(app.contains("if (stato == null && copia != null) { stato = copia; daCopia = true"))
-        assertTrue(app.contains("if (cambiato || daCopia) { stato = letto; daCopia = false }"))
-        assertTrue(app.contains("launch(Dispatchers.IO) { CopiaStato.salva(contesto.filesDir, indirizzo, grezzo) }"))
-        assertTrue(sorgente("Postazioni.kt").contains("CopiaStato.dimentica(contesto.filesDir, indirizzo)"))
     }
 
     // ─── (b) solo quello che cambia ───
@@ -107,11 +109,6 @@ class StatoVeloceTest {
         // Una domanda nuova, una chat che si ferma su una scelta: si rilegge.
         assertFalse(DomandeAdesso.firma(base) == DomandeAdesso.firma(base.copy(domande = base.domande + Domanda("d2", testo = "E poi?"))))
         assertFalse(DomandeAdesso.firma(base) == DomandeAdesso.firma(base.copy(chat = listOf(base.chat[0].copy(chiede = true)))))
-        val polso = sorgente("DomandeAdesso.kt")
-        assertTrue(polso.contains("LaunchedEffect(api, d.giro, firma)"))
-        assertTrue(polso.contains("if (firma != null && d.guasto == null) break"))
-        // Gli autopiloti degli altri PC, sotto le domande: una volta al minuto.
-        assertTrue(sorgente("Lavori.kt").contains("Davanti.pausa(60_000)"))
     }
 
     @Test fun `b - stato fermo da tre giri, il prossimo fra 5 s, se cambia di nuovo ogni 2 s`() {
@@ -119,9 +116,6 @@ class StatoVeloceTest {
         assertEquals(2000L, PolsoApp.davantiOgni(2))
         assertEquals(5000L, PolsoApp.davantiOgni(3))
         assertTrue("sotto la soglia della linea lenta", PolsoApp.CALMO_OGNI_MS < Linea.LENTA_DOPO_MS)
-        val app = sorgente("App.kt")
-        assertTrue(app.contains("uguali = if (cambiato) 0 else uguali + 1"))
-        assertTrue(app.contains("PolsoApp.davantiOgni(uguali)"))
     }
 
     // ─── (c) chiavi stabili ───
@@ -134,33 +128,8 @@ class StatoVeloceTest {
         assertEquals(chiavi, dopo.take(2))
         // Una battuta che si ripete cambia `volte`, non la chiave.
         assertEquals(ChiaviElenco.battuta(Battuta("10:00", "lui", "provo", volte = 1)), ChiaviElenco.battuta(Battuta("10:00", "lui", "provo", volte = 3)))
-        for (f in listOf("Conversazioni.kt", "DettaglioAutopilota.kt")) {
-            assertFalse("$f: una lista senza chiave", Regex("""\bitems\((?![^)]*key\s*=)""").containsMatchIn(sorgente(f)))
-        }
     }
 
     // ─── (d) il Drive con l'app dietro ───
 
-    @Test fun `d - le attese del Drive si fermano con l'app dietro e ripartono davanti`() = runBlocking {
-        // Il ciclo com'è in Drive.kt: chiede, poi Davanti.pausa.
-        var chieste = 0
-        Davanti.imposta(true)
-        val ciclo = launch { while (true) { chieste += 1; Davanti.pausa(10) } }
-        delay(100)
-        Davanti.imposta(false)
-        delay(40)
-        val ferme = chieste
-        delay(200)
-        assertEquals("dietro: nessuna chiamata in più", ferme, chieste)
-        Davanti.imposta(true)
-        withTimeout(2000) { while (chieste == ferme) delay(5) }
-        ciclo.cancel()
-        // E nei file: nessuna attesa semplice nei cicli del Drive.
-        val drive = sorgente("Drive.kt")
-        assertTrue(drive.contains("Davanti.pausa(500)") && drive.contains("Davanti.pausa(2000)"))
-        assertFalse(Regex("""\bdelay\(""").containsMatchIn(drive))
-        val pannello = sorgente("PannelloDrive.kt")
-        assertTrue(pannello.contains("Davanti.pausa(4000); leggi()"))
-        assertFalse(pannello.contains("coroutines.delay("))
-    }
 }

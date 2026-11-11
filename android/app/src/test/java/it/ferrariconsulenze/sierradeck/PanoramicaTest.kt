@@ -3,6 +3,10 @@ package it.ferrariconsulenze.sierradeck
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.Battuta
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.Panoramica
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.RegolePanoramica
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.SchedaPanoramica
 
 /** PC 0.77.0: le regole della Panoramica, uguali a `src/shared/panoramica.ts`. */
 class PanoramicaTest {

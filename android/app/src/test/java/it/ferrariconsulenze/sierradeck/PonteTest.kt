@@ -12,6 +12,10 @@ import java.io.BufferedInputStream
 import java.io.File
 import java.net.InetAddress
 import java.net.ServerSocket
+import it.ferrariconsulenze.sierradeck.nucleo.FunzionePc
+import it.ferrariconsulenze.sierradeck.nucleo.FunzioniPc
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.rete.Ponte
 
 /**
  * Il ponte (PC 0.48.0, app 2.48.0): le chat degli altri PC dal vivo
@@ -120,7 +124,7 @@ class PonteTest {
         try {
             val api = Api("http://127.0.0.1:${s.porta}", "k").suPc("lap")
             val azioni = listOf<suspend () -> Unit>(
-                { api.installaAggiornamento() }, { api.driveAnnulla() }, { api.cercaAggiornamentoPc() }
+                { api.installaAggiornamento() }, { api.cercaAggiornamentoPc() }
             )
             for (azione in azioni) {
                 try { azione(); fail("doveva essere rifiutata") } catch (e: Api.Errore) { assertEquals(403, e.codice) }

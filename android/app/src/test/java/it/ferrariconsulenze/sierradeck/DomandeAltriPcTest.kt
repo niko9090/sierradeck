@@ -4,6 +4,16 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.ApriChatAltrove
+import it.ferrariconsulenze.sierradeck.nucleo.Opzione
+import it.ferrariconsulenze.sierradeck.nucleo.SchedaDomanda
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.rete.PcPonte
+import it.ferrariconsulenze.sierradeck.rete.SuPc
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.Apertura
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.SceltaVista
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.Scheda
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.etichettaScelta
 
 /**
  * 2.84.1 (PC 0.84.1): le domande delle chat degli altri PC. Le opzioni fisse

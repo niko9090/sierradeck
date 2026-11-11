@@ -3,6 +3,10 @@ package it.ferrariconsulenze.sierradeck
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.SchedaDomanda
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.apreIlCampo
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.etichettaScelta
 
 /**
  * 2.84.3 (PC 0.84.3): sotto ogni scelta si vede cosa succede. Il PC manda

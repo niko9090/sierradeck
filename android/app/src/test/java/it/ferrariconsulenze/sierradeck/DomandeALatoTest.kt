@@ -5,6 +5,11 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.Conversazione
+import it.ferrariconsulenze.sierradeck.nucleo.SceltaScheda
+import it.ferrariconsulenze.sierradeck.nucleo.SchedaDomanda
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.RegolaDomande
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
 
 /** PC 0.76.0: la domanda breve a lato, la stessa regola del PC e della pagina. */
 class DomandeALatoTest {

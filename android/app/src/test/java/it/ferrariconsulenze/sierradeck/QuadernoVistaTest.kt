@@ -4,6 +4,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import it.ferrariconsulenze.sierradeck.nucleo.QuadernoVista
+import it.ferrariconsulenze.sierradeck.nucleo.SchedaBreve
+import it.ferrariconsulenze.sierradeck.nucleo.Schede
+import it.ferrariconsulenze.sierradeck.rete.Api
 
 /** PC 0.70: il Quaderno con i tag, la ricerca e la data corta, come sul PC. */
 class QuadernoVistaTest {

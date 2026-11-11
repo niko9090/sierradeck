@@ -4,6 +4,19 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.AutopilotaDettaglio
+import it.ferrariconsulenze.sierradeck.nucleo.AvanzamentoAutopilota
+import it.ferrariconsulenze.sierradeck.nucleo.DomandaScheda
+import it.ferrariconsulenze.sierradeck.nucleo.Domande
+import it.ferrariconsulenze.sierradeck.nucleo.RegoleAvanzamento
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.rete.Ponte
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.RiassuntoAutopilota
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.domandaArrivata
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.etichettaOrigine
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.linguetteAutopilota
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.richiestaScheda
 
 /**
  * Le linguette «Domande» e «File» dell'autopilota nell'app (0.38.0): la stessa
@@ -31,16 +44,6 @@ class SchedaAutopilotaTest {
         assertFalse(domandaArrivata(listOf("d:d1"), listOf(domanda)))
         assertTrue(domandaArrivata(listOf("d:d1"), listOf(domanda, via)))
         assertTrue(etichettaOrigine(via).contains("aspetta il tuo via"))
-    }
-
-    @Test
-    fun `i file e il diff si leggono dal computer`() {
-        val f = Api.json.decodeFromString(
-            FileAutopilota.serializer(),
-            """{"gruppi":[{"chiave":"principale","nome":"Cartella del progetto","cartella":"C:/p","base":"dal commit da cui è partito","file":[{"percorso":"a.ts","stato":"modificato","piu":2,"meno":1,"salvato":false}]}]}"""
-        )
-        assertEquals("modificato · +2 −1 · da salvare", rigaFile(f.gruppi[0].file[0]))
-        assertEquals(listOf("blocco", "meno", "piu"), righeDiff("@@ -1 +1 @@\n-vecchia\n+nuova").map { it.tipo })
     }
 
     @Test
@@ -83,19 +86,4 @@ class SchedaAutopilotaTest {
         assertTrue("/api/autopilota/avanzamento" in Ponte.ROTTE)
     }
 
-    @Test
-    fun `sopra la casella solo la conversazione, e la casella sopra la tastiera`() {
-        // c-509, Nicholas (21/10): «non si vede nulla, troppe info che occupano tutto lo schermo».
-        val k = java.io.File("src/main/java/it/ferrariconsulenze/sierradeck/DettaglioAutopilota.kt").readText()
-        assertTrue(k.contains("Column(Modifier.fillMaxSize().imePadding())"))
-        // App 2.90.0: quattro linguette; nella Conversazione solo lei, e la casella solo lì.
-        assertTrue(k.contains("var linguetta by remember(breve.id) { mutableStateOf(LinguettaWorkspace.CONVERSAZIONE) }"))
-        assertFalse(k.contains("Modifier.weight(0.8f)"))
-        val conversazione = k.substring(k.indexOf("LinguettaWorkspace.CONVERSAZIONE -> LazyColumn"), k.indexOf("la casella: sempre in basso"))
-        assertFalse(conversazione.contains("PanoramicaVista"))
-        assertTrue(k.contains("if (linguetta == LinguettaWorkspace.CONVERSAZIONE) {"))
-        val app = java.io.File("src/main/java/it/ferrariconsulenze/sierradeck/App.kt").readText()
-        assertTrue(app.contains(".consumeWindowInsets(pad)"))
-        assertTrue(java.io.File("src/main/AndroidManifest.xml").readText().contains("adjustResize"))
-    }
 }

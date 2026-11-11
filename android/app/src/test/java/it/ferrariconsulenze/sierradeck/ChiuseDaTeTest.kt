@@ -5,6 +5,11 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.ZoneId
+import it.ferrariconsulenze.sierradeck.nucleo.Chat
+import it.ferrariconsulenze.sierradeck.nucleo.ChiusaDaTe
+import it.ferrariconsulenze.sierradeck.nucleo.ChiuseDaTe
+import it.ferrariconsulenze.sierradeck.nucleo.Stato
+import it.ferrariconsulenze.sierradeck.rete.Api
 
 /**
  * PC 0.60.9: una chat chiusa da te sul computer, vista dall'app. La risposta di

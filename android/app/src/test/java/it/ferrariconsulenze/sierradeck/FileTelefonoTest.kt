@@ -18,6 +18,25 @@ import java.io.IOException
 import java.nio.file.Files
 import java.security.MessageDigest
 import kotlin.random.Random
+import it.ferrariconsulenze.sierradeck.nucleo.CartellaFile
+import it.ferrariconsulenze.sierradeck.nucleo.Consegne
+import it.ferrariconsulenze.sierradeck.nucleo.DestinazioneFile
+import it.ferrariconsulenze.sierradeck.nucleo.ElencoFile
+import it.ferrariconsulenze.sierradeck.nucleo.EsitoInvio
+import it.ferrariconsulenze.sierradeck.nucleo.FileVista
+import it.ferrariconsulenze.sierradeck.nucleo.FunzionePc
+import it.ferrariconsulenze.sierradeck.nucleo.FunzioniPc
+import it.ferrariconsulenze.sierradeck.nucleo.Invio
+import it.ferrariconsulenze.sierradeck.nucleo.PezzoConsegna
+import it.ferrariconsulenze.sierradeck.nucleo.PezzoFile
+import it.ferrariconsulenze.sierradeck.nucleo.ProgettiFile
+import it.ferrariconsulenze.sierradeck.nucleo.ProgettoFile
+import it.ferrariconsulenze.sierradeck.nucleo.Scaricatore
+import it.ferrariconsulenze.sierradeck.nucleo.SorgenteFile
+import it.ferrariconsulenze.sierradeck.nucleo.Trasporto
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.rete.Ponte
+import it.ferrariconsulenze.sierradeck.schermate.tema.sopra
 
 /**
  * La sezione File e i file dal PC al telefono (app 2.54.0), sulle risposte

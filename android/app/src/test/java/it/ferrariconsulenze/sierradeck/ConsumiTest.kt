@@ -3,6 +3,11 @@ package it.ferrariconsulenze.sierradeck
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.Consumi
+import it.ferrariconsulenze.sierradeck.nucleo.Finestra
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.fraseFinestra
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.rigaContesto
 
 /**
  * I consumi del telefono con la stessa logica del computer (0.37): le frasi

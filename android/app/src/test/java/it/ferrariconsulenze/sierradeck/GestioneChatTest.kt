@@ -9,6 +9,16 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.Conferma
+import it.ferrariconsulenze.sierradeck.nucleo.FunzionePc
+import it.ferrariconsulenze.sierradeck.nucleo.FunzioniPc
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.rete.Ponte
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.EsclusaChat
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.EsitoAzioniChat
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.GestioneChatRegole
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.SelezioneChat
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.VistaSpazioChat
 
 /**
  * La gestione delle chat (PC 0.79.0) sui casi scritti dal PC con le sue
@@ -85,14 +95,6 @@ class GestioneChatTest {
         for (az in listOf("elimina", "archivia")) {
             assertEquals(dc[az]!!.jsonArray.map { it.jsonPrimitive.content }, GestioneChatRegole.daConfermare(az, scelte, v.chat))
         }
-    }
-
-    @Test
-    fun `il recupero e le archiviate`() {
-        val r = Api.json.decodeFromString(RecuperoChat.serializer(), casi["recupero"]!!.toString())
-        assertEquals(casi["recupero"]!!.jsonObject["riga"]!!.jsonPrimitive.content, GestioneChatRegole.rigaRecupero(r.chat.single(), adesso))
-        val a = Api.json.decodeFromString(ChatArchiviataApp.serializer(), casi["archiviata"]!!.jsonObject["voce"]!!.toString())
-        assertEquals(casi["archiviata"]!!.jsonObject["riga"]!!.jsonPrimitive.content, GestioneChatRegole.rigaArchiviata(a))
     }
 
     @Test

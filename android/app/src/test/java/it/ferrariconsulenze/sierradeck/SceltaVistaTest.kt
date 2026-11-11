@@ -9,6 +9,9 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import it.ferrariconsulenze.sierradeck.nucleo.Scelte
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.SceltaVista
 
 /**
  * Le domande di Claude Code nell'app (2.52.5). Nicholas (08/10): «non riesco a
@@ -70,13 +73,4 @@ class SceltaVistaTest {
         assertTrue(SceltaVista.rifiuto(RuntimeException("rete"), "mandarla").contains("rete"))
     }
 
-    @Test
-    fun `nelle tre schermate le opzioni passano da qui, e «Type something» non si tocca`() {
-        for (f in listOf("DettaglioChat.kt", "Conversazioni.kt", "Domande.kt")) {
-            val t = File("src/main/java/it/ferrariconsulenze/sierradeck/$f").readText()
-            assertTrue(f, t.contains("TestoOpzione(o)"))
-            assertTrue(f, t.contains("SceltaVista.SCRIVI"))
-            assertFalse(f, t.contains("joinToString(\"\\n\") { it.testo }"))
-        }
-    }
 }

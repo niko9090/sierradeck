@@ -4,6 +4,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.FunzionePc
+import it.ferrariconsulenze.sierradeck.nucleo.FunzioniPc
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.PcIndietro
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.spiegaGestione
 
 /**
  * L'app 2.56 con PC alla 0.50 e alla 0.54 (app 2.56.2). Le risposte in

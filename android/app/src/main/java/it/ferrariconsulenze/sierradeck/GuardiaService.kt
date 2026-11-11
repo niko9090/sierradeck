@@ -9,6 +9,8 @@ import android.os.IBinder
 import android.util.Log
 import org.json.JSONObject
 import kotlin.concurrent.thread
+import it.ferrariconsulenze.sierradeck.sottofondo.Ronda
+import it.ferrariconsulenze.sierradeck.sottofondo.rigaPresenza
 
 /**
  * Il controllo continuo: ogni cinque secondi, finché lo tieni acceso.

@@ -167,12 +167,9 @@ describe('uguale sul PC, sulla pagina e nell’app (0.84.1)', () => {
     expect(tasto).toContain('data-p="pc-b"')
     expect(fn.apriAltroveHtml({})).toBe('')
   })
-  it('il PC e l’app hanno lo stesso tasto e le stesse etichette', () => {
+  it('il PC ha il tasto e le etichette', () => {
     const pc = readFileSync(join(__dirname, '../../src/renderer/components/SchedaDomandaVista.tsx'), 'utf8')
     expect(pc).toContain('Apri la chat su {s.apri.pc}')
     expect(pc).toContain('c.etichetta ?? c.testo')
-    const app = readFileSync(join(__dirname, '../../android/app/src/main/java/it/ferrariconsulenze/sierradeck/SchedaDomandaVista.kt'), 'utf8')
-    expect(app).toContain('Apri la chat su ${a.pc}')
-    expect(app).toContain('Apertura.apriChatSu(a)')
   })
 })

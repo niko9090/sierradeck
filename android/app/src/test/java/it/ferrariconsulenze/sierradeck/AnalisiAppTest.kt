@@ -6,6 +6,23 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertFalse
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.AutopilotaBreve
+import it.ferrariconsulenze.sierradeck.nucleo.Chat
+import it.ferrariconsulenze.sierradeck.nucleo.Domanda
+import it.ferrariconsulenze.sierradeck.nucleo.SessioneRipresa
+import it.ferrariconsulenze.sierradeck.nucleo.Stato
+import it.ferrariconsulenze.sierradeck.nucleo.TonoChat
+import it.ferrariconsulenze.sierradeck.nucleo.chatCheTiAspettano
+import it.ferrariconsulenze.sierradeck.nucleo.etichettaAltrove
+import it.ferrariconsulenze.sierradeck.nucleo.leggiChat
+import it.ferrariconsulenze.sierradeck.nucleo.riassuntoChat
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.TipoUrgenza
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.quandoLetti
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.riassuntoLavori
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.urgenzaDi
+import it.ferrariconsulenze.sierradeck.sottofondo.Avvisi
+import it.ferrariconsulenze.sierradeck.sottofondo.rigaPresenza
 
 /**
  * I difetti trovati nell'analisi dell'app del 30/09/2026, con una prova

@@ -3,6 +3,13 @@ package it.ferrariconsulenze.sierradeck
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.Specialista
+import it.ferrariconsulenze.sierradeck.nucleo.aspettaTe
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.schermate.tema.Attivita
+import it.ferrariconsulenze.sierradeck.schermate.tema.argb
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.RegoleAgenti
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.RigaAlLavoro
 
 /** PC 0.82.0: il colore fisso di cosa fa una chat e la riga di ogni agente, come sul PC e nella pagina. */
 class RegoleAgentiTest {

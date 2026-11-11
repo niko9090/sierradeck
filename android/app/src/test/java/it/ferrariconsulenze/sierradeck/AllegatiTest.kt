@@ -19,6 +19,19 @@ import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
 import java.util.Base64
+import it.ferrariconsulenze.sierradeck.nucleo.Allegati
+import it.ferrariconsulenze.sierradeck.nucleo.AutopilotaBreve
+import it.ferrariconsulenze.sierradeck.nucleo.Chat
+import it.ferrariconsulenze.sierradeck.nucleo.DestinazioneFile
+import it.ferrariconsulenze.sierradeck.nucleo.EsitoInvio
+import it.ferrariconsulenze.sierradeck.nucleo.Invio
+import it.ferrariconsulenze.sierradeck.nucleo.SorgenteFile
+import it.ferrariconsulenze.sierradeck.nucleo.Stato
+import it.ferrariconsulenze.sierradeck.nucleo.Trasporto
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.rete.PcPonte
+import it.ferrariconsulenze.sierradeck.rete.Ponte
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.Condivisione
 
 /**
  * I file dal telefono (PC 0.50.0, app 2.50.0): limiti uguali al PC, pezzi e

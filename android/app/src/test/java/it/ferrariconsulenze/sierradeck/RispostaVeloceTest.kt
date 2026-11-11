@@ -3,6 +3,7 @@ package it.ferrariconsulenze.sierradeck
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.schermate.tema.sopra
 
 /**
  * 0.84.0: rispondendo dalla notifica, la domanda intera resta visibile con la

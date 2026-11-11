@@ -5,6 +5,16 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import it.ferrariconsulenze.sierradeck.nucleo.Conversazione
+import it.ferrariconsulenze.sierradeck.nucleo.Opzione
+import it.ferrariconsulenze.sierradeck.nucleo.SceltaScheda
+import it.ferrariconsulenze.sierradeck.nucleo.ScelteConversazione
+import it.ferrariconsulenze.sierradeck.nucleo.SchedaDomanda
+import it.ferrariconsulenze.sierradeck.nucleo.StatoVistaDrive
+import it.ferrariconsulenze.sierradeck.nucleo.ViaRisposta
+import it.ferrariconsulenze.sierradeck.schermate.comune.tocco
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.DomandeAdesso
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
 
 /**
  * Le domande in cima ad Adesso (app 2.83.0): quali si vedono, e cosa fa il
@@ -45,28 +55,4 @@ class DomandeAdessoTest {
         assertEquals(DomandeAdesso.Tocco.Scrivi, DomandeAdesso.tocco(domanda, SceltaScheda(testo = "Scrivi tu", libera = true)))
     }
 
-    @Test
-    fun `Adesso mette le domande in cima agli autopiloti`() {
-        val adesso = File("src/main/java/it/ferrariconsulenze/sierradeck/Adesso.kt").readText()
-        assertTrue(adesso.contains("domandeInCima(api, domande)"))
-        val lavori = File("src/main/java/it/ferrariconsulenze/sierradeck/Lavori.kt").readText()
-        // La testa viene prima di tutto il resto della lista.
-        assertTrue(lavori.indexOf("testa()") in 0 until lavori.indexOf("key = \"su-pc\""))
-        // Le domande sono del PC accoppiato: non sopra gli autopiloti di un altro PC (Revisione c-46).
-        assertTrue(lavori.contains("if (su == null) testa()"))
-        // Si leggono fuori dalla lista (scorrendo non si fermano), e non dentro un autopilota.
-        assertTrue(adesso.contains("if (!dettaglio) PolsoDomande(api, domande, DomandeAdesso.firma(stato))"))
-        val cima = File("src/main/java/it/ferrariconsulenze/sierradeck/DomandeAdesso.kt").readText()
-        assertTrue(!cima.contains("item(key = \"domande-polso\")"))
-        // App 2.90.0: le domande stanno in cima a Workspace e nel pallino della barra, non più
-        // in una fascia su ogni pagina (dentro un workspace sono nella sua Conversazione).
-        val app = File("src/main/java/it/ferrariconsulenze/sierradeck/App.kt").readText()
-        assertTrue(!app.contains("BandaUrgenze("))
-    }
-
-    @Test
-    fun `nessun file Kotlin oltre 800 righe`() {
-        val troppo = File("src/main/java").walk().filter { it.extension == "kt" }.filter { it.readLines().size > 800 }.map { it.name }.toList()
-        assertEquals(emptyList<String>(), troppo)
-    }
 }

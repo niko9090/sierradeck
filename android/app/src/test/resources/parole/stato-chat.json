@@ -1,0 +1,43 @@
+[
+  {
+    "chat": {
+      "chiede": true
+    },
+    "tono": "attesa",
+    "parola": "aspetta che tu scelga"
+  },
+  {
+    "chat": {
+      "aspetta": true
+    },
+    "tono": "ferma",
+    "parola": "ferma"
+  },
+  {
+    "chat": {
+      "aspetta": true,
+      "governata": true
+    },
+    "tono": "guidata",
+    "parola": "ferma · ci pensa l’autopilota"
+  },
+  {
+    "chat": {
+      "viva": false
+    },
+    "tono": "spenta",
+    "parola": "spenta"
+  },
+  {
+    "chat": {
+      "governata": true
+    },
+    "tono": "guidata",
+    "parola": "al lavoro · la guida un autopilota"
+  },
+  {
+    "chat": {},
+    "tono": "lavoro",
+    "parola": "al lavoro"
+  }
+]

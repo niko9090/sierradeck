@@ -2,6 +2,7 @@ package it.ferrariconsulenze.sierradeck
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.senzaMezziCaratteri
 
 class CaratteriInteriTest {
     private val razzo = "🚀"

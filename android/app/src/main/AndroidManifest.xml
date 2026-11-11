@@ -37,6 +37,7 @@
         <package android:name="com.tailscale.ipn" />
     </queries>
     <application
+        android:name=".SierraDeckApp"
         android:label="SierraDeck"
         android:icon="@mipmap/ic_launcher"
         android:theme="@style/Theme.SierraDeck"

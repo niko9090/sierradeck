@@ -9,6 +9,8 @@ import android.os.Build
 import android.os.SystemClock
 import android.util.Log
 import kotlin.concurrent.thread
+import it.ferrariconsulenze.sierradeck.dati.Collegamento
+import it.ferrariconsulenze.sierradeck.sottofondo.Ronda
 
 /**
  * La guardia **senza** la riga fissa.

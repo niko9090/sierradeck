@@ -4,6 +4,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.rete.Ponte
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.Sottofondo
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.StatoSottofondo
 
 /**
  * Le chat in sottofondo (app 2.58.4, PC 0.58.4): il campo dice sempre cosa

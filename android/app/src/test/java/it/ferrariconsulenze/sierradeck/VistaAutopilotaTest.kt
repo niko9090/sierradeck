@@ -3,6 +3,9 @@ package it.ferrariconsulenze.sierradeck
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.AutopilotaBreve
+import it.ferrariconsulenze.sierradeck.nucleo.sottoAutopilota
+import it.ferrariconsulenze.sierradeck.rete.Api
 
 /** PC 0.70: lo stato di un autopilota in una parola, deciso dal PC. */
 class VistaAutopilotaTest {

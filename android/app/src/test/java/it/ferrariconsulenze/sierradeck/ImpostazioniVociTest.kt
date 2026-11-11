@@ -7,6 +7,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import it.ferrariconsulenze.sierradeck.nucleo.ImpostazioniVoci
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.rete.EventoLinea
+import it.ferrariconsulenze.sierradeck.rete.Linea
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.Dettagli
+import it.ferrariconsulenze.sierradeck.sottofondo.Aggiornamenti
 
 /**
  * Le impostazioni rifatte (app 2.56.0): la struttura è quella che il PC

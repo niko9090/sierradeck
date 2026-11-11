@@ -2,6 +2,7 @@ package it.ferrariconsulenze.sierradeck
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.sottofondo.riassuntoAvvisi
 
 /** Gli avvisi raggruppati (0.43.0): il riassunto della pila. */
 class RiassuntoAvvisiTest {
