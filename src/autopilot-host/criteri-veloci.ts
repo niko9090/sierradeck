@@ -78,7 +78,8 @@ export function senzaApici(comando: string): string {
     /(?:^|\s)(?:-c|-command|\/[ck])\s*$/i.test(comando.slice(0, pos)) ? m : ' ')
 }
 
-const INIZIO_PESANTE = /^(?:gradlew?(?:\.bat)?|vitest(?:\.mjs)?|npm\s+(?:run\s+)?test|playwright|cargo\s+test|mvn|pytest|dotnet\s+test|npm\s+run\s+(?:build|pacchetto|dist)|electron-builder)\b/i
+// 11/11: anche `npm run pubblica` e `npm run allega-apk` (lo specialista del rilascio): compilano e impacchettano, mai insieme a una suite.
+const INIZIO_PESANTE = /^(?:gradlew?(?:\.bat)?|vitest(?:\.mjs)?|npm\s+(?:run\s+)?test|playwright|cargo\s+test|mvn|pytest|dotnet\s+test|npm\s+run\s+(?:build|pacchetto|dist|pubblica|allega-apk)|electron-builder)\b/i
 const PREFISSO = /^(?:timeout\s+\d+|nohup|time|call|exec|start|cmd(?:\.exe)?\s+\/[ck]|(?:ba)?sh\s+-c|powershell(?:\.exe)?(?:\s+-\w+)*\s+-command|[A-Za-z_][A-Za-z0-9_]*=\S*)\s+["']?/i
 
 /** Il pezzo di comando lancia lui stesso un programma pesante (dopo `timeout`, `VAR=x`, `npx`, `node …/vitest.mjs`, `./`). */
@@ -89,7 +90,7 @@ function inizioPesante(pezzo: string): boolean {
   return INIZIO_PESANTE.test(p)
 }
 
-const PESANTE = /\bgradle(w)?\b|\bnpm\s+(run\s+)?test\b|\bvitest(\.mjs)?\s+run\b|\bnpx\s+vitest\b|\bplaywright\b|\bcargo\s+test\b|\bmvn\b|\bpytest\b|\bdotnet\s+test\b|\bnpm\s+run\s+(build|pacchetto|dist)\b|\belectron-builder\b/i
+const PESANTE = /\bgradle(w)?\b|\bnpm\s+(run\s+)?test\b|\bvitest(\.mjs)?\s+run\b|\bnpx\s+vitest\b|\bplaywright\b|\bcargo\s+test\b|\bmvn\b|\bpytest\b|\bdotnet\s+test\b|\bnpm\s+run\s+(build|pacchetto|dist|pubblica|allega-apk)\b|\belectron-builder\b/i
 
 /** Gli script di test che girano una suite vera, o ne lanciano un altro: pesanti. */
 const SCRIPT_PESANTE = /vitest|jest|mocha|playwright|cypress|karma|\bava\b|gradle|\btsc\b|electron|webpack|\bvite\b|turbo|\bnx\b|lerna|\bnpm\s|\bnpx\s|pnpm|yarn|react-scripts|\bng\s|pytest|cargo|dotnet|mvn|jasmine|\btap\b/i

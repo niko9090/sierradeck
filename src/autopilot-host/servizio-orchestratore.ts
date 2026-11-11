@@ -86,8 +86,8 @@ export function elencoFile(file: string[]): string {
   if (file.length === 0) return ''
   return `: ${file.slice(0, 5).join(', ')}${file.length > 5 ? ` (+${file.length - 5})` : ''}`
 }
-/** I ruoli che non scrivono: il loro lavoro non ha un ramo da unire. */
-const RUOLI_SOLA_LETTURA = new Set(['esploratore', 'revisore', 'Explore'])
+/** I ruoli che non scrivono: il loro lavoro non ha un ramo da unire. 11/11: anche «rilascio», che pubblica dalla cartella principale senza una copia sua. */
+const RUOLI_SOLA_LETTURA = new Set(['esploratore', 'revisore', 'Explore', 'rilascio'])
 
 /**
  * **L'autopilota unico dentro il servizio** (P3): lega l'orchestratore (un
@@ -262,7 +262,7 @@ export type ServizioUnico = {
 
 /** 0.92.1: le righe di cosa succede, per la conversazione con l'autopilota (`rigaTraguardo`). */
 const avanzamento = (chat: string, nota: string): Traguardo => ({ chat, esito: 'avanzamento', nota: nota.replace(/\s+/gu, ' ').slice(0, NOTA_TRAGUARDO_MAX) })
-const NOMI_SPECIALISTI: Record<string, string> = { sviluppatore: 'Lo sviluppatore', interfaccia: 'Lo specialista dell’interfaccia', android: 'Lo specialista Android', verificatore: 'Il verificatore', revisore: 'Il revisore', esploratore: 'L’esploratore' }
+const NOMI_SPECIALISTI: Record<string, string> = { sviluppatore: 'Lo sviluppatore', interfaccia: 'Lo specialista dell’interfaccia', android: 'Lo specialista Android', verificatore: 'Il verificatore', revisore: 'Il revisore', esploratore: 'L’esploratore', rilascio: 'Lo specialista del rilascio' }
 const chiSpecialista = (ruolo: string): string => NOMI_SPECIALISTI[ruolo] ?? 'Uno specialista'
 /** La descrizione di un compito senza la sigla davanti («k-3: …»), corta. */
 const cosaDel = (t: string): string => { const x = t.replace(/^\s*[kr]-\d+\s*[:·-]\s*/iu, '').replace(/\s+/gu, ' ').trim(); return x.length > 110 ? `${x.slice(0, 109)}…` : x }
@@ -779,7 +779,7 @@ ${NOTA_SENZA_GIT}`,
       const k = s.compito !== undefined ? x.orchestratori.piano(ws).compiti.find((c) => c.id === s.compito && c.chat === s.id) : undefined
       if (k !== undefined && k.stato !== 'unito') {
         cambiaCompito(ws, k.id, (c) => (s.stato === 'finito'
-          ? { ...c, stato: 'in-revisione', ...(ramoDelloSpecialistaFinito(s) !== undefined ? { ramo: ramoDelloSpecialistaFinito(s)! } : {}), esito: `${s.ruolo} ha finito: il programma lo unisce e misura il criterio` }
+          ? { ...c, stato: 'in-revisione', ...(ramoDelloSpecialistaFinito(s) !== undefined && s.ruolo !== 'rilascio' ? { ramo: ramoDelloSpecialistaFinito(s)! } : {}), esito: `${s.ruolo} ha finito: il programma lo unisce e misura il criterio` }
           : { ...senzaRamo(c), stato: 'da-fare', esito: `${s.ruolo} ${s.stato === 'fallito' ? 'non è riuscito' : 'è stato fermato'}` }))
         // 0.89.4: l'unione parte da sola. Prima aspettava che l'autopilota chiamasse
         // unisci, e se non lo faceva il compito restava «finito» per sempre.
@@ -1315,7 +1315,7 @@ ${NOTA_SENZA_GIT}`,
       if (chat !== undefined) x.avanzaFinite()
     }
     ricalcola(ws, `${compito?.id ?? nome} unito${verde ? '' : ' con il criterio rosso'}`)
-    const dove = ramo !== undefined ? `ramo ${ramo} unito nel principale` : fuoriDaiRami ? 'lavoro fuori dai rami (scritto in un’altra cartella): niente da unire, vale il criterio' : soloLettura ? 'analisi in sola lettura, niente da unire' : 'lavoro già nella cartella del progetto'
+    const dove = ramo !== undefined ? `ramo ${ramo} unito nel principale` : fuoriDaiRami ? 'lavoro fuori dai rami (scritto in un’altra cartella): niente da unire, vale il criterio' : soloLettura ? (sub?.ruolo === 'rilascio' ? 'rilascio fatto dalla cartella principale, niente da unire' : 'analisi in sola lettura, niente da unire') : 'lavoro già nella cartella del progetto'
     const chi = compito?.id !== undefined && compito.id !== nome ? `${compito.id} (${nome})` : nome
     return `${chi}: ${dove}. Criterio ${verde ? 'VERDE' : 'ROSSO'}: ${dettaglio}.${verde ? '' : ' Il compito resta da correggere: affidalo a uno specialista, dicendo cosa non va.'}`
   }

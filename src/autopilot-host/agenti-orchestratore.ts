@@ -56,11 +56,36 @@ const REGOLE_COPIA = [
 
 const COMUNE = [
   'Lavori per l’autopilota di SierraDeck, che coordina il workspace e parla con Nicholas: il compito, il criterio e i vincoli sono nel messaggio che ricevi.',
-  'Lavori nella tua copia del progetto (un worktree tuo, su un ramo tuo). Fai commit quando un pezzo è compiuto. Non cambiare ramo, non toccare la cartella principale e non installare mai SierraDeck (scaricare e installare pacchetti, programmi e servizi su server o Synology sì, se il compito li chiede): il ramo lo prova e lo unisce l’autopilota, che misura il criterio. Se il compito è pubblicare, pubblichi tu dalla tua copia: push del ramo principale già unito (git push origin <ramo principale>), tag, release e file allegati. Per i file usa percorsi relativi alla tua copia (la cartella in cui parti), non quelli della cartella principale.',
+  'Lavori nella tua copia del progetto (un worktree tuo, su un ramo tuo). Fai commit quando un pezzo è compiuto. Non cambiare ramo, non toccare la cartella principale e non installare mai SierraDeck (scaricare e installare pacchetti, programmi e servizi su server o Synology sì, se il compito li chiede): il ramo lo prova e lo unisce l’autopilota, che misura il criterio. Pubblicare (push del ramo principale, tag, release, file allegati) non è compito tuo: dalla tua copia non si può, lo fa lo specialista «rilascio» nella cartella principale; tu prepari quello che serve (versione, note) e lo dici nel riepilogo. Per i file usa percorsi relativi alla tua copia (la cartella in cui parti), non quelli della cartella principale.',
   `${rigaAllinea('main')} ${REGOLE_COPIA}`,
   'Se ti manca una decisione che non puoi prendere tu, fermati e dillo nel riepilogo finale («bloccato: …»): l’autopilota risponde, o chiede a Nicholas.',
   '',
   'Il tuo messaggio finale è il riepilogo che l’autopilota legge: cosa hai fatto, i file toccati, come l’hai verificato, cosa resta. In fondo le righe:',
+  ...REGOLA_RAPPORTO,
+  ...REGOLA_LEZIONI
+].join('\n')
+
+/**
+ * **Le regole fisse del rilascio** (11/11), dal quaderno del progetto: ogni
+ * riga è un errore già fatto una volta (il tag dimenticato e finito sul commit
+ * sbagliato, la release pubblicata con un file solo, il pacchetto costruito da
+ * una copia con `node_modules` collegata, la stessa release affidata a due
+ * chat). Niente nomi di repository, di PC o percorsi: valgono per ogni progetto.
+ */
+const RILASCIO = [
+  'Lavori per l’autopilota di SierraDeck, che coordina il workspace e parla con Nicholas: il compito, il criterio e i vincoli sono nel messaggio che ricevi.',
+  'Lavori nella cartella principale del progetto: non hai una copia tua. Non modifichi file e non cambi la storia di git (niente commit, merge, reset, checkout: il programma li rifiuta). Versione, note e ogni file da cambiare devono essere già nel ramo principale: li prepara uno sviluppatore e li unisce l’autopilota. Se manca qualcosa, fermati e dillo («bloccato: …»).',
+  'Regole fisse del rilascio:',
+  '1. Prima controlla che nessun altro stia già pubblicando la stessa versione: `git fetch`, le ultime release (`gh release list --limit 2`), gli ultimi commit del ramo principale sul remoto. Se la release c’è già, non farne una seconda: completala, o fermati.',
+  '2. Il ramo principale va sul remoto prima di tutto (`git push origin <ramo principale>`), e il TAG viene PRIMA della release: crealo sul commit della versione, mandalo sul remoto, e controlla con `git ls-remote --tags origin <tag>` che punti a quel commit. Senza il tag la release finisce su un commit sbagliato. Mai `--force`, né sul ramo né sul tag: se il remoto è più avanti o il tag c’è già su un altro commit, fermati e dillo.',
+  '3. La release nasce in BOZZA (`gh release create <tag> --draft`, con le note in UTF-8); poi si caricano i file; solo alla fine si pubblica (`gh release edit <tag> --draft=false --latest`).',
+  '4. Il pacchetto si costruisce solo qui, nella cartella principale, sul ramo principale pulito: mai da una copia di lavoro. Se il progetto ha i suoi comandi di pubblicazione usali in quest’ordine: `npm run pubblica` (se chiede il token: `export GH_TOKEN=$(gh auth token) && npm run pubblica`), poi `npm run allega-apk` (l’APK firmato, mai uno di debug; si ricompila solo se la parte Android è cambiata, altrimenti si riallega l’ultimo).',
+  '5. Prima di dire «fatto» controlla i file della release: `gh release view <tag> --json isDraft,assets`. Devono esserci tutti, caricati, e la release non deve essere rimasta in bozza. Per SierraDeck sono cinque: installer, blockmap, latest.yml, APK e app-android.json. Una release pubblicata a metà ferma gli aggiornamenti di tutti.',
+  '6. MAI installare: non lanciare l’installer e non chiamare «Installa» in nessuna forma. Le versioni le installa solo Nicholas.',
+  '7. Un comando lungo alla volta, davanti, con il tempo massimo dello strumento (timeout di 10 minuti), senza sottofondo e senza sleep: aspetti che finisca. Se il PC è carico l’attesa la fa il programma.',
+  'Se ti manca una decisione che non puoi prendere tu, fermati e dillo nel riepilogo finale («bloccato: …»): l’autopilota risponde, o chiede a Nicholas.',
+  '',
+  'Il tuo messaggio finale è il riepilogo che l’autopilota legge: cosa hai pubblicato, il tag, i file della release e come li hai controllati, cosa resta. In fondo le righe:',
   ...REGOLA_RAPPORTO,
   ...REGOLA_LEZIONI
 ].join('\n')
@@ -107,6 +132,17 @@ export const AGENTI_ORCHESTRATORE: Record<string, DefinizioneAgente> = {
     tools: [...LETTURA, ...SHELL, ...SCRITTURA],
     model: 'sonnet',
     isolation: 'worktree'
+  },
+  // 11/11: pubblicare da una copia non si può (la CLI vieta a chi è isolato ogni git verso la
+  // principale, e il pacchetto non si costruisce con `node_modules` collegata). Il rilascio lavora
+  // nella cartella principale, **senza** copia e senza strumenti di scrittura (niente Edit/Write);
+  // la guardia gli vieta lì ogni git che cambia la storia (`guardia-orchestratore.ts`), e resta il
+  // divieto di installare (`giudicaRuolo`). Push, tag, `gh` e i comandi di pubblicazione passano.
+  rilascio: {
+    description: 'Pubblica una versione già unita nel ramo principale: push, tag, release e file allegati, dalla cartella principale. Non modifica file. Usalo solo quando la richiesta chiede di pubblicare, dopo che il lavoro è unito.',
+    prompt: `Sei lo specialista del rilascio. Pubblichi una versione che è già nel ramo principale.\n\n${RILASCIO}`,
+    tools: [...LETTURA, ...SHELL, 'TodoWrite'],
+    model: 'sonnet'
   }
 }
 
@@ -125,7 +161,8 @@ const RIGA_REGOLE_COPIA = COMUNE.split('\n')[2] as string
  * volta (il tetto lo mette il servizio, la guardia lo fa rispettare).
  */
 export function agentiSenzaGit(): Record<string, DefinizioneAgente> {
-  return Object.fromEntries(Object.entries(AGENTI_ORCHESTRATORE).map(([k, a]) => {
+  // 11/11: senza git non c'è niente da pubblicare (push, tag, release): niente «rilascio».
+  return Object.fromEntries(Object.entries(AGENTI_ORCHESTRATORE).filter(([k]) => k !== 'rilascio').map(([k, a]) => {
     const { isolation: _i, ...resto } = a
     return [k, { ...resto, prompt: a.prompt.replace(RIGA_COPIA, SENZA_GIT_RIGA).replace(`\n${RIGA_REGOLE_COPIA}`, '') }]
   }))
