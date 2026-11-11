@@ -49,6 +49,20 @@ describe('strumenti dell’orchestratore', () => {
     expect(nomi.some((n) => n.startsWith('specialista_'))).toBe(false)
   })
 
+  it('11/11: le descrizioni non spingono più a chiedere, e dicono cosa decide il programma', () => {
+    const di = (nome: string): { description?: string; inputSchema: { properties?: Record<string, unknown>; required?: string[] } } => STRUMENTI_ORCHESTRATORE.find((s) => s.name === nome)! as never
+    const chiedi = di('chiedi_utente')
+    expect(chiedi.description).toMatch(/solo per quello che è suo/)
+    expect(chiedi.description).not.toMatch(/quando pubblicare/)
+    expect(chiedi.description).toMatch(/non per l’installazione di SierraDeck/)
+    // «rischiosa» c'è, ma non è obbligatorio.
+    expect(Object.keys(chiedi.inputSchema.properties ?? {})).toContain('rischiosa')
+    expect(chiedi.inputSchema.required).toEqual(['domanda', 'perche'])
+    expect(di('permesso').description).toMatch(/decide il programma/)
+    expect(di('permesso').description).not.toMatch(/la domanda va a Nicholas/)
+    expect(di('piano_scrivi').description).toMatch(/seguito/)
+  })
+
   it('coda_unisci rifiuta un’unione che perde un punto, e accetta quella che li nomina tutti', async () => {
     const a = ambiente()
     const persa = await chiamaStrumento(a, 'Lavoro', 'coda_unisci', { ids: ['r-1', 'r-2'], testo: 'la barra con numero e colore', punti: [{ id: 'p-1' }], perche: 'stessa barra' })
