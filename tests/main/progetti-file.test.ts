@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { elencaFileProgetto } from '../../src/main/progetti/file'
+import { elencaFileProgetto, transitorioDiGit } from '../../src/main/progetti/file'
 
 /**
  * Cosa di un progetto va sul Drive: quello che git terrebbe, piu' `.git`;
@@ -90,5 +90,29 @@ describe('elencaFileProgetto', () => {
   it('una cartella che non c e da un elenco vuoto, non un errore', async () => {
     const { file } = await elencaFileProgetto(join(tmpdir(), 'sd-non-esiste-' + Date.now()))
     expect(file).toEqual([])
+  })
+
+  it('11/11: i file di .git che durano il tempo di un’operazione restano a casa; la storia e i rami vengono', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sd-progetto-'))
+    const scrivi = (rel: string, testo = 'x'): void => {
+      const p = join(dir, ...rel.split('/'))
+      mkdirSync(join(p, '..'), { recursive: true })
+      writeFileSync(p, testo)
+    }
+    const restano = [
+      '.git/MERGE_HEAD', '.git/MERGE_MSG', '.git/MERGE_MODE', '.git/AUTO_MERGE', '.git/sierradeck-prova.json',
+      '.git/index.lock', '.git/HEAD.lock', '.git/refs/heads/main.lock', 'sotto/.git/MERGE_HEAD', 'sotto/.git/index.lock'
+    ]
+    const vengono = [
+      '.git/HEAD', '.git/index', '.git/ORIG_HEAD', '.git/packed-refs', '.git/config',
+      '.git/refs/heads/main', '.git/refs/heads/worktree-agent-a1b2', '.git/logs/refs/heads/worktree-agent-a1b2', '.git/objects/ab/cdef',
+      // Fuori da .git un nome uguale è un file come gli altri.
+      'src/MERGE_HEAD', 'pacchetto.lock', 'src/sierradeck-prova.json', 'sotto/.git/HEAD'
+    ]
+    for (const rel of [...restano, ...vengono]) scrivi(rel)
+    const { file } = await elencaFileProgetto(dir)
+    expect(file.sort()).toEqual([...vengono].sort())
+    for (const rel of restano) expect(transitorioDiGit(rel), rel).toBe(true)
+    for (const rel of vengono) expect(transitorioDiGit(rel), rel).toBe(false)
   })
 })

@@ -28,4 +28,26 @@ describe('le righe del servizio finiscono nel registro', () => {
     console.info('ciao')
     expect(chiamate).toBe(1)
   })
+
+  it('11/11: una riga scritta direttamente nel registro non esce due volte per via della sua eco', () => {
+    const righe: string[] = []
+    Object.assign(console, { info: () => {}, log: () => {}, warn: () => {}, error: () => {} })
+    // Come il registro vero: scrive la riga e ne fa l'eco sulla console, con «[registro]» davanti.
+    const registro = {
+      info: (m: string): void => { righe.push(`I ${m}`); console.log(`[registro] ${m}`) },
+      errore: (m: string): void => { righe.push(`E ${m}`); console.error(`[registro] ${m}`) }
+    }
+    consoleNelRegistro(registro)
+    registro.info('[servizio] avviso di Node: DeprecationWarning: x')
+    registro.errore('[servizio] eccezione non gestita — Error: y')
+    console.info('[consegna] partita')
+    expect(righe).toEqual([
+      'I [servizio] avviso di Node: DeprecationWarning: x',
+      'E [servizio] eccezione non gestita — Error: y',
+      'I [consegna] partita'
+    ])
+    // Il registro che non riesce a scrivere lo dice con due argomenti: quella riga non è un'eco, e passa.
+    console.error('[registro] scrittura fallita:', new Error('disco pieno'))
+    expect(righe.at(-1)).toMatch(/^E \[registro\] scrittura fallita: Error: disco pieno/)
+  })
 })

@@ -16,6 +16,8 @@ import { modelloAutopilotaAmmesso } from '@shared/modelli'
 import { righeLezioni } from '@shared/lezioni-chat'
 import { esaminaComando, principaleSporca } from '@shared/controllo-comandi'
 import { DOMANDA_MAX, domandaControllataSubito, domandaPerRegistro, noteSulTesto, testoDomanda } from '@shared/domanda-strutturata'
+import { azzeramentoDaiLimiti, fraseLimite, quandoInParole } from '@shared/limite-del-piano'
+import type { LimitiPiano } from '@shared/harness'
 import type { ArchivioCode } from './coda-store'
 import { migraAutopiloti, misuraDaAutopiloti } from './coda-autopiloti'
 import { soloInChat, type ContestoDomanda, type RegistroDomande } from './domande'
@@ -29,7 +31,7 @@ import { criteriPerLaProva } from './criteri-prova'
 import { fallitiDavvero, nonMisurati, type Esecutore } from './verifiche'
 import type { Memoria } from './memoria'
 import type { TipoAvviso } from './telegram'
-import { comeAsincrono, ramoCorrente, ramoGiaChiusoAsincrono, salvaLavoroAsincrono, type Git, type GitAsincrono } from './worktree'
+import { comeAsincrono, ramoCorrente, ramoGiaChiusoAsincrono, salvaLavoroConFileAsincrono, type Git, type GitAsincrono } from './worktree'
 import {
   creaGettoniOrchestratore, configMcpOrchestratore, rispondiMcpOrchestratore, specialistiVivi, SPECIALISTI_PC_MAX,
   type AmbienteOrchestratore, type EsitoAmbiente
@@ -138,6 +140,8 @@ export type ContestoUnico = {
   posti: () => number
   /** k-57: il numero massimo scelto da Nicholas (vince sul tetto di serie degli specialisti); assente = automatico. */
   postiScelti?: () => number | undefined
+  /** 11/11: i limiti del piano letti dal programma (`resettaIl`), per sapere quando riparte un autopilota fermo sul limite. */
+  limitiPiano?: () => LimitiPiano | undefined
   chatAlLavoroSulPc: () => number
   /** L'unione di prova nel principale con i criteri dell'autopilota (`provaNelPrincipale`). */
   provaNelPrincipale: (a: Autopilota, ramo: string) => Promise<EsitoProvaPrincipale>
@@ -467,6 +471,11 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
   const memoriaCriteri: MemoriaCriteri = x.memoriaCriteri ?? new Map()
   /** Gli specialisti già uniti, per workspace (sopravvivono al flusso in memoria). */
   const uniti = new Map<string, Set<string>>()
+  /**
+   * 11/11: i file che il programma ha messo in un commit nelle copie degli specialisti prima di unire, per
+   * cartella. Restano qui finché l'unione non dà il suo esito, anche se arriva dopo più tentativi.
+   */
+  const salvatiPrimaDiUnire = new Map<string, string[]>()
   const gitA = (): GitAsincrono | undefined => x.gitAsincrono ?? (x.git !== undefined ? comeAsincrono(x.git) : undefined)
   /**
    * La cartella del progetto è un repository git? Senza (31/10, GLOS: una
@@ -811,6 +820,25 @@ ${NOTA_SENZA_GIT}`,
     }
   }
 
+  /**
+   * 11/11: il piano ha finito la quota («You've hit your weekly limit · resets 1am»). Non è un guasto:
+   * nel registro un avviso (mai un ERRORE, mai fra gli errori arrivati), e a Nicholas una riga sola per
+   * episodio, in italiano, con l'ora in cui si riparte. I tentativi dopo non dicono più niente.
+   */
+  const limiteRaggiunto = (ws: string, p: { motivo: string; primo: boolean; riprovoIl: number; azzeraIl?: number }): void => {
+    const letto = Date.parse(x.adesso())
+    const ora = Number.isNaN(letto) ? Date.now() : letto
+    console.warn(`[orchestratore] ${ws} — limite del piano raggiunto${p.azzeraIl !== undefined ? `, si azzera ${quandoInParole(p.azzeraIl, ora)}` : ''}: riprovo ${quandoInParole(p.riprovoIl, ora)} (${p.motivo.replace(/\s+/gu, ' ').slice(0, 120)})`)
+    if (!p.primo) return
+    const frase = fraseLimite({ ...(p.azzeraIl !== undefined ? { azzeraIl: p.azzeraIl } : {}), adesso: ora })
+    const u = unicoDi(ws)
+    if (u === undefined) return
+    const dopo = { ...u }
+    x.annota(dopo, frase)
+    x.salva(dopo)
+    nelDialogo(ws, { quando: x.adesso(), da: 'lui', testo: frase })
+  }
+
   const orchestratore = creaOrchestratore({
     avvia: x.avviaProcesso,
     impostazioni: imp,
@@ -841,8 +869,10 @@ ${NOTA_SENZA_GIT}`,
     adesso: x.adesso,
     ...(x.raccoltaEventiMs !== undefined ? { raccoltaMs: x.raccoltaEventiMs } : {}),
     ...(x.chiamateMax !== undefined ? { globaliMax: x.chiamateMax } : {}),
-    ...(x.inattivoMs !== undefined ? { inattivoMs: x.inattivoMs } : {})
+    ...(x.inattivoMs !== undefined ? { inattivoMs: x.inattivoMs } : {}),
     // 11/11: nessun permesso aspetta più Nicholas (decide il programma): niente `attendeNicholas`.
+    limite: limiteRaggiunto,
+    azzeramentoLimite: (_ws, motivo) => azzeramentoDaiLimiti(x.limitiPiano?.(), motivo, Date.parse(x.adesso()))
   })
 
   // ---------------------------------------------------------------- il cancello
@@ -1008,6 +1038,16 @@ ${NOTA_SENZA_GIT}`,
     /** 06/11: gli altri rami con lavoro dello stesso compito (da unire prima) e gli specialisti che finiscono uniti con questo. */
     let altriRami: RamoConLavoro[] = []
     let assorbiti: RamoConLavoro[] = []
+    /** 11/11: le copie in cui il programma ha provato a salvare per questa unione, e la frase che lo racconta nell'esito. */
+    const cartelleSalvate: string[] = []
+    /** I file salvati per questa unione: si leggono una volta (all'esito), poi si dimenticano. */
+    const prendiSalvati = (): string[] => [...new Set(cartelleSalvate.flatMap((c) => { const f = salvatiPrimaDiUnire.get(c) ?? []; salvatiPrimaDiUnire.delete(c); return f }))]
+    const elencoSalvati = (file: string[]): string => `${file.slice(0, 8).join(', ')}${file.length > 8 ? ` (+${file.length - 8})` : ''}`
+    const fraseSalvati = (file: string[]): string => {
+      if (file.length === 0) return ''
+      const quanti = file.length === 1 ? 'un file che non era' : `${file.length} file che non erano`
+      return ` Prima di unire il programma ha salvato lui ${quanti} in un commit: ${elencoSalvati(file)}. Se ${file.length === 1 ? 'non c’entra' : 'qualcuno non c’entra'} con il lavoro, fallo togliere a uno specialista.`
+    }
     if (!senzaGit && !soloLettura && g !== undefined && a.ramoBase !== undefined) {
       // Il ramo: dato, della chat adottata, o del worktree del subagente.
       const nato = (c: string): number | undefined => { try { return statSync(c).birthtimeMs } catch { return undefined } }
@@ -1064,11 +1104,19 @@ ${NOTA_SENZA_GIT}`,
         const r = ramo
         cambiaCompito(ws, compito.id, (k) => (k.stato === 'unito' ? k : { ...k, ramo: r }))
       }
-      if (cartella !== undefined) await salvaLavoroAsincrono(g, cartella, `specialista ${nome}: ${(compito?.titolo ?? sub?.descrizione ?? chat?.compito ?? '').slice(0, 60)}`)
+      // 11/11: quello che il programma salva al posto dello specialista si ricorda per cartella: lo dice l'esito.
+      const salvaERicorda = async (dove: string, messaggio: string): Promise<void> => {
+        cartelleSalvate.push(dove)
+        const s = await salvaLavoroConFileAsincrono(g, dove, messaggio)
+        if (!s.salvato || s.file.length === 0) return
+        if (salvatiPrimaDiUnire.size >= 200) salvatiPrimaDiUnire.clear()
+        salvatiPrimaDiUnire.set(dove, [...new Set([...(salvatiPrimaDiUnire.get(dove) ?? []), ...s.file])])
+      }
+      if (cartella !== undefined) await salvaERicorda(cartella, `specialista ${nome}: ${(compito?.titolo ?? sub?.descrizione ?? chat?.compito ?? '').slice(0, 60)}`)
       let motivo: string | undefined
       // Prima gli altri rami con lavoro dello stesso compito, poi quello principale (06/11, k-60).
       for (const altro of altriRami) {
-        if (altro.cartella !== undefined) await salvaLavoroAsincrono(g, altro.cartella, `specialista ${altro.sub.id}: ${(compito?.titolo ?? altro.sub.descrizione).slice(0, 60)}`)
+        if (altro.cartella !== undefined) await salvaERicorda(altro.cartella, `specialista ${altro.sub.id}: ${(compito?.titolo ?? altro.sub.descrizione).slice(0, 60)}`)
         const chiusoAltro = await ramoGiaChiusoAsincrono(g, { cwd: a.cwd, ramo: altro.ramo, base: a.ramoBase })
         if (chiusoAltro === 'mancante') { motivo = `il ramo ${altro.ramo} non c’è`; break }
         if (chiusoAltro === 'unito') continue
@@ -1093,7 +1141,7 @@ ${NOTA_SENZA_GIT}`,
       }
       if (motivo !== undefined) {
         if (compito !== undefined) cambiaCompito(ws, compito.id, (k) => ({ ...k, esito: `unione non fatta: ${motivo}` }))
-        return `${nome}: unione NON fatta — ${motivo}. Il ramo ${ramo} resta com’è: affida la correzione a uno specialista.`
+        return `${nome}: unione NON fatta — ${motivo}. Il ramo ${ramo} resta com’è: affida la correzione a uno specialista.${fraseSalvati(prendiSalvati())}`
       }
     }
     const il = x.adesso()
@@ -1132,6 +1180,8 @@ ${NOTA_SENZA_GIT}`,
     }
     // Scaduta mentre misurava: l'esito non vale più, l'unione è già stata rimessa in fila.
     if (scambio.scaduto) return `${nome}: unione scaduta`
+    const fileSalvati = prendiSalvati()
+    const salvati = fraseSalvati(fileSalvati)
     if (compito !== undefined) {
       cambiaCompito(ws, compito.id, (k) => {
         const dopo: CompitoPiano = { ...k, stato: 'unito', criterioVerde: verde, unitoIl: il, esito: dettaglio }
@@ -1170,7 +1220,7 @@ ${NOTA_SENZA_GIT}`,
       }
       // 0.92.1: in conversazione una riga in parole semplici (il diario tiene quella tecnica).
       const suCosa = cosaDel(compito?.titolo ?? sub?.descrizione ?? nome)
-      x.annota(dopo, `${nome}: ${ramo !== undefined ? `ramo ${ramo} unito nel principale` : 'niente ramo da unire'}; criterio ${verde ? 'verde' : 'rosso'} (${dettaglio.slice(0, 200)})`, chat !== undefined ? { chat: chat.id, esito: 'unito' } : avanzamento(nome, verde
+      x.annota(dopo, `${nome}: ${ramo !== undefined ? `ramo ${ramo} unito nel principale` : 'niente ramo da unire'}; criterio ${verde ? 'verde' : 'rosso'} (${dettaglio.slice(0, 200)})${fileSalvati.length > 0 ? `; salvati dal programma prima di unire: ${elencoSalvati(fileSalvati)}` : ''}`, chat !== undefined ? { chat: chat.id, esito: 'unito' } : avanzamento(nome, verde
         ? `Unito il lavoro su «${suCosa}»: le prove passano.`
         : `Il lavoro su «${suCosa}» non passa le prove: lo faccio correggere a uno specialista.`))
       x.salva(dopo)
@@ -1179,8 +1229,8 @@ ${NOTA_SENZA_GIT}`,
     ricalcola(ws, `${compito?.id ?? nome} unito${verde ? '' : ' con il criterio rosso'}`)
     const dove = ramo !== undefined ? `ramo ${ramo} unito nel principale` : fuoriDaiRami ? 'lavoro fuori dai rami (scritto in un’altra cartella): niente da unire, vale il criterio' : soloLettura ? 'analisi in sola lettura, niente da unire' : 'lavoro già nella cartella del progetto'
     const chi = compito?.id !== undefined && compito.id !== nome ? `${compito.id} (${nome})` : nome
-    if (nonMisurato) return `${chi}: ${dove}. Criterio NON MISURATO — ${dettaglio}. Non è un rosso del lavoro: nessuno specialista da affidare.`
-    return `${chi}: ${dove}. Criterio ${verde ? 'VERDE' : 'ROSSO'}: ${dettaglio}.${verde ? '' : ' Il compito resta da correggere: affidalo a uno specialista, dicendo cosa non va.'}`
+    if (nonMisurato) return `${chi}: ${dove}. Criterio NON MISURATO — ${dettaglio}. Non è un rosso del lavoro: nessuno specialista da affidare.${salvati}`
+    return `${chi}: ${dove}. Criterio ${verde ? 'VERDE' : 'ROSSO'}: ${dettaglio}.${verde ? '' : ' Il compito resta da correggere: affidalo a uno specialista, dicendo cosa non va.'}${salvati}`
   }
 
   // ---------------------------------------------------------------- l'ambiente degli strumenti

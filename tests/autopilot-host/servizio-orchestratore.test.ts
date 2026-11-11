@@ -198,23 +198,46 @@ describe('autopilota unico nel servizio', () => {
     expect(avviso.mock.calls.some((c) => String(c[0]).includes('turno non riuscito') && String(c[0]).includes('ENOTFOUND'))).toBe(true)
   })
 
-  // 11/11: il 09/11, 11 righe uguali in inglese in 70 minuti, una per tentativo.
+  // 11/11: il 09/11, 11 righe uguali in inglese in 70 minuti, una per tentativo. Il limite del piano
+  // ha il suo gestore (qui sotto): questa prova usa l'accesso scaduto, che resta un «turno non riuscito».
   it('11/11: «turno non riuscito» arriva in italiano e la stessa riga non si ripete a ogni tentativo', async () => {
     zitto()
     await avviaServizio([ap()])
     migra()
     const eventi = (): string[] => orch.ultimeDialogo('Lavoro', 40).filter((r) => r.da === 'evento').map((r) => r.testo)
-    const fallisce = (): void => { processi.at(-1)!.emetti({ type: 'result', is_error: true, result: 'You\'ve hit your weekly limit · resets 1am (Europe/Rome)', total_cost_usd: 0, session_id: 'sess-1', usage: { input_tokens: 5 } }) }
+    const fallisce = (): void => { processi.at(-1)!.emetti({ type: 'result', is_error: true, result: 'Login expired · Please run /login', total_cost_usd: 0, session_id: 'sess-1', usage: { input_tokens: 5 } }) }
     fallisce()
     expect(eventi()).toHaveLength(1)
-    expect(eventi()[0]).toBe('turno non riuscito: limite settimanale di Claude raggiunto, si sblocca alle 01:00: fino ad allora non posso lavorare, poi riparto da solo')
+    expect(eventi()[0]).toBe('turno non riuscito: l’accesso a Claude è scaduto: va rifatto da te (in una chat qualsiasi scrivi /login). Appena torna riparto da solo')
     // Nel registro resta il motivo com'è, per chi cerca il guasto.
-    expect(vi.mocked(console.error).mock.calls.some((c) => String(c[0]).includes('turno non riuscito') && String(c[0]).includes('weekly limit'))).toBe(true)
+    expect(vi.mocked(console.error).mock.calls.some((c) => String(c[0]).includes('turno non riuscito') && String(c[0]).includes('Login expired'))).toBe(true)
     // Il primo guasto riprova subito: il turno riparte, fallisce uguale, e la riga non si riscrive.
     await attendi(() => processi.reduce((n, p) => n + p.scritte.length, 0) >= 2, { cosa: 'il secondo tentativo' })
     fallisce()
     expect(vi.mocked(console.error).mock.calls.filter((c) => String(c[0]).includes('turno non riuscito')).length).toBeGreaterThanOrEqual(2)
     expect(eventi()).toHaveLength(1)
+  })
+
+  it('11/11: il limite del piano non è un ERRORE: un avviso nel registro e una riga sola nel dialogo, in italiano, con l’ora', async () => {
+    zitto()
+    const avviso = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await avviaServizio([ap()])
+    const { autopilota } = migra()
+    const limite = { type: 'result', is_error: true, result: "You've hit your weekly limit · resets 1am (Europe/Rome)", total_cost_usd: 0, session_id: 'sess-1', usage: { input_tokens: 5 } }
+    const righe = (): string[] => archivio.leggi(autopilota!)!.dialogo.filter((r) => r.testo.startsWith('Limite del piano raggiunto')).map((r) => r.testo)
+    processi[0]!.emetti(limite)
+    expect(vi.mocked(console.error).mock.calls.some((c) => /turno non riuscito|limite|limit/i.test(String(c[0])))).toBe(false)
+    expect(avviso.mock.calls.filter((c) => String(c[0]).includes('limite del piano raggiunto'))).toHaveLength(1)
+    expect(righe()).toHaveLength(1)
+    expect(righe()[0]).toMatch(/^Limite del piano raggiunto: riparto da solo (domani |[a-z]{3} \d\d\/\d\d )?alle \d\d:\d\d\. I tuoi messaggi restano in attesa/u)
+    expect(archivio.leggi(autopilota!)!.dialogo.at(-1)!.da).toBe('lui')
+    // Niente «turno non riuscito» nel dialogo del workspace: non è un guasto.
+    expect(orch.ultimeDialogo('Lavoro', 50).some((r) => r.testo.includes('turno non riuscito'))).toBe(false)
+    // Un altro tentativo che trova ancora il limite: l'avviso sì, la riga no.
+    processi[0]!.emetti(limite)
+    expect(avviso.mock.calls.filter((c) => String(c[0]).includes('limite del piano raggiunto'))).toHaveLength(2)
+    expect(righe()).toHaveLength(1)
+    expect(vi.mocked(console.error).mock.calls.some((c) => /turno non riuscito|limite|limit/i.test(String(c[0])))).toBe(false)
   })
 
   it('lo Stop con gli id di prima arriva alla chat adottata: evento, niente modello', async () => {

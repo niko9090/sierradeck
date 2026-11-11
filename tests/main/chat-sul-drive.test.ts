@@ -9,7 +9,7 @@ import type { Manifesto } from '../../src/main/cassaforte/incrementale'
 const GIORNO = 86_400_000
 const ADESSO = Date.parse('2026-11-06T12:00:00.000Z')
 
-async function banco(opz: { soloQui?: (p: string) => boolean; quota?: { limite?: number; usato: number }; pieno?: boolean } = {}) {
+async function banco(opz: { soloQui?: (p: string) => boolean; quota?: { limite?: number; usato: number }; pieno?: boolean; guastoIndice?: () => string | undefined } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'chat-drive-'))
   const a = archivioInMemoria()
   const chat = [
@@ -37,7 +37,7 @@ async function banco(opz: { soloQui?: (p: string) => boolean; quota?: { limite?:
   const spazio = creaSpazioDrive({
     archivio: () => a,
     scatola: () => ({ leggi: async <T>(n: string) => oggetti.get(n) as T | undefined, scrivi: async (n: string, o: unknown) => { oggetti.set(n, JSON.parse(JSON.stringify(o))) } }) as never,
-    manifestoDrive: async () => manifesto,
+    manifestoDrive: async () => { const g = opz.guastoIndice?.(); if (g !== undefined) throw new Error(g); return manifesto },
     modificaManifesto: async (cambia) => { const d = cambia(manifesto); if (d !== undefined) manifesto = d; return { ok: true } },
     copieSuiPc: () => locali,
     io: () => ({ id: 'pc-qui', nome: 'PC-ESEMPIO' }),
@@ -105,6 +105,22 @@ describe('chat sul Drive, con un Drive finto', () => {
     // La chat che esiste solo sul Drive non si cancella: non c'e' una copia sul PC.
     expect((await b.a.elenca()).has('f_soloDrive')).toBe(true)
     expect(Object.keys(b.manifesto().file)).toContain('chat/slug/soloDrive.jsonl')
+    b.chiudi()
+  })
+
+  it('11/11: lo stesso guasto del giro si scrive una volta finché dura, e di nuovo solo se torna dopo essere passato', async () => {
+    let guasto: string | undefined = 'Drive pieno: libera spazio o svuota il cestino.'
+    const b = await banco({ pieno: true, guastoIndice: () => guasto })
+    const guasti = (): string[] => b.righe.filter((r) => r.startsWith('[spazio] chat sul Drive:') && r.includes('non lo ripeto finché non cambia'))
+    for (let i = 0; i < 4; i += 1) await b.spazio.giro()
+    expect(guasti()).toHaveLength(1)
+    expect(guasti()[0]).toContain('Drive pieno')
+    // Il Drive torna a rispondere, poi si riempie di nuovo: è un episodio nuovo, e si dice.
+    guasto = undefined
+    await b.spazio.giro()
+    guasto = 'Drive pieno: libera spazio o svuota il cestino.'
+    for (let i = 0; i < 3; i += 1) await b.spazio.giro()
+    expect(guasti()).toHaveLength(2)
     b.chiudi()
   })
 

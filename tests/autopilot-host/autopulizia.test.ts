@@ -5,12 +5,13 @@ import { join } from 'node:path'
 import { nuovoAutopilota, type Autopilota, type ChatGovernata } from '@shared/autopilota'
 import { apriArchivio, type Archivio } from '../../src/autopilot-host/archivio'
 import {
-  accorciaRegistro, autopulizia, chatNote, compatta, creaAutopulizia, decidiCopia, decidiRamo, leggiWorktreeList,
-  rigaRiepilogo, staccaCollegamenti, tagliaCoda, togliCartellaCopia, esitoVuoto, type CopiaSuDisco
+  accorciaRegistro, autopulizia, chatNote, compatta, creaAutopulizia, decidiCopia, decidiRamo, leggiWorktreeList, pesoCartella,
+  rigaRiepilogo, staccaCollegamenti, tagliaCoda, togliCartellaCopia, esitoVuoto, TENUTA_FILE_IN_USO, type CopiaSuDisco
 } from '../../src/autopilot-host/autopulizia'
 import { comeAsincrono, creaWorktree, gitReale, type Git } from '../../src/autopilot-host/worktree'
 import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/server'
 import { unicoFinto } from '../setup/unico-finto'
+import { finche, programmaVivoIn } from '../setup/programma-vivo'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
 
 const ORA = Date.parse('2026-10-30T12:00:00.000Z')
@@ -405,6 +406,103 @@ describe('su disco, con un git finto', () => {
     const [a, b] = await Promise.all([pulisci({ forza: true }), pulisci({ forza: true })])
     expect(a).toBe(b)
     expect(a.copieTolte).toBe(1)
+  })
+
+  it('11/11: «tengo …» si scrive una volta per copia e motivo, non a ogni giro; il riepilogo le conta sempre', async () => {
+    const sporca = join(copie, 'ap-1-c-1')
+    mkdirSync(sporca)
+    writeFileSync(join(sporca, '.git'), 'gitdir: x\n')
+    archivio.scrivi(autopilota({ id: 'ap-1', cwd: progetto, chats: [chat('c-1', 'finita', { ramo: 'ap/ap-1/c-1' })] }))
+    const { git } = gitFinto({ registrati: [{ cartella: sporca, ramo: 'ap/ap-1/c-1' }], sporche: [sporca] })
+    const dette: string[] = []
+    const prima = console.info
+    console.info = (...a: unknown[]): void => { dette.push(String(a[0])) }
+    try {
+      for (let i = 0; i < 3; i += 1) {
+        const e = await autopulizia({ archivio, git: comeAsincrono(git), ora: DOPO })
+        expect(e.tenute).toEqual([{ cosa: 'ap-1-c-1', perche: 'modifiche non salvate' }])
+        expect(rigaRiepilogo(e)).toContain('modifiche non salvate (1)')
+      }
+    } finally {
+      console.info = prima
+    }
+    expect(dette.filter((r) => r.startsWith('[autopulizia] tengo') && r.includes('ap-1-c-1'))).toEqual([`[autopulizia] tengo ${sporca}: modifiche non salvate`])
+  })
+
+  it('11/11: una copia con dentro un archivio .asar (una build dello specialista) se ne va come le altre', async () => {
+    const d = join(copie, 'ap-0123abcd-c-7')
+    mkdirSync(join(d, 'dist', 'win-unpacked', 'resources'), { recursive: true })
+    writeFileSync(join(d, 'dist', 'win-unpacked', 'resources', 'app.asar'), 'archivio')
+    writeFileSync(join(d, 'dist', 'altro.txt'), 'x')
+    archivio.scrivi(autopilota({ id: 'ap-0123abcd-0000', cwd: progetto }))
+    const e = await autopulizia({ archivio, git: comeAsincrono(gitFinto().git), ora: DOPO })
+    expect(existsSync(d)).toBe(false)
+    expect(e.copieTolte).toBe(1)
+    expect(e.errori).toEqual([])
+  })
+
+  it.runIf(process.platform === 'win32')('k-165: una copia con un file in uso non è un errore: resta fra le tenute e al giro dopo se ne va', async () => {
+    const d = join(copie, 'ap-0123abcd-c-7')
+    mkdirSync(d)
+    writeFileSync(join(d, 'a.txt'), 'x')
+    archivio.scrivi(autopilota({ id: 'ap-0123abcd-0000', cwd: progetto }))
+    const { git } = gitFinto()
+    // Un programma che lavora ancora in quella cartella: Windows non la lascia togliere finché vive.
+    const vivo = await programmaVivoIn(d)
+    try {
+      const e = await autopulizia({ archivio, git: comeAsincrono(git), ora: DOPO })
+      expect(existsSync(d)).toBe(true)
+      expect(e.errori).toEqual([])
+      expect(e.copieTolte).toBe(0)
+      expect(e.tenute).toEqual([{ cosa: 'ap-0123abcd-c-7', perche: TENUTA_FILE_IN_USO }])
+      expect(rigaRiepilogo(e)).toContain('file in uso, riprovo al prossimo giro (1)')
+    } finally {
+      await vivo.ferma()
+    }
+    // Al giro dopo, finito il programma, se ne va (Windows la lascia un attimo dopo: si riprova).
+    const dopo = await finche(() => autopulizia({ archivio, git: comeAsincrono(git), ora: DOPO }), (e) => e.copieTolte === 1)
+    expect(existsSync(d)).toBe(false)
+    expect(dopo.copieTolte).toBe(1)
+    expect(dopo.tenute).toEqual([])
+  })
+})
+
+describe('11/11: gli archivi .asar non si guardano con lstat', () => {
+  it('pesoCartella: un .asar conta zero, il resto si pesa, i collegamenti non si seguono', async () => {
+    const base = mkdtempSync(join(tmpdir(), 'sd-autopulizia-peso-'))
+    const vera = join(base, 'vera')
+    mkdirSync(vera)
+    writeFileSync(join(vera, 'grosso.bin'), 'x'.repeat(1000))
+    const c = join(base, 'copia')
+    mkdirSync(join(c, 'dist', 'resources'), { recursive: true })
+    writeFileSync(join(c, 'a.txt'), 'abc')
+    writeFileSync(join(c, 'dist', 'b.txt'), 'de')
+    writeFileSync(join(c, 'dist', 'resources', 'app.asar'), 'x'.repeat(500))
+    writeFileSync(join(c, 'dist', 'resources', 'ALTRO.ASAR'), 'x'.repeat(500))
+    symlinkSync(vera, join(c, 'node_modules'), 'junction')
+    expect(await pesoCartella(c)).toBe(5)
+  })
+
+  it('staccaCollegamenti: accanto a un .asar la giunzione si stacca lo stesso, e il file resta al suo posto', async () => {
+    const base = mkdtempSync(join(tmpdir(), 'sd-autopulizia-asar-'))
+    const vera = join(base, 'vera')
+    mkdirSync(vera)
+    writeFileSync(join(vera, 'f.txt'), 'x')
+    const c = join(base, 'copia')
+    mkdirSync(join(c, 'resources'), { recursive: true })
+    writeFileSync(join(c, 'resources', 'app.asar'), 'archivio')
+    symlinkSync(vera, join(c, 'resources', 'node_modules'), 'junction')
+    expect(await staccaCollegamenti(c)).toEqual({ staccati: 1, falliti: [] })
+    expect(existsSync(join(c, 'resources', 'app.asar'))).toBe(true)
+    expect(existsSync(join(vera, 'f.txt'))).toBe(true)
+  })
+
+  it('togliCartellaCopia: il rifiuto della guardia non è un blocco che passa', async () => {
+    const base = mkdtempSync(join(tmpdir(), 'sd-autopulizia-fuori-'))
+    mkdirSync(join(base, 'altro'))
+    const t = await togliCartellaCopia(join(base, 'altro'), join(base, 'copie'))
+    expect(t.ok).toBe(false)
+    expect(t.temporaneo).toBeUndefined()
   })
 })
 

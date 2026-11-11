@@ -31,6 +31,33 @@ describe('gli errori dal registro', () => {
     // Le righe dello stack e quelle troppo vecchie non contano.
     expect(e.some((x) => x.messaggio.includes('troppo vecchio'))).toBe(false)
   })
+
+  it('11/11: le righe che raccontano (risposte e domande dell’autopilota, quello che gli scrivi) non sono errori', () => {
+    const righe = [
+      '2026-10-02T14:00:00.000Z [info] [servizio] [orchestratore] Lavoro — risponde: La correzione non è entrata nel progetto: 86 prove passate e 2 fallite, il tentativo è stato rifiutato.',
+      '2026-10-02T14:01:00.000Z [info] [servizio] [orchestratore] Lavoro — domanda vista in chat ma senza risposta: passa nelle Domande: Le unioni non riuscite le riprovo io o le lascio a te?',
+      '2026-10-02T14:02:00.000Z [info] [servizio] [orchestratore] Lavoro — domanda superata dalla richiesta r-68 (fatta), chiusa: Correggo le tre prove fallite?',
+      '2026-10-02T14:03:00.000Z [info] [servizio] [orchestratore] Lavoro — domanda non vista in chat: passa nelle Domande: Rilancio il salvataggio non riuscito?',
+      '2026-10-02T14:04:00.000Z [info] [servizio] [domande] ap-1 — la tua risposta «anche negli altri PC il salvataggio è fallito» (modale): ricevuta'
+    ]
+    expect(erroriDalLog(righe, ADESSO, 6)).toEqual([])
+  })
+
+  it('11/11: un conto a zero non è un guasto, un conto vero sì', () => {
+    const zero = '2026-10-02T14:00:00.000Z [info] [app] [spazio] versioni vecchie tolte su conferma: 0 (0 byte), 0 rifiutate dal Drive, 0 errori'
+    const dieci = '2026-10-02T14:05:00.000Z [info] [app] [spazio] versioni vecchie tolte su conferma: 4 (900 byte), 10 rifiutate dal Drive, 0 errori'
+    expect(erroriDalLog([zero], ADESSO, 6)).toEqual([])
+    expect(erroriDalLog([zero, dieci], ADESSO, 6).map((x) => x.messaggio)).toEqual([dieci.slice(dieci.indexOf('[app]'))])
+  })
+
+  it('11/11: un guasto vero dell’autopilota e una riga [ERRORE] che racconta contano ancora', () => {
+    const righe = [
+      '2026-10-02T14:00:00.000Z [info] [servizio] [orchestratore] Lavoro — turno non riuscito per la rete, riprovo: ENOTFOUND',
+      '2026-10-02T14:01:00.000Z [ERRORE] [servizio] [orchestratore] Lavoro — risponde: qualcosa che il servizio ha scritto come errore',
+      '2026-10-02T14:02:00.000Z [info] [app] [posta] giro fallito (non lo ripeto finche\' non torna a rispondere): Error: rete'
+    ]
+    expect(erroriDalLog(righe, ADESSO, 6)).toHaveLength(3)
+  })
 })
 
 describe('le voci del pannello', () => {
