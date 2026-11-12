@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.105.0',
+    righe: [
+      '**SierraDeck Aiutante:** un programma a parte, leggero, che fa solo una cosa: lavorare per gli altri PC («Aiuta la rete»). Niente chat; entra nella rete col Drive come un PC normale e si aggiorna da solo, aspettando che i lavori finiscano. SierraDeck manda gli specialisti prima agli Aiutanti, poi agli altri PC.',
+      '**Proclama PC di sviluppo:** nelle impostazioni degli errori, il PC con il workspace di SierraDeck si proclama PC di sviluppo; gli altri PC (e gli Aiutanti) gli mandano errori e blocchi da soli. Se se ne proclamano due, vale l’ultimo.',
+      '**Lavoro firmato giusto:** il lavoro fatto su un altro PC porta il nome e l’email del progetto, non quelli del PC che ha aiutato.',
+    ],
+  },
+  {
     versione: '0.104.0',
     righe: [
       '**Più lavoro insieme:** l’autopilota lancia in un colpo solo tutti i compiti pronti, fino ai posti liberi. Di serie 5 specialisti per workspace (prima 3) e 6 per PC (prima 4); se il PC è sotto sforzo i posti scendono da soli e le prove pesanti restano una alla volta.',
