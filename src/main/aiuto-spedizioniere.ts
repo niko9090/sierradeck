@@ -32,6 +32,8 @@ export type DipendenzeSpedizioniere = {
   cartella: string
   git?: (args: string[], cwd: string) => Promise<string>
   log?: (r: string) => void
+  /** 12/11: i blocchi vanno nello storico degli errori, che parte da solo verso il PC di sviluppo. */
+  errore?: (r: string) => void
   adesso?: () => number
   dorme?: (ms: number) => Promise<void>
 }
@@ -56,6 +58,7 @@ const testo = (e: unknown): string => (e instanceof Error ? e.message : String(e
 export function creaSpedizioniere(d: DipendenzeSpedizioniere): { giro: () => Promise<void>; ferma: () => void; inMano: () => string[] } {
   const git = d.git ?? gitVero
   const log = d.log ?? ((r: string) => console.info(`[aiuto] ${r}`))
+  const blocco = d.errore ?? ((r: string) => console.error(`[aiuto] ${r}`))
   const adesso = d.adesso ?? Date.now
   const dorme = d.dorme ?? ((ms: number) => new Promise<void>((ok) => { const t = setTimeout(ok, ms); t.unref?.() }))
   const inMano = new Set<string>()
@@ -144,7 +147,7 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): { giro: () => Pro
       try { await spedisci(l) } catch (err) {
         fuori.set(l.pcId, adesso() + FUORI_PER_MS)
         posti = { lista: [], il: -Infinity }
-        log(`${l.id}: non spedito a ${l.pcNome}: ${testo(err)}`)
+        blocco(`${l.id}: non spedito a ${l.pcNome}: ${testo(err)}`)
         await avanza(l.id, { stato: 'fallito', motivo: `non sono riuscito a spedirlo a ${l.pcNome}: ${testo(err)}` })
         await d.chiama(l.pcId, '/api/aiuto/chiudi', { lavoro: l.id }).catch(() => undefined)
         return
@@ -162,6 +165,7 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): { giro: () => Pro
         silenzioDa ??= adesso()
         if (sconosciuto || adesso() - silenzioDa > SILENZIO_MAX_MS) {
           fuori.set(l.pcId, adesso() + FUORI_PER_MS)
+          blocco(`${l.id} (${l.compito ?? l.ruolo}): perso su ${l.pcNome}: ${sconosciuto ? 'non ha più il lavoro' : 'non risponde'}`)
           await avanza(l.id, { stato: 'fallito', motivo: sconosciuto ? `${l.pcNome} non ha più questo lavoro (si è riavviato?)` : `${l.pcNome} non risponde da ${Math.round(SILENZIO_MAX_MS / 60_000)} minuti` })
           return
         }
@@ -181,7 +185,7 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): { giro: () => Pro
             ...(ramo !== undefined ? { ramo } : {}),
             ...(motivo !== undefined ? { motivo } : {})
           })
-          log(`${l.id} (${l.compito ?? l.ruolo}) da ${l.pcNome}: ${riuscito ? 'finito' : 'non riuscito'}${ramo !== undefined ? `, ramo ${ramo} preso` : ''}`)
+          ;(riuscito ? log : blocco)(`${l.id} (${l.compito ?? l.ruolo}) da ${l.pcNome}: ${riuscito ? 'finito' : `non riuscito${motivo !== undefined ? `: ${motivo}` : ''}`}${ramo !== undefined ? `, ramo ${ramo} preso` : ''}`)
           await d.chiama(l.pcId, '/api/aiuto/chiudi', { lavoro: l.id }).catch(() => undefined)
           return
         }

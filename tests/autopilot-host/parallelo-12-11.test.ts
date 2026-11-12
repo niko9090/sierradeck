@@ -92,7 +92,7 @@ describe('i lavori degli altri PC nell’elenco del PC che li ospita', () => {
 })
 
 describe('la frase di stato è coerente con quello che lavora', () => {
-  const base = { pensa: false, specialisti: [], piano: { totale: 3, uniti: 1 }, richieste: { aperte: 1, daPianificare: 0 }, domandeAperte: 0, vivo: true } as const
+  const base = { pensa: false, specialisti: [] as never[], piano: { totale: 3, uniti: 1 }, richieste: { aperte: 1, daPianificare: 0 }, domandeAperte: 0, vivo: true }
   it('mentre il programma unisce e prova non dice «fermo»', () => {
     const f = fraseStatoOrchestratore({ ...base, inCorso: { unione: 'k-2', fase: 'criterio', inFila: 2 } })
     expect(f.tono).toBe('lavora')

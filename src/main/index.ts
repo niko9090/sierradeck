@@ -4461,7 +4461,8 @@ if (!app.requestSingleInstanceLock()) {
         chiama: (pc, percorso, corpo) => remoto.chiama(pc, percorso, corpo),
         servizio: (percorso, corpo) => clientAutopilota.aiuto(percorso, corpo),
         cartella: join(dati, 'aiuto-spedizioni'),
-        log: (r) => registro.info(`[aiuto] ${r}`)
+        log: (r) => registro.info(`[aiuto] ${r}`),
+        errore: (r) => registro.errore(`[aiuto] ${r}`)
       })
       app.on('before-quit', () => spedizioniere.ferma())
       const avvisi = accendiAvvisi({ dati, log: (r) => registro.info(r), telefoni: () => dispositivi.elenca(), chat: () => chatAperte, aggiornamento: () => aggiornamenti?.stato(), versioneQui: () => app.getVersion(), coda, quadernoPersonale, altriPc: () => altriPcGlobale?.() ?? Promise.resolve([]), chiamaPc: (pc, percorso) => remoto.chiama(pc, percorso) })

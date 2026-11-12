@@ -35,6 +35,7 @@ import type { TipoAvviso } from './telegram'
 import { comeAsincrono, ramoCorrente, ramoGiaChiusoAsincrono, ramoSenzaNovitaAsincrono, salvaFileAsincrono, salvaLavoroConFileAsincrono, type Git, type GitAsincrono } from './worktree'
 import type { EsitoRiallineo } from './worktree'
 import { ramoBaseDi } from './fine-chat'
+import { preparaGitLocale } from './git-locale'
 import {
   CHIEDI_SALVA_DOPO_MS, COMMIT_SALVA, DOMANDA_SALVA_VALE_MS, FILE_DA_CHIEDERE_MAX, partiDomandaSalva, rispostaSalva, SPORCA_IN_FONDO_DOPO_MS
 } from './principale-sporca'
@@ -149,6 +150,8 @@ export type ContestoUnico = {
   indiceQuaderno?: (cwd: string) => string
   ultimoDetto?: (cwd: string, sessionId: string) => string | undefined
   git?: Git
+  /** 12/11: `false` = niente git locale automatico nei progetti che non ce l'hanno (i test che provano il «senza git»). */
+  gitLocale?: boolean
   gitAsincrono?: GitAsincrono
   /** La cartella c'è? Nelle prove si finge; di base, il disco. */
   cartellaEsiste?: (cartella: string) => boolean
@@ -620,6 +623,25 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
    */
   const NOTA_SENZA_GIT = 'Il progetto NON è un repository git: gli specialisti lavorano direttamente nella cartella del progetto, uno alla volta (lanciane uno e aspetta che finisca). Quando ha finito, il programma misura da solo il criterio del compito nella cartella e lo chiude (niente rami da unire); poi lancia il compito dopo. Non chiedere a Nicholas di creare un repository per questo.'
   const gitVisto = new Map<string, { si: boolean; il: number }>()
+  /** 12/11: le cartelle dove il git locale non si è potuto creare (una volta sola per avvio). */
+  const gitLocaleNo = new Set<string>()
+  /**
+   * 12/11 (Nicholas: «Sì, in automatico»): un progetto senza git riceve il suo git locale, così gli specialisti
+   * lavorano in parallelo, ognuno nella sua copia. Solo locale, senza segreti, librerie e file grandi.
+   */
+  const gitLocaleAutomatico = (ws: string, cwd: string): boolean => {
+    if (x.git === undefined || x.gitLocale === false || gitLocaleNo.has(cwd)) return false
+    const e = preparaGitLocale(x.git, cwd)
+    gitVisto.delete(cwd)
+    if (!e.fatto) {
+      gitLocaleNo.add(cwd)
+      console.error(`[blocco] ${ws} — git locale non creato, gli specialisti lavorano uno alla volta: ${e.motivo}`)
+      return false
+    }
+    console.info(`[orchestratore] ${ws} — git locale creato in ${cwd}: ${e.file} file nel primo salvataggio${e.grandi.length > 0 ? `, ${e.grandi.length} file grandi lasciati fuori` : ''}`)
+    nelDialogo(ws, { quando: x.adesso(), da: 'lui', testo: `Il progetto non aveva il controllo delle versioni: il programma l’ha creato solo su questo PC (nessun invio, fuori i segreti come .env, le librerie e i file grandi${e.grandi.length > 0 ? `: ${e.grandi.length} file grandi` : ''}). Da adesso gli specialisti lavorano in parallelo, ognuno nella sua copia.` })
+    return conGit(cwd)
+  }
   const conGit = (cwd: string): boolean => {
     if (x.git === undefined) return true
     const v = gitVisto.get(cwd)
@@ -981,7 +1003,7 @@ Il posto è tuo per 5 minuti.` })
     let indice = ''
     try { indice = x.indiceQuaderno?.(u.cwd) ?? '' } catch { indice = '' }
     const i = imp(ws)
-    const git = conGit(u.cwd)
+    const git = conGit(u.cwd) || gitLocaleAutomatico(ws, u.cwd)
     return {
       cwd: u.cwd,
       riassunto: git ? riassunto(ws) : `${riassunto(ws)}
@@ -1437,6 +1459,8 @@ ${NOTA_SENZA_GIT}`,
           continue
         }
         lavoro.fermaGiri = (lavoro.fermaGiri ?? 0) + 1
+        // 12/11: ferma da circa un quarto d'ora: è un blocco, va nello storico degli errori (una volta per unione).
+        if (lavoro.fermaGiri === 5) console.error(`[blocco] ${ws} — unione di ${chi} ferma da ${Math.round((Date.now() - (lavoro.sporcaDal ?? Date.now())) / 60_000)} minuti: ${ancora.perche.slice(0, 200)}${ancora.file.length > 0 ? ` (${ancora.file.length} file)` : ''}`)
         await dormiFila(ws, attesaUnioneFerma(riprova, lavoro.fermaGiri))
         continue
       }
@@ -2256,6 +2280,8 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
         // Una riga sola per questo stato, mai una domanda: Nicholas sa che è fermo e che il programma insiste.
         visto.detto = true
         const riga = rigaFermoPerNicholas(f, minuti, visto.spinte)
+        // 12/11 (Nicholas: «blocchi ed errori devono essere inviati al PC per la diagnostica automatica»).
+        console.error(`[blocco] ${ws} — lavoro fermo da ${minuti} minuti dopo ${visto.spinte} spinte: ${f.righe.join(' / ').slice(0, 400)}`)
         const dopo: Autopilota = { ...a, annuncio: { id: randomUUID(), titolo: 'Lavoro fermo', quando: x.adesso() } }
         x.annota(dopo, `lavoro fermo da ${minuti} minuti dopo ${visto.spinte} spinte: avvisato Nicholas`, avanzamento(a.id, riga))
         x.salva(dopo)
