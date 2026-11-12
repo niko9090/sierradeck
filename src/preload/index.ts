@@ -916,6 +916,8 @@ contextBridge.exposeInMainWorld('gestore', {
     altriPc: (): Promise<{ pc: string; nome: string; workspace: string[] }[]> => ipcRenderer.invoke('workspace:altriPc'),
     /** Apre qui un workspace di un altro PC, con le sue chat dal vivo (0.67.0). */
     apriDaAltroPc: (pc: string, nome: string): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('workspace:apriDaAltroPc', pc, nome),
+    /** 0.102.0: il PC dove vive un workspace aperto da un altro PC; assente: di questo PC. */
+    suPc: (nome: string): Promise<{ pcId: string; pcNome: string } | undefined> => ipcRenderer.invoke('workspace:suPc', nome),
     /** «Apri cartella» (0.82.0): la cartella del progetto del workspace o della chat, in Esplora file. */
     apriCartella: (q: { workspace: string } | { chat: string }): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('cartella:apri', q),
     crea: (nome: string, cartella?: string): Promise<StatoWorkspace> => ipcRenderer.invoke('workspace:crea', nome, cartella),

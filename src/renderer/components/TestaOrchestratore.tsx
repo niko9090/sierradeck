@@ -4,6 +4,7 @@ import { modelliAutopilota } from '@shared/modelli'
 import { useModelli } from '../modelli'
 import { creaSondaggio, useSondaggio, type Sondaggio } from '../state/sondaggio'
 import { Aiuto } from './Aiuto'
+import { SORGENTE_LOCALE, useSorgente, type SorgenteAutopilota } from '../sorgente-autopilota'
 
 /**
  * **L'autopilota del workspace, in testa alla sua chat** (P3; dal 30/10 l'unico, sempre acceso): la percentuale del
@@ -14,11 +15,13 @@ import { Aiuto } from './Aiuto'
 
 const RILETTURA_MS = 10_000
 const sondaggi = new Map<string, Sondaggio<VistaOrchestratore | undefined>>()
-export function sondaggioOrchestratore(ws: string): Sondaggio<VistaOrchestratore | undefined> {
-  let s = sondaggi.get(ws)
+/** 0.102.0: una lettura per PC e workspace (il workspace di un altro PC si legge da là, più spesso: niente spinte a evento). */
+export function sondaggioOrchestratore(ws: string, sorgente: SorgenteAutopilota = SORGENTE_LOCALE): Sondaggio<VistaOrchestratore | undefined> {
+  const k = `${sorgente.chiave}|${ws}`
+  let s = sondaggi.get(k)
   if (s === undefined) {
-    s = creaSondaggio(() => window.gestore.autopilota.orchestratore(ws), RILETTURA_MS, Infinity)
-    sondaggi.set(ws, s)
+    s = creaSondaggio(() => sorgente.orchestratore(ws), sorgente.remoto !== undefined ? 3000 : RILETTURA_MS, Infinity)
+    sondaggi.set(k, s)
   }
   return s
 }
@@ -33,10 +36,11 @@ const AIUTO_UNICO = 'Un autopilota solo per il workspace: gli parli qui, mette o
  * impostazioni e quello che passa in `children`) nella tendina ▾.
  */
 export function TestaOrchestratore({ workspace, children }: { workspace: string; children?: React.ReactNode }): React.JSX.Element | null {
-  const s = useMemo(() => sondaggioOrchestratore(workspace), [workspace])
+  const sorgente = useSorgente()
+  const s = useMemo(() => sondaggioOrchestratore(workspace, sorgente), [workspace, sorgente])
   const v = useSondaggio(s)
   // Spinta a evento: la barra si aggiorna appena uno specialista cambia, senza aspettare il giro.
-  useEffect(() => window.gestore.autopilota.suSpecialistiCambiati?.(() => s.rileggi()), [s])
+  useEffect(() => sorgente.suSpecialistiCambiati(() => s.rileggi()), [s, sorgente])
   const [impostazioni, setImpostazioni] = useState(false)
   const [registro, setRegistro] = useState(false)
   const [errore, setErrore] = useState<string | undefined>(undefined)
@@ -53,7 +57,9 @@ export function TestaOrchestratore({ workspace, children }: { workspace: string;
   const finiti = v.specialisti.filter((c) => c.stato !== 'lavoro' && c.stato !== 'avviato')
   const cambia = (p: { modello?: string; tettoSpecialisti?: number }): void => {
     setErrore(undefined)
-    window.gestore.autopilota.impostaOrchestratore(workspace, p)
+    const imposta = sorgente.impostaOrchestratore
+    if (imposta === undefined) { setErrore(`si cambia su ${sorgente.remoto?.pcNome ?? 'quel PC'}`); return }
+    imposta(workspace, p)
       .then(() => s.rileggi())
       .catch((e: unknown) => setErrore(String(e instanceof Error ? e.message : e)))
   }

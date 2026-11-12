@@ -1750,11 +1750,16 @@ if (!app.requestSingleInstanceLock()) {
        * cartella, se non e' questo. Prima i progetti di qui (stessa cartella
        * su due PC: vince quello di qui), poi quelli degli altri.
        */
+      const cartellaEsisteQui = (c: string): boolean => { try { return statSync(c).isDirectory() } catch { return false } }
       const proprietarioAltrove = (cwd: string): { id: string; nome: string; progetto: string } | undefined => {
         if (cwd === '') return undefined
         const reg = registroProgetti.leggi()
         const io = identitaPc.leggi().id
         if (progettoDiCwd(reg, cwd, io) !== undefined) return undefined
+        // 0.102.0: una cartella che c'è davvero su questo PC è di qui. I PC
+        // hanno gli stessi percorsi (…\Users\<utente>\Documents\…): il
+        // confronto solo sul percorso rifiutava chat in cartelle vere di qui.
+        if (cartellaEsisteQui(cwd)) return undefined
         const p = progettoDiCartella(reg, cwd)
         if (p === undefined || p.proprietario === undefined || p.proprietario === io) return undefined
         return { id: p.proprietario, nome: nomePcDi(p.proprietario), progetto: p.nome }
@@ -2951,6 +2956,28 @@ if (!app.requestSingleInstanceLock()) {
       }
       // «Su altri PC» → «Apri» (0.67.0): il workspace di quel PC, qui con un riquadro
       // dal vivo per ogni sua chat. Le chat restano là; la finestra che chiede ci va.
+      /**
+       * 0.102.0: i workspace aperti da un altro PC, per nome → quel PC. Serve
+       * quando là il workspace non ha chat aperte: prima non si apriva affatto
+       * («portalo qui con Sposta»), ora si apre con l'autopilota di là, come su
+       * quel PC. Vale solo finché quel PC dice di avere ancora quel workspace.
+       */
+      const FILE_SU_PC = join(dati, 'workspace-su-pc.json')
+      const leggiSuPc = (): Record<string, { pcId: string; pcNome: string }> => {
+        try {
+          const j = JSON.parse(readFileSync(FILE_SU_PC, 'utf8')) as unknown
+          return typeof j === 'object' && j !== null && !Array.isArray(j) ? j as Record<string, { pcId: string; pcNome: string }> : {}
+        } catch { return {} }
+      }
+      ipcMain.handle('workspace:suPc', (_e, nome: unknown) => {
+        if (typeof nome !== 'string' || nome === '') return undefined
+        const v = leggiSuPc()[nome]
+        if (v === undefined || typeof v.pcId !== 'string') return undefined
+        const battito = postino.altrui().find((b) => b.pcId === v.pcId)
+        // Quel PC non elenca più il workspace (o non lo si conosce): qui è di questo PC.
+        if (battito !== undefined && battito.workspace !== undefined && !battito.workspace.includes(nome)) return undefined
+        return { pcId: v.pcId, pcNome: battito !== undefined ? nomeDaMostrare(battito) : v.pcNome }
+      })
       ipcMain.handle('workspace:apriDaAltroPc', async (e, pcId: unknown, nome: unknown) => {
         if (typeof pcId !== 'string' || typeof nome !== 'string' || nome === '') return { ok: false, messaggio: 'richiesta non valida' }
         const store = workspaceStore
@@ -2967,13 +2994,12 @@ if (!app.requestSingleInstanceLock()) {
         }
         // Le salvate e quelle accese là (2/11): in sottofondo e degli autopiloti non hanno un riquadro salvato.
         const ws = workspaceDaAltroPc(nome, { id: pcId, nome: pcNome }, [...chat, ...(aperteLa as (ChatSuPc & { workspace?: string })[])])
-        // Senza chat là non c'è niente da guardare dal vivo: un workspace vuoto
-        // qui sembrava aperto e invece era uno nuovo di questo PC (2/11, Nicholas:
-        // «tutto vuoto, il remoto non funziona»). Si dice e non si crea niente.
-        if (ws.panes.length === 0) {
-          registro.info(`[workspace] «${nome}» di ${pcNome}: là non ha chat, non lo apro qui (sarebbe un workspace vuoto di questo PC)`)
-          return { ok: false, messaggio: `«${nome}» su ${pcNome} non ha chat da guardare dal vivo: aprilo su ${pcNome}, o portalo qui con «Sposta su questo PC» in Progetti.` }
-        }
+        // 0.102.0: anche senza chat là si apre — con l'autopilota di quel PC,
+        // come lo si vedrebbe là (prima: «portalo qui con Sposta»). Il segno
+        // «vive su <PC>» sta in `workspace-su-pc.json`.
+        try {
+          scriviJsonAtomico(FILE_SU_PC, { ...leggiSuPc(), [nome]: { pcId, pcNome } }, 'workspace-su-pc')
+        } catch (err) { registro.errore(`[workspace] «${nome}»: segno «su ${pcNome}» non scritto: ${String(err)}`) }
         const prima = store.leggi()
         let dopo = aggiungiWorkspace(prima, nome)
         dopo = { ...dopo, workspace: dopo.workspace.map((w) => {
@@ -2983,7 +3009,7 @@ if (!app.requestSingleInstanceLock()) {
           return { ...w, perSlot: { ...w.perSlot, 1: layout } }
         }) }
         if (dopo !== prima && !store.scrivi(dopo)) return { ok: false, messaggio: 'la lista dei workspace non si è scritta' }
-        registro.info(`[workspace] «${nome}» di ${pcNome} aperto qui: ${ws.panes.length} chat dal vivo, che restano su ${pcNome}`)
+        registro.info(`[workspace] «${nome}» di ${pcNome} aperto qui: ${ws.panes.length} chat dal vivo, che restano su ${pcNome}${ws.panes.length === 0 ? ' (là nessuna chat aperta: si vede l’autopilota di là)' : ''}`)
         // 0.73.0: le chat chiuse là restano chiuse (dalla 0.68.0 partivano tutte in
         // sottofondo sul PC di casa). Una chat di un altro PC si apre solo con un
         // comando di Nicholas: «Avvia là» nel suo riquadro.
@@ -2991,7 +3017,7 @@ if (!app.requestSingleInstanceLock()) {
         if (chiuseLa > 0) registro.info(`[workspace] «${nome}»: ${chiuseLa} chat chiuse su ${pcNome} restano chiuse (si avviano solo con «Avvia là»)`)
         for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('workspace:cambiato', { ...statoWorkspaceDi(dopo), precedente: dopo.attivo })
         e.sender.send('client:workspace', nome)
-        return { ok: true, messaggio: `«${nome}» aperto: ${ws.panes.length} chat dal vivo su ${pcNome}.` }
+        return { ok: true, messaggio: ws.panes.length > 0 ? `«${nome}» aperto: ${ws.panes.length} chat dal vivo su ${pcNome}.` : `«${nome}» aperto: vive su ${pcNome}.` }
       })
       // «Su altri PC» (0.65.1): i workspace dei battiti degli altri PC che qui non ci sono.
       /**
@@ -3058,12 +3084,19 @@ if (!app.requestSingleInstanceLock()) {
         const passo = (m: string): void => { registro.info(`[apertura] «${titolo}» (${s.slice(0, 8)}): ${m}`) }
         if (s === '') { passo('niente sessione: resta com’è'); return { pc: daPc, nome: nomeDi(daPc), qui: false, messaggio: '' } }
         passo(`il riquadro guarda ${nomeDi(daPc)} (${cwd})`)
+        // 0.102.0: il PC del riquadro è la verità — la chat gira là. Prima il
+        // registro dei progetti poteva girare il riquadro su un altro PC, o
+        // farlo tornare locale perché la stessa cartella (stesso percorso su
+        // due PC) risultava «di questo PC»: la chat remota spariva. Il registro
+        // si guarda solo se il riquadro non dice dove sta.
+        const pcDelRiquadro = daPc !== '' && daPc !== io.id ? daPc : ''
         const reg = registroProgetti.leggi()
-        const mio = cwd !== '' ? progettoDiCwd(reg, cwd, io.id) : undefined
-        const suo = mio === undefined && cwd !== '' ? progettoDiCartella(reg, cwd) : undefined
-        let verso = mio !== undefined ? io.id : suo?.proprietario ?? daPc
+        const mio = pcDelRiquadro === '' && cwd !== '' ? progettoDiCwd(reg, cwd, io.id) : undefined
+        const suo = pcDelRiquadro === '' && mio === undefined && cwd !== '' ? progettoDiCartella(reg, cwd) : undefined
+        let verso = pcDelRiquadro !== '' ? pcDelRiquadro : mio !== undefined ? io.id : suo?.proprietario ?? daPc
         const messaggio = ''
-        passo(mio !== undefined ? `il progetto «${mio.nome}» è di questo PC`
+        passo(pcDelRiquadro !== '' ? `la chat è su ${nomeDi(pcDelRiquadro)}: il riquadro resta là`
+          : mio !== undefined ? `il progetto «${mio.nome}» è di questo PC`
           : suo?.proprietario !== undefined ? `il progetto «${suo.nome}» vive su ${nomeDi(suo.proprietario)}`
             : 'nessun progetto noto per questa cartella: resta il PC del riquadro')
         if (verso === '') verso = daPc

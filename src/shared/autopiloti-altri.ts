@@ -37,7 +37,9 @@ export type AutopilotiDiPc = {
 export const ROTTE_AUTOPILOTA_ALTRO_PC: readonly string[] = [
   '/api/autopilota', '/api/autopilota/dialogo', '/api/autopilota/avanzamento', '/api/autopilota/file', '/api/rispondi',
   // k-60: gli specialisti al lavoro e in fila su quel PC, e cambiarne la lista (precedenza, Togli): la regola la decide quel PC.
-  '/api/specialisti/attesa', '/api/specialisti/attesa/priorita', '/api/specialisti/attesa/togli'
+  '/api/specialisti/attesa', '/api/specialisti/attesa/priorita', '/api/specialisti/attesa/togli',
+  // 0.102.0: la conversazione di uno specialista, per le sue chat a destra come sul PC dove gira.
+  '/api/autopilota/specialista'
 ]
 
 export function rottaAutopilotaAltroPc(percorso: string): boolean {

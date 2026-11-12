@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  doppioniDaArchiviare, firmaRichiestaDoppioni, leggiRichiestaDoppioni, nomeDiCartella, rigaDoppione,
+  doppioniDaArchiviare, MANCA_DA_MS, firmaRichiestaDoppioni, leggiRichiestaDoppioni, nomeDiCartella, rigaDoppione,
   type OrchestratoreSulPc, type ProgettoNoto
 } from '@shared/autopiloti-doppioni'
 
@@ -24,9 +24,24 @@ describe('gli autopiloti doppioni, la decisione pura', () => {
     expect(d).toEqual([{ ws: 'Sito', autopilota: 'ap-sito', cwd: 'C:\\Users\\n\\Documents\\Sito', motivo: 'cartella-mancante' }])
   })
 
-  it('il progetto è di un altro PC: doppione, con l’id del proprietario', () => {
-    const d = decidi([orch('GLOS', 'E:\\Lavori\\GLOS')], [{ nome: 'GLOS', proprietario: LA }])
+  it('0.102.0: la cartella c’è su questo PC: mai un doppione, anche se il progetto vive altrove', () => {
+    expect(decidi([orch('GLOS', 'E:\\Lavori\\GLOS')], [{ nome: 'GLOS', proprietario: LA }])).toEqual([])
+  })
+
+  it('la cartella manca e il progetto è di un altro PC: doppione, con l’id del proprietario', () => {
+    const d = decidi([orch('GLOS', 'E:\\Lavori\\GLOS')], [{ nome: 'GLOS', proprietario: LA }], () => false)
     expect(d).toEqual([{ ws: 'GLOS', autopilota: 'ap-glos', cwd: 'E:\\Lavori\\GLOS', motivo: 'altro-pc', pc: LA }])
+  })
+
+  it('0.102.0: in pulizia una cartella mancante conta solo dopo 24 ore di fila', () => {
+    const assenze = new Map<string, number>()
+    const giro = (adesso: number, c: boolean) => doppioniDaArchiviare({ orchestratori: [orch('Sito', 'E:\\Sito')], progetti: [], pcId: QUI, esiste: () => c, assenze, adesso })
+    expect(giro(0, false)).toEqual([])
+    expect(giro(MANCA_DA_MS - 1, false)).toEqual([])
+    expect(giro(MANCA_DA_MS + 1, false).map((x) => x.motivo)).toEqual(['cartella-mancante'])
+    // Torna un attimo: si ricomincia a contare.
+    expect(giro(MANCA_DA_MS + 2, true)).toEqual([])
+    expect(giro(MANCA_DA_MS + 3, false)).toEqual([])
   })
 
   it('lo stesso nome è anche un progetto di questo PC: non è un doppione', () => {
@@ -44,8 +59,8 @@ describe('gli autopiloti doppioni, la decisione pura', () => {
   })
 
   it('i nomi si confrontano senza maiuscole, con barre di ogni verso e la barra in coda', () => {
-    const d = decidi([orch('a', 'E:/Lavori/sierraDECK/'), orch('b', 'E:\\Altro\\Nexora')], [{ nome: 'SierraDeck', proprietario: LA }])
-    expect(d.map((x) => x.ws)).toEqual(['a'])
+    const d = decidi([orch('a', 'E:/Lavori/sierraDECK/'), orch('b', 'E:\\Altro\\Nexora')], [{ nome: 'SierraDeck', proprietario: LA }], () => false)
+    expect(d.map((x) => [x.ws, x.motivo])).toEqual([['a', 'altro-pc'], ['b', 'cartella-mancante']])
     expect(nomeDiCartella('E:/Lavori/sierraDECK/')).toBe('sierradeck')
     expect(nomeDiCartella('C:\\Users\\n\\Progetti SierraDeck\\GLOS')).toBe('glos')
   })

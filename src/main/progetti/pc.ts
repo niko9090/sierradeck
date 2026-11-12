@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { copyFileSync, existsSync } from 'node:fs'
 import { join, relative, isAbsolute } from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { scriviAtomico } from '@shared/scrittura-atomica'
@@ -78,20 +78,74 @@ export function apriIdentitaPc(dati: string, deps: { nome: () => string; casa: (
     try { hostRicordato = deps.nome() } catch { return '' }
     return hostRicordato
   }
-  const leggiGrezza = (): Partial<IdentitaPc> => {
+  /**
+   * L'identità NON deve mai cambiare da sola (0.102.0). Prima, se `pc.json` non
+   * si leggeva (antivirus, file a zeri dopo uno spegnimento: è successo a
+   * `.git/config` l'11/11) si inventava un id nuovo e lo si scriveva sopra:
+   * da lì tutti i progetti di questo PC sembravano «di un PC sconosciuto» e
+   * partivano proposte di spostamento, rifiuti e archiviazioni.
+   *
+   * Ora: c'è una copia di riserva (`pc.json.riserva`), l'id letto una volta
+   * resta quello per tutta la sessione, e un id nuovo nasce solo quando non
+   * c'è proprio niente (prima accensione). Un file rovinato si mette da parte,
+   * non si sovrascrive.
+   */
+  const percorsoRiserva = `${percorso}.riserva`
+  const riserva = memoriaDiFile(percorsoRiserva, (t) => JSON.parse(t) as Record<string, unknown>)
+  let idDellaSessione: string | undefined
+  /** Gli ultimi dati buoni letti in questa sessione, per riscrivere un file rovinato. */
+  let ultimiBuoni: Partial<IdentitaPc> = {}
+  let daRiscrivere = false
+  type Lettura = { stato: 'ok'; dati: Partial<IdentitaPc> } | { stato: 'assente' } | { stato: 'illeggibile' }
+  const interpreta = (j: Record<string, unknown>): Partial<IdentitaPc> => ({
+    ...(typeof j.id === 'string' && j.id !== '' ? { id: j.id } : {}),
+    ...(typeof j.nome === 'string' ? { nome: j.nome } : {}),
+    ...(typeof j.nomeScelto === 'string' && nomeSceltoValido(j.nomeScelto) !== '' ? { nomeScelto: nomeSceltoValido(j.nomeScelto) } : {}),
+    ...(typeof j.cartellaProgetti === 'string' && j.cartellaProgetti !== '' ? { cartellaProgetti: j.cartellaProgetti } : {})
+  })
+  const leggiDa = (m: typeof memoria, nome: string): Lettura => {
     try {
-      const j = memoria.leggi()
-      if (j === undefined) return {}
-      return {
-        ...(typeof j.id === 'string' && j.id !== '' ? { id: j.id } : {}),
-        ...(typeof j.nome === 'string' ? { nome: j.nome } : {}),
-        ...(typeof j.nomeScelto === 'string' && nomeSceltoValido(j.nomeScelto) !== '' ? { nomeScelto: nomeSceltoValido(j.nomeScelto) } : {}),
-        ...(typeof j.cartellaProgetti === 'string' && j.cartellaProgetti !== '' ? { cartellaProgetti: j.cartellaProgetti } : {})
-      }
+      const j = m.leggi()
+      if (j === undefined) return { stato: 'assente' }
+      if (j === null || typeof j !== 'object') return { stato: 'illeggibile' }
+      const d = interpreta(j)
+      return d.id === undefined ? { stato: 'illeggibile' } : { stato: 'ok', dati: d }
     } catch (err) {
-      console.error('[progetti] pc.json illeggibile:', err)
-      return {}
+      console.error(`[progetti] ${nome} illeggibile:`, err)
+      return { stato: 'illeggibile' }
     }
+  }
+  /** Mette da parte un `pc.json` rovinato invece di scriverci sopra. */
+  const metteDaParte = (): void => {
+    try {
+      if (existsSync(percorso)) copyFileSync(percorso, `${percorso}.rovinato-${Date.now()}`)
+    } catch { /* se non si copia, pazienza: la riserva ha i dati buoni */ }
+  }
+  const leggiGrezza = (): Partial<IdentitaPc> => {
+    const principale = leggiDa(memoria, FILE_PC)
+    if (principale.stato === 'ok') {
+      ultimiBuoni = principale.dati
+      if (!existsSync(percorsoRiserva)) {
+        try { scriviAtomico(percorsoRiserva, JSON.stringify(principale.dati, null, 2), 'progetti') } catch { /* riprova la prossima volta */ }
+      }
+      return principale.dati
+    }
+    const r = leggiDa(riserva, `${FILE_PC}.riserva`)
+    if (r.stato === 'ok') {
+      // Si rimette a posto il principale dalla riserva.
+      if (principale.stato === 'illeggibile') metteDaParte()
+      try {
+        scriviAtomico(percorso, JSON.stringify(r.dati, null, 2), 'progetti')
+        memoria.dimentica()
+        console.warn(`[progetti] ${FILE_PC} ${principale.stato}: rimesso dalla riserva (id ${r.dati.id})`)
+      } catch { /* si usa comunque la riserva */ }
+      ultimiBuoni = r.dati
+      return r.dati
+    }
+    if (principale.stato === 'illeggibile') metteDaParte()
+    daRiscrivere = true
+    if (idDellaSessione !== undefined) return { ...ultimiBuoni, id: idDellaSessione }
+    return {}
   }
   /**
    * Su disco `nome` resta quello di sempre (l'hostname della prima volta) e
@@ -100,18 +154,24 @@ export function apriIdentitaPc(dati: string, deps: { nome: () => string; casa: (
    */
   const scrivi = (g: Partial<IdentitaPc> & { id: string; cartellaProgetti: string }): void => {
     const suDisco = { id: g.id, nome: g.nome ?? deps.nome(), cartellaProgetti: g.cartellaProgetti, ...(g.nomeScelto !== undefined && g.nomeScelto !== '' ? { nomeScelto: g.nomeScelto } : {}) }
-    scriviAtomico(percorso, JSON.stringify(suDisco, null, 2), 'progetti')
+    const testo = JSON.stringify(suDisco, null, 2)
+    scriviAtomico(percorso, testo, 'progetti')
     memoria.dimentica()
+    try { scriviAtomico(percorsoRiserva, testo, 'progetti'); riserva.dimentica() } catch { /* la riserva si rifà alla prossima lettura */ }
   }
 
   const leggi = (): IdentitaPc => {
     const g = leggiGrezza()
-    const id = g.id ?? randomBytes(6).toString('hex')
+    const id = idDellaSessione ?? g.id ?? randomBytes(6).toString('hex')
+    idDellaSessione = id
     const cartellaProgetti = deps.prova !== undefined && deps.prova !== ''
       ? cartellaProgettiDellaProva(deps.prova, g.cartellaProgetti)
       : g.cartellaProgetti ?? predefinita()
     // La prima volta si scrive, cosi' l'id resta quello.
-    if (g.id === undefined) scrivi({ ...g, id, cartellaProgetti })
+    if (g.id === undefined || g.id !== id || daRiscrivere) {
+      daRiscrivere = false
+      scrivi({ ...g, id, cartellaProgetti })
+    }
     let host = nomeHost()
     if (host === '') host = g.nome ?? ''
     return {

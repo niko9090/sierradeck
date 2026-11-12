@@ -5,12 +5,17 @@
  * restano in elenco e si riaccendono a ogni evento. Nicholas, 31/10: «pulizia
  * automatica su ogni PC, solo cose sicure».
  *
- * Un autopilota di workspace è un doppione su questo PC se la sua cartella:
- * 1. non c'è; oppure
- * 2. ha il nome (l'ultima parte del percorso, senza maiuscole) di un progetto
- *    del registro che ha per proprietario **un altro** PC, e nessun progetto
- *    con quel nome è di questo PC.
- * Un progetto che il registro non conosce (NexoraOS) non è mai un doppione.
+ * Un autopilota di workspace è un doppione su questo PC se la sua cartella
+ * non c'è. Prima (fino alla 0.101) bastava anche che la cartella avesse il
+ * nome di un progetto di un altro PC; ora il motivo «altro-pc» dice solo
+ * dove vive il progetto di una cartella che qui manca.
+ *
+ * 0.102.0 (Nicholas, 12/11: niente più spostamenti o archiviazioni che
+ * partono da sole): una cartella che c'è su questo PC **non è mai** un
+ * doppione, anche se un progetto con lo stesso nome vive altrove — i PC hanno
+ * gli stessi percorsi e il confronto sul nome archiviava autopiloti veri. E una
+ * cartella che manca conta solo se manca da `MANCA_DA_MS` di fila (un disco di
+ * rete giù per un minuto non archivia niente).
  *
  * Qui solo la decisione, pura: il servizio la usa e fa il resto (ferma,
  * archivia, mette nel recupero); il programma gli manda il registro.
@@ -47,6 +52,9 @@ export function nomeDiCartella(percorso: string): string {
 
 const nomeDiProgetto = (nome: string): string => nome.normalize('NFC').trim().toLowerCase()
 
+/** 0.102.0: da quanto una cartella deve mancare, di fila, prima di archiviare il suo autopilota. */
+export const MANCA_DA_MS = 24 * 60 * 60_000
+
 /** Quali autopiloti sono doppioni su questo PC. Pura; `giaFatti`: gli autopiloti già archiviati, che non si riguardano. */
 export function doppioniDaArchiviare(p: {
   orchestratori: OrchestratoreSulPc[]
@@ -54,6 +62,13 @@ export function doppioniDaArchiviare(p: {
   pcId: string
   esiste: (cartella: string) => boolean
   giaFatti?: ReadonlySet<string>
+  /**
+   * Da quando ogni autopilota ha la cartella mancante (lo tiene chi chiama, fra
+   * un giro e l'altro). Con questo, una cartella mancante conta solo dopo
+   * `MANCA_DA_MS` di fila; senza, subito (una domanda singola, non una pulizia).
+   */
+  assenze?: Map<string, number>
+  adesso?: number
 }): Doppione[] {
   // Senza sapere chi è questo PC non si decide niente: ogni progetto sembrerebbe di un altro.
   if (p.pcId.trim() === '') return []
@@ -68,10 +83,16 @@ export function doppioniDaArchiviare(p: {
   const fuori: Doppione[] = []
   for (const o of p.orchestratori) {
     if (p.giaFatti?.has(o.autopilota) === true || o.cwd.trim() === '') continue
-    if (!p.esiste(o.cwd)) { fuori.push({ ...o, motivo: 'cartella-mancante' }); continue }
+    if (p.esiste(o.cwd)) { p.assenze?.delete(o.autopilota); continue }
+    if (p.assenze !== undefined) {
+      const ora = p.adesso ?? Date.now()
+      const dal = p.assenze.get(o.autopilota)
+      if (dal === undefined) { p.assenze.set(o.autopilota, ora); continue }
+      if (ora - dal < MANCA_DA_MS) continue
+    }
     const n = nomeDiCartella(o.cwd)
     const di = altrui.get(n)
-    if (di !== undefined && !miei.has(n)) fuori.push({ ...o, motivo: 'altro-pc', pc: di })
+    fuori.push(di !== undefined && !miei.has(n) ? { ...o, motivo: 'altro-pc', pc: di } : { ...o, motivo: 'cartella-mancante' })
   }
   return fuori
 }

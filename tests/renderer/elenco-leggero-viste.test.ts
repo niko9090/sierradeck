@@ -10,7 +10,8 @@ const leggi = (p: string): string => readFileSync(p, 'utf8')
 
 describe('chi mostra la storia chiede l’autopilota intero', () => {
   it('la conversazione passa da `useAutopilotaIntero`', () => {
-    expect(leggi('src/renderer/components/ChatAutopilota.tsx')).toContain('const autopilota = useAutopilotaIntero(dellElenco)')
+    // 0.102.0: quello di qui si completa con `useAutopilotaIntero`; quello di un altro PC arriva già intero.
+    expect(leggi('src/renderer/components/ChatAutopilota.tsx')).toContain('useAutopilotaIntero(sorgente.remoto === undefined ? dellElenco : undefined)')
   })
   it('il preload e il main hanno il dettaglio, con la versione per non rimandarlo uguale', () => {
     expect(leggi('src/preload/index.ts')).toContain("ipcRenderer.invoke('autopilota:dettaglio', id, versione)")

@@ -45,33 +45,24 @@ export function passiDeiProgetti(d: {
     }
   }
 
+  /**
+   * 0.102.0 (Nicholas, 12/11: niente spostamenti che partono da soli): le copie
+   * di qui dei progetti di altri PC **non vanno più nel recupero da sole**. Il
+   * confronto era sul nome della cartella, e i PC hanno gli stessi percorsi:
+   * finivano nel recupero cartelle vere di questo PC. Ora si contano e basta;
+   * togliere una copia è una scelta di Nicholas (vista Progetti).
+   */
   const copie = passoDaFunzione({
     id: 'copie-altri-pc', titolo: 'Copie dei progetti di altri PC', fase: 'B', peso: 3,
     fai: async (c) => {
       const io = d.io()
-      const pulisci = d.pulisci()
-      if (io === undefined || pulisci === undefined) throw new RimandaPasso('la sincronia con il Drive non è ancora pronta')
+      if (io === undefined) throw new RimandaPasso('la sincronia con il Drive non è ancora pronta')
       const file = join(c.dati, FILE_PERCORSI_DI_PRIMA)
       let diPrima: Record<string, Record<string, string[]>> = {}
       try { diPrima = JSON.parse(readFileSync(file, 'utf8')) as typeof diPrima } catch { /* nessun percorso di prima */ }
       const lista = copieNonMie(apriRegistroProgetti(c.dati).leggi(), io, existsSync, diPrima)
-      let driveMuto = false
-      let i = 0
-      for (const x of lista) {
-        i += 1
-        c.avanza(i / (lista.length + 1))
-        const chiave = `copia:${x.percorso}`
-        if (c.fatto(chiave)) continue
-        const r = await pulisci({ progetto: { id: x.progetto.id, nome: x.progetto.nome }, percorso: x.percorso })
-        if (r.tipo === 'nel-recupero') { c.segna(chiave); c.log(`[riassetto] ${r.messaggio}`); continue }
-        // Drive muto o cartella in uso: si riprova; il resto è una scelta di Nicholas.
-        if (r.perche === 'drive' || r.perche === 'in-uso') { driveMuto = true; continue }
-        c.salta(x.percorso, r.messaggio)
-        c.segna(chiave)
-      }
-      if (driveMuto) throw new RimandaPasso('il Drive non risponde o una copia è in uso: riprovo più tardi')
-      c.sposta(file, { motivo: 'dove stavano i progetti prima del proprietario unico', etaMinimaMs: 0 })
-      return `${lista.length} copie di progetti di altri PC controllate`
+      for (const x of lista) c.log(`[riassetto] copia di qui di «${x.progetto.nome}» (vive su un altro PC): ${x.percorso} — resta dov’è`)
+      return `${lista.length} copie di progetti di altri PC: nessuna toccata`
     }
   })
 

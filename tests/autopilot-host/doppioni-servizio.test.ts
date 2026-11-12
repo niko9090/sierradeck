@@ -12,6 +12,7 @@ import type { AvviaProcesso } from '../../src/autopilot-host/orchestratore'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
 import { chiaveWorkspace } from '@shared/coda-richieste'
 import { orologioDa } from '../setup/orologio'
+import { MANCA_DA_MS } from '@shared/autopiloti-doppioni'
 
 /**
  * 31/10, «solo cose sicure»: il servizio archivia l'autopilota di un workspace
@@ -40,7 +41,10 @@ function unico(id: string, workspace: string, cwd: string): Autopilota {
   }
 }
 
+/** 0.102.0: di quanto spostare avanti l'orologio del servizio (le 24 ore delle cartelle mancanti). */
+let avanti = 0
 async function avviaServizio(autopiloti: Autopilota[]): Promise<void> {
+  avanti = 0
   const orologio = orologioDa('2026-10-31T08:00:00.000Z')
   radice = mkdtempSync(join(tmpdir(), 'sd-doppioni-'))
   archivio = apriArchivio(join(radice, 'autopiloti'))
@@ -64,7 +68,7 @@ async function avviaServizio(autopiloti: Autopilota[]): Promise<void> {
     domande: creaRegistroDomande({ adesso: orologio.ms }),
     ultimoDetto: () => undefined,
     scadenzaDomandaMs: 5000,
-    adesso: orologio.iso,
+    adesso: () => new Date(orologio.ms() + avanti).toISOString(),
     coda: code,
     orchestratori: orch,
     avviaProcesso: avvia,
@@ -82,80 +86,65 @@ const posta = async (corpo: unknown): Promise<{ stato: number; corpo: { archivia
 }
 
 describe('gli autopiloti doppioni nel servizio', () => {
-  it('progetto di un altro PC e cartella che non c’è: archiviati, cartella del workspace nel recupero, nessun processo; NexoraOS resta', async () => {
+  it('0.102.0: una cartella che c’è non si archivia mai; una che manca solo dopo 24 ore di fila, nel recupero, nessun processo', async () => {
     const righe: string[] = []
     vi.spyOn(console, 'info').mockImplementation((...a: unknown[]) => { righe.push(a.map(String).join(' ')) })
     vi.spyOn(console, 'log').mockImplementation(() => {})
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     const lavori = mkdtempSync(join(tmpdir(), 'sd-doppioni-lavori-'))
     const glos = join(lavori, 'GLOS')
-    const nexora = join(lavori, 'NexoraOS')
     mkdirSync(glos)
-    mkdirSync(nexora)
     writeFileSync(join(glos, 'leggimi.txt'), 'il progetto')
     await avviaServizio([
       unico('ap-glos', 'GLOS', glos),
-      unico('ap-nexora', 'NexoraOS', nexora),
       unico('ap-sito', 'Sito', join(lavori, 'Sito-che-non-c-e'))
     ])
-    const dirGlos = join(cartellaOrch, cartellaWorkspace('GLOS'))
-    expect(existsSync(dirGlos)).toBe(true)
+    const dirSito = join(cartellaOrch, cartellaWorkspace('Sito'))
+    const registroLa = { pcId: 'pc-qui', progetti: [{ nome: 'glos', proprietario: 'pc-la' }, { nome: 'Sito-che-non-c-e', proprietario: 'pc-la' }], nomiPc: { 'pc-la': 'Portatile' } }
 
-    const r = await posta({ pcId: 'pc-qui', progetti: [{ nome: 'glos', proprietario: 'pc-la' }, { nome: 'NexoraOS-altro', proprietario: 'pc-la' }], nomiPc: { 'pc-la': 'Portatile' } })
-    expect(r.stato).toBe(200)
+    // Primo giro: niente. GLOS c'è (anche se il registro lo dà al Portatile), Sito manca da poco.
+    const r1 = await posta(registroLa)
+    expect(r1.stato).toBe(200)
+    expect(r1.corpo.archiviati).toEqual([])
+
+    // 24 ore dopo, Sito manca ancora: si archivia. GLOS mai.
+    avanti = MANCA_DA_MS + 60_000
+    const r = await posta(registroLa)
     expect(r.corpo.errori).toEqual([])
-    expect(r.corpo.archiviati?.map((x) => x.ws).sort()).toEqual(['GLOS', 'Sito'])
-    expect(righe).toContain('[pulizia] autopilota di GLOS archiviato: il progetto vive su Portatile')
-    expect(righe.some((x) => x.startsWith('[pulizia] autopilota di Sito archiviato: la cartella'))).toBe(true)
+    expect(r.corpo.archiviati?.map((x) => x.ws)).toEqual(['Sito'])
+    expect(righe).toContain('[pulizia] autopilota di Sito archiviato: il progetto vive su Portatile')
+    expect(archivio.leggi('ap-sito')!.archiviato).toBe(true)
+    expect(archivio.leggi('ap-sito')!.stato).toBe('sospeso')
+    expect(archivio.leggi('ap-glos')!.archiviato).toBeUndefined()
+    expect(orch.impostazioni('GLOS').autopilota).toBe('ap-glos')
 
-    // L'autopilota: archiviato e fermo, con il perché.
-    const a = archivio.leggi('ap-glos')!
-    expect(a.archiviato).toBe(true)
-    expect(a.stato).toBe('sospeso')
-    expect(a.motivoSospensione).toBe('autopilota di GLOS archiviato: il progetto vive su Portatile')
-    expect(archivio.leggi('ap-nexora')!.archiviato).toBeUndefined()
-
-    // La cartella del workspace: spostata nel recupero (con il dialogo dentro), mai cancellata.
-    expect(existsSync(dirGlos)).toBe(false)
-    const dove = r.corpo.archiviati!.find((x) => x.ws === 'GLOS')!.dove!
-    expect(dove.startsWith(join(radice, 'recupero-riassetto', '0.88.9', 'servizio-doppioni'))).toBe(true)
-    expect(readFileSync(join(dove, 'dialogo.jsonl'), 'utf8')).toContain('la barra')
-    expect(existsSync(join(cartellaOrch, cartellaWorkspace('NexoraOS')))).toBe(true)
-
-    // La cartella del progetto non si tocca.
+    // La cartella del workspace di Sito: nel recupero, mai cancellata (se c'era).
+    const dove = r.corpo.archiviati![0]!.dove
+    if (dove !== undefined) expect(dove.startsWith(join(radice, 'recupero-riassetto', '0.88.9', 'servizio-doppioni'))).toBe(true)
+    if (dove !== undefined) expect(existsSync(dirSito)).toBe(false)
     expect(readFileSync(join(glos, 'leggimi.txt'), 'utf8')).toBe('il progetto')
-
-    // Non è più l'autopilota del workspace, non rinasce come «di prima», nessun processo partito.
-    expect(orch.impostazioni('GLOS').autopilota).toBeUndefined()
-    expect(server!.migraVecchi()).toBe(0)
-    expect(orch.impostazioni('GLOS').autopilota).toBeUndefined()
     expect(avviati).toBe(0)
 
     // Già archiviati: non si riguardano.
-    const di2 = await posta({ pcId: 'pc-qui', progetti: [{ nome: 'GLOS', proprietario: 'pc-la' }], nomiPc: {} })
+    const di2 = await posta(registroLa)
     expect(di2.corpo.archiviati).toEqual([])
-    expect(readdirSync(join(radice, 'recupero-riassetto', '0.88.9', 'servizio-doppioni')).filter((n) => n !== 'manifesto.json')).toHaveLength(2)
   })
 
-  it('un messaggio al workspace di un progetto di un altro PC non fa rinascere il doppione (0.89.0)', async () => {
+  it('0.102.0: un messaggio a un progetto con la cartella qui parte; con la cartella che manca no', async () => {
     vi.spyOn(console, 'info').mockImplementation(() => {})
     vi.spyOn(console, 'log').mockImplementation(() => {})
     const lavori = mkdtempSync(join(tmpdir(), 'sd-doppioni-lavori-'))
     const money = join(lavori, 'Money')
     mkdirSync(money)
-    await avviaServizio([unico('ap-money', 'Money', money)])
-    const r = await posta({ pcId: 'pc-qui', progetti: [{ nome: 'Money', proprietario: 'pc-la' }], nomiPc: { 'pc-la': 'LAPTOP' } })
-    expect(r.corpo.archiviati?.map((x) => x.ws)).toEqual(['Money'])
-    const m = await fetch(`http://127.0.0.1:${porta}/orchestratore/messaggio`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ testo: 'come va?', cwd: money, workspace: 'Money' }) })
-    expect(m.status).toBeGreaterThanOrEqual(400)
-    expect(JSON.stringify(await m.json())).toContain('vive su LAPTOP')
-    expect(orch.impostazioni('Money').autopilota).toBeUndefined()
-    expect(avviati).toBe(0)
-    // Un progetto di questo PC nasce come sempre.
-    const mio = join(lavori, 'Mio')
-    mkdirSync(mio)
-    const ok = await fetch(`http://127.0.0.1:${porta}/orchestratore/messaggio`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ testo: 'ciao', cwd: mio, workspace: 'Mio' }) })
-    expect(ok.status).toBe(200)
+    await avviaServizio([])
+    const r = await posta({ pcId: 'pc-qui', progetti: [{ nome: 'Money', proprietario: 'pc-la' }, { nome: 'Altrove', proprietario: 'pc-la' }], nomiPc: { 'pc-la': 'LAPTOP' } })
+    expect(r.corpo.archiviati).toEqual([])
+    const lontano = await fetch(`http://127.0.0.1:${porta}/orchestratore/messaggio`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ testo: 'come va?', cwd: join(lavori, 'Altrove'), workspace: 'Altrove' }) })
+    // Una cartella che qui non c'è non fa nascere niente (la convalida la ferma prima).
+    expect(lontano.status).toBeGreaterThanOrEqual(400)
+    // La cartella c'è su questo PC: l'autopilota nasce, anche se il registro la dà a LAPTOP.
+    const qui = await fetch(`http://127.0.0.1:${porta}/orchestratore/messaggio`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ testo: 'ciao', cwd: money, workspace: 'Money' }) })
+    expect(qui.status).toBe(200)
   })
 
   it('un disco staccato non è un progetto sparito: con la radice del disco assente, l’autopilota resta', async () => {

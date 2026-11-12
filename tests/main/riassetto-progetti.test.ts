@@ -47,30 +47,25 @@ describe('riassetto: un PC per ogni progetto', () => {
     expect(existsSync(join(dati, FILE_PERCORSI_DI_PRIMA))).toBe(true)
   })
 
-  it('fase B: la copia di un progetto di un altro PC passa da `pulisci`; Drive muto = si riprova', async () => {
+  it('0.102.0, fase B: la copia di qui di un progetto di un altro PC si conta e resta dov’è (mai `pulisci`)', async () => {
     const { dati, progetti } = datiFinti()
     const chieste: string[] = []
-    let risposta: EsitoPulizia['tipo'] | 'drive' = 'drive'
     const pulisci = async (p: { percorso: string }): Promise<EsitoPulizia> => {
       chieste.push(p.percorso)
-      return risposta === 'nel-recupero'
-        ? { tipo: 'nel-recupero', percorso: p.percorso, messaggio: 'nel recupero' }
-        : { tipo: 'tenuta', percorso: p.percorso, perche: 'drive', messaggio: 'il Drive non risponde' }
+      return { tipo: 'nel-recupero', percorso: p.percorso, messaggio: 'nel recupero' }
     }
     const [proprietari, copie] = passiDeiProgetti({ io: () => ({ id: 'pc-f', cartellaProgetti: progetti }), pulisci: () => pulisci })
     const c = contesto(dati)
     await proprietari!.esegui(c)
-    await expect(copie!.esegui(c)).rejects.toBeInstanceOf(RimandaPasso)
-    expect(chieste).toEqual([join(progetti, 'Trading')])
-    risposta = 'nel-recupero'
     await copie!.esegui(c)
-    expect(c.segni.has(`copia:${join(progetti, 'Trading')}`)).toBe(true)
-    expect(c.spostati).toContain(join(dati, FILE_PERCORSI_DI_PRIMA))
+    expect(chieste).toEqual([])
+    expect(existsSync(join(progetti, 'Trading'))).toBe(true)
+    expect(c.spostati).not.toContain(join(dati, FILE_PERCORSI_DI_PRIMA))
   })
 
-  it('fase B senza sincronia pronta: rimanda, non tocca niente', async () => {
-    const { dati, progetti } = datiFinti()
-    const [, copie] = passiDeiProgetti({ io: () => ({ id: 'pc-f', cartellaProgetti: progetti }), pulisci: () => undefined })
+  it('fase B senza l’identità del PC: rimanda, non tocca niente', async () => {
+    const { dati } = datiFinti()
+    const [, copie] = passiDeiProgetti({ io: () => undefined, pulisci: () => undefined })
     await expect(copie!.esegui(contesto(dati))).rejects.toBeInstanceOf(RimandaPasso)
   })
 })

@@ -9,13 +9,15 @@ describe('Panoramica: specialisti riletti a evento', () => {
   const src = readFileSync('src/renderer/components/ChatSpecialisti.tsx', 'utf8')
 
   it('si iscrive solo se la funzione esiste e toglie l’iscrizione alla chiusura', () => {
-    expect(src).toContain('window.gestore.autopilota.suSpecialistiCambiati?.(() => sond.rileggi())')
+    // 0.102.0: attraverso la sorgente (qui o un altro PC); quella di qui si iscrive solo se la funzione esiste.
+    expect(src).toContain('sorgente.suSpecialistiCambiati(() => sond.rileggi())')
+    expect(readFileSync('src/renderer/sorgente-autopilota.tsx', 'utf8')).toContain('window.gestore.autopilota.suSpecialistiCambiati?.(f)')
     // l'effetto torna direttamente la disdetta (undefined se la funzione manca)
-    expect(src).toMatch(/useEffect\(\(\) => window\.gestore\.autopilota\.suSpecialistiCambiati\?\.\(.*\), \[sond\]\)/)
+    expect(src).toMatch(/useEffect\(\(\) => sorgente\.suSpecialistiCambiati\(.*\), \[sond, sorgente\]\)/)
   })
 
   it('il controllo a intervalli resta', () => {
-    expect(src).toContain('sondaggioOrchestratore(workspace)')
+    expect(src).toContain('sondaggioOrchestratore(workspace, sorgente)')
     expect(src).toContain('setInterval(() => { if (document.visibilityState')
   })
 })

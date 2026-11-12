@@ -47,13 +47,13 @@ export type Stato = {
 }
 
 /** Legge dal PC remoto l'autopilota del workspace, ogni pochi secondi, finché il componente c'è. */
-export function useAutopilotaRemoto(pcId: string, workspace: string): { stato: Stato; rileggi: () => void } {
+export function useAutopilotaRemoto(pcId: string | undefined, workspace: string): { stato: Stato; rileggi: () => void } {
   const [stato, setStato] = useState<Stato>({ giu: false })
   const id = useRef<string | undefined>(undefined)
   const vivo = useRef(true)
   const inViaggio = useRef(false)
   const leggi = useCallback(async (): Promise<void> => {
-    if (inViaggio.current) return
+    if (inViaggio.current || pcId === undefined) return
     inViaggio.current = true
     try {
       if (id.current === undefined) {
@@ -83,10 +83,11 @@ export function useAutopilotaRemoto(pcId: string, workspace: string): { stato: S
     vivo.current = true
     id.current = undefined
     setStato({ giu: false })
+    if (pcId === undefined) return () => { vivo.current = false }
     void leggi()
     const t = setInterval(() => { void leggi() }, RILEGGI_CHAT_MS)
     return () => { vivo.current = false; clearInterval(t) }
-  }, [leggi])
+  }, [leggi, pcId])
   return { stato, rileggi: () => { void leggi() } }
 }
 

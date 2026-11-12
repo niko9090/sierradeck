@@ -9,6 +9,7 @@ import { conversazione, haDomandaAperta, staPensando } from '@shared/chat-autopi
 import { separaConversazione } from '@shared/panoramica'
 import { CampoChatAutopilota } from './CampoChatAutopilota'
 import { useAutopilotaIntero } from '../state/autopilota-intero'
+import { useSorgente } from '../sorgente-autopilota'
 
 /**
  * La chat con l'autopilota del workspace (30/10: uno solo per workspace,
@@ -39,7 +40,10 @@ export function ChatAutopilota({
   campoPronto?: boolean
 }): React.JSX.Element {
   // La storia intera (0.85.2): l'elenco ne porta solo la coda.
-  const autopilota = useAutopilotaIntero(dellElenco)
+  const sorgente = useSorgente()
+  // Dal PC remoto l'autopilota arriva già intero (`/api/autopilota`); quello di qui si completa qui.
+  const intero = useAutopilotaIntero(sorgente.remoto === undefined ? dellElenco : undefined)
+  const autopilota = intero ?? dellElenco
   const flusso = useRef<HTMLDivElement | null>(null)
 
   // La conversazione si ricalcola solo quando l'autopilota cambia davvero: con
@@ -95,12 +99,13 @@ export function ChatAutopilota({
           ) : null}
         </div>
       ) : null}
-      <FlussoChat battute={battute} nome={autopilota.nome} pensa={pensa} domanda={domanda} onCambiato={onCambiato} flusso={flusso} />
+      <FlussoChat battute={battute} nome={autopilota.nome} pensa={pensa} domanda={domanda} onCambiato={onCambiato} flusso={flusso} rispondi={sorgente.rispondi} />
 
       <CampoChatAutopilota
-        autopilotaId={autopilota.id}
+        autopilotaId={sorgente.remoto !== undefined ? `${sorgente.remoto.pcId}:${autopilota.id}` : autopilota.id}
         onCambiato={onCambiato}
         campoPronto={campoPronto}
+        {...(sorgente.remoto !== undefined ? { invia: (testo: string) => sorgente.dialoga(autopilota.id, testo) } : {})}
       />
     </section>
   )

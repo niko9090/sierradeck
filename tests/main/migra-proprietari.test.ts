@@ -62,7 +62,7 @@ describe('il proprietario per nome', () => {
     expect(pcDellaTabella('HomeAssistant')).toBe('PC-Fisso')
     expect(pcDellaTabella('Home assistant')).toBe('DESKTOP-G24D499')
     expect(pcDellaTabella('gen')).toBe('PC-Fisso')
-    expect(pcDellaTabella('Mai visto')).toBe('PC-Fisso')
+    expect(pcDellaTabella('Mai visto')).toBe('')
   })
   it('il NB-PROBOOK-TEC non possiede niente', () => {
     expect(Object.keys(TABELLA_PROPRIETARI.proprietari)).not.toContain('NB-PROBOOK-TEC')
@@ -71,7 +71,8 @@ describe('il proprietario per nome', () => {
       { id: 'b', nome: 'Money', percorsi: { 'pc-p': 'D:\\Lavori\\Money' } }
     ])
     const e = migraAProprietari(r, TUTTI, TABELLA_PROPRIETARI, { adesso: ADESSO })
-    expect(e.registro.progetti.map((p) => p.proprietario)).toEqual(['pc-f', 'pc-l'])
+    // 0.102.0: «Ignoto» non è nella tabella: non va più al PC fisso (che non ha la cartella), resta com'è.
+    expect(e.registro.progetti.map((p) => p.proprietario)).toEqual([undefined, 'pc-l'])
     expect(e.registro.progetti.some((p) => p.proprietario === 'pc-p')).toBe(false)
   })
   it('i PC si riconoscono per nome mostrato, hostname o nome scelto', () => {

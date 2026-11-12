@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { RigaSpecialista, VistaOrchestratore } from '@shared/piano-orchestratore'
 import { useSondaggio } from '../state/sondaggio'
 import { sondaggioOrchestratore } from './TestaOrchestratore'
+import { useSorgente } from '../sorgente-autopilota'
 
 /**
  * Le chat degli specialisti, da guardare (0.90.0).
@@ -43,10 +44,11 @@ function ChatSpecialista({ workspace, s }: { workspace: string; s: Specialista }
   const corpo = useRef<HTMLDivElement>(null)
   const inFondo = useRef(true)
   const alLavoroOra = alLavoro(s)
+  const sorgente = useSorgente()
   useEffect(() => {
     let vivo = true
     const leggi = (): void => {
-      void window.gestore.autopilota.specialista(workspace, s.id)
+      void sorgente.specialista(workspace, s.id)
         .then((t) => { if (vivo && t !== undefined) setRighe(t.righe) })
         .catch(() => undefined)
     }
@@ -54,7 +56,7 @@ function ChatSpecialista({ workspace, s }: { workspace: string; s: Specialista }
     if (!alLavoroOra) return () => { vivo = false }
     const t = setInterval(() => { if (document.visibilityState === 'visible') leggi() }, RILEGGI_MS)
     return () => { vivo = false; clearInterval(t) }
-  }, [workspace, s.id, alLavoroOra])
+  }, [workspace, s.id, alLavoroOra, sorgente])
   // Segue il fondo, come una chat: se scorri su a rileggere, non ti riporta giù.
   useEffect(() => {
     const el = corpo.current
@@ -85,10 +87,11 @@ function ChatSpecialista({ workspace, s }: { workspace: string; s: Specialista }
 /** Le chat degli specialisti del workspace; niente se non ce n'è nessuno in vista. */
 /** `pieno`: nel workspace non ci sono altre chat, e gli specialisti prendono tutto lo spazio (non una colonna accanto al vuoto). */
 export function ChatSpecialisti({ workspace, colonna = false, pieno = false }: { workspace: string; colonna?: boolean; pieno?: boolean }): React.JSX.Element | null {
-  const sond = useMemo(() => sondaggioOrchestratore(workspace), [workspace])
+  const sorgente = useSorgente()
+  const sond = useMemo(() => sondaggioOrchestratore(workspace, sorgente), [workspace, sorgente])
   const v = useSondaggio(sond)
   // Spinta a evento: la Panoramica rilegge appena uno specialista parte o finisce; il giro resta come rete.
-  useEffect(() => window.gestore.autopilota.suSpecialistiCambiati?.(() => sond.rileggi()), [sond])
+  useEffect(() => sorgente.suSpecialistiCambiati(() => sond.rileggi()), [sond, sorgente])
   const [ora, setOra] = useState(() => Date.now())
   useEffect(() => { const t = setInterval(() => setOra(Date.now()), 30_000); return () => clearInterval(t) }, [])
   const lista = specialistiInVista(v, ora)

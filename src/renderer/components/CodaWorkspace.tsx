@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useSorgente, type SorgenteAutopilota } from '../sorgente-autopilota'
 import { PAROLA_STATO_CODA, unite, type ComeChiusa, type Richiesta, type StatoCoda, type VistaCoda } from '@shared/coda-richieste'
 import { giornoDi } from '@shared/coda-richieste'
 import { creaSondaggio, useSondaggio, type Sondaggio } from '../state/sondaggio'
@@ -18,12 +19,13 @@ import { Aiuto } from './Aiuto'
 const RILETTURA_MS = 10_000
 
 const sondaggi = new Map<string, Sondaggio<VistaCoda | undefined>>()
-function sondaggioDi(ws: string): Sondaggio<VistaCoda | undefined> {
-  let s = sondaggi.get(ws)
+function sondaggioDi(ws: string, sorgente: SorgenteAutopilota): Sondaggio<VistaCoda | undefined> {
+  const k = `${sorgente.chiave}|${ws}`
+  let s = sondaggi.get(k)
   if (s === undefined) {
     // `Infinity`: a finestra nascosta non si rilegge affatto; torna davanti, rilegge subito.
-    s = creaSondaggio(() => window.gestore.autopilota.coda(ws), RILETTURA_MS, Infinity)
-    sondaggi.set(ws, s)
+    s = creaSondaggio(() => sorgente.coda(ws), RILETTURA_MS, Infinity)
+    sondaggi.set(k, s)
   }
   return s
 }
@@ -54,7 +56,8 @@ export function CodaWorkspace({ workspace }: { workspace: string }): React.JSX.E
 }
 
 function CodaAperta({ workspace }: { workspace: string }): React.JSX.Element {
-  const s = useMemo(() => sondaggioDi(workspace), [workspace])
+  const sorgente = useSorgente()
+  const s = useMemo(() => sondaggioDi(workspace, sorgente), [workspace, sorgente])
   const vista = useSondaggio(s)
   const [errore, setErrore] = useState<string | undefined>(undefined)
   const [fatteAperte, setFatteAperte] = useState(false)
@@ -63,7 +66,9 @@ function CodaAperta({ workspace }: { workspace: string }): React.JSX.Element {
   const fatte = vista.richieste.filter((r) => r.stato === 'fatta')
   const separa = (id: string): void => {
     setErrore(undefined)
-    window.gestore.autopilota.codaSepara(workspace, id)
+    const separaLa = sorgente.codaSepara
+    if (separaLa === undefined) { setErrore(`si separa su ${sorgente.remoto?.pcNome ?? 'quel PC'}`); return }
+    separaLa(workspace, id)
       .then(() => s.rileggi())
       .catch((e: unknown) => setErrore(String(e instanceof Error ? e.message : e)))
   }

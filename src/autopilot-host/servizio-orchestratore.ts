@@ -1885,7 +1885,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     // 0.89.0: un messaggio a un workspace il cui progetto vive su un altro PC non fa
     // rinascere l’autopilota doppione appena archiviato: si dice dove scrivere.
     if (gia === undefined && loro.length === 0 && ultimoRegistro !== undefined) {
-      const [d] = doppioniDaArchiviare({ orchestratori: [{ ws, autopilota: '', cwd }], progetti: ultimoRegistro.progetti, pcId: ultimoRegistro.pcId, esiste: () => true })
+      const [d] = doppioniDaArchiviare({ orchestratori: [{ ws, autopilota: '', cwd }], progetti: ultimoRegistro.progetti, pcId: ultimoRegistro.pcId, esiste: esisteCartella })
       if (d?.motivo === 'altro-pc') {
         const dove = (d.pc !== undefined ? ultimoRegistro.nomiPc[d.pc] : undefined) ?? 'un altro PC'
         return { ok: false, motivo: `il progetto di «${ws}» vive su ${dove}: scrivi all’autopilota di quel PC (da qui lo raggiungi dal vivo o con la posta)` }
@@ -2546,6 +2546,8 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
    * workspace (coda, piano, dialogo) va nel recupero; quella del progetto non
    * si tocca mai.
    */
+  /** 0.102.0: da quando ogni autopilota ha la cartella mancante (si archivia solo dopo `MANCA_DA_MS` di fila). */
+  const cartelleAssenti = new Map<string, number>()
   const archiviaDoppioni = (r: RichiestaDoppioni): EsitoDoppioni => {
     ultimoRegistro = r
     const esito: EsitoDoppioni = { archiviati: [], errori: [] }
@@ -2556,7 +2558,8 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       // Un disco staccato (una chiavetta, un disco esterno) non è un progetto sparito: se manca
       // la radice del disco, la cartella conta come presente e l’autopilota resta com’è.
       orchestratori, progetti: r.progetti, pcId: r.pcId, esiste: (c) => esisteCartella(c) || !esisteCartella(parse(c).root),
-      ...(x.doppioni !== undefined ? { giaFatti: x.doppioni.fatti() } : {})
+      ...(x.doppioni !== undefined ? { giaFatti: x.doppioni.fatti() } : {}),
+      assenze: cartelleAssenti, adesso: Date.parse(x.adesso())
     })
     for (const d of doppioni) {
       try {

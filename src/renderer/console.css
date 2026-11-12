@@ -5145,3 +5145,7 @@ label.gc-voce { cursor: pointer; }
 .chatap__pensa--giu { color: var(--ambra); }
 .pan-colonna--remota { flex: 0 0 320px; }
 .colspec-remota { flex: 0 0 280px; display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow: auto; padding: 4px 6px; border-right: 1px solid var(--bordo); }
+
+/* 0.102.0: il solo segno di un workspace che vive su un altro PC; il resto è identico a come lo si vede là. */
+.segno-remoto { display: flex; align-items: center; gap: 6px; padding: 4px 10px; font-size: 11px; font-weight: 600; letter-spacing: .02em; color: var(--blu, #4aa3ff); background: color-mix(in srgb, var(--blu, #4aa3ff) 10%, transparent); border-bottom: 1px solid var(--bordo); }
+.segno-remoto__punto { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: 0 0 auto; }

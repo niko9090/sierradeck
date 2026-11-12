@@ -31,7 +31,7 @@ import { FILE_PC } from './pc'
  * solo posto con questi nomi: niente id, niente percorsi.
  */
 export const TABELLA_PROPRIETARI: {
-  /** Dove va un progetto che la tabella non nomina. */
+  /** Non più usato dalla 0.102.0 (un progetto che la tabella non nomina resta com'è). */
   predefinito: string
   /** PC → i nomi dei suoi progetti. */
   proprietari: Record<string, string[]>
@@ -103,7 +103,9 @@ function nomiDellaTabella(t: TabellaProprietari): Set<string> {
 export function pcDellaTabella(nome: string, t: TabellaProprietari = TABELLA_PROPRIETARI): string {
   const n = nomeNormale(t.alias[nome] ?? Object.entries(t.alias).find(([a]) => nomeNormale(a) === nomeNormale(nome))?.[1] ?? nome)
   for (const [pc, nomi] of Object.entries(t.proprietari)) if (nomi.some((x) => nomeNormale(x) === n)) return pc
-  return t.predefinito
+  // 0.102.0: un progetto che la tabella non nomina non va più da solo al PC
+  // predefinito (lo si toglieva al PC dove sta davvero): resta com'è.
+  return ''
 }
 
 /** Il PC con quel nome fra quelli noti (nome mostrato, hostname o nome scelto). */
@@ -230,6 +232,10 @@ export function migraAProprietari(
     let pcNome = proprietario !== undefined ? (pcNoti.find((x) => x.id === proprietario)?.nome ?? proprietario) : ''
     if (proprietario === undefined) {
       pcNome = pcDellaTabella(capo.nome, tabella)
+      if (pcNome === '') {
+        progetti.push(altri.length > 0 ? { ...capo, vecchio: unisciVecchi(gruppo) } : capo)
+        continue
+      }
       const pc = pcPerNome(pcNome, pcNoti)
       if (pc === undefined) {
         // Il PC della tabella non si conosce ancora (nessun battito): la voce

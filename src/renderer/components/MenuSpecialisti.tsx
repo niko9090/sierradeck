@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useSorgente } from '../sorgente-autopilota'
 import type { MossaAttesa, VistaAttesa } from '@shared/attesa-specialisti'
 import { menuSpecialisti, type RigaMenuSpecialisti } from '@shared/menu-specialisti'
 import { Aiuto } from './Aiuto'
@@ -97,15 +98,16 @@ export function MenuSpecialisti({ riferimenti }: { riferimenti: string[] }): Rea
     if (v === undefined) return
     setVista((prima) => (JSON.stringify(prima) === JSON.stringify(v) ? prima : v))
   }, [])
+  const sorgente = useSorgente()
   const rileggi = useCallback((): void => {
-    window.gestore.autopilota.attesaSpecialisti().then(metti).catch(() => undefined)
-  }, [metti])
+    sorgente.attesa().then(metti).catch(() => undefined)
+  }, [metti, sorgente])
   useEffect(() => {
     rileggi()
     const t = setInterval(rileggi, aperto ? RILETTURA_APERTO_MS : RILETTURA_CHIUSO_MS)
-    const spinta = window.gestore.autopilota.suSpecialistiCambiati?.(rileggi)
+    const spinta = sorgente.suSpecialistiCambiati(rileggi)
     return () => { clearInterval(t); spinta?.() }
-  }, [aperto, rileggi])
+  }, [aperto, rileggi, sorgente])
   useEffect(() => {
     if (!aperto) return
     const suTasto = (e: KeyboardEvent): void => { if (e.key === 'Escape') setAperto(false) }
@@ -117,7 +119,7 @@ export function MenuSpecialisti({ riferimenti }: { riferimenti: string[] }): Rea
   const etichetta = vista === undefined ? 'Specialisti' : menuSpecialisti(vista, riferimenti).etichetta
   const mossa = (id: string, m: MossaAttesa): void => {
     setDaFermare(undefined)
-    void window.gestore.autopilota.prioritaAttesa(id, m).then((v) => { if (v === undefined) rileggi(); else metti(v) }).catch(() => rileggi())
+    void sorgente.priorita(id, m).then((v) => { if (v === undefined) rileggi(); else metti(v) }).catch(() => rileggi())
   }
   return (
     <div className="menuspec" ref={radice}>
