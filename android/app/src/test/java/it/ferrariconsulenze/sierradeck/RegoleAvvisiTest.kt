@@ -30,7 +30,9 @@ class RegoleAvvisiTest {
     fun `un canale nuovo per tipo, i vecchi da cancellare`() {
         assertEquals(listOf("domande-2", "fermo", "fatto", "sapere"), listOf("domanda", "fermo", "fatto", "sapere").map { RegoleAvvisi.canale(it) })
         assertEquals("sapere", RegoleAvvisi.canale("sconosciuto"))
-        assertEquals(listOf("domande", "presenza"), RegoleAvvisi.CANALI_VECCHI)
+        assertEquals(listOf("domande", "presenza", "ascolto"), RegoleAvvisi.CANALI_VECCHI)
+        // App 3.0.2: la riga fissa visibile se ne va con il suo canale; quella nuova è invisibile.
+        assertEquals("ascolto-nascosto", RegoleAvvisi.CANALE_ASCOLTO)
     }
 
     @Test

@@ -53,8 +53,8 @@ import java.util.concurrent.TimeUnit
  * di tempo e chiede solo uno dei permessi di rete, che l'app ha già
  * (`CHANGE_WIFI_MULTICAST_STATE`).
  *
- * Il prezzo è una riga fissa, al minimo e muta: «Nascondi la riga» apre le
- * impostazioni del suo canale, dove la si spegne senza fermare l'ascolto.
+ * Android vuole una notifica per il servizio: dall'app 3.0.2 sta su un canale
+ * invisibile (Nicholas, 12/11: niente righe fisse), e l'ascolto continua.
  */
 object Ascolto {
     private val _stato = MutableStateFlow(StatoAscolto())

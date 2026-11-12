@@ -68,9 +68,13 @@ object RegoleAvvisi {
     const val CANALE_FERMO = "fermo"
     const val CANALE_FATTO = "fatto"
     const val CANALE_SAPERE = "sapere"
-    const val CANALE_ASCOLTO = "ascolto"
-    /** I canali di prima, da cancellare: `domande` (tutto insieme) e `presenza` (la riga del controllo continuo). */
-    val CANALI_VECCHI = listOf("domande", "presenza")
+    /**
+     * App 3.0.2 (Nicholas, 12/11: «le notifiche fisse non le voglio»): un canale nuovo, invisibile.
+     * L'importanza di un canale non si cambia dopo averlo creato: per questo l'id è nuovo.
+     */
+    const val CANALE_ASCOLTO = "ascolto-nascosto"
+    /** I canali di prima, da cancellare: `domande` (tutto insieme), `presenza` (la riga del controllo continuo), `ascolto` (la riga fissa visibile). */
+    val CANALI_VECCHI = listOf("domande", "presenza", "ascolto")
 
     /** Due avvisi a meno di 20 s: suona solo il primo (lo fa anche il PC; qui per un pacco arrivato insieme). */
     const val SUONI_VICINI_MS = 20_000L

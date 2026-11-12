@@ -109,7 +109,7 @@ fun VistaNotifiche(
                     Text(riga.testo, color = if (riga.buona) Banco.verde else Banco.ambra, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                     Aiuto(
                         "Il telefono resta in ascolto del computer anche ad app chiusa: un avviso arriva in un paio di secondi. " +
-                            "Per farlo Android vuole una riga fissa nelle notifiche: la puoi nascondere dalle impostazioni del canale «In ascolto», l’ascolto continua.",
+                            "Non c’è nessuna riga fissa nelle notifiche: si vedono solo gli avvisi veri.",
                         di = "Avvisi"
                     )
                 }

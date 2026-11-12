@@ -7,7 +7,6 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.RemoteInput
@@ -53,7 +52,10 @@ object Avvisatore {
         canale(RegoleAvvisi.CANALE_FERMO, "Lavoro fermo", NotificationManager.IMPORTANCE_HIGH, "Un lavoro fermo che non riparte da solo.")
         canale(RegoleAvvisi.CANALE_FATTO, "Fatto", NotificationManager.IMPORTANCE_DEFAULT, "Una tua richiesta finita.")
         canale(RegoleAvvisi.CANALE_SAPERE, "Da sapere", NotificationManager.IMPORTANCE_DEFAULT, "«Ho scelto io», una versione pronta, un file per il telefono.")
-        canale(RegoleAvvisi.CANALE_ASCOLTO, "In ascolto", NotificationManager.IMPORTANCE_MIN, "La riga che tiene l'app in ascolto del computer. Si può nascondere: l'ascolto continua.", muto = true)
+        // App 3.0.2: la riga che Android chiede per l'ascolto non si vede. Da Android 13 un canale spento non ferma il servizio;
+        // prima si tiene al minimo (muta, in fondo), per non rischiare che Android rifiuti di avviare l'ascolto.
+        val invisibile = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) NotificationManager.IMPORTANCE_NONE else NotificationManager.IMPORTANCE_MIN
+        canale(RegoleAvvisi.CANALE_ASCOLTO, "In ascolto", invisibile, "Il servizio che tiene l'app in ascolto del computer. Non mostra niente: gli avvisi arrivano sui loro canali.", muto = true)
         for (vecchio in RegoleAvvisi.CANALI_VECCHI) try { g.deleteNotificationChannel(vecchio) } catch (_: Exception) { }
     }
 
@@ -160,7 +162,7 @@ object Avvisatore {
     }
 
     fun inInvio(c: Context, tag: String, titolo: String, testo: String) =
-        riga(c, tag, RegoleAvvisi.CANALE_DOMANDE, titolo, "Mando «${testo.take(60)}»…", inCorso = true)
+        riga(c, tag, RegoleAvvisi.CANALE_DOMANDE, titolo, "Mando «${testo.take(60)}»…")
 
     /** La domanda intera con la risposta sotto (0.84.0), poi sparisce da sola. */
     fun risposto(c: Context, tag: String, titolo: String, domanda: String, testo: String) =
@@ -184,16 +186,8 @@ object Avvisatore {
         }
     }
 
-    /** La riga fissa del servizio: minima, muta, con «Nascondi la riga». */
+    /** La notifica che Android vuole per il servizio d'ascolto: sul canale invisibile (app 3.0.2), quindi non si vede. */
     fun rigaAscolto(c: Context, testo: String): Notification {
-        val nascondi = PendingIntent.getActivity(
-            c, 1,
-            Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
-                .putExtra(Settings.EXTRA_APP_PACKAGE, c.packageName)
-                .putExtra(Settings.EXTRA_CHANNEL_ID, RegoleAvvisi.CANALE_ASCOLTO)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
         return NotificationCompat.Builder(c, RegoleAvvisi.CANALE_ASCOLTO)
             .setSmallIcon(R.drawable.ic_notifica)
             .setColor(COLORE)
@@ -204,7 +198,6 @@ object Avvisatore {
             .setShowWhen(false)
             .setOngoing(true)
             .setContentIntent(apriApp(c))
-            .addAction(R.drawable.ic_notifica, "Nascondi la riga", nascondi)
             .build()
     }
 

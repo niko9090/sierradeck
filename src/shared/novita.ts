@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.103.1',
+    righe: [
+      '**App Android 3.0.2: niente più righe fisse nelle notifiche.** La riga «In ascolto» non si vede più: l’app resta collegata al computer e gli avvisi arrivano subito come prima. Anche «Mando…» mentre una risposta parte si toglie con un dito.',
+    ],
+  },
+  {
     versione: '0.103.0',
     righe: [
       '**Gli altri PC prestano i loro posti:** quando un autopilota lancia uno sviluppatore e un altro tuo PC ha un posto libero, il lavoro va là. Il progetto viaggia sul collegamento sicuro fra i PC (niente GitHub, niente Drive), lo specialista lavora in una copia sua e il ramo torna qui, dove il programma lo prova e lo unisce come sempre. A destra lo vedi con «su <nome del PC>».',
