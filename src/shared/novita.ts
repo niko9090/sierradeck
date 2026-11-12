@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.102.0',
+    righe: [
+      '**I workspace degli altri PC si vedono come là:** autopilota, barra di avanzamento, coda, menu degli specialisti e le loro chat a destra sono gli stessi di quel PC. In più c’è solo la scritta «Workspace remoto · su <PC>». Quello che scrivi o rispondi va là.',
+      '**Si apre anche senza chat:** un workspace di un altro PC si apre anche se là non ha chat aperte, con il suo autopilota. Prima ti diceva di spostare il progetto.',
+      '**Niente più spostamenti da soli:** il programma non sposta, non archivia e non mette nel recupero progetti o autopiloti di testa sua. Una cartella che c’è su questo PC resta di questo PC; un autopilota si archivia solo se la sua cartella manca da 24 ore di fila. «Sposta su questo PC» resta un tasto che premi tu.',
+      '**Il PC non dimentica chi è:** se il file con l’identità del PC si rovina, si riprende da una copia di riserva. Prima diventava un PC nuovo e i suoi progetti sembravano di uno sconosciuto.',
+    ],
+  },
+  {
     versione: '0.101.1',
     righe: [
       '**App Android 3.0.1:** correzioni di visualizzazione, le schermate ora si leggono bene su tutti i telefoni.',
