@@ -6,7 +6,8 @@ import { nuovoAutopilota, type Autopilota, type ChatGovernata } from '@shared/au
 import { apriArchivio, type Archivio } from '../../src/autopilot-host/archivio'
 import {
   accorciaRegistro, autopulizia, chatNote, compatta, creaAutopulizia, decidiCopia, decidiRamo, decidiRamoAgente, leggiWorktreeList, pesoCartella,
-  rigaRiepilogo, staccaCollegamenti, tagliaCoda, togliCartellaCopia, esitoVuoto, TENUTA_FILE_IN_USO, type CopiaSuDisco
+  rigaRiepilogo, staccaCollegamenti, tagliaCoda, togliCartellaCopia, esitoVuoto, TENUTA_FILE_IN_USO, type CopiaSuDisco,
+  copiatoNelPrincipale, RAMO_COPIATO
 } from '../../src/autopilot-host/autopulizia'
 import { comeAsincrono, creaWorktree, gitReale, type Git } from '../../src/autopilot-host/worktree'
 import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/server'
@@ -138,12 +139,19 @@ describe('su disco, con un git finto', () => {
     headDi?: Record<string, string>
     /** Chiamato a ogni `git status` (per cambiare l'archivio durante il giro). */
     suStatus?: (cwd: string) => void
+    /** 12/11: i rami (o gli HEAD) le cui modifiche sono già nel principale con rebase o cherry-pick. */
+    copiati?: string[]
+    /** 12/11: le cartelle dove `git status` non riesce (il worktree a cui puntavano non c'è più). */
+    statusRotto?: string[]
   } = {}): { git: Git; chiamate: string[] } => {
     const chiamate: string[] = []
     const git: Git = (args, cwd) => {
       const a = args.join(' ')
       chiamate.push(a)
       if (a === 'status --porcelain') p.suStatus?.(cwd)
+      if (a === 'status --porcelain' && (p.statusRotto ?? []).includes(cwd)) return { codice: 128, uscita: 'fatal: not a git repository' }
+      if (args[0] === 'rev-list' && args[1] === '--count') return { codice: 0, uscita: '1\n' }
+      if (args[0] === 'cherry') return { codice: 0, uscita: (p.copiati ?? []).includes(args[2]!) ? '- abc123\n' : '+ abc123\n' }
       if (a === 'rev-parse --verify --quiet HEAD') {
         const h = p.headDi?.[cwd]
         return h !== undefined ? { codice: 0, uscita: h } : { codice: 1, uscita: '' }
@@ -414,6 +422,71 @@ describe('su disco, con un git finto', () => {
       const { git } = gitFinto({ headDi: { [d]: 'h1' } })
       await autopulizia({ archivio, git: comeAsincrono(git), ora: DOPO, agentiAlLavoro: () => false, copieVive: () => undefined })
       expect(existsSync(d)).toBe(true)
+    })
+
+    it('12/11, la regola: un ramo arrivato nel principale con rebase o cherry-pick si toglie, con le stesse cautele', () => {
+      const base = { corrente: 'main', inUso: new Set<string>(), vive: new Set<string>(), citati: new Set<string>(), unito: false }
+      expect(decidiRamoAgente('worktree-agent-a1', { ...base, copiato: true })).toEqual({ ramo: 'worktree-agent-a1', togli: true, perche: RAMO_COPIATO })
+      expect(decidiRamoAgente('worktree-agent-a1', { ...base, copiato: false }).perche).toBe('commit non uniti')
+      expect(decidiRamoAgente('worktree-agent-a1', { ...base, copiato: true, inUso: new Set(['worktree-agent-a1']) }).togli).toBe(false)
+      expect(decidiRamoAgente('worktree-agent-a1', { ...base, copiato: true, vive: new Set(['agent-a1']) }).togli).toBe(false)
+      expect(decidiRamoAgente('worktree-agent-a1', { ...base, copiato: true, citati: new Set(['worktree-agent-a1']) }).togli).toBe(false)
+      expect(decidiRamoAgente('ap/ap-1/c-1', { ...base, copiato: true }).togli).toBe(false)
+    })
+
+    it('12/11, rami: quello copiato nel principale va via (con -D, solo lui); quello con modifiche sue resta', async () => {
+      archivio.scrivi(autopilota({ id: 'ap-1', cwd: progetto }))
+      const { git, chiamate } = gitFinto({
+        rami: ['worktree-agent-a1', 'worktree-agent-a2', 'worktree-agent-a3'],
+        nonUniti: ['worktree-agent-a1', 'worktree-agent-a2'],
+        copiati: ['worktree-agent-a1']
+      })
+      const e = await autopulizia({ archivio, git: comeAsincrono(git), ora: DOPO, copieVive: () => new Set(), ramiCitati: () => new Set() })
+      expect(chiamate.filter((c) => c.startsWith('branch '))).toEqual(['branch -D worktree-agent-a1', 'branch -d worktree-agent-a3'])
+      expect(e.ramiTolti).toBe(2)
+    })
+
+    it('12/11, copie: quella di uno specialista unita con cherry-pick va via; quella con modifiche non salvate resta', async () => {
+      const copiata = agente('agent-5')
+      const sporca = agente('agent-6')
+      archivio.scrivi(autopilota({ id: 'ap-1', cwd: progetto }))
+      const { git } = gitFinto({ headDi: { [copiata]: 'h5', [sporca]: 'h6' }, nonUniti: ['h5', 'h6'], copiati: ['h5', 'h6'], sporche: [sporca] })
+      await autopulizia({ archivio, git: comeAsincrono(git), ora: DOPO, copieVive: () => new Set() })
+      expect(existsSync(copiata)).toBe(false)
+      expect(existsSync(sporca)).toBe(true)
+    })
+
+    it('12/11, copie orfane: non registrata, solo il file .git e git non la legge → via; con altro dentro resta', async () => {
+      const orfana = agente('agent-7')
+      const conLavoro = agente('agent-8')
+      writeFileSync(join(conLavoro, 'lavoro.txt'), 'non salvato')
+      archivio.scrivi(autopilota({ id: 'ap-1', cwd: progetto }))
+      const { git } = gitFinto({ statusRotto: [orfana, conLavoro] })
+      const e = await autopulizia({ archivio, git: comeAsincrono(git), ora: DOPO, copieVive: () => new Set() })
+      expect(existsSync(orfana)).toBe(false)
+      expect(existsSync(conLavoro)).toBe(true)
+      expect(e.tenute).toEqual(expect.arrayContaining([{ cosa: 'agent-8', perche: 'stato non letto' }]))
+    })
+
+    it('12/11, git vero: `git cherry` riconosce il ramo copiato con cherry-pick, e non quello con un commit suo', async () => {
+      const repo = mkdtempSync(join(tmpdir(), 'cherry-'))
+      const g = (...args: string[]): void => { const r = gitReale(['-c', 'user.name=Prova', '-c', 'user.email=prova@example.invalid', ...args], repo); if (r.codice !== 0) throw new Error(r.uscita) }
+      g('init', '-b', 'main')
+      writeFileSync(join(repo, 'a.txt'), 'a\n'); g('add', '.'); g('commit', '-m', 'inizio')
+      g('checkout', '-b', 'worktree-agent-x1')
+      writeFileSync(join(repo, 'b.txt'), 'b\n'); g('add', '.'); g('commit', '-m', 'b')
+      g('checkout', 'main')
+      g('checkout', '-b', 'worktree-agent-x2')
+      writeFileSync(join(repo, 'c.txt'), 'c\n'); g('add', '.'); g('commit', '-m', 'c')
+      g('checkout', 'main')
+      writeFileSync(join(repo, 'd.txt'), 'd\n'); g('add', '.'); g('commit', '-m', 'd')
+      g('cherry-pick', 'worktree-agent-x1')
+      const ga = comeAsincrono(gitReale)
+      expect(await copiatoNelPrincipale(ga, repo, 'main', 'worktree-agent-x1')).toBe(true)
+      expect(await copiatoNelPrincipale(ga, repo, 'main', 'worktree-agent-x2')).toBe(false)
+      // Già antenato del principale: niente da copiare (lo dice già `merge-base`), quindi no.
+      expect(await copiatoNelPrincipale(ga, repo, 'main', 'main')).toBe(false)
+      expect(await copiatoNelPrincipale(ga, repo, 'main', 'non-esiste')).toBe(false)
     })
   })
 

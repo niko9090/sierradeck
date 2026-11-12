@@ -19,10 +19,18 @@ function file(dir: string): string[] {
   return out
 }
 
+/**
+ * Gli argomenti di una chiamata, anche con parentesi dentro fino a due livelli (12/11):
+ * `[^)]*` si fermava alla prima `)`, e `rmSync(join(a, b), { recursive: true })` in
+ * `main/autoriparazione.ts` passava il controllo senza che nessuno lo vedesse.
+ */
+const ARGOMENTI = String.raw`(?:[^()]|\((?:[^()]|\([^()]*\))*\))*`
+const chiamata = (nome: string): RegExp => new RegExp(String.raw`${nome}\(${ARGOMENTI}recursive`)
+
 const VIETATI: Array<[string, RegExp]> = [
-  ['rmSync ricorsivo', /rmSync\([^)]*recursive/],
-  ['rm ricorsivo di fs/promises', /\brm\([^)]*recursive/],
-  ['rmdir ricorsivo', /rmdir(Sync)?\([^)]*recursive/],
+  ['rmSync ricorsivo', chiamata('rmSync')],
+  ['rm ricorsivo di fs/promises', chiamata(String.raw`\brm`)],
+  ['rmdir ricorsivo', chiamata('rmdir(?:Sync)?')],
   ['emptyDir', /emptyDir(Sync)?\(/],
   ['rimraf', /rimraf/],
   ['Remove-Item -Recurse', /Remove-Item[^\n]*-Recurse|-Recurse[^\n]*Remove-Item/i],
@@ -75,8 +83,24 @@ describe('ogni cancellazione ricorsiva passa dalla guardia', () => {
     expect(script['pulisci-dist']).toContain('scripts/pulisci-dist.mjs')
   })
 
+  it('12/11: anche una chiamata scritta su più righe', () => {
+    const trovati: string[] = []
+    const ricorsive = ['rmSync', String.raw`\brm`, 'rmdir(?:Sync)?'].map((n) => new RegExp(chiamata(n).source, 'g'))
+    for (const p of tutti) {
+      const testo = righe.get(p)!.join('\n')
+      for (const re of ricorsive) for (const m of testo.matchAll(re)) if (m[0].includes('\n')) trovati.push(`${relative(RADICE, p)}: ${m[0].slice(0, 80)}`)
+    }
+    expect(trovati).toEqual([])
+  })
+
   it('il controllo trova davvero quello che cerca', () => {
     expect(VIETATI.find(([n]) => n === 'rmSync ricorsivo')![1].test("rmSync(x, { recursive: true, force: true })")).toBe(true)
+    // 12/11: con parentesi dentro gli argomenti (il caso di `main/autoriparazione.ts`).
+    expect(VIETATI.find(([n]) => n === 'rmSync ricorsivo')![1].test('rmSync(join(radice, n), { recursive: true, force: true })')).toBe(true)
+    expect(VIETATI.find(([n]) => n === 'rm ricorsivo di fs/promises')![1].test('await rm(join(a, f(b)), { recursive: true })')).toBe(true)
+    expect(VIETATI.find(([n]) => n === 'rmdir ricorsivo')![1].test('rmdirSync(join(a, b), { recursive: true })')).toBe(true)
+    expect(VIETATI.find(([n]) => n === 'rmSync ricorsivo')![1].test("rmSync(join(a, 'x.bundle'), { force: true })")).toBe(false)
+    expect(chiamata('rmSync').test('rmSync(\n  join(a, b),\n  { recursive: true }\n)')).toBe(true)
     expect(VIETATI.find(([n]) => n === 'rm -r della shell')![1].test('bash -c "rm -rf $d"')).toBe(true)
     expect(VIETATI.find(([n]) => n === 'Remove-Item -Recurse')![1].test('Remove-Item $env:LOCALAPPDATA -Recurse -Force')).toBe(true)
   })

@@ -12,6 +12,7 @@ import { apriStoricoErrori, conStorico } from '../main/storico-errori-file'
 import { impostaStoricoRiassetto } from './riassetto-servizio'
 import { format } from 'node:util'
 import { soloAvvisiNode } from '@shared/avvisi-node'
+import { radiceCriteri, radiceProve, spazzaCriteri } from '@shared/disco-prove'
 import { creaServer } from './server'
 import { conDivieti, esecutoreReale } from './verifiche'
 import { conRisorse, conTurni, TURNI_PC } from './turni-criteri'
@@ -356,6 +357,12 @@ export function avviaServizio(): void {
     copieVive: (radice) => serverAgenti?.copieVive(radice),
     ramiCitati: (radice) => serverAgenti?.ramiCitati(radice)
   })
+
+  // 12/11: le prove pesanti (Temp dei criteri, copie per gli altri PC) vanno su un disco con più spazio
+  // se quello della Temp di sistema è quasi pieno; all'avvio via le cartelle dei criteri rimaste da più di un giorno.
+  const prove = radiceProve()
+  if (prove !== undefined) console.info(`[prove] il disco della Temp è quasi pieno: le prove pesanti vanno in ${prove}`)
+  try { const n = spazzaCriteri(radiceCriteri(prove)); if (n > 0) console.info(`[prove] tolte ${n} cartelle di criteri rimaste`) } catch { /* al prossimo avvio */ }
 
   const server = creaServer({
     archivio,

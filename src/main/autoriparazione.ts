@@ -1,5 +1,6 @@
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
+import { cancellaSicura } from '@shared/cancella-sicura'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 import type { Archivio } from '@shared/workspace'
 import { pianoMigrazione, type StatoMigrazione } from '@shared/migrazione-elenco'
@@ -73,7 +74,10 @@ export function creaAutoriparazione(d: DipendenzeAutoriparazione) {
   const potaCopie = (): void => {
     try {
       const nomi = readdirSync(radiceCopie).filter((n) => /^[0-9]{8}-[0-9]{6}/u.test(n)).sort()
-      for (const n of nomi.slice(0, Math.max(0, nomi.length - COPIE_RIPARAZIONE_DA_TENERE))) rmSync(join(radiceCopie, n), { recursive: true, force: true })
+      // 12/11: dalla guardia, solo dentro la cartella delle copie (prima un rmSync ricorsivo diretto, che il controllo non vedeva).
+      for (const n of nomi.slice(0, Math.max(0, nomi.length - COPIE_RIPARAZIONE_DA_TENERE))) {
+        try { cancellaSicura(join(radiceCopie, n), { dentro: [radiceCopie] }) } catch { /* in uso o rifiutata: al prossimo giro */ }
+      }
     } catch { /* niente da potare */ }
   }
 
