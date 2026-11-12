@@ -485,6 +485,8 @@ export type VistaOrchestratore = {
   richieste?: { aperte: number; daPianificare: number }
   /** 0.89.2: le domande dell'autopilota che aspettano Nicholas. */
   domandeAperte?: number
+  /** 12/11: quello che il programma sta facendo da sé (unire e provare il lavoro finito): non è un fermo. */
+  inCorso?: { unione?: string; fase?: 'prova' | 'criterio'; inFila: number }
 }
 
 /**
@@ -506,7 +508,17 @@ export function quandoSveglia(il: string, ora: number = Date.now()): string {
   return `il ${d.getDate()}/${d.getMonth() + 1} alle ${hh}`
 }
 
-export function fraseStatoOrchestratore(v: Pick<VistaOrchestratore, 'pensa' | 'specialisti' | 'piano' | 'richieste' | 'domandeAperte' | 'vivo' | 'sveglia'>, ora: number = Date.now()): { testo: string; tono: 'lavora' | 'aspetta' | 'fermo' | 'riposo' } {
+/** 12/11: la riga di quello che il programma sta unendo o provando, se c'è. */
+export function rigaUnioneInCorso(v: Pick<VistaOrchestratore, 'inCorso'>): string | undefined {
+  const c = v.inCorso
+  if (c === undefined || c.inFila === 0) return undefined
+  const altre = c.unione !== undefined ? c.inFila - 1 : c.inFila
+  const fa = c.unione === undefined ? '' : `il programma ${c.fase === 'criterio' ? 'misura il criterio di' : 'prova e unisce'} ${c.unione}`
+  const fila = altre > 0 ? `${altre === 1 ? '1 unione' : `${altre} unioni`} in fila` : ''
+  return [fa, fila].filter((s) => s !== '').join(', ')
+}
+
+export function fraseStatoOrchestratore(v: Pick<VistaOrchestratore, 'pensa' | 'specialisti' | 'piano' | 'richieste' | 'domandeAperte' | 'vivo' | 'sveglia' | 'inCorso'>, ora: number = Date.now()): { testo: string; tono: 'lavora' | 'aspetta' | 'fermo' | 'riposo' } {
   const alLavoro = v.specialisti.filter((c) => c.stato === 'lavoro' || c.stato === 'avviato')
   const domande = v.domandeAperte ?? 0
   const aperte = v.richieste?.aperte ?? 0
@@ -514,15 +526,21 @@ export function fraseStatoOrchestratore(v: Pick<VistaOrchestratore, 'pensa' | 's
   const da = (n: number, uno: string, piu: string): string => (n === 1 ? `1 ${uno}` : `${n} ${piu}`)
   if (alLavoro.length > 0) {
     const chi = alLavoro.map((c) => `${c.ruolo ?? 'specialista'}${c.compitoId !== undefined ? ` (${c.compitoId})` : ''}`).join(', ')
-    return { testo: `Al lavoro: ${chi}${v.pensa ? ' · l’autopilota sta pensando' : ''}`, tono: 'lavora' }
+    const unione = rigaUnioneInCorso(v)
+    return { testo: `Al lavoro: ${chi}${unione !== undefined ? ` · ${unione}` : ''}${v.pensa ? ' · l’autopilota sta pensando' : ''}`, tono: 'lavora' }
   }
+  const unione = rigaUnioneInCorso(v)
+  if (unione !== undefined && v.inCorso?.unione !== undefined) return { testo: `Al lavoro: ${unione}${v.pensa ? ' · l’autopilota sta pensando' : ''}`, tono: 'lavora' }
   if (v.pensa) return { testo: 'L’autopilota sta pensando: sta leggendo e decidendo cosa affidare', tono: 'lavora' }
   if (domande > 0) return { testo: `Fermo: aspetta ${domande === 1 ? 'una tua risposta' : `${domande} tue risposte`} (nelle Domande)`, tono: 'aspetta' }
   // 0.102.1: una pausa chiesta da Nicholas (la sveglia) non è un fermo.
   if (v.sveglia !== undefined && Date.parse(v.sveglia.il) > ora) return { testo: `In pausa: riprende ${quandoSveglia(v.sveglia.il, ora)}, come gli hai chiesto`, tono: 'riposo' }
   const daFare = v.piano.totale - v.piano.uniti
-  if (aperte > 0 && daFare > 0) return { testo: `Fermo: ${da(daFare, 'compito', 'compiti')} nel piano e nessuno specialista al lavoro: scrivi «vai avanti» all’autopilota`, tono: 'fermo' }
-  if (aperte > 0 || daPianificare > 0) return { testo: `Fermo: ${da(aperte + daPianificare, 'richiesta aperta', 'richieste aperte')} senza compiti: scrivi «vai avanti» all’autopilota`, tono: 'fermo' }
+  // 12/11: unioni in fila che ripartono da sole: il lavoro va avanti, non è un fermo.
+  if (unione !== undefined) return { testo: `In attesa: ${unione}, ripartono da sole`, tono: 'riposo' }
+  // 12/11: niente più «scrivi vai avanti»: il programma lo risveglia da solo (`spingiFermi`).
+  if (aperte > 0 && daFare > 0) return { testo: `Fermo: ${da(daFare, 'compito', 'compiti')} nel piano e nessuno specialista al lavoro: il programma lo rimette al lavoro da solo fra pochi minuti`, tono: 'fermo' }
+  if (aperte > 0 || daPianificare > 0) return { testo: `Fermo: ${da(aperte + daPianificare, 'richiesta aperta', 'richieste aperte')} senza compiti: il programma lo rimette al lavoro da solo fra pochi minuti`, tono: 'fermo' }
   return { testo: 'Niente da fare: tutte le richieste sono chiuse', tono: 'riposo' }
 }
 

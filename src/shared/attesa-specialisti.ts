@@ -381,6 +381,8 @@ export type VistaAttesa = {
     precedenza?: number
     /** Nicholas ha chiesto «Ferma e metti in cima»: si sta fermando ed è già in fila davanti a tutti. */
     fermaRichiesta?: true
+    /** 12/11: un lavoro di un altro PC che gira qui (Aiuta la rete): il nome di quel PC. Niente «Ferma» né precedenze da qui. */
+    perPc?: string
   } & StimaVoce>
   inFila: Array<{
     id: string

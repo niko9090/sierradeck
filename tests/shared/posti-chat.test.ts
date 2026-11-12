@@ -18,12 +18,13 @@ describe('posti dal PC (0.82.0)', () => {
 
   it('PC medio: tre chat ogni quattro processori, dentro il massimo di serie (0.85.2)', () => {
     expect(postiDalPc({ ...MEDIO, processori: 4 }, 0)).toEqual({ posti: 3, perche: 'processori' })
-    expect(postiDalPc(MEDIO, 0)).toEqual({ posti: POSTI_DI_SERIE, perche: 'massimo' })
+    // 12/11: col massimo di serie a 6, su 8 processori decidono i processori (sei).
+    expect(postiDalPc(MEDIO, 0)).toEqual({ posti: POSTI_DI_SERIE, perche: 'processori' })
   })
 
-  it('PC grande: il massimo di serie è 4; con «più chat» fino a 8, mai oltre', () => {
+  it('PC grande: il massimo di serie è 6 (12/11, era 4); con «più chat» fino a 8, mai oltre', () => {
     expect(postiDalPc(GRANDE, 0)).toEqual({ posti: POSTI_DI_SERIE, perche: 'massimo' })
-    expect(POSTI_DI_SERIE).toBe(4)
+    expect(POSTI_DI_SERIE).toBe(6)
     expect(postiDalPc(GRANDE, 0, 1)).toEqual({ posti: POSTI_MAX, perche: 'massimo' })
     expect(POSTI_MAX).toBe(8)
   })
@@ -79,13 +80,17 @@ describe('scende sotto sforzo, risale con calma (0.82.0)', () => {
     // Il minuto dopo no: un posto ogni tre minuti.
     s = prossimiPosti(s, postiDalPc(MEDIO, 3), T + 2 * 60_000 + SALITA_MS)
     expect(s.posti).toBe(4)
-    // 0.85.2: e mai oltre il massimo di serie.
     s = prossimiPosti(s, postiDalPc(MEDIO, 3), T + 60_000 + 2 * SALITA_MS)
+    expect(s.posti).toBe(5)
+    // 0.85.2: e mai oltre il massimo di serie.
+    s = prossimiPosti(s, postiDalPc(MEDIO, 3), T + 60_000 + 3 * SALITA_MS)
+    expect(s.posti).toBe(POSTI_DI_SERIE)
+    s = prossimiPosti(s, postiDalPc(MEDIO, 3), T + 60_000 + 4 * SALITA_MS)
     expect(s.posti).toBe(POSTI_DI_SERIE)
     // Con «più chat» si sale ancora, sempre un posto alla volta.
-    s = prossimiPosti(s, postiDalPc(MEDIO, 3, 1), T + 60_000 + 3 * SALITA_MS)
-    s = prossimiPosti(s, postiDalPc(MEDIO, 3, 1), T + 60_000 + 4 * SALITA_MS)
-    expect(s.posti).toBe(5)
+    s = prossimiPosti(s, postiDalPc(MEDIO, 3, 1), T + 60_000 + 5 * SALITA_MS)
+    s = prossimiPosti(s, postiDalPc(MEDIO, 3, 1), T + 60_000 + 6 * SALITA_MS)
+    expect(s.posti).toBe(7)
   })
 
   it('niente su e giù: un picco che torna giù azzera la salita', () => {

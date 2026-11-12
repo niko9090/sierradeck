@@ -41,6 +41,22 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.104.0',
+    righe: [
+      '**Più lavoro insieme:** l’autopilota lancia in un colpo solo tutti i compiti pronti, fino ai posti liberi. Di serie 5 specialisti per workspace (prima 3) e 6 per PC (prima 4); se il PC è sotto sforzo i posti scendono da soli e le prove pesanti restano una alla volta.',
+      '**Gli altri PC aiutano davvero:** i PC su «Solo i posti liberi» ricevono lavoro appena il workspace è pieno (prima solo se era pieno tutto il PC). Sul PC che aiuta, i lavori degli altri compaiono in «Al lavoro adesso» con scritto per chi lavorano, e contano in «N di M chat».',
+      '**Niente più «vai avanti»:** un’unione ferma (file non salvati, criterio che resta rosso) non blocca più l’autopilota, che viene risvegliato e manda avanti il resto. Un criterio rosso tre volte conta rosso e la correzione parte. Le unioni ferme riprovano sempre più di rado invece che ogni 30 secondi.',
+      '**Lo stato dice la verità:** mentre il programma prova e unisce il lavoro finito, la chat dice «Al lavoro: il programma prova e unisce…» e non più «Fermo»; sul telefono lo stesso.',
+      '**Registro più sicuro:** il testo delle notifiche e delle risposte non finisce più nel registro (che si allega e si manda).',
+    ],
+  },
+  {
+    versione: '0.103.3',
+    righe: [
+      '**Correzione:** l’interfaccia non si chiude più con un errore quando elimini o rinomini un workspace, o quando cambi un’impostazione dal telefono.',
+    ],
+  },
+  {
     versione: '0.103.2',
     righe: [
       '**L’app Android e il programma escono ognuno per conto suo:** un cambio solo all’app non porta più una versione del programma del PC uguale a prima. L’app ha la sua pubblicazione, «App Android», e si aggiorna da lì; il programma continua a proporti l’app nuova come prima.',

@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
+import { SPECIALISTI_PC_MAX } from '../../src/autopilot-host/mcp-orchestratore'
 import { mkdtempSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -124,10 +125,10 @@ const finisci = (id: string): void => {
 }
 const scritteDa = (da: number): string => processi[0]!.scritte.slice(da).join('\n')
 
-/** Quattro specialisti al lavoro: il PC è al tetto. */
+/** Il PC al tetto: tanti specialisti quanti ne tiene (`SPECIALISTI_PC_MAX`, 6 dal 12/11). */
 async function riempi(autopilota: string): Promise<void> {
   processi[0]!.emetti({ type: 'result', result: 'Pronto.', total_cost_usd: 0.001, session_id: 'sess-1', usage: { input_tokens: 100 } })
-  for (let i = 1; i <= 4; i += 1) expect(rifiutato(await lanciaAgent(autopilota, `k-${i}: lavoro ${i}`))).toBe(false)
+  for (let i = 1; i <= SPECIALISTI_PC_MAX; i += 1) expect(rifiutato(await lanciaAgent(autopilota, `k-${i}: lavoro ${i}`))).toBe(false)
 }
 
 describe('lista d’attesa degli specialisti nel servizio (k-48)', () => {
@@ -138,7 +139,7 @@ describe('lista d’attesa degli specialisti nel servizio (k-48)', () => {
     await riempi(a)
     const primo = await lanciaAgent(a, 'k-10: la lista')
     expect(rifiutato(primo)).toBe(true)
-    expect(motivo(primo)).toContain('troppi specialisti attivi sul PC (4 su 4)')
+    expect(motivo(primo)).toContain(`troppi specialisti attivi sul PC (${SPECIALISTI_PC_MAX} su ${SPECIALISTI_PC_MAX})`)
     expect(motivo(primo)).toContain('Sei 1° in fila: ti avviso io quando tocca a te, non rilanciare prima')
     const secondo = await lanciaAgent(a, 'k-11: la sezione')
     expect(motivo(secondo)).toContain('Sei 2° in fila')
@@ -146,8 +147,8 @@ describe('lista d’attesa degli specialisti nel servizio (k-48)', () => {
     expect(motivo(await lanciaAgent(a, 'k-10: la lista'))).toContain('Sei 1° in fila')
     expect(motivo(await lanciaAgent(a, 'k-11: la sezione, ripetuta'))).toContain('Sei 2° in fila')
     const v = await attesa()
-    expect(v.posti).toEqual({ usati: 4, tetto: 4 })
-    expect(v.alLavoro.map((x) => [x.posto, x.compito, x.workspace])).toEqual([[1, 'k-1', WS], [2, 'k-2', WS], [3, 'k-3', WS], [4, 'k-4', WS]])
+    expect(v.posti).toEqual({ usati: SPECIALISTI_PC_MAX, tetto: SPECIALISTI_PC_MAX })
+    expect(v.alLavoro.map((x) => [x.posto, x.compito, x.workspace])).toEqual(Array.from({ length: SPECIALISTI_PC_MAX }, (_, i) => [i + 1, `k-${i + 1}`, WS]))
     expect(v.alLavoro[0]).toMatchObject({ autopilota: a, tipo: 'sviluppatore', descrizione: 'k-1: lavoro 1' })
     expect(v.inFila.map((x) => [x.posizione, x.compito, x.priorita, x.prenotata])).toEqual([[1, 'k-10', 0, false], [2, 'k-11', 0, false]])
     expect(v.inFila[0]).toMatchObject({ workspace: WS, autopilota: a, tipo: 'sviluppatore', descrizione: 'k-10: la lista' })
@@ -265,7 +266,7 @@ describe('lista d’attesa degli specialisti nel servizio (k-48)', () => {
     expect(v.inFila[0]).toMatchObject({ workspaceNome: WS, titolo: 'la lista', percentuale: 0 })
     // I posti sono pieni: chi è in fila include l'attesa del primo posto libero.
     expect(v.inFila[0]!.minutiStimati!).toBeGreaterThan(25)
-    expect(v.totale!.compiti).toBe(6)
+    expect(v.totale!.compiti).toBe(SPECIALISTI_PC_MAX + 2)
     expect(v.totale!.minuti).toBeGreaterThanOrEqual(v.inFila[1]!.minutiStimati!)
   })
 

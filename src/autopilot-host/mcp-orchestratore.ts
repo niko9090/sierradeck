@@ -29,8 +29,8 @@ import { CLASSI_PERMESSO, DURATA_PERMESSO_MIN } from '@shared/permessi-nicholas'
 
 export const NOME_SERVER_ORCHESTRATORE = 'sierradeck'
 
-/** Il tetto delle chat degli specialisti su tutto il PC: `min(posti, 4)`. */
-export const SPECIALISTI_PC_MAX = 4
+/** Il tetto delle chat degli specialisti su tutto il PC: `min(posti, 6)` (4 fino alla 0.103.3; 12/11, Nicholas: «lavora in parallelo più che puoi»). */
+export const SPECIALISTI_PC_MAX = 6
 /** Domande a Nicholas all'ora, al più. */
 export const DOMANDE_ORA_ORCHESTRATORE = 4
 

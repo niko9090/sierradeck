@@ -7,7 +7,7 @@ import {
   type Coda, type MisuraCompito, type Modifica, type VistaCoda
 } from '@shared/coda-richieste'
 import {
-  allineaConPiano, chiudiCompito, chiudiCompitiOrfani, comandoDelCriterio, conCompito, conPercento, conRamoRicordato, misuraDalPiano, misuraUnita, vistaLavoro,
+  allineaConPiano, chiudiCompito, compitiPronti, chiudiCompitiOrfani, comandoDelCriterio, conCompito, conPercento, conRamoRicordato, misuraDalPiano, misuraUnita, vistaLavoro,
   type CompitoPiano, type Piano, type TrascrizioneSpecialista, type VistaOrchestratore,
   type RigaSpecialista
 } from '@shared/piano-orchestratore'
@@ -55,7 +55,7 @@ import { cartellaDelWorkspace, hookAdottato, nuovoUnico, obiettiviInCoda, passaA
 import { quandoInParole, riassuntoOrchestratore } from './riassunto-orchestratore'
 import { motivoSpecialistaDoppio, ripresaDopoRiavvio } from './ripresa-riavvio'
 import { AGENTI_ORCHESTRATORE, fileAgenti, fileImpostazioniCli, RUOLI_AGENTI } from './agenti-orchestratore'
-import { motivoAffidato, RUOLI_IN_VIAGGIO, scegliPosto, type Aiutante, type LavoroAffidato } from '@shared/aiuto-rete'
+import { motivoAffidato, RUOLI_IN_VIAGGIO, scegliPosto, type Aiutante, type LavoroAffidato, type LavoroOspitato } from '@shared/aiuto-rete'
 import { giudicaGuardiaOrchestratore } from './guardia-orchestratore'
 import type { Giudizio } from './divieti'
 import { doppioniDaArchiviare, rigaDoppione, type Doppione, type RichiestaDoppioni } from '@shared/autopiloti-doppioni'
@@ -90,6 +90,16 @@ export { UNIONE_MAX_MS }
 export const UNIONE_RIPROVA_MS = 30_000
 /** 11/11: dopo quante scadenze il compito dice com'è andata (una volta sola). L'unione resta in fila e riprova da sola, sempre più di rado. */
 export const UNIONE_TENTATIVI_MAX = 3
+/**
+ * 12/11: un'unione ferma riprova sempre più di rado (30 s, 1, 2, 4, 8 minuti), al più ogni 8 volte
+ * `UNIONE_RIPROVA_MS`. Prima ogni 30 s per sempre: dal 10 all'11/11 1.986 tentativi in 17 ore
+ * con lo stesso esito, il 12/11 lo stesso criterio rosso misurato 261 volte in 3 ore.
+ */
+/** 12/11: dopo quante misure rosse coi file non salvati il criterio conta rosso (e l'autopilota affida la correzione). */
+export const ROSSI_SPORCHI_MAX = 3
+export function attesaUnioneFerma(riprovaMs: number, giri: number): number {
+  return riprovaMs * 2 ** Math.min(Math.max(0, giri - 1), 4)
+}
 /** L'unione non è fallita per colpa del ramo: va riprovata (cartella principale occupata, o tempo massimo superato). */
 class RiprovaUnione extends Error {
   /** `misura` (11/11): il ramo è già unito, resta da rimisurare il criterio (rosso con file non salvati nella principale). */
@@ -196,6 +206,8 @@ export type ContestoUnico = {
   aiuti?: { leggi: () => LavoroAffidato[]; scrivi: (l: LavoroAffidato[]) => void }
   /** 0.103.0: i lavori di altri PC al lavoro qui: occupano posti come gli specialisti. */
   aiutiQui?: () => number
+  /** 12/11: i lavori degli altri PC che girano qui, per l'elenco «Al lavoro adesso». */
+  ospitati?: () => LavoroOspitato[]
 }
 
 /** Com'è andato un giro sui doppioni. */
@@ -624,6 +636,8 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
    * programma lo rifiuta: c'è già uno specialista, ma lo stato ne mostra 0».
    */
   const alLavoroNel = (ws: string, escludi?: string): number => subagenti(ws).filter((y) => (y.stato === 'avviato' || y.stato === 'lavoro') && y.id !== escludi).length
+  /** 12/11: solo quelli che lavorano su questo PC (gli affidati ad altri PC non tengono un posto qui). */
+  const alLavoroQuiNel = (ws: string, escludi?: string): number => subagenti(ws).filter((y) => (y.stato === 'avviato' || y.stato === 'lavoro') && y.id !== escludi && y.pc === undefined).length
 
   const imp = (ws: string): ImpostazioniOrchestratore => x.orchestratori.impostazioni(ws)
   const wsDi = (a: Pick<Autopilota, 'cwd' | 'workspace'>): string => chiaveWorkspace(a)
@@ -726,6 +740,13 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
   // 11/11: se Nicholas ha scritto lui quanti specialisti insieme sul PC, vale quel numero così com'è, senza un massimo.
   const sceltiPc = (): number | undefined => x.limiti?.().specialistiPc ?? undefined
   const tettoPc = (): number => Math.max(1, sceltiPc() ?? Math.min(x.posti(), capPc()))
+  /** Il tetto degli specialisti di un workspace su questo PC; senza git uno solo (lavorano nella stessa cartella). */
+  const tettoDelWs = (ws: string, git: boolean): number => {
+    if (!git) return 1
+    const t = imp(ws).tettoSpecialisti
+    // 11/11: il tetto del workspace non ha più il massimo di 4 messo dal programma: lo decide Nicholas (e il tetto del PC, se l'ha scritto lui).
+    return sceltiPc() !== undefined ? Math.max(1, Math.min(t, sceltiPc()!)) : scelti() !== undefined ? Math.max(1, Math.min(POSTI_MAX, x.posti())) : Math.max(1, Math.min(t, Math.max(1, x.posti())))
+  }
   const liberiPc = (escludi?: string): number => Math.max(0, tettoPc() - orchestratore.specialistiSulPc(escludi) - (x.aiutiQui?.() ?? 0))
   /**
    * 0.103.0: l'Agent può andare su un altro PC? Se sì il lavoro viene registrato (lo spedisce il
@@ -736,11 +757,14 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
     if (oraMs() - aiutanti.il > AIUTANTI_VALGONO_MS || aiutanti.lista.length === 0) return undefined
     const def = AGENTI_ORCHESTRATORE[r.tipo]
     if (def === undefined) return undefined
+    const ws = wsDi(a)
     // I lavori appena affidati che quel PC non conta ancora fra i suoi.
     const inPartenza = (pcId: string): number => affidati().filter((l) => l.pcId === pcId && l.stato === 'da-spedire').length
-    const scelto = scegliPosto(aiutanti.lista.map((h) => ({ ...h, liberi: h.liberi - inPartenza(h.pcId) })), liberiPc(idUso))
+    // 12/11: i posti liberi di QUESTO workspace (il suo tetto, dentro quelli del PC). Prima contavano solo
+    // quelli del PC, e con un autopilota solo i PC «posti liberi» non ricevevano mai lavoro.
+    const liberiWs = Math.max(0, tettoDelWs(ws, true) - alLavoroQuiNel(ws, idUso))
+    const scelto = scegliPosto(aiutanti.lista.map((h) => ({ ...h, liberi: h.liberi - inPartenza(h.pcId) })), Math.min(liberiPc(idUso), liberiWs))
     if (scelto === undefined) return undefined
-    const ws = wsDi(a)
     const compito = compitoDallaDescrizione(r.descrizione)
     const l: LavoroAffidato = {
       id: `r${randomUUID().replace(/-/gu, '').slice(0, 12)}`,
@@ -817,8 +841,9 @@ Il posto è tuo per 5 minuti.` })
   const titoloDi = (ws: string, compito: string | undefined, descrizione: string): string => titoloBreve(compitoDelPiano(ws, compito)?.titolo ?? descrizione)
   const vistaAttesa = (): VistaAttesa => {
     const adesso = oraMs()
+    // 12/11: qui solo chi lavora su questo PC; gli affidati a un altro PC stanno nell'elenco di quel PC.
     const lavorano = unici().flatMap((u) => subagenti(wsDi(u))
-      .filter((s) => s.stato === 'avviato' || s.stato === 'lavoro')
+      .filter((s) => (s.stato === 'avviato' || s.stato === 'lavoro') && s.pc === undefined)
       .map((s) => ({ s, ws: wsDi(u), ap: u.id })))
       .sort((a, b) => Date.parse(a.s.inizio) - Date.parse(b.s.inizio))
     const stato = archivioAttesa.leggi()
@@ -829,8 +854,8 @@ Il posto è tuo per 5 minuti.` })
       inFila: fila.map((v) => ({ id: v.id, peso: pesoDi(v.workspace, v.compito) }))
     })
     return {
-      posti: { usati: orchestratore.specialistiSulPc(), tetto: tettoPc() },
-      alLavoro: lavorano.map((l, i) => {
+      posti: { usati: orchestratore.specialistiSulPc() + (x.aiutiQui?.() ?? 0), tetto: tettoPc() },
+      alLavoro: ([] as VistaAttesa['alLavoro']).concat(lavorano.map((l, i) => {
         const st = stima.alLavoro[l.s.id]!
         const cosaFa = rigaUltimaAzione(l.s.attivita ?? '')
         const prec = stato.precedenze?.[l.ws]
@@ -845,7 +870,18 @@ Il posto è tuo per 5 minuti.` })
           ...(prec !== undefined ? { precedenza: prec } : {}),
           ...(fermaChiesta.has(l.s.id) ? { fermaRichiesta: true as const } : {})
         }
-      }),
+      }), (x.ospitati?.() ?? []).map((o, j) => {
+        // 12/11 (Nicholas: «nel PC che ospita gli agenti di altri PC voglio che nella lista vengano visualizzati»).
+        const cosaFa = rigaUltimaAzione(o.attivita ?? '')
+        const minuti = Math.max(0, Math.round((adesso - Date.parse(o.inizio)) / 60_000))
+        return {
+          posto: lavorano.length + j + 1, id: o.id, workspace: '', descrizione: o.descrizione, tipo: o.ruolo, dal: o.inizio,
+          workspaceNome: `per ${o.perPc}`, titolo: titoloBreve(o.descrizione),
+          ...(cosaFa !== '' ? { cosaFa } : {}),
+          percentuale: o.stato === 'lavoro' ? Math.min(90, 10 + minuti) : 5, peso: PESO_PREDEFINITO,
+          perPc: o.perPc
+        }
+      })),
       inFila: fila.map((v) => ({
         id: v.id, posizione: v.posizione, workspace: v.workspace,
         ...(v.autopilota !== undefined ? { autopilota: v.autopilota } : {}),
@@ -902,6 +938,11 @@ Il posto è tuo per 5 minuti.` })
     x.salva({ ...u, dialogo: [...u.dialogo, { quando: riga.quando, da: riga.da, testo: riga.testo, ...(riga.domanda !== undefined ? { domanda: riga.domanda } : {}) }].slice(-DIALOGO_RICORDATO) })
   }
 
+  /** I compiti pronti su cui non lavora nessuno (né qui né su un altro PC). */
+  const prontiSenzaNessuno = (ws: string): string[] => {
+    const occupati = new Set(subagenti(ws).filter((s) => s.stato === 'avviato' || s.stato === 'lavoro').map((s) => s.compito).filter((k): k is string => k !== undefined))
+    return compitiPronti(x.orchestratori.piano(ws)).map((k) => k.id).filter((id) => !occupati.has(id)).slice(0, 20)
+  }
   const riassunto = (ws: string): string => {
     const u = unicoDi(ws)
     const m = misura(ws)
@@ -910,7 +951,9 @@ Il posto è tuo per 5 minuti.` })
       ws, coda: coda(ws), piano: x.orchestratori.piano(ws), unico: u, misura: m,
       ...(i.percento !== undefined ? { percento: i.percento } : {}),
       eventi: recenti.get(ws) ?? [],
-      tetti: { ws: i.tettoSpecialisti, pc: sceltiPc() ?? Math.min(x.posti(), capPc()), alLavoroPc: x.chatAlLavoroSulPc() },
+      tetti: { ws: tettoDelWs(ws, conGit(u?.cwd ?? '')), pc: sceltiPc() ?? Math.min(x.posti(), capPc()), alLavoroPc: x.chatAlLavoroSulPc() },
+      pronti: prontiSenzaNessuno(ws),
+      liberiFuori: oraMs() - aiutanti.il > AIUTANTI_VALGONO_MS ? 0 : aiutanti.lista.filter((h) => h.modo !== 'no').reduce((n, h) => n + Math.max(0, h.liberi), 0),
       domandeAperte: u === undefined ? 0 : x.domande.aperte(u.id).length,
       domande: u === undefined ? [] : x.domande.aperte(u.id).map((q) => ({ id: q.id, testo: q.parti?.domanda ?? q.testo, apertaIl: q.apertaIl })),
       subagenti: subagenti(ws),
@@ -949,7 +992,7 @@ ${NOTA_SENZA_GIT}`,
       mcpConfig: x.orchestratori.scriviFile(ws, 'mcp.json', configMcpOrchestratore(x.porta, ws, gettoni.di(ws))),
       // Il tetto del workspace, dentro i posti del PC; senza git uno solo (lavorano nella stessa cartella).
       // 11/11: il tetto del workspace non ha più il massimo di 4 messo dal programma: lo decide Nicholas (e il tetto del PC, se l'ha scritto lui).
-      tetto: git ? (sceltiPc() !== undefined ? Math.max(1, Math.min(i.tettoSpecialisti, sceltiPc()!)) : scelti() !== undefined ? Math.max(1, Math.min(POSTI_MAX, x.posti())) : Math.max(1, Math.min(i.tettoSpecialisti, Math.max(1, x.posti())))) : 1,
+      tetto: tettoDelWs(ws, git),
       ...(git && scelti() !== undefined ? { scelti: scelti() as number } : {})
     }
   }
@@ -1140,12 +1183,14 @@ ${NOTA_SENZA_GIT}`,
    * `undefined` se la stessa unione è già lì.
    */
   /** Quello che un tentativo di unione e la fila si passano: la scadenza, e il rosso già misurato con la principale sporca (11/11). */
-  type ScambioUnione = { scaduto: boolean; rossoSporco?: string; ramoUnito?: string }
+  type ScambioUnione = { scaduto: boolean; rossoSporco?: string; ramoUnito?: string; rossiSporchi?: number; /** 12/11: cosa sta facendo adesso, per la frase di stato. */ fase?: 'prova' | 'criterio' }
   /** `nonPrima` (11/11, ms): un'unione scaduta aspetta il suo momento in fondo alla fila, senza fermare le altre. */
   type LavoroUnione = {
     chiave: string; chi: string; compito?: string; p: { compito?: string; specialista?: string; ramo?: string }; tentativi: number; inCorso: boolean; nonPrima?: number
     /** 11/11, file non salvati nella principale: da quando è ferma (ms), se lo si è già detto, e la domanda del programma a Nicholas. */
     sporcaDal?: number
+    /** 12/11: quante volte di fila è tornata ferma allo stesso modo (per riprovare sempre più di rado). */
+    fermaGiri?: number
     dettoMisura?: boolean
     chiestoSalva?: boolean
     fileChiesti?: string[]
@@ -1154,6 +1199,10 @@ ${NOTA_SENZA_GIT}`,
     salvato?: boolean
     /** Il criterio già misurato rosso con questi file non salvati: non si rimisura finché non cambiano. */
     rossoSporco?: string
+    /** 12/11: quante volte è tornato rosso coi file non salvati (con file che cambiano da soli, per esempio una build, era per sempre). */
+    rossiSporchi?: number
+    /** 12/11: lo scambio dell'unione in corso (la sua fase si vede nella frase di stato). */
+    scambio?: ScambioUnione
     /** Il ramo già unito in quel caso: al tentativo dopo si riparte da lui, senza cercarlo di nuovo. */
     ramoUnito?: string
   }
@@ -1245,6 +1294,13 @@ ${NOTA_SENZA_GIT}`,
   const unioniIn = (ws: string): number => filaUnioni.get(ws)?.length ?? 0
   /** I compiti la cui unione è in corso o in fila: non sono «fermi», il programma li sta unendo. */
   const compitiInUnione = (ws: string): string[] => (filaUnioni.get(ws) ?? []).flatMap((l) => (l.compito !== undefined ? [l.compito] : []))
+  /**
+   * 12/11: le unioni che vanno davvero (in corso, o in fila senza essere ferme). Una ferma per i file non
+   * salvati o in attesa del suo turno di riprova non tiene «occupato» il workspace: prima l'autopilota non
+   * veniva mai svegliato (10-11/11: fermo 7 ore, Nicholas ha dovuto scrivere «vai avanti» sei volte).
+   */
+  const unioneFerma = (l: LavoroUnione, ora: number): boolean => !l.inCorso && (l.sporcaDal !== undefined || (l.nonPrima ?? 0) > ora)
+  const unioniVive = (ws: string, ora: number): LavoroUnione[] => (filaUnioni.get(ws) ?? []).filter((l) => !unioneFerma(l, ora))
   /** 11/11 (k-133): il compito ha finito e la sua unione è in corso o in fila: un Agent lanciato per lui non lo riporta «in corso». */
   const finitoInFila = (ws: string, k: CompitoPiano): boolean => k.stato === 'in-revisione' && compitiInUnione(ws).includes(k.id)
   /** 11/11: i rami che non sono di questo compito: quelli degli altri compiti non ancora uniti e degli specialisti al lavoro. */
@@ -1287,7 +1343,8 @@ ${NOTA_SENZA_GIT}`,
       lavoro.inCorso = true
       max = maxDiSerie()
       const { p, chi } = lavoro
-      const scambio: ScambioUnione = { scaduto: false, ...(lavoro.rossoSporco !== undefined ? { rossoSporco: lavoro.rossoSporco } : {}) }
+      const scambio: ScambioUnione = { scaduto: false, ...(lavoro.rossoSporco !== undefined ? { rossoSporco: lavoro.rossoSporco } : {}), ...(lavoro.rossiSporchi !== undefined ? { rossiSporchi: lavoro.rossiSporchi } : {}) }
+      lavoro.scambio = scambio
       let testo: string | undefined
       let ancora: RiprovaUnione | undefined
       try {
@@ -1299,6 +1356,8 @@ ${NOTA_SENZA_GIT}`,
         try { testo = await Promise.race([corsa, scadenza]) } finally {
           if (timer !== undefined) clearTimeout(timer)
           lavoro.rossoSporco = scambio.rossoSporco
+          lavoro.rossiSporchi = scambio.rossiSporchi
+          lavoro.scambio = undefined
           if (scambio.ramoUnito !== undefined) lavoro.ramoUnito = scambio.ramoUnito
         }
       } catch (err) {
@@ -1371,16 +1430,19 @@ ${NOTA_SENZA_GIT}`,
         }
         // 11/11: dopo un po' la voce ferma va in fondo e le altre provano (lei riprova ogni volta che tocca a lei).
         if (adessoMs - lavoro.sporcaDal >= (x.sporcaInFondoDopoMs ?? SPORCA_IN_FONDO_DOPO_MS) && fila.length > 1) {
-          lavoro.nonPrima = adessoMs + riprova
+          lavoro.fermaGiri = (lavoro.fermaGiri ?? 0) + 1
+          lavoro.nonPrima = adessoMs + attesaUnioneFerma(riprova, lavoro.fermaGiri)
           fila.shift()
           fila.push(lavoro)
           continue
         }
-        await dormiFila(ws, riprova)
+        lavoro.fermaGiri = (lavoro.fermaGiri ?? 0) + 1
+        await dormiFila(ws, attesaUnioneFerma(riprova, lavoro.fermaGiri))
         continue
       }
       // Non è più ferma per i file non salvati: la domanda, se c'era, non serve più.
       lavoro.sporcaDal = undefined
+      lavoro.fermaGiri = undefined
       ritiraDomandaSalva(lavoro, 'l’unione non è più ferma per quei file: non serve più')
       // Scaduta: chiusa, e di nuovo in fila (in coda alle altre). 11/11: mai fuori dalla fila
       // (il 07/11 sette lavori finiti restarono fuori dal principale dopo tre scadenze):
@@ -1590,6 +1652,7 @@ ${NOTA_SENZA_GIT}`,
         if (chiusoAltro === 'mancante') { console.info(`[orchestratore] ${ws} — il ramo ${altro.ramo} di ${altro.sub.id} non c’è più: saltato`); continue }
         if (chiusoAltro === 'unito') continue
         if (scambio.scaduto) return `${nome}: unione scaduta`
+        scambio.fase = 'prova'
         const r = await x.provaNelPrincipale(unicoDi(ws) ?? a, altro.ramo)
         if (!r.unito) {
           if (r.ritenta !== undefined) throw new RiprovaUnione(r.ritenta, r.motivo, r.file)
@@ -1611,6 +1674,7 @@ ${NOTA_SENZA_GIT}`,
         cartella = undefined
       } else if (chiuso === undefined && ramo !== undefined) {
         if (scambio.scaduto) return `${nome}: unione scaduta`
+        scambio.fase = 'prova'
         const r = await x.provaNelPrincipale(unicoDi(ws) ?? a, ramo)
         if (!r.unito) {
           if (r.ritenta !== undefined) throw new RiprovaUnione(r.ritenta, r.motivo, r.file)
@@ -1652,6 +1716,7 @@ ${NOTA_SENZA_GIT}`,
         // Già misurato rosso con questi stessi file non salvati: non si rilancia finché non cambiano.
         const firmaSporca = sporca.sporca ? `${impronta ?? ''}|${sporca.file.join('\n')}` : undefined
         if (firmaSporca !== undefined && scambio.rossoSporco === firmaSporca) throw new RiprovaUnione('sporca', ROSSO_SPORCO, sporca.file, true)
+        scambio.fase = 'criterio'
         const m = await misuraCriteri([{ descrizione: compito!.criterio, comando, soddisfatto: false }], a.cwd, x.esegui, { memoria: memoriaCriteri, adesso: Date.now, tutti: true, ...(impronta !== undefined ? { impronta } : {}) })
         const falliti = fallitiDavvero(m.esiti)
         const ignoti = nonMisurati(m.esiti)
@@ -1659,7 +1724,10 @@ ${NOTA_SENZA_GIT}`,
         verde = m.esiti.length > 0 && falliti.length === 0 && ignoti.length === 0
         const uscita = m.esiti[0]?.uscita.trim().split(/\r?\n/u).slice(-6).join(' | ').slice(0, 400) ?? ''
         dettaglio = verde ? `\`${comando}\` passa` : ignoti.length > 0 ? `\`${comando}\` non si è potuto misurare: ${uscita}` : `\`${comando}\` non passa: ${uscita}`
-        if (!verde && firmaSporca !== undefined && !scambio.scaduto) {
+        // 12/11: rosso tre volte coi file non salvati = rosso davvero. Il 12/11 su NexoraOS lo stesso criterio
+        // (lo specialista non aveva finito le prove) è stato rimisurato 291 volte in 5 ore, e intanto nessuno lo correggeva.
+        if (!verde && firmaSporca !== undefined && !scambio.scaduto && (scambio.rossiSporchi ?? 0) < ROSSI_SPORCHI_MAX) {
+          scambio.rossiSporchi = (scambio.rossiSporchi ?? 0) + 1
           scambio.rossoSporco = firmaSporca
           if (ramo !== undefined) scambio.ramoUnito = ramo
           throw new RiprovaUnione('sporca', ROSSO_SPORCO, sporca.file, true)
@@ -2169,9 +2237,10 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       if (prossimaSveglia(ws, ora) !== undefined) { fermiVisti.delete(ws); continue }
       const attesa = orchestratore.inAttesa(ws)
       const occupato = orchestratore.inVolo(ws) || attesa.messaggi > 0 || attesa.eventi > 0
-        || alLavoroNel(ws) > 0 || specialistiVivi(a).some((c) => c.stato === 'lavoro') || unioniIn(ws) > 0
+        || alLavoroNel(ws) > 0 || specialistiVivi(a).some((c) => c.stato === 'lavoro') || unioniVive(ws, ora).length > 0
       const vivi = new Set(subagenti(ws).filter((y) => y.stato === 'avviato' || y.stato === 'lavoro').map((y) => y.id))
-      const f = lavoroFermo({ coda: coda(ws), piano: x.orchestratori.piano(ws), alLavoro: vivi, inUnione: new Set(compitiInUnione(ws)) })
+      const ferme = (filaUnioni.get(ws) ?? []).filter((l) => unioneFerma(l, ora) && l.compito !== undefined)
+      const f = lavoroFermo({ coda: coda(ws), piano: x.orchestratori.piano(ws), alLavoro: vivi, inUnione: new Set(unioniVive(ws, ora).flatMap((l) => (l.compito !== undefined ? [l.compito] : []))), unioniFerme: new Map(ferme.map((l) => [l.compito!, l.sporcaDal !== undefined ? 'ferma per file non salvati nella cartella principale (la domanda a Nicholas la fa il programma)' : 'riprova da sola fra poco'])) })
       if (f === undefined) { fermiVisti.delete(ws); continue }
       const visto = fermiVisti.get(ws)
       if (visto === undefined || visto.firma !== f.firma) { fermiVisti.set(ws, { firma: f.firma, dal: ora, ultima: ora, spinte: 0 }); continue }
@@ -2736,6 +2805,13 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
         pensa: orchestratore.inVolo(ws) || orchestratore.inAttesa(ws).messaggi > 0,
         ...(() => { const s = prossimaSveglia(ws, ora); return s !== undefined ? { sveglia: { il: s.il, perche: s.perche } } : {} })(),
         vivo: orchestratore.vivo(ws),
+        // 12/11 (Nicholas: «la chat dice che l’autopilota è fermo ma continuano a vedersi prove sotto»).
+        ...(() => {
+          const vive = unioniVive(ws, ora)
+          const l = vive.find((y) => y.inCorso)
+          if (l === undefined && vive.length === 0) return {}
+          return { inCorso: { ...(l !== undefined ? { unione: l.compito ?? l.chi, ...(l.scambio?.fase !== undefined ? { fase: l.scambio.fase } : {}) } : {}), inFila: vive.length } }
+        })(),
         specialisti: [
           ...subagenti(ws).filter((s) => s.unito !== true && (s.stato === 'avviato' || s.stato === 'lavoro' || ora - Date.parse(s.fine ?? s.inizio) < 3_600_000)).map((s) => ({
             id: s.id, ruolo: s.ruolo, compito: s.descrizione, stato: s.stato, durata: durata(s, ora),
@@ -2777,7 +2853,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       return x.orchestratori.cambiaImpostazioni(ws, (i) => ({
         ...i,
         ...(modelloAutopilotaAmmesso(p.modello) ? { modello: p.modello, modelloScelto: true } : {}),
-        ...(typeof p.tettoSpecialisti === 'number' && Number.isInteger(p.tettoSpecialisti) ? { tettoSpecialisti: Math.max(1, p.tettoSpecialisti) } : {}),
+        ...(typeof p.tettoSpecialisti === 'number' && Number.isInteger(p.tettoSpecialisti) ? { tettoSpecialisti: Math.max(1, p.tettoSpecialisti), tettoScelto: true } : {}),
         // 11/11: dalla pagina delle impostazioni Nicholas rimette «chiedi» (o mette «sempre») a una classe di permessi.
         ...(p.permessi !== undefined ? { permessi: leggiPermessi(p.permessi) } : {})
       }))

@@ -30,6 +30,8 @@ export type RigaMenuSpecialisti = {
   parcheggiata: boolean
   /** Solo chi lavora: la fermata è già stata chiesta. */
   fermaRichiesta: boolean
+  /** 12/11: un lavoro di un altro PC che gira qui: il nome di quel PC, e niente tasti (lo segue chi l'ha chiesto). */
+  perPc?: string
 }
 
 export type MenuSpecialisti = {
@@ -56,6 +58,7 @@ type VoceMenu = {
   prenotata?: boolean
   parcheggiata?: true
   fermaRichiesta?: true
+  perPc?: string
 }
 
 export type VistaMenu = {
@@ -100,7 +103,8 @@ export function menuSpecialisti(vista: VistaMenu, riferimenti: string[]): MenuSp
       corrente,
       prenotata: v.prenotata === true,
       parcheggiata: v.parcheggiata === true,
-      fermaRichiesta: v.fermaRichiesta === true
+      fermaRichiesta: v.fermaRichiesta === true,
+      ...(v.perPc !== undefined ? { perPc: v.perPc } : {})
     }
     if (!inAttesa && v.percentuale !== undefined) r.percentuale = Math.max(0, Math.min(95, Math.round(v.percentuale)))
     if (inAttesa && v.posizione !== undefined) r.posizione = v.posizione

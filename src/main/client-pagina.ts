@@ -5862,7 +5862,7 @@ function attesaHtml() {
     const barra = typeof x.percentuale === 'number'
       ? '<div class="sotto"><progress max="100" value="' + esc(x.percentuale) + '"></progress> ' + esc(x.percentuale) + '%' + (typeof x.minutiStimati === 'number' ? ' · mancano circa ' + esc(minutiTesto(x.minutiStimati)) : '') + (x.inRitardo ? ' · <b>in ritardo</b>' : '') + '</div>'
       : ''
-    const tasti = x.fermaRichiesta
+    const tasti = x.perPc ? '<span class="sotto">per ' + esc(x.perPc) + '</span>' : x.fermaRichiesta
       ? '<span class="sotto">fermata chiesta…</span>'
       : attesaConferma === 'f:' + x.id
         ? '<span class="sotto">Lo fermo e lo metto in cima alla fila: il suo lavoro resta salvato</span> <button onclick="attesaMossa(\\'' + id + '\\', \\'ferma\\')">Sì, ferma</button> <button onclick="attesaAnnulla()">No</button>'
@@ -5926,7 +5926,7 @@ function menuSpecHtml(a) {
     const misura = lavora && r.percentuale !== undefined
       ? '<div class="misura-riga">' + esc(r.percentuale) + '%</div><div class="barra"><i style="width:' + esc(r.percentuale) + '%"></i></div>' : ''
     const stato = esc(r.manca) + (r.inRitardo ? ' · <b>in ritardo</b>' : '') + (r.prenotata ? ' · <b>tocca a lui</b>' : '') + (r.parcheggiata ? ' · fermato, riparte per primo' : '') + (r.fermaRichiesta ? ' · <b>fermata chiesta…</b>' : '')
-    const tasti = lettura ? '' : menuSpecConferma === r.id
+    const tasti = lettura ? '' : r.perPc ? '<span class="sotto">per ' + esc(r.perPc) + '</span>' : menuSpecConferma === r.id
       ? '<span class="sotto">Lo fermo e lo metto in cima alla fila: il suo lavoro resta salvato.</span> <button data-id="' + esc(r.id) + '" data-m="ferma" onclick="menuSpecMossa(this)">Sì, ferma</button> <button onclick="menuSpecAnnulla()">No</button>'
       : '<button data-id="' + esc(r.id) + '" data-m="cima"' + (!lavora && r.posizione === 1 ? ' disabled' : '') + ' onclick="menuSpecMossa(this)">↑ Precedenza</button>' +
         (lavora && !r.fermaRichiesta ? '<button data-id="' + esc(r.id) + '" onclick="menuSpecFerma(this.dataset.id)">Ferma</button>' : '')

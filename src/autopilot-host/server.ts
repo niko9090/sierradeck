@@ -380,7 +380,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   let regolazioneUsata: RegolazionePosti = 0
   let scelteUsate: number | undefined
   /** Le chat adottate al lavoro più gli specialisti (subagenti): occupano posti anche loro. */
-  const alLavoroSulPc = (): number => chatAlLavoroSulPc(unici()) + (unico?.specialistiSulPc() ?? 0)
+  // 12/11: anche i lavori degli altri PC che girano qui («N di M chat» li contava zero).
+  const alLavoroSulPc = (): number => chatAlLavoroSulPc(unici()) + (unico?.specialistiSulPc() ?? 0) + (lavoratoreAiuto?.inCorso() ?? 0)
   const aggiornaPosti = (): void => {
     deps.guardiaPc?.valuta()
     if (deps.misuraPc === undefined) return
@@ -1722,6 +1723,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     attesa: deps.attesa ?? apriAttesa(join(deps.archivio.cartella, 'servizio', 'attesa-specialisti.json')),
     aiuti: apriAiuti(join(deps.archivio.cartella, 'servizio', 'aiuti-affidati.json')),
     aiutiQui: () => lavoratoreAiuto?.inCorso() ?? 0,
+    ospitati: () => lavoratoreAiuto?.ospitati() ?? [],
     // Nel recupero del riassetto (30 giorni, «Annulla» lo rimette), come gli altri passi del servizio.
     spostaNelRecupero: (cartella, motivo) => {
       const rec = apriRecuperoPasso({ dati: dirname(deps.archivio.cartella), versione: deps.versione ?? '0.0.0', passo: 'servizio-doppioni' })

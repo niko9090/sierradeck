@@ -408,11 +408,13 @@ export function leggiRichiestaEventi(cerca: URLSearchParams | undefined): { avvi
 
 const breve = (a: Pick<Avviso, 'tipo' | 'titolo'>): string => `${a.tipo} «${unaRiga(a.titolo, 60)}»`
 
+// 12/11: nel registro mai il testo di un avviso né di una risposta. Copiano i messaggi delle chat, e il
+// registro ne ha avuto uno con una password in chiaro: il registro si allega e si manda.
 export function rigaNascita(a: Avviso): string {
-  return `[avviso] nato n=${a.n} ${breve(a)}: ${unaRiga(a.testo, 80)}${a.suona ? ' (suona)' : ' (silenzioso)'}`
+  return `[avviso] nato n=${a.n} ${breve(a)}: ${a.testo.length} caratteri${a.suona ? ' (suona)' : ' (silenzioso)'}`
 }
 export function rigaChiusura(a: Avviso): string {
-  return `[avviso] chiuso n=${a.n} ${breve(a)}: ${a.chiuso?.come ?? '?'}${a.chiuso?.testo !== undefined ? ` («${unaRiga(a.chiuso.testo, 60)}»)` : ''}`
+  return `[avviso] chiuso n=${a.n} ${breve(a)}: ${a.chiuso?.come ?? '?'}${a.chiuso?.testo !== undefined ? ` (risposta di ${a.chiuso.testo.length} caratteri)` : ''}`
 }
 /** La consegna, con i secondi passati da quando è nato (o è stato chiuso). */
 export function rigaConsegna(a: Avviso, chi: string, ora: number): string {

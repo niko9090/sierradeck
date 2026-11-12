@@ -24,6 +24,9 @@ export type DatiRiassunto = {
   percento?: PercentoWs
   eventi: EventoOrchestratore[]
   tetti: { ws: number; pc: number; alLavoroPc: number }
+  /** 12/11: i compiti pronti a partire adesso senza nessuno al lavoro, e i posti liberi sugli altri PC (Aiuta la rete). */
+  pronti?: string[]
+  liberiFuori?: number
   domandeAperte: number
   /** Le domande aperte, per ritirare quelle superate (0.92.1). */
   domande?: { id: string; testo: string; apertaIl: number }[]
@@ -110,6 +113,14 @@ export function riassuntoOrchestratore(d: DatiRiassunto): string {
   if (adottate.length > 0) righe.push(`Chat adottate di Nicholas: ${adottate.map((x) => `${corto(x.titolo || x.sessionId.slice(0, 8), 40)}${x.soloMia === true ? ' (solo sua: non scriverle)' : ''}`).join('; ')}`)
 
   righe.push('', `TETTI: specialisti al lavoro in questo workspace ${sub.filter((x) => x.stato === 'avviato' || x.stato === 'lavoro').length + chats.filter((c) => c.stato !== 'finita').length}/${d.tetti.ws}; chat al lavoro sul PC ${d.tetti.alLavoroPc}/${d.tetti.pc}. Domande aperte a Nicholas: ${d.domandeAperte}.`)
+  // 12/11 (Nicholas: «lavora in parallelo più che puoi»): cosa può partire adesso, e quanti posti ci sono.
+  {
+    const alLavoroWs = sub.filter((x) => (x.stato === 'avviato' || x.stato === 'lavoro') && x.pc === undefined).length + chats.filter((c) => c.stato !== 'finita').length
+    const liberiWs = Math.max(0, Math.min(d.tetti.ws - alLavoroWs, d.tetti.pc - d.tetti.alLavoroPc))
+    const fuori = d.liberiFuori ?? 0
+    const pronti = d.pronti ?? []
+    if (pronti.length > 0) righe.push(`PRONTI ORA (nessuno ci lavora, le dipendenze sono unite): ${pronti.join(', ')}. Posti liberi: ${liberiWs} qui${fuori > 0 ? ` + ${fuori} sugli altri PC` : ''}. Lanciali tutti insieme, in un solo messaggio, fino ai posti liberi.`)
+  }
   // 0.92.1 (Nicholas 05/11: «domande vecchie continuano a rimanere visibili anche quando non sono più attuali»).
   if (d.domande !== undefined && d.domande.length > 0) {
     righe.push('DOMANDE APERTE (le vede Nicholas: ritira con ritira_domanda quelle che non servono più — hai già deciso, il lavoro è andato avanti, ti ha risposto nel dialogo):')

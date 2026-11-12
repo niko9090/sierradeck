@@ -37,8 +37,8 @@ describe('il registro degli avvisi', () => {
     expect(registro.chiudi('domanda:mai', 'risposta')).toBeUndefined()
     expect(registro.ultimo()).toBe(2)
     expect(righe).toEqual([
-      '[avviso] nato n=1 domanda «Negozio chiede»: Domanda d-1? (suona)',
-      '[avviso] chiuso n=2 domanda «Negozio chiede»: programma («Sì»)'
+      '[avviso] nato n=1 domanda «Negozio chiede»: 12 caratteri (suona)',
+      '[avviso] chiuso n=2 domanda «Negozio chiede»: programma (risposta di 2 caratteri)'
     ])
   })
 

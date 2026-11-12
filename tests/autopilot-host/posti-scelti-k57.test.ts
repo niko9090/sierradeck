@@ -15,9 +15,9 @@ describe('numero scelto: calcolo dei posti', () => {
   })
   it('sale subito, senza la salita lenta', () => {
     const prima = prossimiPosti(undefined, postiDalPc(PC, 0, 0), 0)
-    const dopo = prossimiPosti(undefined, postiDalPc(PC, 0, 0, 6), 1)
-    expect(prima.posti).toBe(4)
-    expect(dopo.posti).toBe(6)
+    const dopo = prossimiPosti(undefined, postiDalPc(PC, 0, 0, 8), 1)
+    expect(prima.posti).toBe(6)
+    expect(dopo.posti).toBe(8)
   })
   it('valori fuori limite = automatico', () => {
     for (const v of [0, 9, 2.5, -1, '3', null, undefined, NaN]) expect(leggiPostiScelti(v)).toBeUndefined()

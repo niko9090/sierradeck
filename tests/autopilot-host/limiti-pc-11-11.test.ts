@@ -77,7 +77,11 @@ describe('i limiti del PC: valori e lettura', () => {
   it('il tetto degli specialisti di un workspace non ha più il massimo di 4', () => {
     expect(leggiImpostazioni({ tettoSpecialisti: 9 }).tettoSpecialisti).toBe(9)
     expect(leggiImpostazioni({ tettoSpecialisti: 0 }).tettoSpecialisti).toBe(1)
-    expect(leggiImpostazioni({}).tettoSpecialisti).toBe(3)
+    // 12/11: di serie 5; il 3 scritto da sé dalle versioni di prima vale come «di serie», uno scelto da Nicholas resta.
+    expect(leggiImpostazioni({}).tettoSpecialisti).toBe(5)
+    expect(leggiImpostazioni({ tettoSpecialisti: 3 }).tettoSpecialisti).toBe(5)
+    expect(leggiImpostazioni({ tettoSpecialisti: 3, tettoScelto: true })).toMatchObject({ tettoSpecialisti: 3, tettoScelto: true })
+    expect(leggiImpostazioni({ tettoSpecialisti: 2 })).toMatchObject({ tettoSpecialisti: 2, tettoScelto: true })
   })
 })
 

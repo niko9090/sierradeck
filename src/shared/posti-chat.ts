@@ -32,7 +32,10 @@ export const POSTI_MAX = TETTO_CHAT_MAX
  * `claude.exe`. Quattro lasciano il PC usabile; chi lo vuole più pieno sceglie
  * «più chat» e torna fino a `POSTI_MAX`.
  */
-export const POSTI_DI_SERIE = 4
+// 12/11 (Nicholas: «lavora in parallelo più che puoi per abbattere i tempi»): 4 → 6. Da allora i
+// supervisori non girano più per ogni chat, le prove pesanti vanno una alla volta sul PC
+// (`guardia-pc.ts`), e processori, memoria e carico tolgono posti da soli quando serve.
+export const POSTI_DI_SERIE = 6
 
 /** Il tetto dei posti per la regolazione scelta. */
 export function postiMassimi(regolazione: RegolazionePosti = 0): number {

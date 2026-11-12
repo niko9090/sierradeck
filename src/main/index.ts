@@ -4593,7 +4593,7 @@ if (!app.requestSingleInstanceLock()) {
         orchestratoreWorkspace: (ws: string) => clientAutopilota.orchestratore(ws),
         specialistaAutopilota: (ws: string, id: string) => clientAutopilota.specialista(ws, id),
         // 0.103.0: «Aiuta la rete»: il modo scelto qui e la strada verso il servizio per le rotte `/aiuto/*`.
-        aiuto: { modo: () => impostazioni.preferenze().aiutoRete, servizio: (percorso: string, corpo?: Record<string, unknown>) => clientAutopilota.aiuto(percorso, corpo) },
+        aiuto: { modo: () => impostazioni.preferenze().aiutoRete, servizio: (percorso: string, corpo?: Record<string, unknown>) => clientAutopilota.aiuto(percorso, corpo), nomePc: (pcId: string) => { const b = postino.altrui().find((x) => x.pcId === pcId); return b !== undefined ? nomeDaMostrare(b) : undefined } },
         attesaSpecialisti: () => clientAutopilota.attesaSpecialisti(),
         prioritaAttesaSpecialisti: (id: string, mossa: import('@shared/attesa-specialisti').MossaAttesa) => clientAutopilota.prioritaAttesa(id, mossa),
         togliAttesaSpecialisti: (id: string) => clientAutopilota.togliAttesa(id),

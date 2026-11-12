@@ -31,8 +31,13 @@ export type ImpostazioniOrchestratore = {
    * scritto dalle versioni di prima diventa Opus.
    */
   modelloScelto?: boolean
-  /** Quanti specialisti insieme in questo workspace: 3 di serie. 11/11: il massimo lo decide Nicholas, non più il programma (era 4). */
+  /** Quanti specialisti insieme in questo workspace: 5 di serie (3 fino alla 0.103.3). 11/11: il massimo lo decide Nicholas, non più il programma (era 4). */
   tettoSpecialisti: number
+  /**
+   * 12/11: il tetto l'ha scelto Nicholas. Senza, vale quello di serie: il 3 scritto
+   * da sé dalle versioni di prima in ogni workspace non blocca il valore nuovo.
+   */
+  tettoScelto?: boolean
   /** La sessione di `claude -p`, ripresa con `--resume`. */
   sessione?: string
   /** I token di contesto dell'ultima chiamata (dall'`usage`). */
@@ -64,7 +69,11 @@ export type Sveglia = { il: string; perche: string; chiesta: string }
 /** Quante sveglie in attesa per workspace, al più. */
 export const SVEGLIE_MAX = 10
 
-export const TETTO_SPECIALISTI = 3
+// 12/11 (Nicholas: «lavora in parallelo più che puoi per abbattere i tempi»): 3 → 5. Le prove pesanti
+// restano una alla volta sul PC (`guardia-pc.ts`) e i posti scendono da soli se il PC è sotto sforzo.
+export const TETTO_SPECIALISTI = 5
+/** Il tetto di serie delle versioni fino alla 0.103.3, scritto da sé in ogni workspace. */
+export const TETTO_SPECIALISTI_DI_PRIMA = 3
 export const TETTO_SPECIALISTI_MAX = 4
 /** Quanti rami già guardati si ricordano, al più. */
 export const RAMI_SEGNALATI_MAX = 300
@@ -77,7 +86,10 @@ export function leggiImpostazioni(x: unknown): ImpostazioniOrchestratore {
   const d = impostazioniPredefinite()
   if (typeof x !== 'object' || x === null) return d
   const o = x as Record<string, unknown>
-  const tetto = typeof o.tettoSpecialisti === 'number' && Number.isInteger(o.tettoSpecialisti) ? Math.max(1, o.tettoSpecialisti) : d.tettoSpecialisti
+  const scritto = typeof o.tettoSpecialisti === 'number' && Number.isInteger(o.tettoSpecialisti) ? Math.max(1, o.tettoSpecialisti) : undefined
+  // Un numero diverso dal 3 di serie di prima l'ha scelto Nicholas anche senza il segno.
+  const tettoScelto = scritto !== undefined && (o.tettoScelto === true || o.tettoSpecialisti !== TETTO_SPECIALISTI_DI_PRIMA)
+  const tetto = tettoScelto ? scritto! : d.tettoSpecialisti
   const p = o.percento as Record<string, unknown> | undefined
   const percento: PercentoWs | undefined = typeof p === 'object' && p !== null && typeof p.il === 'string'
     ? {
@@ -92,6 +104,7 @@ export function leggiImpostazioni(x: unknown): ImpostazioniOrchestratore {
     modello: o.modelloScelto === true && modelloAutopilotaAmmesso(o.modello) ? o.modello : 'opus',
     ...(o.modelloScelto === true ? { modelloScelto: true } : {}),
     tettoSpecialisti: tetto,
+    ...(tettoScelto ? { tettoScelto: true } : {}),
     ...(typeof o.autopilota === 'string' && o.autopilota !== '' ? { autopilota: o.autopilota } : {}),
     ...(typeof o.attivatoIl === 'string' ? { attivatoIl: o.attivatoIl } : {}),
     ...(typeof o.sessione === 'string' && o.sessione !== '' ? { sessione: o.sessione } : {}),

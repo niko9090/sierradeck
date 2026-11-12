@@ -118,6 +118,9 @@ export function modelloAiuto(x: unknown): string {
   return typeof x === 'string' && MODELLI_AIUTO.includes(x) ? x : 'sonnet'
 }
 
+/** 12/11: un lavoro di un altro PC che gira qui, per l'elenco «Al lavoro adesso» di questo PC. */
+export type LavoroOspitato = { id: string; stato: StatoAiuto; ruolo: string; descrizione: string; perPc: string; inizio: string; attivita?: string }
+
 /** Come sta un lavoro, dal lato di chi aiuta. */
 export type StatoAiuto = 'ricevo' | 'preparo' | 'lavoro' | 'finito' | 'fallito' | 'fermato'
 

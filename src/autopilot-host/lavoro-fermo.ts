@@ -31,7 +31,7 @@ const corto = (t: string, n: number): string => {
  * richieste aperte senza piano. `alLavoro`: gli id degli specialisti vivi.
  * `inUnione`: i compiti la cui unione è in corso o in fila (non sono fermi).
  */
-export function lavoroFermo(p: { coda: Coda; piano: Piano; alLavoro: ReadonlySet<string>; inUnione?: ReadonlySet<string> }): LavoroFermo | undefined {
+export function lavoroFermo(p: { coda: Coda; piano: Piano; alLavoro: ReadonlySet<string>; inUnione?: ReadonlySet<string>; unioniFerme?: ReadonlyMap<string, string> }): LavoroFermo | undefined {
   const aperte = new Set(p.coda.richieste.filter((r) => r.stato !== 'fatta').map((r) => r.id))
   // 11/11: un compito chiuso senza unirlo non è fermo, e chi veniva dopo di lui non lo aspetta.
   const compiti = p.piano.compiti.filter((c) => aperte.has(c.richiesta) && c.chiuso === undefined)
@@ -48,6 +48,10 @@ export function lavoroFermo(p: { coda: Coda; piano: Piano; alLavoro: ReadonlySet
     } else if (c.stato === 'in-revisione' && p.inUnione?.has(c.id) === true) {
       // 10/11: l'unione è in corso o in fila, il programma la sta facendo: non è fermo.
       continue
+    } else if (c.stato === 'in-revisione' && p.unioniFerme?.has(c.id) === true) {
+      // 12/11: la sua unione è ferma: non lo si rilancia, ma il resto va avanti (e lo si dice).
+      firma.push(`${c.id}:unione-ferma`)
+      righe.push(`- ${c.id} finito, unione ${p.unioniFerme.get(c.id)}: non rilanciarlo, intanto affida gli altri compiti pronti`)
     } else if (c.stato === 'in-revisione') {
       firma.push(`${c.id}:revisione:${c.esito ?? ''}`)
       righe.push(`- ${c.id} finito e non unito${c.esito !== undefined ? ` (${corto(c.esito, 160)})` : ''}`)

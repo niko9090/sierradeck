@@ -4,7 +4,7 @@ import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSy
 import { join } from 'node:path'
 import {
   commitValido, idLavoroValido, LAVORO_MAX_MS, modelloAiuto, nomeProgettoSicuro, PEZZO_BYTE, PACCHETTO_MAX_BYTE,
-  quantiPezzi, ramoDiRitorno, ramoValido, STRUMENTI_AIUTO, strumentiAmmessi, VIETATI_AIUTO, type StatoAiuto, type VistaLavoroAiutato
+  quantiPezzi, ramoDiRitorno, ramoValido, STRUMENTI_AIUTO, strumentiAmmessi, VIETATI_AIUTO, type LavoroOspitato, type StatoAiuto, type VistaLavoroAiutato
 } from '@shared/aiuto-rete'
 import type { AvviaProcesso } from './orchestratore'
 import { cancellaSicuraAsincrona } from '@shared/cancella-sicura'
@@ -40,6 +40,10 @@ export type RichiestaAvvio = {
 
 type Lavoro = VistaLavoroAiutato & {
   progetto: string
+  /** 12/11: per l'elenco di questo PC: chi lo fa, cosa, e per quale PC. */
+  ruolo?: string
+  descrizione?: string
+  perPc?: string
   base?: string
   ricevuti: number
   totale?: number
@@ -52,6 +56,8 @@ type Lavoro = VistaLavoroAiutato & {
 export type LavoratoreAiuto = {
   /** Quanti lavori di altri PC sono al lavoro qui adesso: contano nei posti. */
   inCorso: () => number
+  /** 12/11: i lavori degli altri PC al lavoro qui, per l'elenco «Al lavoro adesso». */
+  ospitati: () => LavoroOspitato[]
   pezzo: (p: { lavoro: unknown; n: unknown; totale: unknown; dati: unknown }) => { ok: true; ricevuti: number } | { ok: false; motivo: string }
   avvia: (p: Record<string, unknown>) => { ok: true } | { ok: false; motivo: string }
   stato: (id: unknown) => VistaLavoroAiutato | undefined
@@ -267,6 +273,9 @@ export function creaLavoratoreAiuto(x: {
 
   return {
     inCorso: () => [...lavori.values()].filter((l) => l.stato === 'ricevo' || l.stato === 'preparo' || l.stato === 'lavoro').length,
+    ospitati: () => [...lavori.values()]
+      .filter((l) => l.stato === 'ricevo' || l.stato === 'preparo' || l.stato === 'lavoro')
+      .map((l) => ({ id: l.id, stato: l.stato, ruolo: l.ruolo ?? 'sviluppatore', descrizione: l.descrizione ?? l.progetto, perPc: l.perPc ?? 'un altro PC', inizio: new Date(l.inizio).toISOString(), ...(l.attivita !== undefined ? { attivita: l.attivita } : {}) })),
     pezzo(p) {
       if (!idLavoroValido(p.lavoro)) return { ok: false, motivo: 'lavoro non valido' }
       const n = typeof p.n === 'number' && Number.isInteger(p.n) ? p.n : -1
@@ -307,7 +316,7 @@ export function creaLavoratoreAiuto(x: {
         ruolo: typeof p.ruolo === 'string' ? corto(p.ruolo, 40) : 'sviluppatore',
         descrizione: typeof p.descrizione === 'string' ? corto(p.descrizione, 300) : ''
       }
-      cambia(l, { progetto: nomeProgettoSicuro(r.progetto), base: r.base })
+      cambia(l, { progetto: nomeProgettoSicuro(r.progetto), base: r.base, ruolo: r.ruolo, descrizione: r.descrizione, ...(typeof p.daNome === 'string' && p.daNome.trim() !== '' ? { perPc: corto(p.daNome, 60) } : {}) })
       log(`${l.id}: parte ${r.ruolo} per ${r.progetto} — ${r.descrizione.slice(0, 120)}`)
       void lancia(l, r).catch(async (err: unknown) => {
         log(`${l.id}: non riuscito: ${String(err).slice(0, 300)}`)

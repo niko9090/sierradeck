@@ -221,8 +221,8 @@ describe('il servizio: «N di M chat», chiusura da sole (0.82.0)', () => {
     server = ambiente()
     await avvia(server)
     server.controllaChatFerme()
-    // 0.85.2: di serie al più quattro.
-    expect((await chiama('GET', '/posti-chat')).posti).toBe(4)
+    // 0.85.2: di serie al più quattro; 12/11: sei.
+    expect((await chiama('GET', '/posti-chat')).posti).toBe(6)
     await chiama('POST', '/stato-programma', { letto: ORA, chat: [], domandeAperte: 0, progetti: [], altriPc: [], regolazionePosti: 1, limiti: { cinqueOre: { percento: 5, lettoIl: ORA } } })
     server.controllaChatFerme()
     expect((await chiama('GET', '/posti-chat'))).toMatchObject({ posti: 8, regolazione: 1 })

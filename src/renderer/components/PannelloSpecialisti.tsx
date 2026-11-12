@@ -71,7 +71,7 @@ export function ListaSpecialisti({ vista, adesso, daTogliere, daFermare, onMossa
                   <span className="spec__sotto">{v.tipo} · lavora da {daQuanto(v.dal, adesso)}{v.precedenza !== undefined && v.precedenza > 0 ? ` · precedenza ${v.precedenza}` : ''}</span>
                 </span>
                 <span className="spec__tasti">
-                  {v.fermaRichiesta === true ? <span className="spec__chiede">fermata chiesta…</span> : daFermare === v.id ? (
+                  {v.perPc !== undefined ? <span className="spec__chiede" title="Aiuta la rete: lo segue e lo ferma il PC che l’ha chiesto">per {v.perPc}</span> : v.fermaRichiesta === true ? <span className="spec__chiede">fermata chiesta…</span> : daFermare === v.id ? (
                     <>
                       <span className="spec__chiede">Lo fermo e lo metto in cima alla fila: il suo lavoro resta salvato</span>
                       <button className="tasto tasto--mini" onClick={() => onMossa(v.id, 'ferma')}>Sì, ferma</button>
