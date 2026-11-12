@@ -430,6 +430,8 @@ contextBridge.exposeInMainWorld('gestore', {
     /** I messaggi mandati da qui alla posta di quel PC: in attesa, consegnati, falliti (0.88.0). */
     inviati: (pc: string): Promise<import('../main/progetti/manda-a-chat').StatoInvio[]> => ipcRenderer.invoke('remoto:inviati', pc),
     scegli: (pc: string, chat: string, opzione: string): Promise<EsitoRemoto<{ fatto: boolean }>> => ipcRenderer.invoke('remoto:scegli', pc, chat, opzione),
+    /** 0.102.2: un tasto vero (Esc, frecce, Tab, Ctrl+C) nella chat di quel PC. */
+    tasto: (pc: string, chat: string, tasto: string): Promise<EsitoRemoto<{ fatto: boolean }>> => ipcRenderer.invoke('remoto:tasto', pc, chat, tasto),
     pin: (pc: string, chat: string, pin: string): Promise<EsitoRemoto<{ fatto: boolean }>> => ipcRenderer.invoke('remoto:pin', pc, chat, pin),
     riprendi: (pc: string, cartella: string, sessione: string, workspace?: string): Promise<EsitoRemoto<{ fatto: boolean }>> =>
       ipcRenderer.invoke('remoto:riprendi', pc, cartella, sessione, workspace),

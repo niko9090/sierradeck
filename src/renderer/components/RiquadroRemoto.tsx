@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNomePc } from '../state/nomi-pc'
 import { SchermoRemoto } from './SchermoRemoto'
+import { BARRA_TASTI, tastoDaEvento, type TastoRemoto } from '@shared/tasti-remoti'
 import { pcVivo } from '@shared/posta'
 import {
   trovaChatRemota, storiaRemotaSicura, descriviIndirizzo, descriviSilenzio, RILEGGI_REMOTO_OGNI_MS, RIGHE_REMOTE,
@@ -284,11 +285,20 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
     }
     void giro()
     // Il ritmo lo decide il collegamento: ogni due secondi da collegati, con le attese crescenti da caduti.
-    const t = setInterval(() => { if (eOra(lineaRef.current, ultimaIl.current, Date.now())) void giro() }, 250)
+    // 0.102.2: da collegati lo schermo si rilegge ogni secondo (era ogni due): più vicino al terminale vero.
+    const t = setInterval(() => { if (lineaRef.current.fase === 'ricollego' ? eOra(lineaRef.current, ultimaIl.current, Date.now()) : Date.now() - ultimaIl.current >= 1000) void giro() }, 250)
     return () => { vivo = false; clearInterval(t) }
   }, [remoto.pcId, remoto.cwd, remoto.sessione])
 
   const chatId = fase.tipo === 'viva' ? fase.chat.id : undefined
+  /** 0.102.2: un tasto vero nella chat di là; lo schermo si rilegge subito dopo. */
+  const premi = (t: TastoRemoto): void => {
+    if (chatId === undefined) return
+    void window.gestore.remoto.tasto(remoto.pcId, chatId, t).then((r) => {
+      if (!r.ok) setAvviso(r.messaggio)
+      ultimaIl.current = 0
+    }).catch(() => undefined)
+  }
   const vivo = pc !== undefined && (pc.stato?.stato === 'acceso' || pcVivo({ ...pc, chat: pc.chat, cartelle: pc.cartelle }, Date.now()))
 
   /**
@@ -476,13 +486,33 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
       ) : null}
 
       {!chiusaPin && (fase.tipo === 'viva' || storia !== undefined) ? (
-        <SchermoRemoto
-          grezze={storia?.grezze ?? []}
-          {...(storia?.colonne !== undefined ? { colonne: storia.colonne } : {})}
-          {...(storia?.continua !== undefined ? { continua: storia.continua } : {})}
-          giu={linea.fase === 'ricollego'}
-          contenitore={schermo}
-        />
+        <div
+          className="remoto__tastiera"
+          tabIndex={0}
+          title="Clicca qui e usa Esc, frecce, Invio, Tab e Ctrl+C: vanno alla chat di là"
+          onKeyDown={(e) => {
+            if (chatId === undefined) return
+            const t = tastoDaEvento(e)
+            if (t === undefined) return
+            e.preventDefault()
+            premi(t)
+          }}
+        >
+          <SchermoRemoto
+            grezze={storia?.grezze ?? []}
+            {...(storia?.colonne !== undefined ? { colonne: storia.colonne } : {})}
+            {...(storia?.continua !== undefined ? { continua: storia.continua } : {})}
+            giu={linea.fase === 'ricollego'}
+            contenitore={schermo}
+          />
+        </div>
+      ) : null}
+      {!chiusaPin && fase.tipo === 'viva' ? (
+        <div className="remoto__tasti" aria-label="Tasti per la chat di là">
+          {BARRA_TASTI.map((b) => (
+            <button key={b.tasto} className="tasto tasto--mini" title={b.titolo} onClick={() => premi(b.tasto)}>{b.etichetta}</button>
+          ))}
+        </div>
       ) : null}
 
       {fase.tipo === 'cerco' && storia === undefined ? (

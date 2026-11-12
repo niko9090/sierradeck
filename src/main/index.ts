@@ -2314,6 +2314,8 @@ if (!app.requestSingleInstanceLock()) {
       })
       // In attesa / consegnato / fallito (0.88.0): i messaggi lasciati nella posta di quel PC.
       ipcMain.handle('remoto:inviati', (_e, pc: unknown) => mandaAChat.stati(testo(pc)).catch(() => []))
+      ipcMain.handle('remoto:tasto', (_e, pc: unknown, chat: unknown, tasto: unknown) =>
+        esitoRemoto(() => remoto.chiama(testo(pc), '/api/tasto', { chat: testo(chat), tasto: testo(tasto) }), pc))
       ipcMain.handle('remoto:scegli', (_e, pc: unknown, chat: unknown, opzione: unknown) =>
         esitoRemoto(() => remoto.chiama(testo(pc), '/api/scegli', { chat: testo(chat), opzione: testo(opzione) }), pc))
       // «Riapri là» (0.58.3): la richiesta, il suo esito e la chat che compare là

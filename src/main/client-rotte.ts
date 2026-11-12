@@ -53,6 +53,7 @@ import {
   type AzioneFinestra, type EsitoAzioneFinestra, type RichiestaAutopilota
 } from '@shared/azioni-telefono'
 import { oscuraChat, rifiutoChiusa, STATO_CHIUSA } from '@shared/pin-chat'
+import { TASTI_REMOTI, tastoRemotoValido } from '@shared/tasti-remoti'
 import type { GuardianoPin } from './pin-guardiano'
 import type { Allegati } from './allegati'
 import { creaMemoriaInvii, idMessaggioValido } from '@shared/collegamento'
@@ -83,7 +84,7 @@ export function daAltroPc(dispositivo: string | undefined): boolean {
 }
 
 /** Le rotte che mostrano o scrivono dentro una chat: passano dal PIN (0.49.0). */
-const ROTTE_DENTRO_CHAT = new Set(['/api/storia', '/api/dentro', '/api/scrivi', '/api/scegli', '/api/chat/chiudi', '/api/prova/chiudi', '/api/chat/nome', '/api/chat/dormi', '/api/chat/sveglia', '/api/chat/sposta'])
+const ROTTE_DENTRO_CHAT = new Set(['/api/storia', '/api/dentro', '/api/scrivi', '/api/tasto', '/api/scegli', '/api/chat/chiudi', '/api/prova/chiudi', '/api/chat/nome', '/api/chat/dormi', '/api/chat/sveglia', '/api/chat/sposta'])
 import type { TentativoFallito } from '@shared/tentativo-installazione'
 import type { AvvisoDrive } from '@shared/scoperta-pc'
 import type { EsitoNegozio, McpVoce, PluginVoce, SkillVoce } from '@shared/negozio'
@@ -1718,6 +1719,18 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       deps.scriviAChat(chat, testo.slice(0, TESTO_MAX))
       ricordaInviato(chat, testo)
       if (conId) memoriaInvii.segna(chat, idM, adesso())
+      return OK({ fatto: true })
+    }
+
+    // 0.102.2: un tasto vero (Esc, frecce, Tab, Ctrl+C…) da un altro PC, dall'elenco chiuso di `tasti-remoti`.
+    if (r.metodo === 'POST' && r.percorso === '/api/tasto') {
+      const chat = stringa(r.corpo, 'chat')
+      const tasto = stringa(r.corpo, 'tasto')
+      if (chat === '' || !tastoRemotoValido(tasto)) return { stato: 400, corpo: { errore: 'servono la chat e un tasto conosciuto' } }
+      const trovata = deps.chat().find((c) => c.id === chat)
+      if (trovata === undefined) return { stato: 404, corpo: { errore: 'chat non trovata: si è chiusa o non è più aperta su questo PC' } }
+      if (deps.tastiAChat === undefined) return { stato: 409, corpo: { errore: 'questo PC non sa ancora premere tasti nelle sue chat' } }
+      deps.tastiAChat(chat, [TASTI_REMOTI[tasto]])
       return OK({ fatto: true })
     }
 
