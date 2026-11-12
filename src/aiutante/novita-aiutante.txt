@@ -3,6 +3,6 @@ scripts/pubblica-aiutante.mjs per le note della pubblicazione «aiutante».
 Ogni riga fra apici singoli; dentro, un apice si scrive \'.
 
 versione: '1.0.0'
-  'Prima versione: SierraDeck Aiutante entra nella rete come un PC normale (Drive e passphrase della cassaforte) e fa solo «Aiuta la rete»: riceve gli specialisti dagli altri PC, li fa lavorare e rimanda il ramo.',
+  'Prima uscita: SierraDeck Aiutante entra nella rete come un PC normale (Drive e passphrase della cassaforte) e fa solo «Aiuta la rete»: riceve gli specialisti dagli altri PC, li fa lavorare e rimanda il ramo.',
   'Niente chat, autopiloti o workspace suoi: gli altri PC lo scelgono prima di ogni altro PC quando ha posti liberi.',
   'Si aggiorna da solo senza interrompere i lavori in corso; errori e blocchi vanno al PC di sviluppo come per il programma completo.',
