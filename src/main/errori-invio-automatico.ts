@@ -110,8 +110,12 @@ export function decidiInvio(p: {
   return { manda: true, fino }
 }
 
-/** Il PC di sviluppo: quello scelto, o il proprietario del progetto SierraDeck. */
-export function pcSviluppoDi(scelto: string | undefined, progetti: ReadonlyArray<{ nome: string; proprietario?: string }>): string | undefined {
+/**
+ * Il PC di sviluppo: quello che si è proclamato (12/11, 0.105.0), poi quello scelto a mano (prima della
+ * 0.105.0), poi il proprietario del progetto SierraDeck.
+ */
+export function pcSviluppoDi(scelto: string | undefined, progetti: ReadonlyArray<{ nome: string; proprietario?: string }>, proclamato?: string): string | undefined {
+  if (proclamato !== undefined) return proclamato
   if (scelto !== undefined) return scelto
   return progetti.find((p) => p.nome.toLowerCase() === 'sierradeck' && p.proprietario !== undefined)?.proprietario
 }

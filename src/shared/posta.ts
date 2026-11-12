@@ -100,6 +100,10 @@ export type BattitoPc = {
    * a quei PC si scrive ancora nella cassetta unica (`nomePosta`).
    */
   posta?: number
+  /** 12/11 (0.105.0): questo PC si è proclamato PC di sviluppo: gli altri gli mandano gli errori da soli. */
+  sviluppo?: true
+  /** Da quando (ISO): se due PC si proclamano vince l'ultimo. */
+  sviluppoDal?: string
 }
 
 /** Le copie locali di un PC: chat (sessione, cartella, ultimo messaggio) e progetti (id, cartella). */

@@ -14,7 +14,15 @@ type PcScelta = { id: string; nome: string }
  * «Manda al PC di sviluppo», scelto qui fra i PC conosciuti. Testi corti, il
  * resto dietro i «?».
  */
-export function SezioneErrori({ pcSviluppo, scegliPc }: { pcSviluppo?: string; scegliPc?: (id: string | undefined) => void }): React.JSX.Element {
+export function SezioneErrori({ pcSviluppo, proclamato, proclama }: { pcSviluppo?: string; scegliPc?: (id: string | undefined) => void; proclamato?: boolean; proclama?: (si: boolean) => void }): React.JSX.Element {
+  // 12/11 (0.105.0): «Proclama PC di sviluppo»: se qui si può, perché no, e chi è il PC di sviluppo adesso.
+  const [sviluppo, setSviluppo] = useState<{ puo: boolean; perche?: string; proclamato: boolean; pc?: string } | undefined>(undefined)
+  useEffect(() => {
+    const leggi = (): void => { void window.gestore.errori.sviluppo().then(setSviluppo).catch(() => undefined) }
+    leggi()
+    const t = setInterval(leggi, 15_000)
+    return () => clearInterval(t)
+  }, [proclamato])
   const [storico, setStorico] = useState<{ voci: VoceErrore[]; inviate?: Array<VoceErrore & { inviatoIl: string }>; testo: string; arrivi?: string } | undefined>(undefined)
   const [vediInviati, setVediInviati] = useState(false)
   const [tutti, setTutti] = useState(false)
@@ -91,14 +99,16 @@ export function SezioneErrori({ pcSviluppo, scegliPc }: { pcSviluppo?: string; s
         </ul>
       ) : null}
       <div className="impostazioni__riga">
-        <label className="con-aiuto">PC di sviluppo
-          <select value={pcSviluppo ?? ''} onChange={(e) => scegliPc?.(e.target.value === '' ? undefined : e.target.value)}>
-            <option value="">— scegli il PC —</option>
-            {scelte.map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
-          </select>
-        </label>
-        <button className="tasto" onClick={mandaOra} disabled={manda || pcSviluppo === undefined || voci.length === 0}>{manda ? 'Mando…' : 'Manda al PC di sviluppo'}</button>
+        <span className="con-aiuto">PC di sviluppo: {sviluppo?.pc ?? (scelte.find((x) => x.id === pcSviluppo)?.nome ?? 'nessuno')}</span>
+        <button className="tasto" onClick={mandaOra} disabled={manda || sviluppo?.pc === undefined || voci.length === 0}>{manda ? 'Mando…' : 'Manda al PC di sviluppo'}</button>
         <Aiuto di="Manda al PC di sviluppo">Di solito non serve: gli errori nuovi partono da soli verso il PC scelto, un minuto o due dopo l’ultimo, e poi escono dalla lista. Se il PC non risponde si riprova più tardi. Il PC di sviluppo non manda a se stesso. Qui puoi mandarli subito, firmati con la chiave di casa. Là arrivano nella cartella di SierraDeck, in .sierradeck/errori-arrivati, che non va mai su GitHub: chi corregge il programma lo trova lì.</Aiuto>
+      </div>
+      <div className="impostazioni__riga">
+        <label className="con-aiuto">
+          <input type="checkbox" checked={proclamato === true} disabled={sviluppo?.puo !== true} onChange={(e) => proclama?.(e.target.checked)} />
+          Proclama questo PC come PC di sviluppo
+          <Aiuto di="Proclama PC di sviluppo">Il PC proclamato lo dice agli altri PC della stessa cassaforte, che gli mandano da soli errori e blocchi. Se ne proclami un altro, vale l’ultimo. Si può solo su un PC che ha il workspace di SierraDeck (la cartella del codice collegata al repository del progetto): per chi scarica il programma la voce resta spenta.{sviluppo?.perche !== undefined ? ` Qui è spenta: ${sviluppo.perche}` : ''}</Aiuto>
+        </label>
       </div>
       {storico?.arrivi !== undefined ? (
         <div className="impostazioni__nota con-aiuto">{storico.arrivi}

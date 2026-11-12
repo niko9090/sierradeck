@@ -178,6 +178,8 @@ export function creaPostino(deps: {
   client?: () => { inAscolto: boolean; errore?: string } | undefined
   /** Quanto lavora SierraDeck qui (0.69.0): va nel battito, ma non lo fa riscrivere. */
   risorse?: () => RisorsePc | undefined
+  /** 12/11 (0.105.0): questo PC si è proclamato PC di sviluppo (va nel battito). */
+  sviluppo?: () => string | undefined
   cartellaEsiste: (cwd: string) => boolean
   /**
    * Esegue un comando arrivato per posta (0.88.0, «Sposta su questo PC»):
@@ -343,7 +345,8 @@ export function creaPostino(deps: {
       ...(() => { const l = deps.locali?.(); return l === undefined ? {} : { locali: l } })(),
       ...(() => { const w = deps.workspace?.(); return w === undefined ? {} : { workspace: w } })(),
       ...(() => { const c = deps.client?.(); return c === undefined ? {} : { client: c } })(),
-      ...(() => { const r = deps.risorse?.(); return r === undefined ? {} : { risorse: r } })()
+      ...(() => { const r = deps.risorse?.(); return r === undefined ? {} : { risorse: r } })(),
+      ...(() => { const dal = deps.sviluppo?.(); return dal === undefined ? {} : { sviluppo: true as const, sviluppoDal: dal } })()
     }
   }
 

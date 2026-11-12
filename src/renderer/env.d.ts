@@ -250,6 +250,7 @@ declare global {
       errori: {
         storico: () => Promise<{ voci: import('@shared/storico-errori').VoceErrore[]; inviate?: Array<import('@shared/storico-errori').VoceErrore & { inviatoIl: string }>; testo: string; arrivi?: string }>
         manda: () => Promise<{ ok: boolean; messaggio: string }>
+        sviluppo: () => Promise<{ puo: boolean; perche?: string; proclamato: boolean; pc?: string }>
       }
       negozio: ApiNegozio
       chiavi: {

@@ -153,6 +153,10 @@ export type Preferenze = {
    * conosciuti: nessun nome di PC nel codice.
    */
   pcSviluppo?: string
+  /** 12/11 (0.105.0): questo PC si proclama PC di sviluppo (solo se ha il workspace di SierraDeck: `@shared/pc-sviluppo`). */
+  proclamaSviluppo?: boolean
+  /** Quando si è proclamato (ISO): se due PC si proclamano vince l'ultimo. */
+  proclamaSviluppoIl?: string
   /**
    * Dove sta Git per Windows (0.82.1), se il programma non lo trova da solo nel
    * PATH o nel sistema: la cartella dell'installazione, o il suo `git.exe`.
@@ -331,6 +335,8 @@ export function normalizzaPreferenze(raw: unknown): Preferenze {
       ? { chatSoloLocali: [...new Set(o.chatSoloLocali.filter((c): c is string => typeof c === 'string' && c !== '' && c.length <= 80))].slice(-2000) }
       : {}),
     ...(typeof o.pcSviluppo === 'string' && o.pcSviluppo.trim() !== '' && o.pcSviluppo.length <= 120 ? { pcSviluppo: o.pcSviluppo.trim() } : {}),
+    ...(o.proclamaSviluppo === true ? { proclamaSviluppo: true } : {}),
+    ...(o.proclamaSviluppo === true && typeof o.proclamaSviluppoIl === 'string' && !Number.isNaN(Date.parse(o.proclamaSviluppoIl)) ? { proclamaSviluppoIl: o.proclamaSviluppoIl } : {}),
     ...(typeof o.percorsoGit === 'string' && o.percorsoGit.trim() !== '' && o.percorsoGit.length <= 400 ? { percorsoGit: o.percorsoGit.trim() } : {}),
     ...(o.postiChat === 1 || o.postiChat === -1 ? { postiChat: o.postiChat } : {}),
     ...(leggiPostiScelti(o.postiScelti) !== undefined ? { postiScelti: leggiPostiScelti(o.postiScelti) } : {}),

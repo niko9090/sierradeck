@@ -25,7 +25,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, r
 import { cpus, homedir, hostname, userInfo } from 'node:os'
 import { createConnection } from 'node:net'
 import { randomUUID } from 'node:crypto'
-import { spawn } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
 import { APP_NAME, APP_DATA_DIR_NAME, APP_DATA_DIR_PRECEDENTE } from '@shared/version'
 import { cartellaDati } from './migra-dati'
 import { apriAllegati } from './allegati'
@@ -209,6 +209,7 @@ import { testoDaCopiare, type InvioErrori, type StoricoErrori } from '@shared/st
 import { cartellaDiSierraDeck, mandaErrori, salvaErroriArrivati } from './errori-arrivati'
 import { giroErroriArrivati } from './errori-arrivati-lavoro'
 import { GIRO_INVIO_MS, giroInvioErrori, pcSviluppoDi, vistaErrori, type StatoInvio } from './errori-invio-automatico'
+import { eRemotoDiSviluppo, pcProclamato, perchéNonProclama } from '@shared/pc-sviluppo'
 import type { AttesaInvio } from '@shared/attesa-invio'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
@@ -640,6 +641,9 @@ let provaTogliProgettoGlobale: ((nome: string) => Promise<{ ok: boolean; messagg
 let registroGlobale: Registro | undefined
 /** Il postino di questo PC: le rotte del telefono lo raggiungono da qui. */
 let postinoGlobale: Postino | undefined
+/** 12/11 (0.105.0): «Proclama PC di sviluppo»: se qui si può, perché no, e se è proclamato. */
+let statoSviluppoGlobale: (() => { puo: boolean; perche?: string; proclamato: boolean }) | undefined
+let proclamatoDalGlobale: (() => string | undefined) | undefined
 /** Scrivere a una chat di un altro PC, dritto o per posta (0.88.0): il riquadro e il telefono. */
 let mandaAChatGlobale: MandaAChat | undefined
 /** «Sposta su questo PC» (0.88.0): chi lo chiede (qui) e il lato del proprietario (le rotte e la posta). */
@@ -2024,6 +2028,27 @@ if (!app.requestSingleInstanceLock()) {
       // nella sua cassetta sul Drive; il suo postino, ogni mezzo minuto,
       // consegna nella chat giusta (o ne apre una). Vedi `progetti/posta.ts`.
       let cartelleInMemoria: { il: number; l: string[] } | undefined
+      // 12/11 (0.105.0): quante cartelle di questo PC sono il codice di SierraDeck (origin = il repository del progetto).
+      // Solo così si può proclamare PC di sviluppo; si riguarda ogni 5 minuti, senza fermare niente.
+      let cartelleSviluppo = 0
+      const guardaCartelleSviluppo = (): void => {
+        const io = identitaPc.leggi().id
+        const cartelle = [...new Set(registroProgetti.leggi().progetti.filter((p) => p.proprietario === io && p.percorso !== undefined).map((p) => p.percorso!))]
+        void Promise.all(cartelle.map((c) => new Promise<boolean>((ris) => {
+          execFile('git', ['remote', 'get-url', 'origin'], { cwd: c, windowsHide: true, timeout: 10_000 }, (err, out) => ris(err === null && eRemotoDiSviluppo(String(out))))
+        }))).then((l) => { cartelleSviluppo = l.filter(Boolean).length }).catch(() => undefined)
+      }
+      setTimeout(guardaCartelleSviluppo, 5_000)
+      setInterval(guardaCartelleSviluppo, 5 * 60_000)
+      /** Da quando questo PC è proclamato (ISO), se lo è e qui si può. */
+      const proclamatoDal = (): string | undefined => {
+        const p = impostazioni.preferenze()
+        return p.proclamaSviluppo === true && perchéNonProclama({ cartelleDiSviluppo: cartelleSviluppo }) === undefined ? p.proclamaSviluppoIl ?? new Date(0).toISOString() : undefined
+      }
+      // Proclamato e ancora il PC di sviluppo (un altro può essersi proclamato dopo).
+      const proclamatoQui = (): boolean => proclamatoDal() !== undefined && pcProclamato(postinoGlobale?.altrui() ?? [], { id: identitaPc.leggi().id, ...(proclamatoDal() !== undefined ? { dal: proclamatoDal()! } : {}) }) === identitaPc.leggi().id
+      statoSviluppoGlobale = () => ({ puo: perchéNonProclama({ cartelleDiSviluppo: cartelleSviluppo }) === undefined, ...(perchéNonProclama({ cartelleDiSviluppo: cartelleSviluppo }) !== undefined ? { perche: perchéNonProclama({ cartelleDiSviluppo: cartelleSviluppo })! } : {}), proclamato: proclamatoQui() })
+      proclamatoDalGlobale = proclamatoDal
       const postino: Postino = creaPostino({
         scatola: () => sincronia.scatola(),
         pcId: () => identitaPc.leggi().id,
@@ -2141,6 +2166,7 @@ if (!app.requestSingleInstanceLock()) {
         // Il Client in ascolto o no (0.58.1): gli altri PC lo leggono prima di bussare.
         client: () => statoClient,
         risorse: () => risorseQui(),
+        sviluppo: () => proclamatoDal(),
         log: registro.info
       })
       postinoGlobale = postino
@@ -2561,7 +2587,9 @@ if (!app.requestSingleInstanceLock()) {
       }
       riceviErroriGlobale = async (invio, chi) => salvaQui(invio, chi)
       // Il PC di sviluppo: quello scelto, o il proprietario di SierraDeck (0.88.4).
-      const pcSviluppo = (): string | undefined => pcSviluppoDi(impostazioni.preferenze().pcSviluppo, registroProgetti.leggi().progetti)
+      // 12/11 (0.105.0): prima quello che si è proclamato (nel suo battito), poi quello scelto, poi il proprietario di SierraDeck.
+      const pcSviluppo = (): string | undefined => pcSviluppoDi(impostazioni.preferenze().pcSviluppo, registroProgetti.leggi().progetti,
+        pcProclamato(postino.altrui(), { id: identitaPc.leggi().id, ...(proclamatoDalGlobale?.() !== undefined ? { dal: proclamatoDalGlobale!()! } : {}) }))
       const mandaOra = async (solo?: StoricoErrori): Promise<{ ok: boolean; messaggio: string }> => {
         const io = identitaPc.leggi()
         return await mandaErrori({
@@ -2622,6 +2650,7 @@ if (!app.requestSingleInstanceLock()) {
         return b !== undefined ? nomeDaMostrare(b) : 'un PC che non si vede adesso'
       }
       ipcMain.handle('errori:manda', () => giro(true))
+      ipcMain.handle('errori:sviluppo', () => ({ ...(statoSviluppoGlobale?.() ?? { puo: false, proclamato: false }), ...(nomePcSviluppoGlobale?.() !== undefined ? { pc: nomePcSviluppoGlobale!() } : {}) }))
 
       // ── «Salute del sistema» (0.44.0) ──
       // Il Drive, gli altri PC, l'aggiornamento non riuscito, gli errori delle
