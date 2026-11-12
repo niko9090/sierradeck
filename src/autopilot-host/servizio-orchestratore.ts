@@ -2081,9 +2081,15 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
    * lavora il conto delle spinte resta e la quiete riparte: prima un turno che
    * cadeva sul giro del minuto azzerava tutto.
    */
+  /** 0.102.1: la prossima sveglia futura del workspace (una pausa voluta), se c'è. */
+  const prossimaSveglia = (ws: string, ora: number): { il: string; perche: string } | undefined =>
+    (imp(ws).sveglie ?? []).filter((s) => Date.parse(s.il) > ora).sort((p, q) => p.il.localeCompare(q.il))[0]
   const spingiFermi = (ora: number): void => {
     for (const a of unici()) {
       const ws = wsDi(a)
+      // 0.102.1: con una sveglia futura il fermo è voluto («riprendo stasera, come mi hai chiesto»):
+      // prima lo si svegliava lo stesso ogni ora, ~2,5 $ a turno per sentirsi dire «aspetto la sveglia».
+      if (prossimaSveglia(ws, ora) !== undefined) { fermiVisti.delete(ws); continue }
       const attesa = orchestratore.inAttesa(ws)
       const occupato = orchestratore.inVolo(ws) || attesa.messaggi > 0 || attesa.eventi > 0
         || alLavoroNel(ws) > 0 || specialistiVivi(a).some((c) => c.stato === 'lavoro') || unioniIn(ws) > 0
@@ -2651,6 +2657,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
         ...(valore !== undefined ? { percento: valore } : {}),
         ...(i.percento?.calo !== undefined ? { calo: i.percento.calo } : {}),
         pensa: orchestratore.inVolo(ws) || orchestratore.inAttesa(ws).messaggi > 0,
+        ...(() => { const s = prossimaSveglia(ws, ora); return s !== undefined ? { sveglia: { il: s.il, perche: s.perche } } : {} })(),
         vivo: orchestratore.vivo(ws),
         specialisti: [
           ...subagenti(ws).filter((s) => s.unito !== true && (s.stato === 'avviato' || s.stato === 'lavoro' || ora - Date.parse(s.fine ?? s.inizio) < 3_600_000)).map((s) => ({

@@ -20,7 +20,7 @@ import {
   avanzamentoCoda, avanzamentoRichiesta, chiaveWorkspace, leggiUnioneDalDialogo, separa as separaCoda, unisci as unisciCoda,
   type Coda, type PuntoProposto, type VistaCoda
 } from '@shared/coda-richieste'
-import { comandoDelCriterio } from '@shared/piano-orchestratore'
+import { comandoDelCriterio, fraseStatoOrchestratore } from '@shared/piano-orchestratore'
 import { esaminaComando } from '@shared/controllo-comandi'
 import type { Archivio } from './archivio'
 import { interrottoPerTempo, type Esecutore } from './verifiche'
@@ -960,9 +960,17 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     const segni = [chiaveTurno(a.id), ...a.chats.map((c) => chiaveTurno(a.id, c.id))].map((k) => ultimoSegnale(k)).filter((t): t is number => t !== undefined)
     const segniVeri = segniVeriDi(a)
     const pcCarico = a.stato === 'lavoro' ? deps.guardiaPc?.stato() : undefined
+    // 0.102.1 (Nicholas, 12/11: «ci sono ancora progetti fermi nonostante se chiedo mi dicono che
+    // sono al lavoro»): l'autopilota unico è sempre «lavoro», quindi ogni vista diceva «al lavoro».
+    // Qui la verità, dalla vista dell'orchestratore: chi lavora, chi pensa, domande, pausa, fermo.
+    let adesso: { testo: string; tono: string } | undefined
+    if (a.stato === 'lavoro') {
+      try { adesso = fraseStatoOrchestratore(servizio().vista(chiaveWorkspace(a))) } catch { adesso = undefined }
+    }
     const conVeri = {
       ...(Object.keys(segniVeri).length > 0 ? { segniVeri } : {}),
-      ...(pcCarico !== undefined ? { pcCarico } : {})
+      ...(pcCarico !== undefined ? { pcCarico } : {}),
+      ...(adesso !== undefined ? { adesso } : {})
     }
     if (segni.length === 0) return { segniDal, ...conVeri }
     const segniChat: Record<string, string> = {}

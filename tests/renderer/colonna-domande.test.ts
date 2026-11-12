@@ -62,9 +62,10 @@ describe('la colonna delle Domande sul PC', () => {
 describe('le domande si aprono a fianco, non in una finestra (0.37.2)', () => {
   const app = readFileSync('src/renderer/App.tsx', 'utf8')
   const colonna = readFileSync('src/renderer/components/PannelloDomande.tsx', 'utf8')
-  it('una domanda nuova apre la colonna da sola e la mette in evidenza', () => {
+  it('0.102.1: una domanda nuova NON apre la colonna da sola (Nicholas); a colonna aperta la mette in evidenza', () => {
     expect(app).toContain('decidiColonnaDomande(')
-    expect(app).toContain('apriColonnaDomandeRef.current()')
+    expect(app).not.toContain('apriColonnaDomandeRef')
+    expect(app).not.toMatch(/if \(d\.apri\)/)
     expect(app).toContain('evidenza: evidenzaDomanda')
     // Le domande gia' viste si ricordano: chiusa, si riapre solo per una nuova.
     expect(app).toContain("localStorage.setItem('domande-viste'")

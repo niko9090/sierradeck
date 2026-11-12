@@ -1,7 +1,7 @@
 import type { StimaVoce, VistaAttesa } from './attesa-specialisti'
 import type { VistaAutopilota } from './autopiloti-vista'
 import { COLORI } from './colori-attivita'
-import { fraseStatoOrchestratore, type VistaOrchestratore } from './piano-orchestratore'
+import { fraseStatoOrchestratore, quandoSveglia, type VistaOrchestratore } from './piano-orchestratore'
 import { RUOLI } from './ruoli-agenti'
 import { inParole } from './titoli-in-parole'
 
@@ -71,7 +71,7 @@ function elenco(nomi: string[]): string {
   return `${unici.slice(0, -1).join(', ')} e ${unici[unici.length - 1]!}`
 }
 
-type PerFrase = Pick<VistaOrchestratore, 'pensa' | 'specialisti' | 'piano' | 'richieste' | 'domandeAperte' | 'vivo'>
+type PerFrase = Pick<VistaOrchestratore, 'pensa' | 'specialisti' | 'piano' | 'richieste' | 'domandeAperte' | 'vivo' | 'sveglia'>
 
 /** La frase di adesso dalla vista dell'orchestratore: tono uguale al PC, parole corte e senza sigle. */
 export function fraseAdesso(v: PerFrase): AdessoTelefono {
@@ -87,6 +87,7 @@ export function fraseAdesso(v: PerFrase): AdessoTelefono {
   }
   if (v.pensa) return { testo: 'L’autopilota sta pensando', tono }
   if (domande > 0) return { testo: `Fermo: aspetta ${domande === 1 ? 'una tua risposta' : `${domande} tue risposte`}`, tono }
+  if (v.sveglia !== undefined && Date.parse(v.sveglia.il) > Date.now()) return { testo: `In pausa: riprende ${quandoSveglia(v.sveglia.il)}`, tono }
   if (aperte > 0 && daFare > 0) return { testo: `Fermo: ${da(daFare, 'compito', 'compiti')} da fare e nessuno al lavoro`, tono }
   if (aperte > 0 || daPianificare > 0) return { testo: `Fermo: ${da(aperte + daPianificare, 'richiesta', 'richieste')} senza piano`, tono }
   return { testo: 'A riposo: tutto fatto', tono }

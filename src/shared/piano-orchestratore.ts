@@ -466,6 +466,11 @@ export type VistaOrchestratore = {
   calo?: CaloPercento
   /** Una chiamata è in volo adesso, o un messaggio la aspetta: la vista dice «sta pensando». */
   pensa: boolean
+  /**
+   * 0.102.1: la prossima sveglia che l'autopilota si è messo (es. «riprendo stasera alle
+   * 19:02, come mi hai chiesto»). Fino ad allora il fermo è voluto: «In pausa fino alle…».
+   */
+  sveglia?: { il: string; perche: string }
   /** Gli specialisti: subagenti (con ruolo, attività, stato e durata) e chat adottate. */
   specialisti: { id: string; ruolo?: string; compito: string; stato: string; compitoId?: string; attivita?: string; durata?: string; adottata?: true; fine?: string }[]
   /** Il processo `claude` del workspace è acceso. */
@@ -488,7 +493,20 @@ export type VistaOrchestratore = {
  * avanti». Gli specialisti lavorano dentro l'autopilota, non come chat: la
  * frase dice chi lavora, o perché è tutto fermo.
  */
-export function fraseStatoOrchestratore(v: Pick<VistaOrchestratore, 'pensa' | 'specialisti' | 'piano' | 'richieste' | 'domandeAperte' | 'vivo'>): { testo: string; tono: 'lavora' | 'aspetta' | 'fermo' | 'riposo' } {
+/** «alle 19:02», «domani alle 9:00», «il 14/11 alle 8:30». Pura. */
+export function quandoSveglia(il: string, ora: number = Date.now()): string {
+  const d = new Date(il)
+  if (Number.isNaN(d.getTime())) return ''
+  const hh = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`
+  const giorno = (t: Date): string => `${t.getFullYear()}-${t.getMonth()}-${t.getDate()}`
+  const oggi = new Date(ora)
+  const domani = new Date(ora + 86_400_000)
+  if (giorno(d) === giorno(oggi)) return `alle ${hh}`
+  if (giorno(d) === giorno(domani)) return `domani alle ${hh}`
+  return `il ${d.getDate()}/${d.getMonth() + 1} alle ${hh}`
+}
+
+export function fraseStatoOrchestratore(v: Pick<VistaOrchestratore, 'pensa' | 'specialisti' | 'piano' | 'richieste' | 'domandeAperte' | 'vivo' | 'sveglia'>, ora: number = Date.now()): { testo: string; tono: 'lavora' | 'aspetta' | 'fermo' | 'riposo' } {
   const alLavoro = v.specialisti.filter((c) => c.stato === 'lavoro' || c.stato === 'avviato')
   const domande = v.domandeAperte ?? 0
   const aperte = v.richieste?.aperte ?? 0
@@ -500,6 +518,8 @@ export function fraseStatoOrchestratore(v: Pick<VistaOrchestratore, 'pensa' | 's
   }
   if (v.pensa) return { testo: 'L’autopilota sta pensando: sta leggendo e decidendo cosa affidare', tono: 'lavora' }
   if (domande > 0) return { testo: `Fermo: aspetta ${domande === 1 ? 'una tua risposta' : `${domande} tue risposte`} (nelle Domande)`, tono: 'aspetta' }
+  // 0.102.1: una pausa chiesta da Nicholas (la sveglia) non è un fermo.
+  if (v.sveglia !== undefined && Date.parse(v.sveglia.il) > ora) return { testo: `In pausa: riprende ${quandoSveglia(v.sveglia.il, ora)}, come gli hai chiesto`, tono: 'riposo' }
   const daFare = v.piano.totale - v.piano.uniti
   if (aperte > 0 && daFare > 0) return { testo: `Fermo: ${da(daFare, 'compito', 'compiti')} nel piano e nessuno specialista al lavoro: scrivi «vai avanti» all’autopilota`, tono: 'fermo' }
   if (aperte > 0 || daPianificare > 0) return { testo: `Fermo: ${da(aperte + daPianificare, 'richiesta aperta', 'richieste aperte')} senza compiti: scrivi «vai avanti» all’autopilota`, tono: 'fermo' }

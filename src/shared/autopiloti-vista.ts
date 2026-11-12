@@ -36,17 +36,29 @@ export const GRUPPI_AP: { id: GruppoAp; testo: string }[] = [
 const RANGO: Record<string, number> = { guasto: 0, aspetta: 1, 'senza-segni': 2, 'al-lavoro': 3, prepara: 4, pronto: 5, fermo: 6, finito: 7 }
 
 /**
+ * 0.102.1: «al lavoro» solo se qualcuno lavora davvero. L'autopilota unico è sempre nello stato
+ * «lavoro»; quello che succede lo dice il servizio in `adesso` (la frase della barra).
+ * Senza `adesso` (un servizio di prima) resta com'era.
+ */
+function statoDalLavoroVero(adesso: { testo: string; tono: string } | undefined): StatoVista {
+  if (adesso === undefined || adesso.tono === 'lavora') return stato('al-lavoro', 'al lavoro', 'verde', adesso?.testo)
+  if (adesso.tono === 'aspetta') return stato('aspetta', 'aspetta te', 'ambra', adesso.testo)
+  if (adesso.tono === 'riposo') return adesso.testo.startsWith('In pausa') ? stato('pronto', 'in pausa', 'blu', adesso.testo) : stato('finito', 'a riposo', 'verde', adesso.testo)
+  return stato('fermo', 'fermo', 'rosso', adesso.testo)
+}
+
+/**
  * Lo stato in una parola. Vince il primo che vale: guasto (fallito) › aspetta
  * te › senza segni › al lavoro › si prepara › pronto › fermo › finito.
  */
-export function vistaAutopilota(a: Autopilota & { domanda?: unknown }, ora: number, ultimoSegno?: number): VistaAutopilota {
+export function vistaAutopilota(a: Autopilota & { domanda?: unknown; adesso?: { testo: string; tono: string } }, ora: number, ultimoSegno?: number): VistaAutopilota {
   const dv = statoAutopilotaDalVivo(a, ora, ultimoSegno)
   const motivo = a.motivoSospensione
   let s: StatoVista
   if (a.stato === 'fallito') s = stato('guasto', 'guasto', 'rosso', motivo)
   else if (dv.etichetta === 'aspetta te' || (a.stato === 'intervista' && motivo !== undefined)) s = stato('aspetta', 'aspetta te', 'ambra', motivo)
   else if (dv.senzaSegni !== undefined) s = stato('senza-segni', 'senza segni', 'ambra', dv.senzaSegni)
-  else if (a.stato === 'lavoro') s = stato('al-lavoro', 'al lavoro', 'verde')
+  else if (a.stato === 'lavoro') s = statoDalLavoroVero(a.adesso)
   else if (a.stato === 'intervista') s = stato('prepara', 'si prepara', 'blu', 'guarda il progetto e prepara i criteri')
   else if (a.stato === 'pronto') s = stato('pronto', 'pronto', 'blu', 'aspetta il tuo «Vai»')
   else if (a.stato === 'finito') s = stato('finito', 'finito', 'verde')

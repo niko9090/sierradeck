@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.102.1',
+    righe: [
+      '**«Al lavoro» solo se qualcuno lavora davvero:** l’elenco degli autopiloti, la Panoramica, la pagina e l’app dicevano «al lavoro» anche quando non lavorava nessuno. Ora dicono «fermo» con il perché, «aspetta te» o «in pausa».',
+      '**Le pause che chiedi restano pause:** se dici a un autopilota di riprendere più tardi (per esempio stasera), si vede «In pausa: riprende alle 19:02» e il programma non lo sveglia più ogni ora per niente. Prima ogni sveglia era un turno pagato.',
+      '**Le Domande non si aprono più da sole:** la colonna a fianco si apre e si chiude solo col suo tasto. Le domande nuove si vedono dal numero sul tasto.',
+    ],
+  },
+  {
     versione: '0.102.0',
     righe: [
       '**I workspace degli altri PC si vedono come là:** autopilota, barra di avanzamento, coda, menu degli specialisti e le loro chat a destra sono gli stessi di quel PC. In più c’è solo la scritta «Workspace remoto · su <PC>». Quello che scrivi o rispondi va là.',

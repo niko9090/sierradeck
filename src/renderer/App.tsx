@@ -978,11 +978,9 @@ export function App(): React.JSX.Element {
     setColonnaDomande((c) => ({ ...c, aperta: domande }))
     void salvaPreferenze((p) => ({ ...p, domandeLaterali: domande }))
   }, [colonnaDomande])
-  // Apre la colonna Domande per una domanda nuova (mai la chiude).
-  const apriColonnaDomandeRef = useRef<() => void>(() => undefined)
-  apriColonnaDomandeRef.current = (): void => {
-    if (!colonnaDomande.aperta) commutaColonna('domande')
-  }
+  // 0.102.1 (Nicholas, 12/11: «domande che aprono da sole la sezione domande a fianco, non l'ho
+  // mai chiesto»): la colonna Domande si apre e si chiude SOLO col suo tasto. Una domanda nuova
+  // si vede dal numero sul tasto e, a colonna aperta, dall'evidenza.
   // Gli avvisi chiusi con «Chiudi» (0.37.0): nelle preferenze, cosi' un fermo
   // chiuso resta chiuso anche dopo un riavvio.
   const [avvisiChiusi, setAvvisiChiusi] = useState<string[]>([])
@@ -1117,8 +1115,7 @@ export function App(): React.JSX.Element {
             for (const n of d.nuove) v.add(n)
             try { localStorage.setItem('domande-viste', JSON.stringify([...v].slice(-300))) } catch { /* senza memoria al prossimo avvio si riapre, non di piu' */ }
           }
-          if (d.apri) apriColonnaDomandeRef.current()
-          if (d.evidenzia !== undefined && (d.apri || d.nuove.length > 0)) setEvidenzaDomanda({ chiave: d.evidenzia, quando: Date.now() })
+          if (d.evidenzia !== undefined && colonnaDomandeRef.current.aperta && d.nuove.length > 0) setEvidenzaDomanda({ chiave: d.evidenzia, quando: Date.now() })
         })
         .catch(() => undefined)
     }

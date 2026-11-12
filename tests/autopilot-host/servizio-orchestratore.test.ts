@@ -652,6 +652,15 @@ describe('il motore non si ferma (0.89.4)', () => {
       fine('Va bene.')
     }
     expect(fermoANicholas()).toHaveLength(1)
+    // 0.102.1: con una sveglia futura (una pausa chiesta da Nicholas) niente spinte: prima ogni ora
+    // un turno pagato per sentirsi dire «aspetto la sveglia delle 19:02».
+    orch.cambiaImpostazioni('Lavoro', (i) => ({ ...i, sveglie: [{ il: '2099-01-01T19:02:00.000Z', perche: 'riprendo stasera', chiesta: '2026-11-12T12:00:00.000Z' }] }))
+    for (let n = 0; n < 3; n += 1) {
+      avanti += 60 * 60_000
+      server!.controllaChatFerme()
+    }
+    await new Promise((ris) => setTimeout(ris, 50))
+    expect(sveglie()).toBe(8)
   })
 
   /**
