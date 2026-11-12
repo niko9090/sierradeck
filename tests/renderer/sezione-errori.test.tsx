@@ -8,7 +8,9 @@ describe('la voce «Errori» delle Impostazioni (0.81.0)', () => {
   it('prima di leggere lo storico dice «Errori…», con il suo «?», e «Copia» e «Manda» spenti', () => {
     const html = renderToStaticMarkup(<SezioneErrori />)
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Manda al PC di sviluppo<\/button>/)
-    expect(html).toContain('— scegli il PC —')
+    // 0.105.0: niente più tendina; la casella «Proclama» è spenta finché non si sa se qui si può.
+    expect(html).toContain('PC di sviluppo: nessuno')
+    expect(html).toMatch(/<input type="checkbox" disabled=""[^>]*\/>Proclama questo PC come PC di sviluppo/)
     expect(html).toContain('Errori…')
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Copia<\/button>/)
     expect(html).toContain('aiuto')
@@ -17,7 +19,7 @@ describe('la voce «Errori» delle Impostazioni (0.81.0)', () => {
   it('sta in «Info e aiuto» sul PC, e il pannello la mostra quando la ricerca la trova', () => {
     expect(VOCI.find((v) => v.id === 'errori')).toMatchObject({ sezione: 'info', dove: ['pc', 'app', 'pagina'] })
     const src = readFileSync('src/renderer/components/PannelloImpostazioni.tsx', 'utf8')
-    expect(src).toContain("{vede('errori') ? <SezioneErrori pcSviluppo={p.pcSviluppo} scegliPc={(id) => cambia({ pcSviluppo: id })} /> : null}")
+    expect(src).toContain("{vede('errori') ? <SezioneErrori pcSviluppo={p.pcSviluppo} scegliPc={(id) => cambia({ pcSviluppo: id })} proclamato={p.proclamaSviluppo === true} proclama={(si) => cambia(si ? { proclamaSviluppo: true, proclamaSviluppoIl: new Date().toISOString() } : { proclamaSviluppo: false, proclamaSviluppoIl: undefined })} /> : null}")
   })
 
   it('le voci già inviate non stanno nella lista: un posto a parte, «Già inviati», con la data e il suo «?»', () => {
