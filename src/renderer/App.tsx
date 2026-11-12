@@ -998,7 +998,7 @@ export function App(): React.JSX.Element {
   // Le chat «solo mia» (0.78.0): l'autopilota del workspace non le tocca.
   const [chatSoloMie, setChatSoloMie] = useState<string[]>([])
   useEffect(() => {
-    const applica = (p: { workspaceElenco: string[]; chatSoloMie?: string[] }): void => { setWorkspaceElenco(p.workspaceElenco); setChatSoloMie(p.chatSoloMie ?? []) }
+    const applica = (p: { workspaceElenco?: string[]; chatSoloMie?: string[] }): void => { setWorkspaceElenco(Array.isArray(p.workspaceElenco) ? p.workspaceElenco : []); setChatSoloMie(Array.isArray(p.chatSoloMie) ? p.chatSoloMie : []) }
     window.gestore.preferenze.leggi().then(applica).catch(() => undefined)
     return window.gestore.preferenze.suCambio(applica)
   }, [])

@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from 'vitest'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { apriImpostazioniStore } from '../../src/main/impostazioni-store'
-import { impostaPreferenzeIpc } from '../../src/main/preferenze-imposta'
+import { impostaPreferenzeIpc, mandaPreferenze } from '../../src/main/preferenze-imposta'
 import { PREFERENZE_PREDEFINITE } from '../../src/shared/preferenze'
 
 /** k-143: il rename di impostazioni.json dava EPERM e il gestore IPC lanciava, aggiungendo un secondo errore. */
@@ -29,5 +29,22 @@ describe('gestore IPC preferenze:imposta', () => {
     expect(impostaPreferenzeIpc(store, {}, cambiate).salvato).toBe(false)
     expect(avviso).toHaveBeenCalledTimes(1)
     avviso.mockRestore()
+  })
+})
+
+describe('preferenze mandate alle finestre (12/11)', () => {
+  it('manda le preferenze, non l’esito del salvataggio, e salta le finestre chiuse', () => {
+    const mandate: unknown[] = []
+    const viva = { isDestroyed: () => false, webContents: { isDestroyed: () => false, send: (_c: string, p: unknown) => mandate.push(p) } }
+    const chiusa = { isDestroyed: () => true, webContents: { isDestroyed: () => false, send: () => { throw new Error('no') } } }
+    mandaPreferenze([viva, chiusa], PREFERENZE_PREDEFINITE)
+    expect(mandate).toEqual([PREFERENZE_PREDEFINITE])
+  })
+
+  it('in index.ts nessuno manda «preferenze:cambiate» a mano: si passa da mandaPreferenze', () => {
+    const src = readFileSync(join(__dirname, '../../src/main/index.ts'), 'utf8')
+    expect(src).not.toContain("'preferenze:cambiate'")
+    // Chi ha un esito di impostaPreferenze manda il suo campo `preferenze`.
+    expect(src).not.toMatch(/const nuove = impostazioni\.impostaPreferenze\([^\n]*\)\s*\n\s*mandaPreferenze\(finestreDiChat\(\), nuove\)/u)
   })
 })

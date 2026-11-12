@@ -25,3 +25,16 @@ export function impostaPreferenzeIpc(
   suCambiate(esito.preferenze)
   return esito
 }
+
+/**
+ * Manda alle finestre le preferenze nuove. Solo `Preferenze`, mai l'esito del
+ * salvataggio: il 12/11 quattro punti mandavano `{ preferenze, salvato }` e
+ * l'interfaccia crollava («reading 'includes'» su `workspaceElenco`) appena si
+ * eliminava o rinominava un workspace.
+ */
+export function mandaPreferenze(
+  finestre: readonly { isDestroyed(): boolean; webContents: { isDestroyed(): boolean; send(canale: string, ...a: unknown[]): void } }[],
+  p: Preferenze
+): void {
+  for (const w of finestre) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('preferenze:cambiate', p)
+}

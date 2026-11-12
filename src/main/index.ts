@@ -107,7 +107,7 @@ import { frenoPerAutopiloti, testoFreno } from '@shared/harness'
 import { aggiungiWorkspace, creaWorkspace, eliminaWorkspace } from './workspace-operazioni'
 import type { SessionSummary } from '@shared/types'
 import { apriImpostazioniStore } from './impostazioni-store'
-import { impostaPreferenzeIpc } from './preferenze-imposta'
+import { impostaPreferenzeIpc, mandaPreferenze } from './preferenze-imposta'
 import { apriEtichetteStore } from './etichette-store'
 import { apriChiavi } from './chiavi'
 import { creaGuardianoPin, type GuardianoPin } from './pin-guardiano'
@@ -1605,7 +1605,7 @@ if (!app.requestSingleInstanceLock()) {
           leggiElenco: () => impostazioni.preferenze().workspaceElenco,
           scriviElenco: (lista) => {
             const nuove = impostazioni.impostaPreferenze({ ...impostazioni.preferenze(), workspaceElenco: lista })
-            for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('preferenze:cambiate', nuove)
+            mandaPreferenze(finestreDiChat(), nuove.preferenze)
           },
           log: (riga) => registro.info(riga),
           errore: (riga) => registro.errore(riga)
@@ -1649,7 +1649,7 @@ if (!app.requestSingleInstanceLock()) {
         const lista = rinominaInElenco(p.workspaceElenco, vecchio, nuovo)
         if (lista === p.workspaceElenco) return
         const nuove = impostazioni.impostaPreferenze({ ...p, workspaceElenco: lista })
-        for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('preferenze:cambiate', nuove)
+        mandaPreferenze(finestreDiChat(), nuove.preferenze)
       }, {
         // Pronte più tardi (servono gli autopiloti): fino ad allora si chiede ogni volta.
         rifiuto: async (nome) => primaDiEliminareGlobale?.rifiuto?.(nome),
@@ -4114,7 +4114,7 @@ if (!app.requestSingleInstanceLock()) {
             leggi: () => impostazioni.preferenze().workspaceElenco,
             scrivi: (lista) => {
               const nuove = impostazioni.impostaPreferenze({ ...impostazioni.preferenze(), workspaceElenco: lista })
-              for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('preferenze:cambiate', nuove)
+              mandaPreferenze(finestreDiChat(), nuove.preferenze)
             }
           },
           migrazione: { stato: () => migrazioneGlobale?.stato(), rifai: () => migrazioneGlobale?.rifai() ?? { esito: 'fallita' as const } },
@@ -4423,11 +4423,7 @@ if (!app.requestSingleInstanceLock()) {
         // riavviare: `autoUpdater` vive nel Core, e questa è la sua unica finestra
         // per sapere che l'utente ha cambiato idea.
         aggiornamenti?.impostaScaricoAutomatico(nuove.scaricaAggiornamentiAutomatico)
-        for (const w of finestreDiChat()) {
-          if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
-            w.webContents.send('preferenze:cambiate', nuove)
-          }
-        }
+        mandaPreferenze(finestreDiChat(), nuove)
       }))
 
       // Il Client: un server sulla rete di casa che serve la sua pagina e
@@ -5201,11 +5197,7 @@ if (!app.requestSingleInstanceLock()) {
         // Un pezzo per volta: cambiarne una non deve cancellare le altre.
         impostaPreferenze: async (parziali: Record<string, unknown>) => {
           const nuove = impostazioni.impostaPreferenze({ ...impostazioni.preferenze(), ...parziali })
-          for (const w of finestreDiChat()) {
-            if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
-              w.webContents.send('preferenze:cambiate', nuove)
-            }
-          }
+          mandaPreferenze(finestreDiChat(), nuove.preferenze)
         },
         avvisoDrive: () => avvisoDrive(),
         // «Salute del sistema» dal telefono (0.44.0).
