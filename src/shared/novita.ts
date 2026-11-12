@@ -48,6 +48,9 @@ export const NOVITA: Novita[] = [
       '**Niente più «vai avanti»:** un’unione ferma (file non salvati, criterio che resta rosso) non blocca più l’autopilota, che viene risvegliato e manda avanti il resto. Un criterio rosso tre volte conta rosso e la correzione parte. Le unioni ferme riprovano sempre più di rado invece che ogni 30 secondi.',
       '**Lo stato dice la verità:** mentre il programma prova e unisce il lavoro finito, la chat dice «Al lavoro: il programma prova e unisce…» e non più «Fermo»; sul telefono lo stesso.',
       '**Registro più sicuro:** il testo delle notifiche e delle risposte non finisce più nel registro (che si allega e si manda).',
+      '**Progetti senza git:** il programma crea da solo un controllo delle versioni solo locale (fuori .env, chiavi, librerie e file grandi), così anche lì gli specialisti lavorano in parallelo.',
+      '**Niente sporcizia dopo le prove:** i lavori degli altri PC, le copie, le librerie vecchie, i pacchetti a metà e le cartelle temporanee si tolgono da sé; i rami già entrati nel principale anche se riscritti. Le prove pesanti usano un disco più capiente quando quello di sistema ha meno di 20 GB liberi.',
+      '**Blocchi nella diagnostica:** autopilota fermo, unione ferma e lavoro perso su un altro PC finiscono negli errori, che arrivano da soli al PC di sviluppo.',
     ],
   },
   {
