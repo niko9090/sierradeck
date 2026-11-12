@@ -14,7 +14,7 @@ import react from '@vitejs/plugin-react'
  * invece di rompersi. Per un client Desktop il secret è pensato per stare nel
  * client (PKCE protegge), quindi va bene averlo nel pacchetto.
  */
-function credenzialiGoogle(): { clientId: string; clientSecret: string } {
+export function credenzialiGoogle(): { clientId: string; clientSecret: string } {
   const id = process.env.SD_GOOGLE_CLIENT_ID
   const segreto = process.env.SD_GOOGLE_CLIENT_SECRET
   if (id !== undefined && id !== '' && segreto !== undefined && segreto !== '') {

@@ -1,3 +1,4 @@
+import { eAiutante } from '@shared/posta'
 import { useEffect, useState } from 'react'
 import { oraBreve, type VoceErrore } from '@shared/storico-errori'
 import { nomeDaMostrare } from '@shared/nome-pc'
@@ -36,7 +37,8 @@ export function SezioneErrori({ pcSviluppo, proclamato, proclama }: { pcSviluppo
     void Promise.all([window.gestore.posta.identita(), window.gestore.posta.pc()])
       .then(([io, altri]) => setPc([
         { id: io.id, nome: `${nomeDaMostrare(io) || 'Questo PC'} (questo)` },
-        ...altri.filter((b) => b.pcId !== io.id).map((b) => ({ id: b.pcId, nome: nomeDaMostrare(b) || b.pcId }))
+        // 12/11: un Aiutante non è mai il PC di sviluppo (non ha la cartella di SierraDeck).
+        ...altri.filter((b) => b.pcId !== io.id && !eAiutante(b)).map((b) => ({ id: b.pcId, nome: nomeDaMostrare(b) || b.pcId }))
       ]))
       .catch(() => undefined)
   }, [])

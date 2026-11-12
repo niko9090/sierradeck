@@ -104,6 +104,27 @@ export type BattitoPc = {
   sviluppo?: true
   /** Da quando (ISO): se due PC si proclamano vince l'ultimo. */
   sviluppoDal?: string
+  /**
+   * 12/11: quel PC è SierraDeck Aiutante, il mini programma che fa solo «Aiuta
+   * la rete»: niente chat, workspace o progetti suoi. Gli altri PC lo
+   * mostrano come «Aiutante», non lo offrono per aprire chat o progetti, e gli
+   * affidano gli specialisti prima che a ogni altro PC. I PC di prima non lo
+   * leggono (e non lo scrivono): per loro è un PC qualunque senza chat.
+   */
+  aiutante?: boolean
+}
+
+/** 12/11: il battito è di SierraDeck Aiutante? Solo `true` vale: un campo storto o assente è un PC normale. */
+export function eAiutante(b: { aiutante?: unknown } | null | undefined): boolean {
+  return b?.aiutante === true
+}
+
+/**
+ * 12/11: i PC dove si possono aprire chat, workspace e progetti, o mandare
+ * comandi per posta: tutti tranne gli Aiutanti, che non ne hanno.
+ */
+export function senzaAiutanti<T extends { aiutante?: unknown }>(battiti: readonly T[]): T[] {
+  return battiti.filter((b) => !eAiutante(b))
 }
 
 /** Le copie locali di un PC: chat (sessione, cartella, ultimo messaggio) e progetti (id, cartella). */
@@ -236,7 +257,7 @@ export function staSottoCartella(cwd: string, radice: string): boolean {
  */
 export function pcCheHaLaCartella(cwd: string, battiti: BattitoPc[], me?: string): BattitoPc | undefined {
   return battiti
-    .filter((b) => b.pcId !== me && (b.cartelle.some((c) => staSottoCartella(cwd, c)) || b.chat.some((c) => staSottoCartella(cwd, c.cwd))))
+    .filter((b) => b.pcId !== me && !eAiutante(b) && (b.cartelle.some((c) => staSottoCartella(cwd, c)) || b.chat.some((c) => staSottoCartella(cwd, c.cwd))))
     .sort((a, b) => b.battito.localeCompare(a.battito))[0]
 }
 

@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process'
 import { closeSync, mkdirSync, openSync, readdirSync, readSync, rmSync, statSync, appendFileSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import {
-  idLavoroValido, lavoroAffidatoValido, modoAiutoValido, PACCHETTO_MAX_BYTE, PEZZO_BYTE, quantiPezzi, ramoDiRitorno,
+  autoreValido, idLavoroValido, lavoroAffidatoValido, modoAiutoValido, programmaAiuto, PACCHETTO_MAX_BYTE, PEZZO_BYTE, quantiPezzi, ramoDiRitorno,
   SILENZIO_MAX_MS, type Aiutante, type LavoroAffidato, type VistaLavoroAiutato
 } from '@shared/aiuto-rete'
 
@@ -22,8 +22,8 @@ import {
  */
 
 export type DipendenzeSpedizioniere = {
-  /** Gli altri PC accesi adesso. */
-  altri: () => { pcId: string; nome: string }[]
+  /** Gli altri PC accesi adesso; 12/11: `aiutante` se il battito dice che è SierraDeck Aiutante. */
+  altri: () => { pcId: string; nome: string; aiutante?: boolean }[]
   /** Una rotta di un altro PC, sul collegamento sicuro. */
   chiama: (pcId: string, percorso: string, corpo?: Record<string, unknown>) => Promise<unknown>
   /** Una rotta `/aiuto/*` del servizio di questo PC. */
@@ -80,9 +80,11 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): { giro: () => Pro
     await Promise.all(d.altri().map(async (pc) => {
       if ((fuori.get(pc.pcId) ?? 0) > adesso()) return
       try {
-        const r = await d.chiama(pc.pcId, '/api/aiuto/posti') as { modo?: unknown; liberi?: unknown }
+        const r = await d.chiama(pc.pcId, '/api/aiuto/posti') as { modo?: unknown; liberi?: unknown; programma?: unknown }
         if (!modoAiutoValido(r?.modo) || typeof r.liberi !== 'number') return
-        lista.push({ pcId: pc.pcId, nome: pc.nome, modo: r.modo, liberi: Math.max(0, Math.floor(r.liberi)) })
+        // 12/11: è un Aiutante se lo dice la risposta o il battito: va scelto prima degli altri PC.
+        const programma = programmaAiuto(r.programma) ?? (pc.aiutante === true ? 'aiutante' : undefined)
+        lista.push({ pcId: pc.pcId, nome: pc.nome, modo: r.modo, liberi: Math.max(0, Math.floor(r.liberi)), ...(programma !== undefined ? { programma } : {}) })
       } catch { /* spento, vecchio, o non presta: non è fra gli aiutanti */ }
     }))
     posti = { lista, il: adesso() }
@@ -123,9 +125,15 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): { giro: () => Pro
           if (totale > 2) await avanza(l.id, { attivita: `spedisco il progetto (${n + 1}/${totale})` })
         }
       } finally { closeSync(fd) }
+      // 12/11: chi firma i commit di là: il nome e l'email di git di questo progetto (se ci sono).
+      const autore = autoreValido({
+        nome: (await git(['config', 'user.name'], l.cwd).catch(() => '')).trim(),
+        email: (await git(['config', 'user.email'], l.cwd).catch(() => '')).trim()
+      })
       await d.chiama(l.pcId, '/api/aiuto/avvia', {
         lavoro: l.id, progetto: basename(l.cwd), ramoBase, base,
-        prompt: l.prompt, sistema: l.sistema, modello: l.modello, strumenti: l.strumenti, ruolo: l.ruolo, descrizione: l.descrizione
+        prompt: l.prompt, sistema: l.sistema, modello: l.modello, strumenti: l.strumenti, ruolo: l.ruolo, descrizione: l.descrizione,
+        ...(autore !== undefined ? { autore } : {})
       })
       log(`${l.id} (${l.compito ?? l.ruolo}): progetto spedito a ${l.pcNome} (${Math.round(byte / 1048576)} MB), parte lo specialista`)
       await avanza(l.id, { stato: 'spedito', attivita: 'arrivato, prepara la copia' })

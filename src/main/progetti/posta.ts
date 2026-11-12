@@ -37,7 +37,7 @@ import { staDentro } from './registro'
 
 export type { ChatDiPc, BattitoPc, VocePosta, Posta, UscitaPosta, EsitoVoce, EsitiPosta } from '@shared/posta'
 export {
-  nomeBattitoPc, nomePosta, nomeUscita, nomeEsiti, POSTA_PER_MITTENTE, pcVivo, pcCheHaLaCartella, staSottoCartella,
+  nomeBattitoPc, nomePosta, nomeUscita, nomeEsiti, POSTA_PER_MITTENTE, pcVivo, pcCheHaLaCartella, staSottoCartella, eAiutante, senzaAiutanti,
   PC_SPENTO_DOPO_MS, BATTITO_PC_OGNI_MS, BATTITO_RISCRIVI_MS, RIAPRI_DOPO_MS, VOCI_MAX, TESTO_POSTA_MAX,
 } from '@shared/posta'
 import type { RisorsePc } from '@shared/risorse'
@@ -180,6 +180,8 @@ export function creaPostino(deps: {
   risorse?: () => RisorsePc | undefined
   /** 12/11 (0.105.0): questo PC si è proclamato PC di sviluppo (va nel battito). */
   sviluppo?: () => string | undefined
+  /** 12/11: questo è SierraDeck Aiutante: il battito lo dice (`aiutante: true`). */
+  aiutante?: () => boolean
   cartellaEsiste: (cwd: string) => boolean
   /**
    * Esegue un comando arrivato per posta (0.88.0, «Sposta su questo PC»):
@@ -346,7 +348,8 @@ export function creaPostino(deps: {
       ...(() => { const w = deps.workspace?.(); return w === undefined ? {} : { workspace: w } })(),
       ...(() => { const c = deps.client?.(); return c === undefined ? {} : { client: c } })(),
       ...(() => { const r = deps.risorse?.(); return r === undefined ? {} : { risorse: r } })(),
-      ...(() => { const dal = deps.sviluppo?.(); return dal === undefined ? {} : { sviluppo: true as const, sviluppoDal: dal } })()
+      ...(() => { const dal = deps.sviluppo?.(); return dal === undefined ? {} : { sviluppo: true as const, sviluppoDal: dal } })(),
+      ...(deps.aiutante?.() === true ? { aiutante: true } : {})
     }
   }
 

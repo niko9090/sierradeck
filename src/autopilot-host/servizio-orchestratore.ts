@@ -806,7 +806,7 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
       attivita: 'preparo il progetto da spedire'
     }
     archivioAiuti.scrivi([...affidati(), l])
-    console.info(`[aiuto] ${ws} — ${compito ?? r.tipo} affidato a ${scelto.nome} (${scelto.modo}, ${scelto.liberi} posti liberi là)`)
+    console.info(`[aiuto] ${ws} — ${compito ?? r.tipo} affidato a ${scelto.nome} (${scelto.programma === 'aiutante' ? 'Aiutante' : scelto.modo}, ${scelto.liberi} posti liberi là)`)
     // Come uno specialista partito: il compito «in corso», la colonna a destra, il diario.
     queueMicrotask(() => { try { suFlusso(ws, [{ tipo: 'specialista-partito', specialista: specialistaAffidato(l) }], orchestratore.stato(ws)) } catch (err) { console.error('[aiuto] partenza non registrata:', err) } })
     return motivoAffidato(scelto.nome, compito)

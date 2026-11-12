@@ -180,7 +180,7 @@ import { testoConsegnato, type StatoSottofondo } from '@shared/sottofondo'
 import { azioneDelPonte } from '@shared/ponte-telefono'
 import { workspaceDiApertura } from '@shared/workspace-apertura'
 import { autopilotiDaStato, erroreAltroPc, rottaAutopilotaAltroPc, unBattitoPerNome, type AutopilotiDiPc } from '@shared/autopiloti-altri'
-import { pcCheHaLaCartella, pcVivo, tagliaIntero, TAGLIO_OPZIONE_BATTITO, type BattitoPc } from '@shared/posta'
+import { eAiutante, pcCheHaLaCartella, pcVivo, senzaAiutanti, tagliaIntero, TAGLIO_OPZIONE_BATTITO, type BattitoPc } from '@shared/posta'
 import type { EsitoLavoro } from './cassaforte/lavoro-in-corso'
 import { pathToSlug } from './indexer/project-scanner'
 import { scriviAtomico } from '@shared/scrittura-atomica'
@@ -1929,7 +1929,8 @@ if (!app.requestSingleInstanceLock()) {
         pcId: () => identitaPc.leggi().id,
         // Le chat compresse sul Drive solo se tutti i PC visti sanno leggerle (0.69.0).
         // Senza battiti ancora letti non si comprime.
-        versioniAltriPc: () => (postinoGlobale === undefined ? ['0.0.0'] : postinoGlobale.altrui().map((b) => b.versione ?? '0.0.0')),
+        // 12/11: senza gli Aiutanti: la loro versione (1.x) è di un altro programma.
+        versioniAltriPc: () => (postinoGlobale === undefined ? ['0.0.0'] : senzaAiutanti(postinoGlobale.altrui()).map((b) => b.versione ?? '0.0.0')),
         workspaceLocale: {
           leggi: () => workspaceStore?.leggi(),
           scrivi: (a) => workspaceStore?.scrivi(a) ?? false
@@ -2262,7 +2263,8 @@ if (!app.requestSingleInstanceLock()) {
       const testo = (x: unknown): string => (typeof x === 'string' ? x : '')
       ipcMain.handle('remoto:pc', async (_e, solo: unknown): Promise<{ io: string; cassaforteAperta: boolean; driveCollegato: boolean; pc: PcRemoto[] }> => {
         const adessoMs = Date.now()
-        const battiti = await postino.pcSubito().catch(() => postino.altrui())
+        // 12/11: gli Aiutanti non hanno chat da guardare né cartelle dove aprirle: fuori da qui.
+        const battiti = senzaAiutanti(await postino.pcSubito().catch(() => postino.altrui()))
         // Per il PC di un riquadro (0.39.3): com'e' davvero, dopo il bussare.
         // Un battito vecchio non vuol dire spento.
         const stati: Record<string, StatoPc> = {}
@@ -2486,13 +2488,14 @@ if (!app.requestSingleInstanceLock()) {
       // perché con le strade provate. Ogni PC una volta, in parallelo.
       altriPcGlobale = async () => {
         const io = identitaPc.leggi()
-        return unBattitoPerNome((await postino.pcSubito().catch(() => postino.altrui())).filter((b) => b.pcId !== io.id), nomeDaMostrare).map((b) => ({ pcId: b.pcId, nome: nomeDaMostrare(b), ...(b.battito !== undefined ? { battito: b.battito } : {}) }))
+        // 12/11: senza gli Aiutanti (niente autopiloti né chat da elencare).
+        return unBattitoPerNome(senzaAiutanti(await postino.pcSubito().catch(() => postino.altrui())).filter((b) => b.pcId !== io.id), nomeDaMostrare).map((b) => ({ pcId: b.pcId, nome: nomeDaMostrare(b), ...(b.battito !== undefined ? { battito: b.battito } : {}) }))
       }
       saluteAltroPcGlobale = async (pcId) => (await remoto.chiama(pcId, '/api/salute')) as import('@shared/salute').Salute
       autopilotiAltri = async () => {
         const io = identitaPc.leggi()
         // Un PC, una riga (0.73.0): un'identità vecchia dello stesso PC non fa un doppione.
-        const battiti = unBattitoPerNome((await postino.pcSubito().catch(() => postino.altrui())).filter((b) => b.pcId !== io.id), nomeDaMostrare)
+        const battiti = unBattitoPerNome(senzaAiutanti(await postino.pcSubito().catch(() => postino.altrui())).filter((b) => b.pcId !== io.id), nomeDaMostrare)
         return Promise.all(battiti.map((b) => autopilotiDiUnPc(b.pcId, nomeDaMostrare(b))))
       }
       // k-60: gli autopiloti di un PC solo (la chat remota del workspace aperto da lì).
@@ -2662,7 +2665,8 @@ if (!app.requestSingleInstanceLock()) {
         const av = avvisoDrive()
         const statoSync = await sincronia.stato().catch(() => undefined)
         // Subito (0.68.0): la Salute aspettava fino a 20 s di rilettura dal Drive.
-        const battiti = await postino.pcSubito().catch(() => postino.altrui())
+        // 12/11: senza gli Aiutanti, che non hanno la Salute del programma completo (stanno in «Altri computer»).
+        const battiti = senzaAiutanti(await postino.pcSubito().catch(() => postino.altrui()))
         const pc = await Promise.all(battiti.map(async (b) => {
           const s = await remoto.statoDi(b.pcId, b.nome).catch(() => undefined)
           const strada = remoto.stradaDi(b.pcId)
@@ -3546,7 +3550,8 @@ if (!app.requestSingleInstanceLock()) {
       // k-196: la versione che ogni PC acceso dice adesso (stessa fonte della Salute), per «Altri computer».
       ipcMain.handle('posta:versioni-vive', async () => {
         const out: Record<string, string> = {}
-        await Promise.all(postino.altrui().map(async (b) => {
+        // 12/11: gli Aiutanti hanno una versione loro (1.x): non si confronta con questa.
+        await Promise.all(senzaAiutanti(postino.altrui()).map(async (b) => {
           const s = await remoto.statoDi(b.pcId, b.nome).catch(() => undefined)
           const v = s?.stato === 'acceso' ? await versioneDalVivo((id, perc) => remoto.chiama(id, perc), b.pcId) : undefined
           if (v !== undefined) out[b.pcId] = v
@@ -4486,7 +4491,8 @@ if (!app.requestSingleInstanceLock()) {
       // Gli avvisi (11/11): un registro solo per l'app, la pagina, Telegram e la schermata «Notifiche» (`avvisi-avvio.ts`).
       // 0.103.0: lo spedizioniere porta agli altri PC il lavoro affidato dal servizio e riporta i rami.
       const spedizioniere = creaSpedizioniere({
-        altri: () => postino.altrui().filter((b) => pcVivo(b, Date.now())).map((b) => ({ pcId: b.pcId, nome: nomeDaMostrare(b) })),
+        // 12/11: con `aiutante` dal battito: SierraDeck Aiutante si sceglie prima degli altri PC.
+        altri: () => postino.altrui().filter((b) => pcVivo(b, Date.now())).map((b) => ({ pcId: b.pcId, nome: nomeDaMostrare(b), ...(eAiutante(b) ? { aiutante: true } : {}) })),
         chiama: (pc, percorso, corpo) => remoto.chiama(pc, percorso, corpo),
         servizio: (percorso, corpo) => clientAutopilota.aiuto(percorso, corpo),
         cartella: join(dati, 'aiuto-spedizioni'),
@@ -4886,7 +4892,8 @@ if (!app.requestSingleInstanceLock()) {
         // La posta per un PC, dal telefono: gli altri computer e le loro cassette.
         pcIo: () => identitaPc.leggi().id,
         // Subito (0.68.0): rileggere dal Drive a ogni domanda del telefono costava 20 s.
-        pc: () => postinoGlobale?.pcSubito() ?? Promise.resolve([]),
+        // 12/11: senza gli Aiutanti: dal telefono non si mandano azioni a un PC che non apre chat.
+        pc: () => postinoGlobale?.pcSubito().then(senzaAiutanti) ?? Promise.resolve([]),
         posta: (pc: string) => postinoGlobale?.posta(pc) ?? Promise.resolve(undefined),
         postaAggiungi: (pc: string, voce: { cwd: string; testo: string; sessione?: string; origine?: 'umano' | 'autopilota'; daVisore?: string }) =>
           postinoGlobale?.aggiungi(pc, voce) ?? Promise.resolve(undefined),
@@ -5986,7 +5993,8 @@ if (!app.requestSingleInstanceLock()) {
       setInterval(() => {
         const a = aggiornamenti
         if (a === undefined) return
-        const altre = (postinoGlobale?.altrui() ?? []).map((b) => b.versione).filter((v): v is string => typeof v === 'string')
+        // 12/11: senza gli Aiutanti: la loro versione è di un altro programma, non vuol dire «c'è un aggiornamento».
+        const altre = senzaAiutanti(postinoGlobale?.altrui() ?? []).map((b) => b.versione).filter((v): v is string => typeof v === 'string')
         if (!serveCercareSubito({ mia: app.getVersion(), altre, fase: a.stato().fase, ...(ultimaCercaPerBattito !== undefined ? { ultima: ultimaCercaPerBattito } : {}), adesso: Date.now() })) return
         ultimaCercaPerBattito = Date.now()
         registro.info(`[aggiornamenti] un altro PC ha una versione piu nuova (${altre.join(', ')}): cerco subito`)

@@ -4,9 +4,9 @@ import { appendFileSync, copyFileSync, existsSync, mkdirSync, readdirSync, readF
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import {
   commitValido, idLavoroValido, LAVORO_MAX_MS, modelloAiuto, nomeProgettoSicuro, PEZZO_BYTE, PACCHETTO_MAX_BYTE,
-  quantiPezzi, ramoDiRitorno, ramoValido, STRUMENTI_AIUTO, strumentiAmmessi, VIETATI_AIUTO, type LavoroOspitato, type StatoAiuto, type VistaLavoroAiutato
+  quantiPezzi, ramoDiRitorno, ramoValido, STRUMENTI_AIUTO, autoreValido, type AutoreGit, strumentiAmmessi, VIETATI_AIUTO, type LavoroOspitato, type StatoAiuto, type VistaLavoroAiutato
 } from '@shared/aiuto-rete'
-import type { AvviaProcesso } from './orchestratore'
+import type { AvviaProcesso } from './processo-claude'
 import { cancellaSicuraAsincrona } from '@shared/cancella-sicura'
 import { CARTELLA_PROVE } from '@shared/disco-prove'
 import { staccaCollegamenti } from './autopulizia'
@@ -45,7 +45,12 @@ export type RichiestaAvvio = {
   strumenti: string[]
   ruolo: string
   descrizione: string
+  /** 12/11: chi firma i commit nella copia (nome ed email di git del PC che chiede). */
+  autore?: AutoreGit
 }
+
+/** 12/11: come è finito un lavoro, per chi ospita il lavoratore (l'Aiutante guarda il limite del piano). */
+export type FineLavoro = { id: string; stato: StatoAiuto; testo: string; motivo?: string; perPc?: string; ruolo?: string }
 
 type Lavoro = VistaLavoroAiutato & {
   progetto: string
@@ -132,6 +137,8 @@ export function creaLavoratoreAiuto(x: {
   log?: (r: string) => void
   /** Ogni quanto il giro di pulizia; 0 = solo all'avvio e a richiesta (prove). */
   pulisciOgniMs?: number
+  /** 12/11: un lavoro è finito (riuscito o no): l'Aiutante ci legge il limite del piano e i blocchi. */
+  suFine?: (f: FineLavoro) => void
 }): LavoratoreAiuto {
   const adesso = x.adesso ?? Date.now
   const log = x.log ?? ((r: string) => console.info(`[aiuto] ${r}`))
@@ -343,6 +350,7 @@ export function creaLavoratoreAiuto(x: {
       cambia(l, { stato: 'fallito', motivo: 'il progetto ha smesso di arrivare (nessun pezzo da 30 minuti)', attivita: 'non riuscito' })
       for (const f of pacchettiDi(l)) { try { rmSync(f, { force: true }) } catch { /* resta */ } }
       log(`${l.id}: ricezione ferma da 30 minuti, lavoro non riuscito`)
+      try { x.suFine?.({ id: l.id, stato: l.stato, testo: '', ...(l.motivo !== undefined ? { motivo: l.motivo } : {}) }) } catch { /* chi ascolta non ferma la pulizia */ }
     }
     for (const l of [...lavori.values()]) {
       if (!terminato(l) || l.ferma !== undefined || ora - (l.fine ?? l.inizio) < LAVORO_FINITO_DURA_MS) continue
@@ -380,6 +388,12 @@ export function creaLavoratoreAiuto(x: {
       await git(['worktree', 'add', '-f', '-B', ramo, copia, r.base], repo)
       // Il ramo principale come ramo locale della copia, perché le regole dicono `git merge --ff-only <base>` e `git diff main...HEAD`.
       await git(['branch', '-f', r.ramoBase, r.base], repo).catch(() => undefined)
+      // 12/11: chi firma i commit, nella copia di qui: su un PC appena preparato git non lo sa e il
+      // primo `git commit` dello specialista falliva. Lo fa il programma (gli specialisti no).
+      if (r.autore !== undefined) {
+        await git(['config', 'user.name', r.autore.nome], repo).catch(() => undefined)
+        await git(['config', 'user.email', r.autore.email], repo).catch(() => undefined)
+      }
     })
     try { rmSync(pacchetto, { force: true }) } catch { /* resta */ }
     cambia(l, { copia, attivita: 'preparo node_modules' })
@@ -456,6 +470,7 @@ export function creaLavoratoreAiuto(x: {
       attivita: riuscito ? `finito, ${commit} commit` : 'non riuscito'
     })
     log(`${l.id} (${progetto}): ${l.stato}, ${commit} commit, ${byte} byte da ritirare`)
+    try { x.suFine?.({ id: l.id, stato: l.stato, testo: finale?.testo ?? '', ...(l.motivo !== undefined ? { motivo: l.motivo } : {}), ...(l.perPc !== undefined ? { perPc: l.perPc } : {}), ...(l.ruolo !== undefined ? { ruolo: l.ruolo } : {}) }) } catch { /* chi ascolta non ferma il lavoro */ }
     // La copia non serve più: il ramo è nel pacchetto (o non c'è niente da rimandare).
     // 12/11: se Windows la tiene bloccata, la riprende il giro di pulizia ogni 10 minuti.
     const tolta = await inProgetto(progetto, () => togliCopia(copia, repo, join(base, 'copie')))
@@ -507,13 +522,15 @@ export function creaLavoratoreAiuto(x: {
         modello: modelloAiuto(p.modello),
         strumenti: strumentiAmmessi(p.strumenti),
         ruolo: typeof p.ruolo === 'string' ? corto(p.ruolo, 40) : 'sviluppatore',
-        descrizione: typeof p.descrizione === 'string' ? corto(p.descrizione, 300) : ''
+        descrizione: typeof p.descrizione === 'string' ? corto(p.descrizione, 300) : '',
+        ...(autoreValido(p.autore) !== undefined ? { autore: autoreValido(p.autore)! } : {})
       }
       cambia(l, { progetto: nomeProgettoSicuro(r.progetto), base: r.base, ruolo: r.ruolo, descrizione: r.descrizione, ...(typeof p.daNome === 'string' && p.daNome.trim() !== '' ? { perPc: corto(p.daNome, 60) } : {}) })
       log(`${l.id}: parte ${r.ruolo} per ${r.progetto} — ${r.descrizione.slice(0, 120)}`)
       void lancia(l, r).catch(async (err: unknown) => {
         log(`${l.id}: non riuscito: ${String(err).slice(0, 300)}`)
         if (l.stato !== 'fermato') cambia(l, { stato: 'fallito', motivo: corto(err instanceof Error ? err.message : String(err), 300), attivita: 'non riuscito' })
+        try { x.suFine?.({ id: l.id, stato: l.stato, testo: '', ...(l.motivo !== undefined ? { motivo: l.motivo } : {}), ...(l.perPc !== undefined ? { perPc: l.perPc } : {}), ...(l.ruolo !== undefined ? { ruolo: l.ruolo } : {}) }) } catch { /* chi ascolta non ferma niente */ }
         await pulisciCopia(l).catch(() => undefined)
       })
       return { ok: true }
