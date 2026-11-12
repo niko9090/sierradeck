@@ -46,6 +46,8 @@ export type Specialista = {
   unito?: boolean
   /** Il prompt dato all'Agent, finché non è finito (serve a rimetterlo in fila se il tetto lo rifiuta). */
   prompt?: string
+  /** 0.103.0: lavora su un altro PC (Aiuta la rete): il suo nome. */
+  pc?: string
 }
 
 export type RigaRegistro = { quando: string; tipo: 'turno' | 'specialista' | 'strumento' | 'costo' | 'errore'; testo: string; specialista?: string }

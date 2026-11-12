@@ -4,6 +4,7 @@ import { execFile, execFileSync } from 'node:child_process'
 import { daReteLocale } from '@shared/rete-locale'
 import { RIFIUTO_DI_RETE } from '@shared/scoperta-pc'
 import { leggiCorpoJson } from '@shared/corpo-richiesta'
+import { TETTO_CORPO_PEZZO } from '@shared/aiuto-rete'
 import { createHash, timingSafeEqual } from 'node:crypto'
 import { gzip as comprimi, gzipSync } from 'node:zlib'
 import { creaControlloFirme, INTESTAZIONE_FIRMA, provaCasa, visoreDaFirma } from './casa-firma'
@@ -287,7 +288,8 @@ async function gestisci(
   const percorso = (req.url ?? '/').split('?')[0] ?? '/'
   const cerca = new URL(req.url ?? '/', 'http://x').searchParams
   const metodo = req.method ?? 'GET'
-  const corpo = metodo === 'GET' ? undefined : await leggiCorpoJson(req)
+  // 0.103.0: un pezzo del progetto per un altro PC (Aiuta la rete) pesa qualche MB; tutto il resto resta piccolo.
+  const corpo = metodo === 'GET' ? undefined : await leggiCorpoJson(req, percorso === '/api/aiuto/pezzo' ? TETTO_CORPO_PEZZO : undefined)
   annotaRotta(req, percorso, corpo)
 
   // Il polso delle chat: nasce da un comando lanciato da Claude Code su questa

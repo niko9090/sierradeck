@@ -866,3 +866,65 @@ describe('il motore non si ferma (0.89.4)', () => {
     })
   })
 })
+
+describe('i posti degli altri PC (0.103.0, Aiuta la rete)', () => {
+  it('un Agent va al PC dedicato con posto: il compito è in corso là, poi il ramo torna e il compito passa in revisione', async () => {
+    zitto()
+    await avviaServizio([ap()], { unioneDaSola: false })
+    const v = migra()
+    processi[0]!.emetti({ type: 'result', result: 'Pronto.', total_cost_usd: 0.001, session_id: 'sess-1', usage: { input_tokens: 100 } })
+    orch.scriviPiano('Lavoro', { versione: 1, compiti: [{ id: 'k-7', richiesta: 'r-1', titolo: 'il pulsante', criterio: 'il pulsante c’è', dopo: [], peso: 2, stato: 'da-fare', creato: '2026-10-30T08:00:00.000Z' }] })
+    const base = { session_id: 's', cwd: process.cwd(), hook_event_name: 'PreToolUse' }
+    const agente = { ...base, tool_use_id: 'tu-r1', tool_name: 'Agent', tool_input: { subagent_type: 'sviluppatore', description: 'k-7: il pulsante', prompt: 'Fai il pulsante.' } }
+
+    // Nessun PC che aiuta: parte qui, come sempre.
+    const qui = (await (await posta(`/hook/pretool?ap=${v.autopilota!}`, { ...agente, tool_use_id: 'tu-r0' })).json()) as { hookSpecificOutput?: { permissionDecision: string } }
+    expect(qui.hookSpecificOutput?.permissionDecision).not.toBe('deny')
+    processi[0]!.emetti({ type: 'system', subtype: 'task_notification', task_id: 't-0', tool_use_id: 'tu-r0', status: 'failed', summary: 'fermato' })
+
+    // Il programma dice che il Portatile è dedicato e ha posto: il prossimo Agent va là.
+    const giro = (await (await posta('/aiuto/giro', { aiutanti: [{ pcId: 'pc-la', nome: 'Portatile', modo: 'dedicato', liberi: 2 }] })).json()) as { lavori: unknown[] }
+    expect(giro.lavori).toEqual([])
+    const affidato = (await (await posta(`/hook/pretool?ap=${v.autopilota!}`, agente)).json()) as { hookSpecificOutput?: { permissionDecision: string; permissionDecisionReason?: string } }
+    expect(affidato.hookSpecificOutput?.permissionDecision).toBe('deny')
+    expect(affidato.hookSpecificOutput?.permissionDecisionReason).toContain('affidato a Portatile')
+    expect(affidato.hookSpecificOutput?.permissionDecisionReason).toContain('Non rilanciarlo')
+
+    const lavori = ((await (await posta('/aiuto/giro', { aiutanti: [] })).json()) as { lavori: Array<{ id: string; stato: string; prompt: string; sistema: string; strumenti: string[]; compito?: string; pcNome: string }> }).lavori
+    expect(lavori).toHaveLength(1)
+    const l = lavori[0]!
+    expect(l).toMatchObject({ stato: 'da-spedire', prompt: 'Fai il pulsante.', compito: 'k-7', pcNome: 'Portatile' })
+    expect(l.sistema).toContain('Sei lo sviluppatore')
+    expect(l.strumenti).toContain('Edit')
+    // Il compito è in corso, e lo specialista si vede a destra con il nome del PC.
+    await attendi(() => orch.piano('Lavoro').compiti[0]!.stato === 'in-corso')
+    const vv = await vista()
+    expect(vv.specialisti.find((s) => s.id === l.id)).toMatchObject({ pc: 'Portatile', compitoId: 'k-7' })
+    const conv = (await (await fetch(url(`/orchestratore/specialista?ws=Lavoro&id=${l.id}`))).json()) as { trovata: boolean; righe: { testo: string }[] }
+    expect(conv.trovata).toBe(true)
+    expect(conv.righe[0]!.testo).toContain('affidato a Portatile')
+
+    // Torna il ramo: il compito passa in revisione con quel ramo, e l'autopilota lo sa con un evento.
+    expect((await (await posta('/aiuto/avanza', { id: l.id, stato: 'spedito', attivita: 'Edit: pulsante.tsx' })).json())).toEqual({ fatto: true })
+    expect((await (await posta('/aiuto/avanza', { id: l.id, stato: 'finito', riepilogo: 'Fatto il pulsante.', ramo: `worktree-agent-${l.id}` })).json())).toEqual({ fatto: true })
+    const k = orch.piano('Lavoro').compiti[0]!
+    expect(k.stato).toBe('in-revisione')
+    expect(k.ramo).toBe(`worktree-agent-${l.id}`)
+    expect(((await (await posta('/aiuto/giro', { aiutanti: [] })).json()) as { lavori: unknown[] }).lavori).toEqual([])
+    // Un esito ripetuto non conta due volte.
+    expect((await (await posta('/aiuto/avanza', { id: l.id, stato: 'finito' })).json())).toEqual({ fatto: false })
+  })
+
+  it('i ruoli che non viaggiano (rilascio, chi legge soltanto) restano qui anche con un PC libero', async () => {
+    zitto()
+    await avviaServizio([ap()], { unioneDaSola: false })
+    const v = migra()
+    processi[0]!.emetti({ type: 'result', result: 'Pronto.', total_cost_usd: 0.001, session_id: 'sess-1', usage: { input_tokens: 100 } })
+    await posta('/aiuto/giro', { aiutanti: [{ pcId: 'pc-la', nome: 'Portatile', modo: 'dedicato', liberi: 4 }] })
+    for (const tipo of ['rilascio', 'revisore', 'esploratore']) {
+      const r = (await (await posta(`/hook/pretool?ap=${v.autopilota!}`, { session_id: 's', cwd: process.cwd(), hook_event_name: 'PreToolUse', tool_use_id: `tu-${tipo}`, tool_name: 'Agent', tool_input: { subagent_type: tipo, description: 'k-9: x', prompt: 'x' } })).json()) as { hookSpecificOutput?: { permissionDecisionReason?: string } }
+      expect(r.hookSpecificOutput?.permissionDecisionReason ?? '').not.toContain('affidato')
+    }
+    expect(((await (await posta('/aiuto/giro', { aiutanti: [] })).json()) as { lavori: unknown[] }).lavori).toEqual([])
+  })
+})

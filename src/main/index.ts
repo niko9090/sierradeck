@@ -62,6 +62,7 @@ import { gitPerLeChat } from './git-nel-path'
 import { decidiChiusura, vociArea, suggerimentoArea } from './area-notifica'
 import { espandiTilde } from './validation'
 import { creaClientAutopilota } from './autopilot-client'
+import { creaSpedizioniere } from './aiuto-spedizioniere'
 import { apriIstantaneeStore } from './istantanee-store'
 import { listSessions, rimuoviSessioni } from './db'
 import { creaGestioneChat, type GestioneChat } from './gestione-chat'
@@ -4458,6 +4459,15 @@ if (!app.requestSingleInstanceLock()) {
         for (const w of webContents.getAllWebContents()) if (!w.isDestroyed()) w.send('alTelefono:cambiata')
       })
       // Gli avvisi (11/11): un registro solo per l'app, la pagina, Telegram e la schermata «Notifiche» (`avvisi-avvio.ts`).
+      // 0.103.0: lo spedizioniere porta agli altri PC il lavoro affidato dal servizio e riporta i rami.
+      const spedizioniere = creaSpedizioniere({
+        altri: () => postino.altrui().filter((b) => pcVivo(b, Date.now())).map((b) => ({ pcId: b.pcId, nome: nomeDaMostrare(b) })),
+        chiama: (pc, percorso, corpo) => remoto.chiama(pc, percorso, corpo),
+        servizio: (percorso, corpo) => clientAutopilota.aiuto(percorso, corpo),
+        cartella: join(dati, 'aiuto-spedizioni'),
+        log: (r) => registro.info(`[aiuto] ${r}`)
+      })
+      app.on('before-quit', () => spedizioniere.ferma())
       const avvisi = accendiAvvisi({ dati, log: (r) => registro.info(r), telefoni: () => dispositivi.elenca(), chat: () => chatAperte, aggiornamento: () => aggiornamenti?.stato(), versioneQui: () => app.getVersion(), coda, quadernoPersonale, altriPc: () => altriPcGlobale?.() ?? Promise.resolve([]), chiamaPc: (pc, percorso) => remoto.chiama(pc, percorso) })
       ipcAvvisi(ipcMain, avvisi)
       /**
@@ -4586,6 +4596,8 @@ if (!app.requestSingleInstanceLock()) {
         // 11/11: solo la vista dell'orchestratore, per lo stato del telefono in `/api/stato`.
         orchestratoreWorkspace: (ws: string) => clientAutopilota.orchestratore(ws),
         specialistaAutopilota: (ws: string, id: string) => clientAutopilota.specialista(ws, id),
+        // 0.103.0: «Aiuta la rete»: il modo scelto qui e la strada verso il servizio per le rotte `/aiuto/*`.
+        aiuto: { modo: () => impostazioni.preferenze().aiutoRete, servizio: (percorso: string, corpo?: Record<string, unknown>) => clientAutopilota.aiuto(percorso, corpo) },
         attesaSpecialisti: () => clientAutopilota.attesaSpecialisti(),
         prioritaAttesaSpecialisti: (id: string, mossa: import('@shared/attesa-specialisti').MossaAttesa) => clientAutopilota.prioritaAttesa(id, mossa),
         togliAttesaSpecialisti: (id: string) => clientAutopilota.togliAttesa(id),

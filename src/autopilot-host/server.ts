@@ -1,5 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
-import { existsSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
+import { creaLavoratoreAiuto, type LavoratoreAiuto } from './aiuto-lavoratore'
+import { lavoroAffidatoValido, modoAiutoValido, TETTO_CORPO_PEZZO, type Aiutante, type LavoroAffidato } from '@shared/aiuto-rete'
 import { createHash } from 'node:crypto'
 import { dirname, join } from 'node:path'
 import {
@@ -207,6 +209,40 @@ function rispondi(res: ServerResponse, stato: number, corpo: unknown): void {
 /** Il tetto di un corpo: qui arrivano gli hook di Claude Code, che portano più roba di un telefono. */
 const TETTO_CORPO = 1024 * 1024
 
+/** 0.103.0: i lavori affidati ad altri PC, su disco (sopravvivono a un riavvio del servizio). */
+function apriAiuti(file: string): { leggi: () => LavoroAffidato[]; scrivi: (l: LavoroAffidato[]) => void } {
+  let tenuti: LavoroAffidato[] | undefined
+  return {
+    leggi() {
+      if (tenuti !== undefined) return tenuti
+      try {
+        const o = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) as unknown : []
+        tenuti = Array.isArray(o) ? o.map(lavoroAffidatoValido).filter((l): l is LavoroAffidato => l !== undefined) : []
+      } catch (err) {
+        console.error(`[aiuto] ${file} illeggibile:`, err)
+        tenuti = []
+      }
+      return tenuti
+    },
+    scrivi(l) {
+      tenuti = l
+      try {
+        mkdirSync(dirname(file), { recursive: true })
+        writeFileSync(`${file}.tmp`, JSON.stringify(l, null, 1), 'utf8')
+        renameSync(`${file}.tmp`, file)
+      } catch (err) { console.error(`[aiuto] ${file} non scritto:`, err) }
+    }
+  }
+}
+
+/** Un PC che può aiutare, come lo manda il programma: si controlla tutto. */
+function aiutanteValido(x: unknown): Aiutante | undefined {
+  if (typeof x !== 'object' || x === null) return undefined
+  const o = x as Record<string, unknown>
+  if (typeof o.pcId !== 'string' || o.pcId === '' || !modoAiutoValido(o.modo) || typeof o.liberi !== 'number' || !Number.isFinite(o.liberi)) return undefined
+  return { pcId: o.pcId, nome: typeof o.nome === 'string' && o.nome !== '' ? o.nome.slice(0, 80) : o.pcId.slice(0, 8), modo: o.modo, liberi: Math.max(0, Math.floor(o.liberi)) }
+}
+
 function leggiCorpo(req: IncomingMessage): Promise<unknown> {
   return leggiCorpoJson(req, TETTO_CORPO)
 }
@@ -242,6 +278,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
 
   /** L'autopilota di ogni workspace: nasce in fondo, quando c'è tutto quello che gli si presta. */
   let unico: ServizioUnico | undefined
+  /** 0.103.0: chi lavora qui per gli altri PC (nasce alla prima richiesta). */
+  let lavoratoreAiuto: LavoratoreAiuto | undefined
+  const lavoratore = (): LavoratoreAiuto => {
+    lavoratoreAiuto ??= creaLavoratoreAiuto({ cartella: join(dirname(deps.archivio.cartella), 'aiuto'), avvia: deps.avviaProcesso })
+    return lavoratoreAiuto
+  }
   const servizio = (): ServizioUnico => {
     if (unico === undefined) throw new Error('autopilota non ancora pronto')
     return unico
@@ -1181,6 +1223,45 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           return
         }
         // L'autopilota del workspace: la vista, le impostazioni, il messaggio.
+        // 0.103.0: i posti degli altri PC. Lato di chi chiede: il giro del programma e l'esito dei lavori affidati.
+        if (metodo === 'POST' && percorso === '/aiuto/giro') {
+          const corpo = (await leggiCorpo(req)) as Record<string, unknown> | undefined
+          const lista = Array.isArray(corpo?.aiutanti) ? corpo.aiutanti.map(aiutanteValido).filter((a): a is Aiutante => a !== undefined) : []
+          rispondi(res, 200, { lavori: servizio().aiutoGiro(lista) })
+          return
+        }
+        if (metodo === 'POST' && percorso === '/aiuto/avanza') {
+          const corpo = (await leggiCorpo(req)) as Record<string, unknown> | undefined
+          const id = testoDi(corpo?.id).trim()
+          const st = corpo?.stato
+          if (id === '' || (st !== undefined && st !== 'spedito' && st !== 'finito' && st !== 'fallito')) { rispondi(res, 400, { errore: 'servono l’id del lavoro e uno stato conosciuto' }); return }
+          const p = {
+            ...(st !== undefined ? { stato: st as 'spedito' | 'finito' | 'fallito' } : {}),
+            ...(typeof corpo?.attivita === 'string' ? { attivita: corpo.attivita } : {}),
+            ...(typeof corpo?.riepilogo === 'string' ? { riepilogo: corpo.riepilogo } : {}),
+            ...(typeof corpo?.ramo === 'string' ? { ramo: corpo.ramo } : {}),
+            ...(typeof corpo?.motivo === 'string' ? { motivo: corpo.motivo } : {})
+          }
+          rispondi(res, 200, { fatto: servizio().aiutoAvanza(id, p) })
+          return
+        }
+        // Lato di chi aiuta: i posti, il progetto a pezzi, l'avvio, lo stato, il ramo da ritirare.
+        if (percorso.startsWith('/aiuto/')) {
+          const lav = lavoratore()
+          if (metodo === 'GET' && percorso === '/aiuto/posti') {
+            rispondi(res, 200, { ...servizio().postiLiberi(), inCorso: lav.inCorso() })
+            return
+          }
+          if (metodo === 'POST') {
+            const corpo = ((percorso === '/aiuto/pezzo' ? await leggiCorpoJson(req, TETTO_CORPO_PEZZO) : await leggiCorpo(req)) ?? {}) as Record<string, unknown>
+            if (percorso === '/aiuto/pezzo') { const e = lav.pezzo({ lavoro: corpo.lavoro, n: corpo.n, totale: corpo.totale, dati: corpo.dati }); rispondi(res, e.ok ? 200 : 409, e.ok ? e : { errore: e.motivo }); return }
+            if (percorso === '/aiuto/avvia') { const e = lav.avvia(corpo); rispondi(res, e.ok ? 200 : 409, e.ok ? { fatto: true } : { errore: e.motivo }); return }
+            if (percorso === '/aiuto/stato') { const v = lav.stato(corpo.lavoro); rispondi(res, v === undefined ? 404 : 200, v ?? { errore: 'lavoro sconosciuto su questo PC' }); return }
+            if (percorso === '/aiuto/ritira') { const e = lav.ritira({ lavoro: corpo.lavoro, n: corpo.n }); rispondi(res, e.ok ? 200 : 409, e.ok ? e : { errore: e.motivo }); return }
+            if (percorso === '/aiuto/chiudi') { rispondi(res, 200, { fatto: lav.chiudi(corpo.lavoro) }); return }
+            if (percorso === '/aiuto/ferma') { rispondi(res, 200, { fatto: lav.ferma(corpo.lavoro) }); return }
+          }
+        }
         if (percorso === '/orchestratore' || percorso.startsWith('/orchestratore/')) {
           if (metodo === 'GET' && percorso === '/orchestratore') {
             const ws = url.searchParams.get('ws')?.trim() ?? ''
@@ -1639,6 +1720,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     ...(deps.sporcaInFondoDopoMs !== undefined ? { sporcaInFondoDopoMs: deps.sporcaInFondoDopoMs } : {}),
     doppioni: deps.doppioni ?? apriDoppioni(join(deps.archivio.cartella, 'servizio', 'doppioni-archiviati.json')),
     attesa: deps.attesa ?? apriAttesa(join(deps.archivio.cartella, 'servizio', 'attesa-specialisti.json')),
+    aiuti: apriAiuti(join(deps.archivio.cartella, 'servizio', 'aiuti-affidati.json')),
+    aiutiQui: () => lavoratoreAiuto?.inCorso() ?? 0,
     // Nel recupero del riassetto (30 giorni, «Annulla» lo rimette), come gli altri passi del servizio.
     spostaNelRecupero: (cartella, motivo) => {
       const rec = apriRecuperoPasso({ dati: dirname(deps.archivio.cartella), versione: deps.versione ?? '0.0.0', passo: 'servizio-doppioni' })

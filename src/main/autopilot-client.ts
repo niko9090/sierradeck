@@ -176,6 +176,8 @@ export type ClientAutopilota = {
   impostaLimiti: (p: Partial<LimitiPc>) => Promise<VistaLimiti | undefined>
   /** k-48: la lista d'attesa degli specialisti. Un servizio vecchio non ce l'ha: `undefined`. */
   attesaSpecialisti: () => Promise<VistaAttesa | undefined>
+  /** 0.103.0: una rotta `/aiuto/*` del servizio (i posti degli altri PC), così com'è. */
+  aiuto: (percorso: string, corpo?: Record<string, unknown>) => Promise<unknown>
   prioritaAttesa: (id: string, mossa: MossaAttesa) => Promise<VistaAttesa | undefined>
   togliAttesa: (id: string) => Promise<VistaAttesa | undefined>
   /**
@@ -501,6 +503,8 @@ export function creaClientAutopilota(p: {
     async attesaSpecialisti() {
       try { return vistaAttesaValida(await chiama('/orchestratore/attesa', 'GET')) } catch { return undefined }
     },
+    // 0.103.0: un pezzo del progetto (fino a 4 MB) o un `git bundle` da preparare chiedono più del solito.
+    aiuto: (percorso, corpo) => chiama(percorso, corpo === undefined ? 'GET' : 'POST', corpo, 60_000),
     // Voce già partita o tolta (404): la lista com'è adesso.
     prioritaAttesa: async (id, mossa) => { try { return vistaAttesaValida(await chiama('/orchestratore/attesa/priorita', 'POST', { id, mossa }, attesaScrittura)) } catch { return vistaAttesaValida(await chiama('/orchestratore/attesa', 'GET').catch(() => undefined)) } },
     suCambioSpecialisti(f) {

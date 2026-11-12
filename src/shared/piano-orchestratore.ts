@@ -472,7 +472,7 @@ export type VistaOrchestratore = {
    */
   sveglia?: { il: string; perche: string }
   /** Gli specialisti: subagenti (con ruolo, attività, stato e durata) e chat adottate. */
-  specialisti: { id: string; ruolo?: string; compito: string; stato: string; compitoId?: string; attivita?: string; durata?: string; adottata?: true; fine?: string }[]
+  specialisti: { id: string; ruolo?: string; compito: string; stato: string; compitoId?: string; attivita?: string; durata?: string; adottata?: true; fine?: string; pc?: string }[]
   /** Il processo `claude` del workspace è acceso. */
   vivo: boolean
   /** Le ultime righe del registro dal vivo (turni, specialisti, strumenti). */

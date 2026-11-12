@@ -12,6 +12,7 @@
 
 import { leggiPostiScelti, type RegolazionePosti } from './posti-chat'
 import { normalizzaScorciatoie, SCORCIATOIE_PREDEFINITE, type Scorciatoie } from './scorciatoie'
+import { MODO_AIUTO_PREDEFINITO, modoAiutoValido, type ModoAiuto } from './aiuto-rete'
 
 export type Preferenze = {
   /** Il colore che tinge i comandi e le parti vive dell'interfaccia. */
@@ -136,6 +137,12 @@ export type Preferenze = {
    */
   workspaceSoloQui: string[]
   /**
+   * 0.103.0, «Aiuta la rete»: quanto questo PC lavora per gli altri PC.
+   * `dedicato` ha la precedenza sugli altri, `posti-liberi` presta solo quelli
+   * che non usa, `no` niente.
+   */
+  aiutoRete: ModoAiuto
+  /**
    * Le chat diventate solo locali perché lo spazio sul Drive scarseggiava (le
    * più grosse), per conversazione. Non risalgono più da sole.
    */
@@ -210,6 +217,7 @@ export const PREFERENZE_PREDEFINITE: Preferenze = {
   avvisiChiusi: [],
   workspaceElenco: [],
   workspaceSoloQui: [],
+  aiutoRete: MODO_AIUTO_PREDEFINITO,
   // Il banco e quello che c e sempre stato: chi non sceglie non deve
   // ritrovarsi un programma diverso da quello di ieri.
   stile: 'banco',
@@ -315,6 +323,7 @@ export function normalizzaPreferenze(raw: unknown): Preferenze {
     workspaceElenco: Array.isArray(o.workspaceElenco)
       ? [...new Set(o.workspaceElenco.filter((c): c is string => typeof c === 'string' && c.trim() !== '' && c.length <= 120))].slice(0, 200)
       : [],
+    aiutoRete: modoAiutoValido(o.aiutoRete) ? o.aiutoRete : MODO_AIUTO_PREDEFINITO,
     workspaceSoloQui: Array.isArray(o.workspaceSoloQui)
       ? [...new Set(o.workspaceSoloQui.filter((c): c is string => typeof c === 'string' && c.trim() !== '' && c.length <= 120))].slice(0, 200)
       : [],

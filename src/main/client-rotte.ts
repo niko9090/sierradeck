@@ -54,6 +54,10 @@ import {
 } from '@shared/azioni-telefono'
 import { oscuraChat, rifiutoChiusa, STATO_CHIUSA } from '@shared/pin-chat'
 import { TASTI_REMOTI, tastoRemotoValido } from '@shared/tasti-remoti'
+import type { ModoAiuto, PostiAiuto } from '@shared/aiuto-rete'
+
+/** 0.103.0: le rotte di «Aiuta la rete», fra PC. */
+const ROTTE_AIUTO = new Set(['/api/aiuto/posti', '/api/aiuto/pezzo', '/api/aiuto/avvia', '/api/aiuto/stato', '/api/aiuto/ritira', '/api/aiuto/chiudi', '/api/aiuto/ferma'])
 import type { GuardianoPin } from './pin-guardiano'
 import type { Allegati } from './allegati'
 import { creaMemoriaInvii, idMessaggioValido } from '@shared/collegamento'
@@ -232,6 +236,11 @@ export type DipendenzeRotte = {
   orchestratoreWorkspace?: (ws: string) => Promise<VistaOrchestratore | undefined>
   /** 0.95.1: la conversazione di uno specialista, da guardare dal telefono (come a destra sul PC). */
   specialistaAutopilota?: (ws: string, id: string) => Promise<unknown>
+  /**
+   * 0.103.0: «Aiuta la rete». Il modo scelto su questo PC e la strada verso il servizio per le
+   * rotte `/aiuto/*` (i posti, il progetto a pezzi, l'avvio, lo stato, il ramo da ritirare).
+   */
+  aiuto?: { modo: () => ModoAiuto; servizio: (percorso: string, corpo?: Record<string, unknown>) => Promise<unknown> }
   /** k-48: la lista d'attesa degli specialisti (chi lavora, chi aspetta), la priorità di una voce, togliere una voce. */
   attesaSpecialisti?: () => Promise<unknown>
   prioritaAttesaSpecialisti?: (id: string, mossa: import('@shared/attesa-specialisti').MossaAttesa) => Promise<unknown>
@@ -1610,6 +1619,27 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       if (v instanceof Error) return { stato: 502, corpo: { errore: `il servizio degli autopiloti non ha dato l’avanzamento: ${v.message.slice(0, 160)}` } }
       // 11/11: con i titoli in parole accanto a quelli di prima (`parole-telefono.ts`).
       return OK(avanzamentoInParole({ orchestratore: v.orchestratore ?? null, coda: v.coda ?? null }))
+    }
+
+    // 0.103.0: i posti di questo PC per gli altri PC (Aiuta la rete). Con «no» non presta niente.
+    if (r.percorso.startsWith('/api/aiuto/') && ROTTE_AIUTO.has(r.percorso)) {
+      if (deps.aiuto === undefined) return { stato: 404, corpo: { errore: 'questo PC non presta ancora i suoi posti' } }
+      const modo = deps.aiuto.modo()
+      const dove = r.percorso.slice('/api'.length)
+      if (r.percorso === '/api/aiuto/posti') {
+        if (modo === 'no') return OK({ modo, liberi: 0, tetto: 0 } satisfies PostiAiuto)
+        const p = await deps.aiuto.servizio(dove).catch(() => undefined) as { liberi?: unknown; tetto?: unknown } | undefined
+        const liberi = typeof p?.liberi === 'number' ? Math.max(0, Math.floor(p.liberi)) : 0
+        const tetto = typeof p?.tetto === 'number' ? Math.max(0, Math.floor(p.tetto)) : 0
+        return OK({ modo, liberi, tetto } satisfies PostiAiuto)
+      }
+      if (r.metodo !== 'POST') return { stato: 405, corpo: { errore: 'solo POST' } }
+      // Un lavoro nuovo non parte se questo PC ha detto «no»; quelli già partiti si seguono fino alla fine.
+      if (modo === 'no' && (r.percorso === '/api/aiuto/pezzo' || r.percorso === '/api/aiuto/avvia')) return { stato: 409, corpo: { errore: 'questo PC non presta più i suoi posti' } }
+      const corpo = (typeof r.corpo === 'object' && r.corpo !== null ? r.corpo : {}) as Record<string, unknown>
+      try { return OK(await deps.aiuto.servizio(dove, corpo)) } catch (err) {
+        return { stato: 409, corpo: { errore: (err instanceof Error ? err.message : String(err)).replace(/^il servizio autopilota ha rifiutato la richiesta: /u, '').slice(0, 300) } }
+      }
     }
 
     // 0.95.1: la conversazione di uno specialista dell'autopilota di un workspace,

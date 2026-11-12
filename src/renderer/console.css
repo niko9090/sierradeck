@@ -5076,6 +5076,7 @@ label.gc-voce { cursor: pointer; }
 .chat-spec--finita { opacity: .75; }
 .chat-spec__testata { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-bottom: 1px solid var(--bordo); font-size: 12px; min-width: 0; }
 .chat-spec__chi { font-weight: 600; white-space: nowrap; }
+.chat-spec__pc { font-size: 11px; padding: 0 6px; border-radius: 8px; border: 1px solid var(--bordo, #555); opacity: 0.85; white-space: nowrap; }
 .chat-spec__cosa { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--testo-quieto); }
 .chat-spec__stato { white-space: nowrap; color: var(--testo-quieto); }
 .chat-spec__battito { width: 8px; height: 8px; border-radius: 50%; background: var(--verde, #3fb950); animation: chat-spec-battito 1.4s ease-in-out infinite; flex: none; }

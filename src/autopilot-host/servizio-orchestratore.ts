@@ -8,7 +8,8 @@ import {
 } from '@shared/coda-richieste'
 import {
   allineaConPiano, chiudiCompito, chiudiCompitiOrfani, comandoDelCriterio, conCompito, conPercento, conRamoRicordato, misuraDalPiano, misuraUnita, vistaLavoro,
-  type CompitoPiano, type Piano, type TrascrizioneSpecialista, type VistaOrchestratore
+  type CompitoPiano, type Piano, type TrascrizioneSpecialista, type VistaOrchestratore,
+  type RigaSpecialista
 } from '@shared/piano-orchestratore'
 import { compitoDallaDescrizione, durata, specialistiAlLavoro, type EffettoFlusso, type Specialista, type StatoFlusso } from '@shared/flusso-orchestratore'
 import { RUOLI } from '@shared/ruoli-agenti'
@@ -53,7 +54,8 @@ import { fermataSpecialista } from './stop-specialista'
 import { cartellaDelWorkspace, hookAdottato, nuovoUnico, obiettiviInCoda, passaAllUnico, type CampiVecchi, type Vecchio } from './migra-orchestratore'
 import { quandoInParole, riassuntoOrchestratore } from './riassunto-orchestratore'
 import { motivoSpecialistaDoppio, ripresaDopoRiavvio } from './ripresa-riavvio'
-import { fileAgenti, fileImpostazioniCli, RUOLI_AGENTI } from './agenti-orchestratore'
+import { AGENTI_ORCHESTRATORE, fileAgenti, fileImpostazioniCli, RUOLI_AGENTI } from './agenti-orchestratore'
+import { motivoAffidato, RUOLI_IN_VIAGGIO, scegliPosto, type Aiutante, type LavoroAffidato } from '@shared/aiuto-rete'
 import { giudicaGuardiaOrchestratore } from './guardia-orchestratore'
 import type { Giudizio } from './divieti'
 import { doppioniDaArchiviare, rigaDoppione, type Doppione, type RichiestaDoppioni } from '@shared/autopiloti-doppioni'
@@ -190,6 +192,10 @@ export type ContestoUnico = {
   spostaNelRecupero?: (cartella: string, motivo: string) => { ok: true; dove?: string } | { ok: false; perche: string }
   /** k-48: dove sta su disco la lista d'attesa degli specialisti. Assente: solo in memoria. */
   attesa?: ArchivioAttesa
+  /** 0.103.0: i lavori affidati ad altri PC (Aiuta la rete). Assente: solo in memoria. */
+  aiuti?: { leggi: () => LavoroAffidato[]; scrivi: (l: LavoroAffidato[]) => void }
+  /** 0.103.0: i lavori di altri PC al lavoro qui: occupano posti come gli specialisti. */
+  aiutiQui?: () => number
 }
 
 /** Com'è andato un giro sui doppioni. */
@@ -258,6 +264,15 @@ export type ServizioUnico = {
   preTool: (a: Autopilota, corpo: Record<string, unknown>) => Giudizio
   /** Gli specialisti (subagenti) al lavoro su tutto il PC: contano nei posti. */
   specialistiSulPc: () => number
+  /** 0.103.0: i posti liberi di questo PC per il lavoro degli altri. */
+  postiLiberi: () => { liberi: number; tetto: number }
+  /**
+   * 0.103.0: il giro del programma (ogni pochi secondi): i PC che possono aiutare adesso, e in
+   * cambio i lavori affidati che il programma deve spedire o seguire.
+   */
+  aiutoGiro: (aiutanti: Aiutante[]) => LavoroAffidato[]
+  /** 0.103.0: com'è andato un lavoro affidato (spedito, cosa fa, finito con il suo ramo, non riuscito). */
+  aiutoAvanza: (id: string, p: { stato?: 'spedito' | 'finito' | 'fallito'; attivita?: string; riepilogo?: string; ramo?: string; motivo?: string }) => boolean
   /** k-48: chi lavora adesso sui posti del PC e chi aspetta, in ordine. */
   attesa: () => VistaAttesa
   /** La spinta a evento: cambia a ogni specialista che parte, finisce o cambia posto in lista. */
@@ -637,7 +652,31 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
   const rifiutatiPerDipendenze = new Map<string, string[]>()
   /** 11/11 (k-133): com'era il compito prima che un Agent partisse per lui: se la guardia lo rifiuta, torna così. */
   const primaDelLancio = new Map<string, CompitoPiano>()
-  const subagenti =(ws: string): Specialista[] => orchestratore.stato(ws).specialisti.filter((s) => !rifiutati.has(s.id)).map((s) => (uniti.get(ws)?.has(s.id) === true ? { ...s, unito: true } : s))
+  // ---------------------------------------------------------------- i posti degli altri PC (0.103.0)
+  let affidatiMem: LavoroAffidato[] = []
+  const archivioAiuti = x.aiuti ?? { leggi: () => affidatiMem, scrivi: (l: LavoroAffidato[]) => { affidatiMem = l } }
+  const affidati = (): LavoroAffidato[] => archivioAiuti.leggi()
+  /** I PC che possono aiutare, come li ha visti il programma all'ultimo giro (vale poco: i posti cambiano). */
+  let aiutanti: { lista: Aiutante[]; il: number } = { lista: [], il: 0 }
+  const AIUTANTI_VALGONO_MS = 90_000
+  const specialistaAffidato = (l: LavoroAffidato): Specialista => ({
+    id: l.id,
+    ruolo: l.ruolo,
+    descrizione: l.descrizione,
+    ...(l.compito !== undefined ? { compito: l.compito } : {}),
+    stato: l.stato === 'finito' ? 'finito' : l.stato === 'fallito' ? 'fallito' : l.stato === 'spedito' ? 'lavoro' : 'avviato',
+    inizio: l.inizio,
+    ...(l.fine !== undefined ? { fine: l.fine } : {}),
+    attivita: `su ${l.pcNome}${l.attivita !== undefined ? ` — ${l.attivita}` : ''}`,
+    ...(l.ramo !== undefined ? { ramo: l.ramo } : {}),
+    ...(l.riepilogo !== undefined ? { riepilogo: l.riepilogo } : {}),
+    pc: l.pcNome
+  })
+  const subagenti =(ws: string): Specialista[] => [
+    ...orchestratore.stato(ws).specialisti.filter((s) => !rifiutati.has(s.id)),
+    // 0.103.0: quelli affidati ad altri PC, come gli altri (doppioni, rami, colonna a destra).
+    ...affidati().filter((l) => l.workspace === ws).map(specialistaAffidato)
+  ].map((s) => (uniti.get(ws)?.has(s.id) === true ? { ...s, unito: true } : s))
 
   const misura = (ws: string): MisuraCompito => {
     const u = unicoDi(ws)
@@ -687,7 +726,45 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
   // 11/11: se Nicholas ha scritto lui quanti specialisti insieme sul PC, vale quel numero così com'è, senza un massimo.
   const sceltiPc = (): number | undefined => x.limiti?.().specialistiPc ?? undefined
   const tettoPc = (): number => Math.max(1, sceltiPc() ?? Math.min(x.posti(), capPc()))
-  const liberiPc = (escludi?: string): number => Math.max(0, tettoPc() - orchestratore.specialistiSulPc(escludi))
+  const liberiPc = (escludi?: string): number => Math.max(0, tettoPc() - orchestratore.specialistiSulPc(escludi) - (x.aiutiQui?.() ?? 0))
+  /**
+   * 0.103.0: l'Agent può andare su un altro PC? Se sì il lavoro viene registrato (lo spedisce il
+   * programma) e torna il motivo da dire all'autopilota; se no `undefined` e si va avanti come sempre.
+   */
+  const affidaAltrove = (a: Autopilota, r: { descrizione: string; tipo: string; prompt: string }, idUso: string | undefined): string | undefined => {
+    if (!RUOLI_IN_VIAGGIO.has(r.tipo) || r.prompt.trim() === '' || !conGit(a.cwd)) return undefined
+    if (oraMs() - aiutanti.il > AIUTANTI_VALGONO_MS || aiutanti.lista.length === 0) return undefined
+    const def = AGENTI_ORCHESTRATORE[r.tipo]
+    if (def === undefined) return undefined
+    // I lavori appena affidati che quel PC non conta ancora fra i suoi.
+    const inPartenza = (pcId: string): number => affidati().filter((l) => l.pcId === pcId && l.stato === 'da-spedire').length
+    const scelto = scegliPosto(aiutanti.lista.map((h) => ({ ...h, liberi: h.liberi - inPartenza(h.pcId) })), liberiPc(idUso))
+    if (scelto === undefined) return undefined
+    const ws = wsDi(a)
+    const compito = compitoDallaDescrizione(r.descrizione)
+    const l: LavoroAffidato = {
+      id: `r${randomUUID().replace(/-/gu, '').slice(0, 12)}`,
+      workspace: ws,
+      cwd: a.cwd,
+      pcId: scelto.pcId,
+      pcNome: scelto.nome,
+      ruolo: r.tipo,
+      descrizione: r.descrizione,
+      ...(compito !== undefined ? { compito } : {}),
+      prompt: r.prompt,
+      sistema: def.prompt,
+      modello: def.model,
+      strumenti: def.tools,
+      stato: 'da-spedire',
+      inizio: x.adesso(),
+      attivita: 'preparo il progetto da spedire'
+    }
+    archivioAiuti.scrivi([...affidati(), l])
+    console.info(`[aiuto] ${ws} — ${compito ?? r.tipo} affidato a ${scelto.nome} (${scelto.modo}, ${scelto.liberi} posti liberi là)`)
+    // Come uno specialista partito: il compito «in corso», la colonna a destra, il diario.
+    queueMicrotask(() => { try { suFlusso(ws, [{ tipo: 'specialista-partito', specialista: specialistaAffidato(l) }], orchestratore.stato(ws)) } catch (err) { console.error('[aiuto] partenza non registrata:', err) } })
+    return motivoAffidato(scelto.nome, compito)
+  }
   const oraMs = (): number => Date.parse(x.adesso())
   /** Scrive la lista e sveglia gli autopiloti dei primi in fila (e avvisa chi è caduto). */
   const applicaAttesa = (m: Mossa, prima: StatoAttesa): void => {
@@ -2664,7 +2741,8 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
             id: s.id, ruolo: s.ruolo, compito: s.descrizione, stato: s.stato, durata: durata(s, ora),
             ...(s.compito !== undefined ? { compitoId: s.compito } : {}),
             ...(s.attivita !== undefined ? { attivita: s.attivita } : {}),
-            ...(s.fine !== undefined ? { fine: s.fine } : {})
+            ...(s.fine !== undefined ? { fine: s.fine } : {}),
+            ...(s.pc !== undefined ? { pc: s.pc } : {})
           })),
           ...specialistiVivi(u).map((c) => ({ id: c.id, ...(c.ruolo !== undefined ? { ruolo: RUOLI[c.ruolo].nome } : {}), compito: c.compito, stato: c.stato, adottata: true as const, ...(c.compitoId !== undefined ? { compitoId: c.compitoId } : {}) }))
         ],
@@ -2681,6 +2759,14 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       const u = unicoDi(ws)
       const s = subagenti(ws).find((x) => x.id === id)
       if (u === undefined || s === undefined) return { id, trovata: false, righe: [] }
+      if (s.pc !== undefined) {
+        // 0.103.0: lavora su un altro PC: la conversazione è là; qui il compito, cosa fa e l'esito.
+        const l = affidati().find((v) => v.id === id)
+        const righe: RigaSpecialista[] = [{ tipo: 'compito', testo: `${s.descrizione}\n\n(affidato a ${s.pc}: lavora là, il ramo torna qui)`, quando: s.inizio }]
+        if (l?.attivita !== undefined) righe.push({ tipo: 'strumento', testo: l.attivita })
+        if (l?.riepilogo !== undefined && l.riepilogo !== '') righe.push({ tipo: 'esito', testo: l.riepilogo, ...(l.fine !== undefined ? { quando: l.fine } : {}), ...(l.stato === 'fallito' ? { errore: true as const } : {}) })
+        return { id, trovata: true, righe }
+      }
       const f = trovaTrascrizione(x.cartellaClaude ?? process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude'), u.cwd, { id: s.id, ...(s.agente !== undefined ? { agente: s.agente } : {}) })
       return f === undefined ? { id, trovata: false, righe: [] } : { id, trovata: true, righe: leggiTrascrizione(f) }
     },
@@ -2729,6 +2815,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
           console.info(`[attesa] ${ws} — ${q.compito} aspetta l’unione di ${q.aspetta.join(', ')}: in fila, lo segnalo a unione finita`)
           return q.motivo
         },
+        affida: (r) => affidaAltrove(a, r, idUso),
         doppio: (r) => motivoSpecialistaDoppio(r, subagenti(wsDi(a)).filter((s) => (s.stato === 'avviato' || s.stato === 'lavoro') && s.id !== idUso), compitoDallaDescrizione),
         // 11/11 (k-133): chi scrive non riparte su un compito finito che aspetta l'unione (chi legge soltanto sì).
         inUnione: (r) => {
@@ -2753,6 +2840,45 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       return g
     },
     specialistiSulPc: () => orchestratore.specialistiSulPc(),
+    postiLiberi: () => ({ liberi: liberiPc(), tetto: tettoPc() }),
+    aiutoGiro(lista) {
+      aiutanti = { lista, il: oraMs() }
+      // I lavori chiusi da più di un giorno escono dall'elenco (il loro ramo, se c'è, è nel piano).
+      const ora = oraMs()
+      const prima = affidati()
+      const dopo = prima.filter((l) => l.fine === undefined || ora - Date.parse(l.fine) < 86_400_000)
+      if (dopo.length !== prima.length) archivioAiuti.scrivi(dopo)
+      return dopo.filter((l) => l.stato === 'da-spedire' || l.stato === 'spedito')
+    },
+    aiutoAvanza(id, p) {
+      const l = affidati().find((v) => v.id === id)
+      if (l === undefined || l.stato === 'finito' || l.stato === 'fallito') return false
+      const chiuso = p.stato === 'finito' || p.stato === 'fallito'
+      const nuovo: LavoroAffidato = {
+        ...l,
+        ...(p.stato !== undefined ? { stato: p.stato } : {}),
+        ...(p.attivita !== undefined ? { attivita: p.attivita.slice(0, 200) } : {}),
+        ...(p.riepilogo !== undefined ? { riepilogo: p.riepilogo.slice(0, 20_000) } : {}),
+        ...(p.ramo !== undefined ? { ramo: p.ramo } : {}),
+        ...(chiuso ? { fine: x.adesso() } : {})
+      }
+      archivioAiuti.scrivi(affidati().map((v) => (v.id === id ? nuovo : v)))
+      cambiSpecialisti.segna()
+      if (chiuso) {
+        console.info(`[aiuto] ${l.workspace} — ${l.compito ?? l.id} da ${l.pcNome}: ${p.stato}${p.ramo !== undefined ? `, ramo ${p.ramo}` : ''}${p.motivo !== undefined ? ` (${p.motivo.slice(0, 160)})` : ''}`)
+        suFlusso(l.workspace, [{ tipo: 'specialista-finito', specialista: specialistaAffidato(nuovo) }], orchestratore.stato(l.workspace))
+        // Lo specialista di là non ha un Agent qui che torna all'autopilota: glielo dice il programma.
+        evento(l.workspace, {
+          tipo: p.stato === 'finito' ? 'finito' : 'bloccato',
+          quando: x.adesso(),
+          chat: l.id,
+          testo: p.stato === 'finito'
+            ? `${l.compito ?? 'il lavoro'} affidato a ${l.pcNome} è finito${p.ramo !== undefined ? ` (ramo ${p.ramo}, già qui: il programma lo prova e lo unisce da solo)` : ' senza commit'}. Riepilogo:\n${(p.riepilogo ?? '').slice(0, 4000)}`
+            : `${l.compito ?? 'il lavoro'} affidato a ${l.pcNome} non è riuscito: ${(p.motivo ?? 'motivo sconosciuto').slice(0, 300)}. Rilancialo (il programma sceglie di nuovo dove).${p.riepilogo !== undefined && p.riepilogo !== '' ? `\nRiepilogo:\n${p.riepilogo.slice(0, 2000)}` : ''}`
+        }, true)
+      }
+      return true
+    },
     attesa: () => { rivediFila(); return vistaAttesa() },
     prioritaAttesa(id, mossa) {
       const prima = archivioAttesa.leggi()

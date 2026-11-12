@@ -57,6 +57,11 @@ export type ContestoGuardia = {
    * Assente: i posti pieni rifiutano e basta, come prima.
    */
   fila?: (r: { descrizione: string; tipo: string }) => { passa: true } | { passa: false; posizione: number; davanti: number }
+  /**
+   * 0.103.0: un altro PC ha un posto libero (Aiuta la rete) e il lavoro può viaggiare: il programma
+   * glielo affida. Torna il motivo da dire all'autopilota (l'Agent non parte qui), o `undefined`.
+   */
+  affida?: (r: { descrizione: string; tipo: string; prompt: string }) => string | undefined
   /** Lo stesso compito ha già uno specialista al lavoro: il motivo del rifiuto (un rilancio doppio dopo un aggiornamento). */
   doppio?: (r: { descrizione: string; tipo: string }) => string | undefined
   /** 10/11: il compito aspetta un'unione («dopo» non ancora unito): il motivo del rifiuto, e il programma lo mette in fila. */
@@ -233,6 +238,8 @@ export function giudicaGuardiaOrchestratore(corpo: Record<string, unknown>, c: C
       if (finito !== undefined) return { ok: false, motivo: finito }
       const aspetta = c.dipendenze?.({ descrizione: s(input.description) ?? s(input.prompt)?.slice(0, 120) ?? 'specialista', tipo })
       if (aspetta !== undefined) return { ok: false, motivo: aspetta }
+      const altrove = c.affida?.({ descrizione: s(input.description) ?? s(input.prompt)?.slice(0, 120) ?? 'specialista', tipo, prompt: s(input.prompt) ?? '' })
+      if (altrove !== undefined) return { ok: false, motivo: altrove }
       if (c.fila !== undefined) {
         const r = c.fila({ descrizione: s(input.description) ?? s(input.prompt)?.slice(0, 120) ?? 'specialista', tipo: s(input.subagent_type) ?? 'general-purpose' })
         if (!r.passa) return { ok: false, motivo: motivoPostiPieni(c, r) }

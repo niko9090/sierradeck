@@ -67,6 +67,7 @@ function ChatSpecialista({ workspace, s }: { workspace: string; s: Specialista }
       <header className="chat-spec__testata" title={s.compito}>
         <span className={alLavoroOra ? 'chat-spec__battito' : 'chat-spec__fermo'} aria-hidden="true" />
         <span className="chat-spec__chi">{s.ruolo ?? 'Specialista'}</span>
+        {s.pc !== undefined ? <span className="chat-spec__pc" title={`Lavora su ${s.pc} (Aiuta la rete): il ramo torna qui`}>su {s.pc}</span> : null}
         <span className="chat-spec__cosa">{s.compito}</span>
         <span className="chat-spec__stato">{PAROLA[s.stato] ?? s.stato}{s.durata !== undefined ? ` · ${s.durata}` : ''}</span>
       </header>

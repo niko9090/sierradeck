@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.103.0',
+    righe: [
+      '**Gli altri PC prestano i loro posti:** quando un autopilota lancia uno sviluppatore e un altro tuo PC ha un posto libero, il lavoro va là. Il progetto viaggia sul collegamento sicuro fra i PC (niente GitHub, niente Drive), lo specialista lavora in una copia sua e il ramo torna qui, dove il programma lo prova e lo unisce come sempre. A destra lo vedi con «su <nome del PC>».',
+      '**Aiuta la rete:** in Impostazioni → Computer scegli quanto questo PC lavora per gli altri. «Dedicato» prende per primo il lavoro degli altri; «Solo i posti liberi» (normale) presta quelli che non usa; «No» non presta niente. Serve la 0.103.0 su tutti e due i PC; il lavoro usa l’account Claude del PC che aiuta.',
+      '**Tasti veri nelle chat di un altro PC:** nel riquadro di una chat remota funzionano Esc, frecce, Invio, Tab, Maiuscolo+Tab e Ctrl+C, dalla tastiera o dalla barretta sotto lo schermo. Lo schermo si aggiorna ogni secondo.',
+    ],
+  },
+  {
     versione: '0.102.1',
     righe: [
       '**«Al lavoro» solo se qualcuno lavora davvero:** l’elenco degli autopiloti, la Panoramica, la pagina e l’app dicevano «al lavoro» anche quando non lavorava nessuno. Ora dicono «fermo» con il perché, «aspetta te» o «in pausa».',

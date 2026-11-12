@@ -380,6 +380,27 @@ function SchedaGenerali({ onAccount }: { onAccount: () => void }): React.JSX.Ele
           <section className="impostazioni__gruppo">
             <Testa id="computer" />
             {vede('nome-pc') ? <NomeQuestoPc /> : null}
+            {/* 0.103.0: con il nome del PC; non è una voce della ricerca, che l’app Android legge uguale. */}
+            {vede('nome-pc') ? (
+          <label className="impostazioni__riga">
+            <span className="con-aiuto">Aiuta la rete<NellEtichetta>
+Gli specialisti degli autopiloti possono lavorare anche sugli altri tuoi PC.
+            <b>Dedicato</b>: questo PC li prende per primo, finché ha posti.
+            <b>Solo i posti liberi</b>: li presta quando non li usa lui.
+            <b>No</b>: non presta niente. Il progetto arriva e il lavoro torna sul
+            collegamento sicuro fra i PC; si usa l’account Claude di questo PC.
+</NellEtichetta></span>
+            <select
+              className="campo"
+              value={p.aiutoRete}
+              onChange={(e) => cambia({ aiutoRete: e.target.value as Preferenze['aiutoRete'] })}
+            >
+              <option value="dedicato">Dedicato</option>
+              <option value="posti-liberi">Solo i posti liberi</option>
+              <option value="no">No</option>
+            </select>
+          </label>
+            ) : null}
             {vede('oltre-la-rete') ? <>
           <label className="impostazioni__riga impostazioni__riga--spunta">
             <input

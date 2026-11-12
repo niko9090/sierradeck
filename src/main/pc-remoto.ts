@@ -166,7 +166,9 @@ export const ROTTE_LENTE: readonly string[] = [
  * Solo fra PC (non nell'app): la salute misura risorse, scheda video e registro
  * e può durare più di 4 s. Con l'attesa normale un PC acceso risultava «non risponde».
  */
-const ROTTE_LENTE_FRA_PC: readonly string[] = ['/api/salute']
+const ROTTE_LENTE_FRA_PC: readonly string[] = ['/api/salute',
+  // 0.103.0: un pezzo del progetto (qualche MB) e il ramo da ritirare viaggiano con calma.
+  '/api/aiuto/pezzo', '/api/aiuto/ritira', '/api/aiuto/avvia', '/api/aiuto/posti']
 const ATTESA_LENTA_PREDEFINITA_MS = 45_000
 /**
  * Le risposte alle domande (0.84.1): quel PC preme, riguarda il suo schermo e
