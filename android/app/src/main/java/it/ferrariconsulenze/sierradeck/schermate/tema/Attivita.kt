@@ -4,6 +4,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -44,7 +45,7 @@ object Attivita {
     /** Il colore di un nome della tabella (anche «verde», «quieto»); grigio se non c'è. */
     fun argb(nome: String?): Long = TabellaAttivita.colori[nome] ?: TabellaAttivita.colori.getValue("quieto")
 
-    fun colore(nome: String?): Color = Color(argb(nome))
+    fun colore(nome: String?): Color = leggibile(Color(argb(nome)))
 
     fun coloreDi(id: String?): Color = colore(scheda(id)?.colore)
 
@@ -100,7 +101,7 @@ fun LegendaAttivita(modifier: Modifier = Modifier) {
         modifier.size(48.dp).tocco { aperto = true }.semantics { contentDescription = "Legenda: ${TabellaAttivita.TITOLO_LEGENDA}" },
         contentAlignment = Alignment.Center
     ) {
-        Box(Modifier.size(20.dp).border(1.dp, Banco.testoQuieto, CircleShape), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(20.dp * androidx.compose.ui.platform.LocalDensity.current.fontScale.coerceIn(1f, 2f)).border(1.dp, Banco.testoQuieto, CircleShape), contentAlignment = Alignment.Center) {
             Text("?", color = Banco.testoQuieto, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
     }

@@ -8,6 +8,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -182,7 +183,8 @@ private fun RigaRicevuto(r: Ricevuto, onNota: (String) -> Unit) {
                 style = MaterialTheme.typography.bodySmall, color = Banco.testoQuieto)
             r.nota?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Banco.testo) }
             r.salvatoIn?.let { Text("Salvato in $it", style = MaterialTheme.typography.bodySmall, color = Banco.verde) }
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            // Il tasto di testo ha 12 dp di margine: si rientra, così «Apri» sta sotto il nome.
+            Row(Modifier.offset(x = (-12).dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick = { try { contesto.startActivity(Ricevuti.intentApri(contesto, r)) } catch (_: Exception) { onNota("Nessuna app sa aprire ${r.nome}: prova Condividi.") } }) { Text("Apri") }
                 TextButton(onClick = { ambito.launch { onNota(withContext(Dispatchers.IO) { RicevitoreConsegne.salva(contesto, r.id) }) } }) { Text("Salva") }
                 TextButton(onClick = { contesto.startActivity(Ricevuti.intentCondividi(contesto, r)) }) { Text("Condividi") }

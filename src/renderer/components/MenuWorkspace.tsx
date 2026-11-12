@@ -8,6 +8,7 @@ import { confermaEliminaWorkspace, controllaNomeWorkspace, NOME_WORKSPACE_MAX } 
 import { ModaleConferma } from './ModaleConferma'
 import { Aiuto } from './Aiuto'
 import { cambiaSoloQui } from '@shared/chat-sul-drive'
+import { salvaPreferenze } from '../salva-preferenze'
 
 type Props = {
   nomi: string[]
@@ -75,9 +76,7 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
   }, [])
   const impostaSoloQui = (nome: string, si: boolean): void => {
     setSoloQui((l) => cambiaSoloQui(l, nome, si))
-    window.gestore.preferenze.leggi()
-      .then((p) => window.gestore.preferenze.imposta({ ...p, workspaceSoloQui: cambiaSoloQui(p.workspaceSoloQui ?? [], nome, si) }))
-      .catch(() => undefined)
+    void salvaPreferenze((p) => ({ ...p, workspaceSoloQui: cambiaSoloQui(p.workspaceSoloQui ?? [], nome, si) }))
   }
   /** «Sposta su un altro PC…»: la cartella del progetto ('' = da scegliere). */
   const tasto = useRef<HTMLButtonElement>(null)

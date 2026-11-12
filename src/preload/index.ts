@@ -255,7 +255,7 @@ contextBridge.exposeInMainWorld('gestore', {
   },
   preferenze: {
     leggi: (): Promise<Preferenze> => ipcRenderer.invoke('preferenze:leggi'),
-    imposta: (p: Preferenze): Promise<Preferenze> => ipcRenderer.invoke('preferenze:imposta', p),
+    imposta: (p: Preferenze): Promise<{ preferenze: Preferenze; salvato: boolean }> => ipcRenderer.invoke('preferenze:imposta', p),
     suCambio: (cb: (p: Preferenze) => void): (() => void) => {
       const h = (_e: unknown, p: Preferenze): void => cb(p)
       ipcRenderer.on('preferenze:cambiate', h)

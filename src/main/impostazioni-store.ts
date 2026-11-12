@@ -21,8 +21,17 @@ export type ImpostazioniStore = {
   segnaNovitaViste: (versione: string) => void
   /** Le preferenze, sempre complete: i buchi li riempiono i predefiniti. */
   preferenze: () => Preferenze
-  impostaPreferenze: (raw: unknown) => Preferenze
+  /** Non solleva: se il disco non si lascia scrivere, il valore vale in memoria e si riprova da solo. */
+  impostaPreferenze: (raw: unknown) => EsitoPreferenze
 }
+
+/** `salvato: false` = la scelta vale (è in memoria) ma il file non è ancora scritto: il ritentativo è già in corso. */
+export type EsitoPreferenze = { preferenze: Preferenze; salvato: boolean }
+
+/** Attese dei ritentativi asincroni dopo una scrittura fallita; poi si ripete l'ultima. */
+export const ATTESE_RITENTATIVO_MS = [1_000, 5_000, 30_000, 120_000]
+
+export type OpzioniImpostazioniStore = { scrivi?: typeof scriviJsonAtomico }
 
 /**
  * Le preferenze minute che non appartengono a nessuno degli altri file.
@@ -36,11 +45,35 @@ export type ImpostazioniStore = {
  * c'è solo il ricordo di una finestrella già letta, e ricominciare da zero
  * costa che la si rilegga una volta.
  */
-export function apriImpostazioniStore(dir: string): ImpostazioniStore {
+export function apriImpostazioniStore(dir: string, opzioni: OpzioniImpostazioniStore = {}): ImpostazioniStore {
+  const scrivi = opzioni.scrivi ?? scriviJsonAtomico
   mkdirSync(dir, { recursive: true })
   const percorso = join(dir, NOME_FILE)
 
-  const leggiGrezzo = (): Record<string, unknown> => {
+  /** L'ultimo valore che il disco non ha accettato: finché c'è, prevale su quello del file. */
+  let inAttesa: Preferenze | undefined
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let tentativi = 0
+
+  const fermaRitentativo = (): void => {
+    if (timer !== undefined) clearTimeout(timer)
+    timer = undefined
+  }
+  const pianifica = (): void => {
+    fermaRitentativo()
+    const attesa = ATTESE_RITENTATIVO_MS[Math.min(tentativi, ATTESE_RITENTATIVO_MS.length - 1)]
+    tentativi += 1
+    timer = setTimeout(() => {
+      timer = undefined
+      if (inAttesa === undefined) return
+      const ok = scrivi(percorso, { ...leggiDisco(), versione: VERSIONE_IMPOSTAZIONI, preferenze: inAttesa }, 'impostazioni')
+      if (ok) { inAttesa = undefined; tentativi = 0 } else pianifica()
+    }, attesa)
+    // Un ritentativo non deve tenere in vita il programma che si chiude.
+    if (typeof timer === 'object' && 'unref' in timer) timer.unref()
+  }
+
+  const leggiDisco = (): Record<string, unknown> => {
     if (!existsSync(percorso)) return {}
     try {
       const letto: unknown = JSON.parse(readFileSync(percorso, 'utf8'))
@@ -53,6 +86,12 @@ export function apriImpostazioniStore(dir: string): ImpostazioniStore {
       console.warn(`[impostazioni] ${percorso} non leggibile:`, err)
       return {}
     }
+  }
+
+  /** Il file com'è, con sopra il valore ancora da scrivere (se c'è): chi riscrive altri campi non lo fa tornare indietro. */
+  const leggiGrezzo = (): Record<string, unknown> => {
+    const o = leggiDisco()
+    return inAttesa === undefined ? o : { ...o, preferenze: inAttesa }
   }
 
   return {
@@ -70,7 +109,7 @@ export function apriImpostazioniStore(dir: string): ImpostazioniStore {
       // Leggi-modifica-scrivi conservando ciò che non conosciamo: una versione
       // più recente può aver scritto qui campi suoi, e tornare indietro con un
       // aggiornamento annullato non deve cancellarglieli.
-      scriviJsonAtomico(
+      scrivi(
         percorso,
         { ...leggiGrezzo(), versione: VERSIONE_IMPOSTAZIONI, ultimaVersioneVista: versione },
         'impostazioni'
@@ -81,23 +120,30 @@ export function apriImpostazioniStore(dir: string): ImpostazioniStore {
       // Sempre complete: chi legge non deve chiedersi se un campo c'è. I buchi
       // — un file di una versione più vecchia, un valore scritto male a mano —
       // li riempiono i predefiniti, uno per uno.
-      return normalizzaPreferenze(leggiGrezzo().preferenze)
+      return inAttesa ?? normalizzaPreferenze(leggiDisco().preferenze)
     },
 
-    impostaPreferenze(raw: unknown): Preferenze {
+    impostaPreferenze(raw: unknown): EsitoPreferenze {
       const preferenze = normalizzaPreferenze(raw)
-      // Se il file non si scrive lo si dice: prima il pannello mostrava
-      // «salvate», i colori cambiavano subito e al prossimo avvio tornavano
-      // quelli di prima.
-      const scritto = scriviJsonAtomico(
+      // Il salvataggio fallito non si perde e non si finge riuscito: il valore
+      // resta in memoria (così `preferenze()` dice la verità), e un ritentativo
+      // asincrono lo riscrive appena il disco lo permette (antivirus, sync che
+      // tiene il file, disco pieno). Una scrittura nuova rimpiazza la vecchia.
+      const scritto = scrivi(
         percorso,
-        { ...leggiGrezzo(), versione: VERSIONE_IMPOSTAZIONI, preferenze },
+        { ...leggiDisco(), versione: VERSIONE_IMPOSTAZIONI, preferenze },
         'impostazioni'
       )
-      if (!scritto) {
-        throw new Error('Preferenze non salvate: impostazioni.json non si è potuto scrivere (disco pieno o file bloccato). Valgono fino alla chiusura; guarda il registro.')
+      fermaRitentativo()
+      if (scritto) {
+        inAttesa = undefined
+        tentativi = 0
+        return { preferenze, salvato: true }
       }
-      return preferenze
+      inAttesa = preferenze
+      tentativi = 0
+      pianifica()
+      return { preferenze, salvato: false }
     }
   }
 }

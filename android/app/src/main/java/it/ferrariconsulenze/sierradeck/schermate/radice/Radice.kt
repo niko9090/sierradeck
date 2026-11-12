@@ -6,6 +6,11 @@ import androidx.compose.foundation.background
 import it.ferrariconsulenze.sierradeck.schermate.comune.tocco
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -122,7 +127,7 @@ fun Radice(
     if (!pronta) return
     val scelto = pc
     if (scelto == null) {
-        Ingresso(vm, scansionaQr)
+        SottoLeBarre { Ingresso(vm, scansionaQr) }
         return
     }
     Collegata(vm, scelto, onEsci)
@@ -161,11 +166,11 @@ private fun Collegata(vm: RadiceViewModel, pc: PcNoto, onEsci: () -> Unit) {
 
     // Sopra tutto: mentre il computer si sostituisce non c'è altro da guardare.
     Installazione.da?.let { da ->
-        SchermoInstallazione(api = api, versionePrima = Installazione.versionePrima, da = da, onEsci = { Installazione.finita(contesto) })
+        SottoLeBarre { SchermoInstallazione(api = api, versionePrima = Installazione.versionePrima, da = da, onEsci = { Installazione.finita(contesto) }) }
         return
     }
     Apertura.condivisi?.let { uris ->
-        SchermoMandaA(api, copia.stato, uris, fissa = null, onChiudi = { Apertura.condivisi = null })
+        SottoLeBarre { SchermoMandaA(api, copia.stato, uris, fissa = null, onChiudi = { Apertura.condivisi = null }) }
         return
     }
 
@@ -173,7 +178,8 @@ private fun Collegata(vm: RadiceViewModel, pc: PcNoto, onEsci: () -> Unit) {
     Scaffold(
         containerColor = Banco.fondo,
         topBar = {
-            Column {
+            // Da Android 15 la finestra va sotto la barra di stato: la riga in alto la scavalca da sola.
+            Column(Modifier.background(Banco.chassis).windowInsetsPadding(WindowInsets.statusBars)) {
                 RigaInAlto(pc, Parola.di(contatto), elenco, onRiprova = vm::riprova, onScegli = vm::scegli, onAggiungi = { vm.scegli(null) })
                 Apertura.aggiornamento?.let { (nome, _) ->
                     if (!PiuTardi.nascosta(contesto, nome)) BandaAppNuova(nome, onAggiorna = { dialogoApp = true }, onPiuTardi = { PiuTardi.rimanda(contesto, nome); Apertura.aggiornamento = null })
@@ -184,7 +190,8 @@ private fun Collegata(vm: RadiceViewModel, pc: PcNoto, onEsci: () -> Unit) {
             BarraTre(posto.voce, domande = copia.stato?.domandeInAttesa ?: 0, onTocca = vm::tocca)
         }
     ) { spazi ->
-        Box(Modifier.padding(spazi).fillMaxSize()) {
+        // consumeWindowInsets: la tastiera (imePadding delle caselle) non deve contare due volte la barra in basso.
+        Box(Modifier.padding(spazi).consumeWindowInsets(spazi).fillMaxSize()) {
             when (posto.voce) {
                 VoceBarra.LAVORO -> GuscioLavoro(pc, api, posto.dettaglio, copia, collegamento, onApri = vm::apri, onIndietro = { vm.indietro() }, onVersione = { vm.apri(Dettaglio.Sezione(SezioneAltro.AGGIORNAMENTI)) })
                 VoceBarra.FILE -> SchermataFile(pc.id, RegoleSchermate.schedeWorkspace(copia.stato?.autopiloti.orEmpty())) { SezioneFile(api) }
@@ -206,6 +213,12 @@ private fun Collegata(vm: RadiceViewModel, pc: PcNoto, onEsci: () -> Unit) {
             onChiudi = { dialogoApp = false }
         )
     }
+}
+
+/** Una schermata a tutto schermo (senza barre nostre): sta dentro barra di stato, di navigazione e tastiera. */
+@Composable
+internal fun SottoLeBarre(contenuto: @Composable () -> Unit) {
+    Box(Modifier.fillMaxSize().background(Banco.fondo).safeDrawingPadding()) { contenuto() }
 }
 
 /** La riga in alto: il nome del PC (tocca per cambiarlo) e una parola colorata (tocca per riprovare). */

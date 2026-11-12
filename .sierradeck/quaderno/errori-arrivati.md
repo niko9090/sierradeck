@@ -164,3 +164,9 @@ Stessa causa e stessa correzione del gruppo 1 (0.99.2 e 0.99.3): era il risvegli
 
 ## «[aggiornamenti] fase: errore · 504» (2 volte, versione 0.98.0, segnato «si ripresenta»)
 Corretto nella 0.99.0 (commit 976913be: un 502, 503 o 504 senza statusCode è un avviso e si riprova al controllo dopo) e completato nella 0.100.0 per la forma che restava fuori, «Cannot download "<url>", status 504:», quella del download dell’installer (src/main/aggiornamenti.ts). Causa: il server delle release rispondeva 504 mentre il programma cercava o scaricava l’aggiornamento; è un guasto passeggero del server, non del programma. Test in tests/main/aggiornamenti-rete-transitoria.test.ts.
+
+
+# Errori arrivati (lotto 20261112124007)
+
+## Gruppi 1-2: LAPTOP-E60QM2D1, 0.101.0, rename di impostazioni.json con EPERM e «Error occurred in handler for 'preferenze:imposta'»
+Corretto nella versione 0.101.1. I due gruppi sono lo stesso evento: l'EPERM della rinomina (file tenuto da un antivirus o da un sync) e il lancio non catturato del gestore IPC per lo stesso salvataggio fallito. Cause: lo store diceva «valgono fino alla chiusura» ma non teneva niente in memoria e `preferenze()` rileggeva il disco, quindi la scelta spariva; dopo il fallimento non c'era nessun ritentativo; il renderer ignorava l'errore con `.catch` vuoti. Ora: il valore resta in memoria e si riscrive da solo (1 s, 5 s, 30 s, poi ogni 2 minuti, o finché arriva una scrittura nuova); il gestore non lancia e restituisce `{ preferenze, salvato }`; il renderer mostra «Preferenze non salvate sul disco: riprovo da solo». Test: tests/main/impostazioni-store.test.ts, preferenze-imposta.test.ts, tests/renderer/preferenze-non-salvate.test.tsx.

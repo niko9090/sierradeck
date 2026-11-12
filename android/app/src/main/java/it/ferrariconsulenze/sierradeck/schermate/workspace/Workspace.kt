@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -226,7 +227,7 @@ private fun Intestazione(t: TestaWorkspace, chats: List<ChatDelWorkspace>, onApr
             IconButton(onClick = onIndietro) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Indietro") }
             Column(Modifier.weight(1f)) {
                 Text(t.nome, style = MaterialTheme.typography.labelMedium, color = Banco.testoQuieto, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(t.frase, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = colore, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(t.frase, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = colore, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             Box {
                 IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Altro") }
@@ -344,17 +345,20 @@ private fun LinguettaChiLavora(chi: List<RigaChiLavora>, richieste: List<RigaRic
     }
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun RigaChi(r: RigaChiLavora, onClick: () -> Unit, onPrecedenza: () -> Unit, onFerma: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     val colore = coloreRuolo(r.colore, r.ruolo)
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Banco.chassis), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f).heightIn(min = 56.dp).padding(12.dp).let { m -> m }, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(10.dp).clip(CircleShape).background(colore))
-                Spacer(Modifier.width(8.dp))
-                Text(r.ruolo, style = MaterialTheme.typography.labelLarge, color = colore)
-                Spacer(Modifier.width(8.dp))
+            // A capo come un blocco solo: con i caratteri grandi «mancano circa 12 min» non si spezza a metà.
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.Center) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(10.dp).clip(CircleShape).background(colore))
+                    Spacer(Modifier.width(8.dp))
+                    Text(r.ruolo, style = MaterialTheme.typography.labelLarge, color = colore)
+                }
                 Text(r.stato, style = MaterialTheme.typography.labelMedium, color = Banco.testoQuieto)
             }
             TextButton(onClick = onClick, contentPadding = PaddingValues(0.dp)) {

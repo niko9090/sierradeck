@@ -5,6 +5,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -142,11 +143,46 @@ object Contrasto {
         return c
     }
 
+    /**
+     * Come [almenoAA], ma per più fondi insieme e con il rapporto che vuoi: il
+     * bordo di un tasto o di un campo deve stare a 3:1 (WCAG 1.4.11) su tutti i
+     * fondi dove può capitare (fondo, scheda, pannello alto).
+     */
+    fun almeno(colore: Long, fondi: List<Long>, verso: Long, minimo: Double): Long {
+        var c = colore
+        var t = 0.0
+        while (fondi.any { rapporto(c, it) < minimo } && t < 1.0) {
+            t += 0.05
+            fun mix(sh: Int): Long {
+                val a = (colore shr sh) and 0xFF
+                val b = (verso shr sh) and 0xFF
+                return (a + ((b - a) * t)).toLong().coerceIn(0, 255) shl sh
+            }
+            c = 0xFF000000L or mix(16) or mix(8) or mix(0)
+        }
+        return c
+    }
+
     /** Fra i candidati, quello che sul fondo si legge meglio. */
     fun migliore(fondo: Long, vararg candidati: Long): Long = candidati.maxBy { rapporto(it, fondo) }
 }
 
 internal fun Color.argb(): Long = toArgb().toLong() and 0xFFFFFFFFL
+
+/**
+ * Un colore fisso di stato o di ruolo (pensato per il fondo scuro) portato a
+ * 4,5:1 sul pannello: con la veste chiara del PC il turchese e il rosa su
+ * bianco non si leggevano. Sul fondo scuro resta com'è.
+ */
+internal fun leggibile(c: Color): Color =
+    Color(Contrasto.almenoAA(c.argb(), Banco.chassisAlto.argb(), Banco.testo.argb()))
+
+/** Il bordo di tasti e campi: l'incisione del banco, portata a 3:1 per vedersi. */
+internal fun bordoTasto(): Color =
+    Color(Contrasto.almeno(Banco.incisione.argb(), listOf(Banco.fondo.argb(), Banco.chassis.argb(), Banco.chassisAlto.argb()), Banco.testoQuieto.argb(), 3.0))
+
+/** Il banco è chiaro (veste chiara del PC): serve lo schema chiaro e le icone di sistema scure. */
+internal fun bancoChiaro(): Boolean = Contrasto.luminanza(Banco.fondo.argb()) > 0.4
 
 /** Il testo sopra un colore pieno: fondo o testo del banco, quello col contrasto più alto. */
 fun sopra(pieno: Color): Color =
@@ -156,7 +192,9 @@ fun sopra(pieno: Color): Color =
 fun TemaSierraDeck(content: @Composable () -> Unit) {
     // Legge lo stato del Banco: quando cambia (stile dal computer), lo schema e le
     // forme si ricalcolano e tutta l'app si riveste.
-    val schema = darkColorScheme(
+    val chiaro = bancoChiaro()
+    val bordo = bordoTasto()
+    val schema = (if (chiaro) lightColorScheme() else darkColorScheme()).copy(
         primary = Banco.accento,
         onPrimary = sopra(Banco.accento),
         secondary = Banco.ambra,
@@ -178,7 +216,7 @@ fun TemaSierraDeck(content: @Composable () -> Unit) {
         secondaryContainer = Banco.accentoTenue,
         onSecondaryContainer = Banco.testo,
         onSurfaceVariant = Banco.testoQuieto,
-        outline = Banco.incisione,
+        outline = bordo,
         outlineVariant = Banco.incisione,
         error = Banco.rosso,
         onError = sopra(Banco.rosso)
@@ -188,6 +226,8 @@ fun TemaSierraDeck(content: @Composable () -> Unit) {
     val r = RoundedCornerShape(Banco.raggio)
     val grande = RoundedCornerShape(Banco.raggioGrande)
     val forme = Shapes(extraSmall = r, small = r, medium = grande, large = grande, extraLarge = RoundedCornerShape(Banco.raggio * 3))
+
+    BarreDiSistema(chiaro, Banco.chassis)
 
     MaterialTheme(
         colorScheme = schema,
@@ -232,3 +272,24 @@ val FontTerminale = androidx.compose.ui.text.font.FontFamily(
     androidx.compose.ui.text.font.Font(R.font.jetbrains_mono, androidx.compose.ui.text.font.FontWeight.Normal),
     androidx.compose.ui.text.font.Font(R.font.jetbrains_mono_bold, androidx.compose.ui.text.font.FontWeight.Bold)
 )
+
+/**
+ * Le barre di sistema (stato e navigazione) nel colore del pannello, con le
+ * icone chiare sul banco scuro e scure su quello chiaro. Il tema della finestra
+ * è scuro fisso: con la veste chiara del PC le ore e la batteria sparivano.
+ */
+@Composable
+private fun BarreDiSistema(chiaro: Boolean, colore: Color) {
+    val vista = androidx.compose.ui.platform.LocalView.current
+    if (vista.isInEditMode) return
+    androidx.compose.runtime.SideEffect {
+        var c: android.content.Context? = vista.context
+        while (c is android.content.ContextWrapper && c !is android.app.Activity) c = c.baseContext
+        val finestra = (c as? android.app.Activity)?.window ?: return@SideEffect
+        @Suppress("DEPRECATION") finestra.statusBarColor = colore.toArgb()
+        @Suppress("DEPRECATION") finestra.navigationBarColor = colore.toArgb()
+        val comando = androidx.core.view.WindowCompat.getInsetsController(finestra, vista)
+        comando.isAppearanceLightStatusBars = chiaro
+        comando.isAppearanceLightNavigationBars = chiaro
+    }
+}

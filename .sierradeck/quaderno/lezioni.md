@@ -1,6 +1,6 @@
 # Lezioni del progetto
 
-<!-- SierraDeck: una riga per voce; una voce che torna aumenta «confermata N×». Tetto 200 voci o 32 KB: escono prima le meno confermate e più vecchie. Si può scrivere anche a mano. -->
+<!-- SierraDeck: una riga per voce; una voce che torna aumenta «confermata N×». Tetto 600 voci o 128 KB: escono prima le meno confermate e più vecchie. Si può scrivere anche a mano. -->
 
 ## test
 
@@ -29,6 +29,7 @@
 - Nei test sul repo di prova `ls-files` restituisce per primo `.sierradeck/...` se esiste: per scegliere un file di codice escludere quel prefisso. _(2026-11-10)_
 - il cane da guardia (20 min) e il backoff si sommano: nei test con fake timer il secondo riavvio parte 30 s dopo lo scatto del cane, non subito. _(2026-11-11)_
 - per la regola del quaderno usare un repository git vero (repositoryDiPartenza): i mock non vedono il comportamento di `git status`/`add`/`commit` sui file riscritti. _(2026-11-11)_
+- la suite completa (vitest, circa 620 file) richiede circa 3,5 minuti: usare un timeout ampio. _(2026-11-12)_
 
 ## worktree
 
@@ -47,6 +48,9 @@
 - Dalla 3.0.0 le foto delle schermate dell’app le fa `gradle testDebugUnitTest` (Robolectric + Roborazzi) in `android/app/build/foto-schermate/`: guardarle prima di pubblicare, hanno trovato difetti che le prove non vedono. _(2026-11-11)_
 - Prova dell’app dal vero: copia del PC con `SIERRADECK_PROVA` e porte 47650/47651 dentro `preferenze`, emulatore su `10.0.2.2:47650`; l’APK 2.99.0 di rilascio installato e poi `adb install -r` della 3.0.0 prova che l’aggiornamento non chiede un nuovo accoppiamento. _(2026-11-11)_
 - Dopo un `AGGIORNA=1` di `impostazioni.json` vanno rilanciate anche le prove Kotlin che leggono quell’asset (`ImpostazioniVociTest`), non solo i vitest. _(2026-11-11)_
+- targetSdk 35 = edge-to-edge forzato su Android 15: ogni schermata fuori da Scaffold ha bisogno di safeDrawingPadding, e la topBar dello Scaffold non scavalca la barra di stato da sola. _(2026-11-12)_
+- Le foto Roborazzi hanno varianti (stretto 360 dp, scala 1.3, veste chiara) nelle sottoclassi di FotoSchermateTest: i difetti veri (testo spezzato, "?" fuori dal cerchio) escono solo lì. _(2026-11-12)_
+- Banco può essere chiaro (veste del PC): colori fissi della tabella attività vanno passati da leggibile(), il bordo dei tasti da bordoTasto() (3:1), mai usare incisione per i bordi. _(2026-11-12)_
 
 ## release
 
@@ -70,6 +74,8 @@
 - Una release pubblicata da un ramo (push su origin/main) lascia indietro la cartella principale: fino alla 0.99.4 si riallinea a mano con `git merge origin/main` da una chat aperta lì; dalla 0.100.0 lo fa il programma ogni 10 minuti. _(2026-11-11)_
 - Dalla 0.100.0 pubblica lo specialista «rilascio», che lavora nella cartella principale senza Edit/Write: versione e novità le prepara prima uno sviluppatore, nel suo ramo. _(2026-11-11)_
 - L’installatore locale si chiama `dist/SierraDeck Setup X.exe` (con gli spazi), l’asset su GitHub `SierraDeck-Setup-X.exe`: per confrontare lo sha512 con `latest.yml` scaricare l’asset o usare il nome con gli spazi. _(2026-11-11)_
+- `.git/config` può ritrovarsi tutto zeri (11/11, 18:03): ogni git fallisce con «bad config line 1». Prima di una release lanciare `git status` e, se fallisce, non provare a indovinare il config. _(2026-11-12)_
+- `node scripts/allega-apk.mjs --solo-verifica` compila l'APK firmato e verifica la firma senza git né gh: utile per preparare la release con git rotto. _(2026-11-12)_
 
 ## git
 
@@ -82,6 +88,8 @@
 - Note del quaderno non salvate in main = fila unioni ferma, e nessuno specialista può salvarle (isolati nella copia; general-purpose rifiutato). Serve la correzione del programma (k-133). _(2026-11-11)_
 - Note del quaderno non salvate in main: anche il tipo «claude» è rifiutato (nessuno senza copia propria). Solo una chat di Nicholas aperta in main o un SierraDeck installato con k-133 le salva. _(2026-11-11)_
 - `main` locale può essere più avanti di `origin/main` con le unioni non pubblicate: guardare `git log origin/main..main` prima di partire da `origin/main`. _(2026-11-11)_
+- «Il progetto NON è un repository git» nello stato può voler dire .git/config rovinato (tutto zeri, 11/11): ogni git fallisce. Si ripara con un config minimo (origin+main), copia del rotto, poi fsck. _(2026-11-12)_
+- il programma può negare in blocco i comandi che scrivono dentro `.git/` (config incluso), anche con decisione già presa: serve il sì di Nicholas registrato. _(2026-11-12)_
 
 ## autopilota
 
@@ -222,6 +230,7 @@
 - La Panoramica non ha una lettura propria: gli specialisti li legge `ChatSpecialisti` col sondaggio dell'orchestratore, e l'evento specialistiCambiati si aggancia con `sond.rileggi()`. _(2026-11-08)_
 - scriviQuandoPronta guarda solo i riquadri del workspace corrente: un avviso mandato a una chat di un workspace tenuto dietro sparisce in silenzio, quindi non va segnato come consegnato. _(2026-11-09)_
 - PannelloDomande mostra String(e) grezzo invece di testoErroreDialogo: a Nicholas arriva il messaggio tecnico con «Error invoking remote method». _(2026-11-10)_
+- le chiamate preferenze.imposta hanno un .catch vuoto (App.tsx:979 e simili): un salvataggio fallito non si vede. _(2026-11-12)_
 
 ## fermate
 
@@ -234,6 +243,7 @@
 ## shell
 
 - heredoc Python con `\n` dentro stringhe di test: finiscono come a-capo veri e rompono il file; usare `.join('\n')` e fare le modifiche con Edit. _(2026-11-08)_
+- Nei comandi Bash i backtick dentro i commenti di un `node -e` vengono eseguiti dalla shell e mangiano il testo: usare Edit per i file con backtick. _(2026-11-12)_
 
 ## ramo
 
@@ -357,3 +367,15 @@
 ## controllo-pc
 
 - un errore 504 (risponde ma lento) non è «non risponde»: ora si riprova una volta e se resta lento non è criticità. _(2026-11-11)_
+
+## preferenze
+
+- impostaPreferenze non tiene nulla in memoria: ogni preferenze() rilegge il disco. Il testo «Valgono fino alla chiusura» (impostazioni-store.ts:98) è falso nel main. _(2026-11-12)_
+
+## scritture
+
+- rinominaConRiprova attende con Atomics.wait: 600 ms totali bloccano il thread principale (scrittura-atomica.ts:5-22). Un ritentativo più lungo va fatto in modo asincrono. _(2026-11-12)_
+
+## ipc
+
+- `preferenze:imposta` ora risponde `{ preferenze, salvato }`: chi lo chiama dal renderer usi `salvaPreferenze` (src/renderer/salva-preferenze.ts), non `imposta` diretto. _(2026-11-12)_

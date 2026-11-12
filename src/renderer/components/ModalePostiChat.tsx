@@ -5,6 +5,7 @@ import {
   type PostiChat as Posti
 } from '@shared/posti-chat'
 import { Aiuto } from './Aiuto'
+import { segnalaPreferenzeNonSalvate } from '../salva-preferenze'
 
 /**
  * «N di M chat»: la finestra per cambiare il massimo (k-57). M è il limite delle
@@ -26,7 +27,12 @@ export function ModalePostiChat({ posti, onChiudi, onCambiato }: { posti: Posti;
     setErrore(undefined)
     void window.gestore.preferenze.leggi()
       .then((p) => window.gestore.preferenze.imposta({ ...p, postiScelti: scelti }))
-      .then(() => { setSalvato(true); onCambiato() })
+      .then((esito) => {
+        // Non salvato sul disco ma valido: il PC lo tiene e riprova; si avvisa col fumetto.
+        if (!esito.salvato) segnalaPreferenzeNonSalvate()
+        setSalvato(true)
+        onCambiato()
+      })
       .catch((e: unknown) => setErrore(`Non riesco a salvare: ${e instanceof Error ? e.message : String(e)}`))
   }
   const imposta = (n: number): void => { setTesto(String(n)); salva(n) }

@@ -100,7 +100,7 @@ declare global {
       }
       preferenze: {
         leggi: () => Promise<import('@shared/preferenze').Preferenze>
-        imposta: (p: import('@shared/preferenze').Preferenze) => Promise<import('@shared/preferenze').Preferenze>
+        imposta: (p: import('@shared/preferenze').Preferenze) => Promise<{ preferenze: import('@shared/preferenze').Preferenze; salvato: boolean }>
         suCambio: (cb: (p: import('@shared/preferenze').Preferenze) => void) => () => void
       }
       dettatura: {

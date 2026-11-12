@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.101.1',
+    righe: [
+      '**App Android 3.0.1:** correzioni di visualizzazione, le schermate ora si leggono bene su tutti i telefoni.',
+      '**Preferenze salvate sempre:** se Windows nega per un attimo il salvataggio delle preferenze, il programma riprova da solo invece di perdere le tue scelte.',
+    ],
+  },
+  {
     versione: '0.101.0',
     righe: [
       '**App Android rifatta (3.0.0):** tre voci, Lavoro · File · Altro. In cima le domande con i tasti, sotto ogni workspace con la frase «Va», «Fermo» o «A riposo», la percentuale e chi lavora. Un messaggio scritto non si perde più.',

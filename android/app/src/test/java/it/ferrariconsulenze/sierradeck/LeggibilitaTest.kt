@@ -89,4 +89,21 @@ class LeggibilitaTest {
         }
         assertEquals(emptyList<String>(), piccoli)
     }
+
+    @Test
+    fun bordoDeiTastiAlmeno3a1ESulBancoChiaroIColoriDeiRuoliSiLeggono() {
+        // Il bordo dei tasti era l'incisione (1,2:1): quasi invisibile. Adesso 3:1 su ogni fondo.
+        val fondi = listOf(fondo, chassis, chassisAlto)
+        val bordo = Contrasto.almeno(0xFF24262AL, fondi, 0xFFA0A2A6L, 3.0)
+        for (f in fondi) assertTrue("bordo su %08X".format(f), Contrasto.rapporto(bordo, f) >= 3.0)
+        // Con la veste chiara il turchese e il rosa della tabella, su bianco, erano sotto 2:1.
+        val bianco = 0xFFFFFFFFL
+        val scuro = 0xFF1B1D21L
+        for ((nome, c) in TabellaAttivita.colori) {
+            val l = Contrasto.almenoAA(c, bianco, scuro)
+            assertTrue("$nome su bianco: %.2f".format(Contrasto.rapporto(l, bianco)), Contrasto.rapporto(l, bianco) >= 4.5)
+        }
+        // E sul fondo scuro un colore già leggibile non cambia.
+        assertEquals(0xFF3CC8C0L, Contrasto.almenoAA(0xFF3CC8C0L, chassisAlto, testo))
+    }
 }

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -43,6 +44,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import it.ferrariconsulenze.sierradeck.dati.CodaInvii
 import it.ferrariconsulenze.sierradeck.dati.Telefono
@@ -53,6 +55,7 @@ import it.ferrariconsulenze.sierradeck.nucleo.SceltaLavoro
 import it.ferrariconsulenze.sierradeck.nucleo.TipoDomanda
 import it.ferrariconsulenze.sierradeck.nucleo.Tono
 import it.ferrariconsulenze.sierradeck.schermate.tema.Banco
+import it.ferrariconsulenze.sierradeck.schermate.tema.leggibile
 
 /** I pezzi che «Lavoro» e «Workspace» hanno in comune (app 11/11). */
 
@@ -64,7 +67,7 @@ fun coloreTono(t: Tono): Color = when (t) {
 }
 
 fun coloreRuolo(colore: String?, ruolo: String): Color =
-    Color((RegoleSchermate.argbRuolo(colore) ?: RegoleSchermate.argbRuolo(RegoleSchermate.coloreRuolo(ruolo)) ?: 0xFF9AA1A9L).toInt())
+    leggibile(Color((RegoleSchermate.argbRuolo(colore) ?: RegoleSchermate.argbRuolo(RegoleSchermate.coloreRuolo(ruolo)) ?: 0xFF9AA1A9L).toInt()))
 
 /** La barra dell'avanzamento: piena di colore, sottile. */
 @Composable
@@ -118,15 +121,17 @@ fun SchedaDomandaNuova(d: DomandaLavoro, onRispondi: (String) -> Unit, onScriviT
                     s.conseguenza?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Banco.testoQuieto, modifier = Modifier.padding(start = 4.dp, top = 2.dp)) }
                 }
             } else if (d.tipo == TipoDomanda.UNISCI) {
-                // «Salvali e unisci»: i due tasti affiancati, uguali.
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // «Salvali e unisci»: i due tasti affiancati, uguali; coi caratteri grandi uno sotto l'altro.
+                if (androidx.compose.ui.platform.LocalDensity.current.fontScale > 1.15f) {
+                    for (s in d.scelte) TastoScelta(s, largo = true) { onRispondi(s.testo) }
+                } else Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for (s in d.scelte) Box(Modifier.weight(1f)) { TastoScelta(s, largo = true) { onRispondi(s.testo) } }
                 }
             } else {
                 for (s in d.scelte) TastoScelta(s, largo = true) { onRispondi(s.testo) }
             }
             d.rigaSotto?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = if (d.rischiosa) Banco.rosso else Banco.testoQuieto) }
-            if (d.libera && onScriviTu != null) TextButton(onClick = onScriviTu, modifier = Modifier.heightIn(min = 48.dp)) { Text("Scrivi tu") }
+            if (d.libera && onScriviTu != null) TextButton(onClick = onScriviTu, modifier = Modifier.heightIn(min = 48.dp).offset(x = (-12).dp)) { Text("Scrivi tu") }
         }
     }
     conferma?.let { s ->
@@ -144,8 +149,8 @@ fun SchedaDomandaNuova(d: DomandaLavoro, onRispondi: (String) -> Unit, onScriviT
 fun TastoScelta(s: SceltaLavoro, largo: Boolean, onClick: () -> Unit) {
     val m = (if (largo) Modifier.fillMaxWidth() else Modifier).heightIn(min = 48.dp)
     if (s.consigliata) Button(onClick = onClick, modifier = m, colors = ButtonDefaults.buttonColors(containerColor = Banco.accento)) {
-        Text(s.etichetta, fontWeight = FontWeight.SemiBold)
-    } else OutlinedButton(onClick = onClick, modifier = m) { Text(s.etichetta, color = Banco.testo) }
+        Text(s.etichetta, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+    } else OutlinedButton(onClick = onClick, modifier = m) { Text(s.etichetta, color = Banco.testo, textAlign = TextAlign.Center) }
 }
 
 /**

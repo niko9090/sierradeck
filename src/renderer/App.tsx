@@ -60,6 +60,8 @@ import { righeDiPty, righeDiPtyRecenti, segnaDatiPty, finestraDiPty } from './sc
 import { ogni } from './state/sondaggio'
 import { ETICHETTA_LAVORO_TIPO, soloTransizioni } from './progresso-sync'
 import { Fumetti, Fumetto, FumettoLavoroDrive, useChiusuraAutomatica } from './components/Fumetti'
+import { FumettoPreferenzeNonSalvate } from './components/FumettoPreferenzeNonSalvate'
+import { salvaPreferenze } from './salva-preferenze'
 import { decidiFumettiDrive, FUMETTO_ARRIVO_MS, FUMETTO_ESITO_OK_MS } from './fumetti-sync'
 import { PannelloChat } from './components/PannelloChat'
 import { PannelloSalute } from './components/PannelloSalute'
@@ -973,10 +975,7 @@ export function App(): React.JSX.Element {
   const commutaColonna = useCallback((_quale: 'domande'): void => {
     const domande = !colonnaDomande.aperta
     setColonnaDomande((c) => ({ ...c, aperta: domande }))
-    window.gestore.preferenze
-      .leggi()
-      .then((p) => window.gestore.preferenze.imposta({ ...p, domandeLaterali: domande }))
-      .catch(() => undefined)
+    void salvaPreferenze((p) => ({ ...p, domandeLaterali: domande }))
   }, [colonnaDomande])
   // Apre la colonna Domande per una domanda nuova (mai la chiude).
   const apriColonnaDomandeRef = useRef<() => void>(() => undefined)
@@ -993,10 +992,7 @@ export function App(): React.JSX.Element {
   }, [])
   const chiudiAvviso = useCallback((chiavi: string[]): void => {
     setAvvisiChiusi((c) => ricordaChiusi(c, chiavi))
-    window.gestore.preferenze
-      .leggi()
-      .then((p) => window.gestore.preferenze.imposta({ ...p, avvisiChiusi: ricordaChiusi(p.avvisiChiusi, chiavi) }))
-      .catch(() => undefined)
+    void salvaPreferenze((p) => ({ ...p, avvisiChiusi: ricordaChiusi(p.avvisiChiusi, chiavi) }))
   }, [])
   // La vista a elenco (0.74.0): quali workspace la usano (preferenza del PC) e quale chat sta davanti.
   const [workspaceElenco, setWorkspaceElenco] = useState<string[]>([])
@@ -1009,10 +1005,7 @@ export function App(): React.JSX.Element {
   }, [])
   const impostaElenco = useCallback((nome: string, accesa: boolean): void => {
     setWorkspaceElenco((l) => cambiaVistaElenco(l, nome, accesa))
-    window.gestore.preferenze
-      .leggi()
-      .then((p) => window.gestore.preferenze.imposta({ ...p, workspaceElenco: cambiaVistaElenco(p.workspaceElenco, nome, accesa) }))
-      .catch(() => undefined)
+    void salvaPreferenze((p) => ({ ...p, workspaceElenco: cambiaVistaElenco(p.workspaceElenco, nome, accesa) }))
   }, [])
   useEffect(() => {
     const accendi = (e: Event): void => {
@@ -1064,14 +1057,11 @@ export function App(): React.JSX.Element {
   }, [])
   const salvaColonnaDomande = useCallback((cambio: { aperta?: boolean; larghezza?: number }): void => {
     setColonnaDomande((c) => ({ ...c, ...cambio }))
-    window.gestore.preferenze
-      .leggi()
-      .then((p) => window.gestore.preferenze.imposta({
-        ...p,
-        ...(cambio.aperta !== undefined ? { domandeLaterali: cambio.aperta } : {}),
-        ...(cambio.larghezza !== undefined ? { larghezzaDomande: cambio.larghezza } : {})
-      }))
-      .catch(() => undefined)
+    void salvaPreferenze((p) => ({
+      ...p,
+      ...(cambio.aperta !== undefined ? { domandeLaterali: cambio.aperta } : {}),
+      ...(cambio.larghezza !== undefined ? { larghezzaDomande: cambio.larghezza } : {})
+    }))
   }, [])
   /**
    * Le domande si aprono **a fianco della chat**, non in una finestra (0.37.2).
@@ -2197,9 +2187,7 @@ export function App(): React.JSX.Element {
                 const sessione = s.sessione
                 // Nelle preferenze, che valgono anche prima che l'autopilota nasca; e nel suo file, se l'ha adottata.
                 setChatSoloMie((l) => (si ? [...new Set([...l, sessione])] : l.filter((x) => x !== sessione)))
-                void window.gestore.preferenze.leggi()
-                  .then((p) => window.gestore.preferenze.imposta({ ...p, chatSoloMie: si ? [...new Set([...(p.chatSoloMie ?? []), sessione])] : (p.chatSoloMie ?? []).filter((x) => x !== sessione) }))
-                  .catch(() => undefined)
+                void salvaPreferenze((p) => ({ ...p, chatSoloMie: si ? [...new Set([...(p.chatSoloMie ?? []), sessione])] : (p.chatSoloMie ?? []).filter((x) => x !== sessione) }))
                 if (autopilotaFisso !== undefined && (autopilotaFisso.adottate ?? []).some((x) => x.sessionId === sessione)) {
                   void window.gestore.adozione.soloMia(autopilotaFisso.id, sessione, si).then(() => ricaricaAutopiloti()).catch(() => undefined)
                 }
@@ -2287,6 +2275,7 @@ export function App(): React.JSX.Element {
             <button className="tasto tasto--mini" onClick={() => setAvvisoConsumi(undefined)} title="Chiudi">×</button>
           </Fumetto>
         ) : null}
+        <FumettoPreferenzeNonSalvate />
       </Fumetti>
     </div>
   )

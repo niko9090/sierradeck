@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -169,7 +170,8 @@ fun CorpoLavoro(
 private fun RigaLinea(v: VistaLavoro) {
     when (v.linea) {
         Linea.COLLEGO -> Row(verticalAlignment = Alignment.CenterVertically) {
-            CircularProgressIndicator(Modifier.padding(end = 10.dp).width(18.dp), strokeWidth = 2.dp)
+            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+            Spacer(Modifier.width(10.dp))
             Text("Mi collego…", style = MaterialTheme.typography.bodyMedium, color = Banco.testoQuieto)
         }
         Linea.VECCHI -> if (v.quando > 0) Text(

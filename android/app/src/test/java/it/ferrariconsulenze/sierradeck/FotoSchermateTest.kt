@@ -74,16 +74,32 @@ import java.time.Instant
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], application = Application::class, qualifiers = "w400dp-h860dp-xhdpi")
-class FotoSchermateTest {
+open class FotoSchermateTest {
     @get:Rule val regola = createComposeRule()
+
+    /** Le varianti (schermo stretto, caratteri grandi, veste chiara) cambiano solo questi tre. */
+    protected open val prefisso = ""
+    protected open val scalaCaratteri = 1f
+    protected open val vestaChiara = false
 
     private val ora = Instant.parse("2026-11-11T10:00:00Z").toEpochMilli()
 
     private fun foto(nome: String, dialogo: Boolean = false, cosa: @Composable () -> Unit) {
-        regola.setContent { TemaSierraDeck { Surface(Modifier.fillMaxSize(), color = Banco.fondo) { cosa() } } }
-        // Un dialogo è una finestra a sé: si fotografa quella.
-        if (dialogo) regola.onAllNodes(androidx.compose.ui.test.isRoot()).onLast().captureRoboImage("build/foto-schermate/$nome.png")
-        else regola.onRoot().captureRoboImage("build/foto-schermate/$nome.png")
+        val prima = BancoSalvato.prendi()
+        if (vestaChiara) BancoSalvato.indossaChiara()
+        try {
+            val d = androidx.compose.ui.platform.LocalDensity
+            regola.setContent {
+                val densita = androidx.compose.ui.unit.Density(d.current.density, scalaCaratteri)
+                androidx.compose.runtime.CompositionLocalProvider(d provides densita) {
+                    TemaSierraDeck { Surface(Modifier.fillMaxSize(), color = Banco.fondo) { cosa() } }
+                }
+            }
+            // Un dialogo è una finestra a sé: si fotografa quella.
+            val file = "build/foto-schermate/$prefisso$nome.png"
+            if (dialogo) regola.onAllNodes(androidx.compose.ui.test.isRoot()).onLast().captureRoboImage(file)
+            else regola.onRoot().captureRoboImage(file)
+        } finally { BancoSalvato.rimetti(prima) }
     }
 
     private val autopiloti = listOf(
@@ -227,3 +243,38 @@ class FotoSchermateTest {
 
     @Test fun altroScollega() = foto("altro-scollega") { Scollega { null } }
 }
+
+/** Salva e rimette i colori del banco: le foto in veste chiara non devono sporcare le altre prove. */
+internal object BancoSalvato {
+    fun prendi() = listOf(Banco.fondo, Banco.chassis, Banco.chassisAlto, Banco.incisione, Banco.testo, Banco.testoQuieto, Banco.accento, Banco.ambra, Banco.verde, Banco.rosso)
+
+    fun rimetti(v: List<androidx.compose.ui.graphics.Color>) {
+        Banco.fondo = v[0]; Banco.chassis = v[1]; Banco.chassisAlto = v[2]; Banco.incisione = v[3]; Banco.testo = v[4]
+        Banco.testoQuieto = v[5]; Banco.accento = v[6]; Banco.ambra = v[7]; Banco.verde = v[8]; Banco.rosso = v[9]
+    }
+
+    /** Una tavolozza chiara inventata, come il PC quando il chiarore è al massimo. */
+    fun indossaChiara() = rimetti(listOf(
+        c(0xF4F5F7), c(0xFFFFFF), c(0xECEEF1), c(0xD3D6DB), c(0x1B1D21), c(0x575B63), c(0x1A66C2), c(0x8A5A00), c(0x1E7A3F), c(0xB3261E)
+    ))
+
+    private fun c(n: Long) = androidx.compose.ui.graphics.Color(0xFF000000 or n)
+}
+
+/** Telefono stretto (360 dp). */
+@RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [34], application = Application::class, qualifiers = "w360dp-h640dp-xhdpi")
+class FotoStrettoTest : FotoSchermateTest() { override val prefisso = "stretto-" }
+
+/** Telefono stretto e caratteri al 130 %: il caso peggiore. */
+@RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [34], application = Application::class, qualifiers = "w360dp-h640dp-xhdpi")
+class FotoStrettoGrandeTest : FotoSchermateTest() { override val prefisso = "stretto-grande-"; override val scalaCaratteri = 1.3f }
+
+/** Veste chiara del banco. */
+@RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [34], application = Application::class, qualifiers = "w400dp-h860dp-xhdpi")
+class FotoChiaraTest : FotoSchermateTest() { override val prefisso = "chiara-"; override val vestaChiara = true }

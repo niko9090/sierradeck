@@ -1,8 +1,10 @@
-import { describe, it, expect } from 'vitest'
-import { mkdtempSync, writeFileSync, readFileSync, readdirSync } from 'node:fs'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { mkdtempSync, writeFileSync, readFileSync, readdirSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { apriImpostazioniStore } from '../../src/main/impostazioni-store'
+import { scriviJsonAtomico } from '../../src/shared/scrittura-atomica'
+import { PREFERENZE_PREDEFINITE } from '../../src/shared/preferenze'
 
 function dirTemporanea(): string {
   return mkdtempSync(join(tmpdir(), 'gestore-imp-'))
@@ -54,5 +56,69 @@ describe('apriImpostazioniStore', () => {
     const dir = dirTemporanea()
     apriImpostazioniStore(dir).segnaNovitaViste('0.3.6')
     expect(readdirSync(dir)).toEqual(['impostazioni.json'])
+  })
+})
+
+describe('scrittura fallita delle preferenze (k-143)', () => {
+  const rifiuta = (): boolean => false
+  const nuove = (stile: string): unknown => ({ ...PREFERENZE_PREDEFINITE, postiScelti: stile === 'a' ? 3 : 4 })
+
+  afterEach(() => { vi.useRealTimers() })
+
+  it('con la scrittura che fallisce, preferenze() restituisce il valore nuovo', () => {
+    const store = apriImpostazioniStore(dirTemporanea(), { scrivi: rifiuta })
+    const esito = store.impostaPreferenze(nuove('a'))
+    expect(esito.salvato).toBe(false)
+    expect(store.preferenze().postiScelti).toBe(3)
+  })
+
+  it('non solleva e riscrive da solo l ultimo valore, senza lasciare .tmp', () => {
+    vi.useFakeTimers()
+    const dir = dirTemporanea()
+    let riesce = false
+    const store = apriImpostazioniStore(dir, { scrivi: (p, v, e) => (riesce ? scriviJsonAtomico(p, v, e) : false) })
+    expect(() => store.impostaPreferenze(nuove('a'))).not.toThrow()
+    store.impostaPreferenze(nuove('b'))
+    vi.advanceTimersByTime(1_000)
+    expect(existsSync(store.percorso)).toBe(false)
+    riesce = true
+    vi.advanceTimersByTime(5_000)
+    const scritto = JSON.parse(readFileSync(store.percorso, 'utf8')) as { preferenze: { postiScelti: number } }
+    expect(scritto.preferenze.postiScelti).toBe(4)
+    expect(readdirSync(dir)).toEqual(['impostazioni.json'])
+    expect(store.preferenze().postiScelti).toBe(4)
+    // Riuscito: il valore in memoria non prevale più, vale il file.
+    writeFileSync(store.percorso, JSON.stringify({ preferenze: { ...PREFERENZE_PREDEFINITE, postiScelti: 5 } }), 'utf8')
+    expect(store.preferenze().postiScelti).toBe(5)
+  })
+
+  it('una scrittura nuova riuscita sostituisce quella in attesa e ferma il ritentativo', () => {
+    vi.useFakeTimers()
+    let riesce = false
+    const scritture: unknown[] = []
+    const store = apriImpostazioniStore(dirTemporanea(), {
+      scrivi: (_p, v) => { if (riesce) scritture.push(v); return riesce }
+    })
+    store.impostaPreferenze(nuove('a'))
+    riesce = true
+    expect(store.impostaPreferenze(nuove('b')).salvato).toBe(true)
+    vi.advanceTimersByTime(600_000)
+    expect(scritture).toHaveLength(1)
+  })
+
+  it('continua a riprovare a intervalli crescenti finché non riesce', () => {
+    vi.useFakeTimers()
+    let chiamate = 0
+    const store = apriImpostazioniStore(dirTemporanea(), { scrivi: () => { chiamate += 1; return false } })
+    store.impostaPreferenze(nuove('a'))
+    expect(chiamate).toBe(1)
+    vi.advanceTimersByTime(1_000)
+    expect(chiamate).toBe(2)
+    vi.advanceTimersByTime(5_000)
+    expect(chiamate).toBe(3)
+    vi.advanceTimersByTime(30_000)
+    expect(chiamate).toBe(4)
+    vi.advanceTimersByTime(240_000)
+    expect(chiamate).toBe(6)
   })
 })

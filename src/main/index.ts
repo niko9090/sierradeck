@@ -106,6 +106,7 @@ import { frenoPerAutopiloti, testoFreno } from '@shared/harness'
 import { aggiungiWorkspace, creaWorkspace, eliminaWorkspace } from './workspace-operazioni'
 import type { SessionSummary } from '@shared/types'
 import { apriImpostazioniStore } from './impostazioni-store'
+import { impostaPreferenzeIpc } from './preferenze-imposta'
 import { apriEtichetteStore } from './etichette-store'
 import { apriChiavi } from './chiavi'
 import { creaGuardianoPin, type GuardianoPin } from './pin-guardiano'
@@ -4381,8 +4382,7 @@ if (!app.requestSingleInstanceLock()) {
       // Le preferenze: colori, porte, comportamenti. Il renderer le legge
       // all'avvio e le riapplica appena cambiano.
       ipcMain.handle('preferenze:leggi', () => impostazioni.preferenze())
-      ipcMain.handle('preferenze:imposta', (_e, raw: unknown) => {
-        const nuove = impostazioni.impostaPreferenze(raw)
+      ipcMain.handle('preferenze:imposta', (_e, raw: unknown) => impostaPreferenzeIpc(impostazioni, raw, (nuove) => {
         // Lo scaricamento automatico degli aggiornamenti si applica subito, senza
         // riavviare: `autoUpdater` vive nel Core, e questa è la sua unica finestra
         // per sapere che l'utente ha cambiato idea.
@@ -4392,8 +4392,7 @@ if (!app.requestSingleInstanceLock()) {
             w.webContents.send('preferenze:cambiate', nuove)
           }
         }
-        return nuove
-      })
+      }))
 
       // Il Client: un server sulla rete di casa che serve la sua pagina e
       // risponde alle poche cose che si fanno da un telefono. Non parte se non

@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -63,7 +65,7 @@ fun Aiuto(testo: String, di: String? = null, modifier: Modifier = Modifier) {
         contentAlignment = Alignment.Center
     ) {
         Box(
-            Modifier.size(20.dp).border(1.dp, Banco.testoQuieto, CircleShape),
+            Modifier.size(20.dp * androidx.compose.ui.platform.LocalDensity.current.fontScale.coerceIn(1f, 2f)).border(1.dp, Banco.testoQuieto, CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Text("?", color = Banco.testoQuieto, fontSize = 12.sp, fontWeight = FontWeight.Bold)
