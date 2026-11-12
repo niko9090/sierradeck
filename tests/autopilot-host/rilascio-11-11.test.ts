@@ -63,7 +63,8 @@ describe('lo specialista «rilascio»: com’è fatto', () => {
     expect(p).toContain('La release nasce in BOZZA')
     expect(p).toContain('mai da una copia di lavoro')
     expect(p).toContain('`npm run pubblica`')
-    expect(p).toContain('`npm run allega-apk`')
+    expect(p).toContain('`npm run pubblica-app`')
+    expect(p).toContain('Mai `--latest` sulla pubblicazione «App Android»')
     expect(p).toContain('mai uno di debug')
     expect(p).toContain('gh release view <tag> --json isDraft,assets')
     expect(p).toContain('MAI installare')
@@ -124,7 +125,8 @@ describe('la guardia con il rilascio nella cartella principale', () => {
       'gh release edit v1.2.3 --draft=false --latest',
       'npm run pubblica',
       'export GH_TOKEN=$(gh auth token) && npm run pubblica',
-      'npm run allega-apk'
+      'npm run allega-apk',
+      'npm run pubblica-app'
     ]) expect(giudicaGuardiaOrchestratore(shell(c), ctx), c).toEqual({ ok: true })
     expect(giudicaGuardiaOrchestratore(shell('git push origin main', 'PowerShell'), ctx).ok).toBe(true)
   })
@@ -194,7 +196,7 @@ describe('la guardia con il rilascio nella cartella principale', () => {
   })
 
   it('i comandi di pubblicazione sono pesanti: prendono il turno, mai insieme a una suite', () => {
-    for (const c of ['npm run pubblica', 'export GH_TOKEN=$(gh auth token) && npm run pubblica', 'npm run allega-apk']) {
+    for (const c of ['npm run pubblica', 'export GH_TOKEN=$(gh auth token) && npm run pubblica', 'npm run allega-apk', 'npm run pubblica-app']) {
       expect(ePesante(c), c).toBe(true)
       expect(ePesantePerLaChat(c), c).toBe(true)
     }

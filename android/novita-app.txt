@@ -1,0 +1,10 @@
+Le novità dell'app Android, una voce per versione (le legge `npm run pubblica-app`
+per le note della pubblicazione e della notifica sul telefono).
+La più recente in cima. Ogni riga fra apici, come in src/shared/novita.ts.
+
+  {
+    versione: '3.0.3',
+    righe: [
+      'L’app si aggiorna per conto suo: le sue versioni escono nella pubblicazione «App Android», senza aspettare una versione del programma del PC.',
+    ],
+  },

@@ -82,6 +82,11 @@ describe('electron-builder.yml', () => {
       const s = readFileSync(f, 'utf8')
       expect(s).not.toMatch(/releaseType|--draft=true|gh', \['release', 'create'/)
     }
+    // 0.103.2: «App Android» nasce in bozza e si pubblica a file caricati, mai come ultima del programma.
+    const app = readFileSync('scripts/pubblica-app.mjs', 'utf8')
+    expect(app).toMatch(/'release', 'create', TAG_APP, '--draft', '--latest=false'/)
+    expect(app).toMatch(/'release', 'edit', TAG_APP, '--draft=false', '--latest=false'/)
+    expect(app).not.toMatch(/'--latest'(?!=false)|--latest=true/)
   })
 })
 

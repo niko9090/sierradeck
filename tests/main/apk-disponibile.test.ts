@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { leggiApkDalRelease, leggiAppAndroidJson } from '../../src/main/apk-disponibile'
+import { FILE_APP, leggiApkDalRelease, leggiAppAndroidJson } from '../../src/main/apk-disponibile'
 
 describe('leggiApkDalRelease', () => {
   it('trova l APK e la sua versione', () => {
@@ -68,5 +68,14 @@ describe('il file app-android.json allegato a ogni pubblicazione', () => {
   it('una versione strana o un file illeggibile non fanno niente', () => {
     expect(leggiAppAndroidJson('{"versione":"boh","apk":"https://github.com/niko9090/sierradeck/releases/download/v1/x.apk"}')).toBeUndefined()
     expect(leggiAppAndroidJson('non json')).toBeUndefined()
+  })
+})
+
+describe('l’app esce per conto suo (0.103.2)', () => {
+  it('il file si chiede prima alla pubblicazione fissa «App Android», e il suo APK è accettato', () => {
+    expect(FILE_APP).toBe('https://github.com/niko9090/sierradeck/releases/download/app-android/app-android.json')
+    expect(leggiAppAndroidJson(
+      '{"versione":"3.0.3","apk":"https://github.com/niko9090/sierradeck/releases/download/app-android/SierraDeck-3.0.3.apk"}'
+    )).toEqual({ versione: '3.0.3', url: 'https://github.com/niko9090/sierradeck/releases/download/app-android/SierraDeck-3.0.3.apk' })
   })
 })

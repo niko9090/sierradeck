@@ -58,8 +58,24 @@ object Aggiornamenti {
      * e non ha il limite delle sessanta l'ora. Se l'ultima pubblicazione non
      * ce l'ha (una vecchia, prima della 0.16.4) risponde 404 e si passa oltre.
      */
-    private const val FILE_APP =
+    private const val FILE_APP_DI_PRIMA =
         "https://github.com/niko9090/sierradeck/releases/latest/download/app-android.json"
+
+    /**
+     * App 3.0.3 (Nicholas, 12/11: «separale»): l'app esce per conto suo, nella
+     * pubblicazione fissa «App Android» (tag `app-android`), che non è mai
+     * l'ultima del programma. Il suo `app-android.json` si chiede per primo;
+     * quello dell'ultima pubblicazione del programma resta come ripiego.
+     */
+    private const val FILE_APP =
+        "https://github.com/niko9090/sierradeck/releases/download/app-android/app-android.json"
+
+    /** Il file dell'app: prima dalla pubblicazione dell'app, poi da quella del programma. */
+    private fun scaricaFileApp(): String = try {
+        leggi(FILE_APP, accetta = "application/json")
+    } catch (e: Exception) {
+        leggi(FILE_APP_DI_PRIMA, accetta = "application/json")
+    }
 
     /**
      * La versione dell'app si legge **dal nome dell'APK**, non dal tag.
@@ -144,11 +160,11 @@ object Aggiornamenti {
     }
 
     /** Il file dell'ultima pubblicazione, direttamente da GitHub (il controllo in background, 0.43.0). */
-    fun fileDaGitHub(): String = leggi(FILE_APP, accetta = "application/json")
+    fun fileDaGitHub(): String = scaricaFileApp()
 
     private fun dalFile(ragioni: MutableList<String>): Pubblicata? {
         return try {
-            val corpo = leggi(FILE_APP, accetta = "application/json")
+            val corpo = scaricaFileApp()
             val letta = leggiFileApp(corpo)
             if (letta == null) ragioni += "il file dell'app non si legge"
             letta

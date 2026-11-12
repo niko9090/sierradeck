@@ -28,7 +28,14 @@ const ORIGINE_APK = 'https://github.com/niko9090/sierradeck/releases/download/'
  * delle sessanta richieste l'ora per indirizzo che da un telefono si supera
  * senza accorgersene. L'API resta come ripiego.
  */
-const FILE_APP = 'https://github.com/niko9090/sierradeck/releases/latest/download/app-android.json'
+const FILE_APP_DI_PRIMA = 'https://github.com/niko9090/sierradeck/releases/latest/download/app-android.json'
+/**
+ * 0.103.2 (Nicholas, 12/11: «separale»): l'app esce per conto suo nella
+ * pubblicazione fissa «App Android» (tag `app-android`, mai l'ultima del
+ * programma). Il suo file si chiede per primo; quello dell'ultima
+ * pubblicazione del programma resta come ripiego.
+ */
+export const FILE_APP = 'https://github.com/niko9090/sierradeck/releases/download/app-android/app-android.json'
 
 let ricordata: { quando: number; app: AppScaricabile | undefined } | undefined
 
@@ -92,6 +99,7 @@ export async function apkDisponibile(adesso = Date.now()): Promise<AppScaricabil
   // di rete no: memorizzarlo terrebbe il Client a bocca asciutta per sei ore
   // anche a rete tornata. Meglio riprovare alla prossima apertura.
   const dalFile = await scarica(FILE_APP, 'application/json').then(leggiAppAndroidJson).catch(() => undefined)
+    ?? await scarica(FILE_APP_DI_PRIMA, 'application/json').then(leggiAppAndroidJson).catch(() => undefined)
   if (dalFile !== undefined) {
     ricordata = { quando: adesso, app: dalFile }
     return dalFile

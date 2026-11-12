@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.103.2',
+    righe: [
+      '**L’app Android e il programma escono ognuno per conto suo:** un cambio solo all’app non porta più una versione del programma del PC uguale a prima. L’app ha la sua pubblicazione, «App Android», e si aggiorna da lì; il programma continua a proporti l’app nuova come prima.',
+    ],
+  },
+  {
     versione: '0.103.1',
     righe: [
       '**App Android 3.0.2: niente più righe fisse nelle notifiche.** La riga «In ascolto» non si vede più: l’app resta collegata al computer e gli avvisi arrivano subito come prima. Anche «Mando…» mentre una risposta parte si toglie con un dito.',

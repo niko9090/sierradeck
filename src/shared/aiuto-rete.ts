@@ -107,8 +107,8 @@ export function strumentiAmmessi(lista: unknown): string[] {
  */
 export const VIETATI_AIUTO: readonly string[] = [
   'Bash(git push:*)', 'Bash(git config:*)', 'Bash(git remote:*)', 'Bash(gh:*)',
-  'Bash(npm publish:*)', 'Bash(npm run pubblica:*)', 'Bash(npm run allega-apk:*)', 'Bash(npm install:*)',
-  'PowerShell(git push*)', 'PowerShell(gh *)', 'PowerShell(npm run pubblica*)', 'PowerShell(npm run allega-apk*)',
+  'Bash(npm publish:*)', 'Bash(npm run pubblica:*)', 'Bash(npm run allega-apk:*)', 'Bash(npm run pubblica-app:*)', 'Bash(npm install:*)',
+  'PowerShell(git push*)', 'PowerShell(gh *)', 'PowerShell(npm run pubblica*)', 'PowerShell(npm run allega-apk*)', 'PowerShell(npm run pubblica-app*)',
   'WebFetch', 'WebSearch', 'Agent', 'Task'
 ]
 
