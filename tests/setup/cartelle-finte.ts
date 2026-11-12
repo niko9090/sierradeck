@@ -28,6 +28,8 @@ const radiceFinta = process.env.SIERRADECK_TEST_FINTA ?? fs.mkdtempSync(join(ver
 process.env.SIERRADECK_TEST_FINTA = radiceFinta
 const finte = cartelleFinte(radiceFinta)
 for (const v of VARIABILI_FINTE) process.env[v] = finte[v]
+// 12/11: niente disco delle prove (`@shared/disco-prove`): i test restano nella Temp finta, mai su un altro disco vero.
+process.env.SIERRADECK_DISCO_PROVE = 'spento'
 
 const windows = process.platform === 'win32'
 const norm = (p: string): string => { const r = resolve(p); return windows ? r.toLowerCase() : r }

@@ -1,13 +1,15 @@
 import { execFile, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync, openSync, readSync, closeSync, lstatSync, rmdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, unlinkSync, utimesSync, writeFileSync, openSync, readSync, closeSync, lstatSync, rmdirSync } from 'node:fs'
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import {
   commitValido, idLavoroValido, LAVORO_MAX_MS, modelloAiuto, nomeProgettoSicuro, PEZZO_BYTE, PACCHETTO_MAX_BYTE,
   quantiPezzi, ramoDiRitorno, ramoValido, STRUMENTI_AIUTO, strumentiAmmessi, VIETATI_AIUTO, type StatoAiuto, type VistaLavoroAiutato
 } from '@shared/aiuto-rete'
 import type { AvviaProcesso } from './orchestratore'
 import { cancellaSicuraAsincrona } from '@shared/cancella-sicura'
+import { CARTELLA_PROVE } from '@shared/disco-prove'
+import { staccaCollegamenti } from './autopulizia'
 
 /**
  * **Il PC che aiuta** (0.103.0): riceve il progetto di un altro PC, lo apre in
@@ -23,6 +25,13 @@ import { cancellaSicuraAsincrona } from '@shared/cancella-sicura'
  * - `progetti/<nome>/moduli/<impronta>`: `node_modules`, installato una volta
  *   per ogni `package-lock.json` diverso;
  * - `uscite/<id>.bundle`: il ramo da ritirare.
+ *
+ * 12/11: se il disco della Temp è quasi pieno, queste cartelle stanno sul
+ * disco delle prove (`radiceLavoroAiuto`, opzione `lavoro`); `lavori.json`
+ * resta in `<dati>/aiuto`, e ogni lavoro si ricorda la sua radice. Ogni prova
+ * conclusa lascia pulito: le copie, i rami e i pacchetti dei lavori finiti
+ * se ne vanno, e un giro ogni 10 minuti (e all'avvio) toglie quello che
+ * Windows aveva tenuto bloccato.
  */
 
 export type RichiestaAvvio = {
@@ -46,8 +55,29 @@ type Lavoro = VistaLavoroAiutato & {
   inizio: number
   copia?: string
   repo?: string
+  /** 12/11: dove stanno copia, pacchetti e moduli di questo lavoro (percorso assoluto). */
+  radice?: string
+  /** 12/11: la cartella dei `node_modules` che usa la sua copia: non si pota finché lavora. */
+  moduli?: string
+  /** 12/11: quando è arrivato l'ultimo pezzo (una ricezione ferma da 30 minuti non riprende più). */
+  ultimoPezzo?: number
+  /** 12/11: quando è finito (finito, fallito o fermato): dopo 2 giorni il lavoro si dimentica. */
+  fine?: number
   ferma?: () => void
 }
+
+/** Una ricezione senza pezzi nuovi da tanto non riprende: il PC che spediva ha lasciato perdere. */
+export const RICEZIONE_FERMA_MS = 30 * 60_000
+/** Un lavoro finito da tanto, mai chiuso dal PC che l'aveva chiesto, si dimentica con le sue cartelle. */
+export const LAVORO_FINITO_DURA_MS = 2 * 24 * 60 * 60_000
+/** I `node_modules` tenuti per progetto (i più recenti): gli altri occupano giga per niente. */
+export const MODULI_DA_TENERE = 2
+/** Ogni quanto si riprova a togliere quello che Windows aveva tenuto bloccato. */
+export const PULIZIA_OGNI_MS = 10 * 60_000
+
+const terminato = (l: Pick<Lavoro, 'stato'>): boolean => l.stato === 'finito' || l.stato === 'fallito' || l.stato === 'fermato'
+const attivo = (l: Pick<Lavoro, 'stato'>): boolean => l.stato === 'ricevo' || l.stato === 'preparo' || l.stato === 'lavoro'
+const chiave = (p: string): string => resolve(p).toLowerCase()
 
 export type LavoratoreAiuto = {
   /** Quanti lavori di altri PC sono al lavoro qui adesso: contano nei posti. */
@@ -58,6 +88,8 @@ export type LavoratoreAiuto = {
   ritira: (p: { lavoro: unknown; n: unknown }) => { ok: true; dati: string; totale: number } | { ok: false; motivo: string }
   chiudi: (id: unknown) => boolean
   ferma: (id: unknown) => boolean
+  /** 12/11: il giro di pulizia (all'avvio, ogni 10 minuti); torna quando è finito. */
+  pulizia: () => Promise<void>
 }
 
 const corto = (s: string, n = 160): string => s.replace(/\s+/gu, ' ').trim().slice(0, n)
@@ -85,28 +117,63 @@ function npmCi(cartella: string, extra: string[]): Promise<void> {
 const eCollegamento = (p: string): boolean => { try { return lstatSync(p).isSymbolicLink() } catch { return false } }
 
 export function creaLavoratoreAiuto(x: {
+  /** Dove sta `lavori.json` (`<dati>/aiuto`); senza `lavoro`, anche copie, moduli e pacchetti. */
   cartella: string
+  /** 12/11: dove stanno copie, moduli e pacchetti, se non in `cartella` (il disco delle prove). */
+  lavoro?: string
   avvia: AvviaProcesso
   adesso?: () => number
   log?: (r: string) => void
+  /** Ogni quanto il giro di pulizia; 0 = solo all'avvio e a richiesta (prove). */
+  pulisciOgniMs?: number
 }): LavoratoreAiuto {
   const adesso = x.adesso ?? Date.now
   const log = x.log ?? ((r: string) => console.info(`[aiuto] ${r}`))
-  const arrivi = join(x.cartella, 'arrivi')
-  const uscite = join(x.cartella, 'uscite')
+  const radice = x.lavoro ?? x.cartella
+  const arrivi = join(radice, 'arrivi')
   const fileStato = join(x.cartella, 'lavori.json')
+  const fileRadici = join(x.cartella, 'radici.json')
   const lavori = new Map<string, Lavoro>()
   /** Un solo `npm ci` alla volta per la stessa impronta, e un solo giro di git per progetto. */
   const moduliInCorso = new Map<string, Promise<string | undefined>>()
   const codaProgetto = new Map<string, Promise<unknown>>()
+  /**
+   * 12/11: ogni radice usata qui (quella di adesso, `<dati>/aiuto`, e quelle di prima, se il disco
+   * delle prove è cambiato fra un avvio e l'altro): il giro di pulizia le guarda tutte.
+   */
+  const radici = new Set<string>([x.cartella, radice])
+  /** I lavori trovati a metà dopo un riavvio: le loro cartelle si tolgono al primo giro. */
+  const daPulire: Lavoro[] = []
+  /**
+   * Una radice letta dal disco vale solo se è una di quelle che questo codice crea: `cartella`,
+   * quella di adesso, o `<disco>\SierraDeck-prove\aiuto-<impronta>` (`radiceLavoroAiuto`). Un file
+   * rovinato non porta il giro di pulizia in un'altra cartella.
+   */
+  const radiceAccettabile = (r: unknown): r is string =>
+    typeof r === 'string' && isAbsolute(r) &&
+    (chiave(r) === chiave(x.cartella) || chiave(r) === chiave(radice) || (/^aiuto-[0-9a-f]{8}$/u.test(basename(r)) && basename(dirname(r)).toLowerCase() === CARTELLA_PROVE.toLowerCase()))
+  const radiceDi = (l: Lavoro): string => (radiceAccettabile(l.radice) ? l.radice : radice)
+  const pacchettiDi = (l: Lavoro): string[] => [join(radiceDi(l), 'arrivi', `${l.id}.bundle`), join(radiceDi(l), 'uscite', `${l.id}.bundle`)]
+
+  try {
+    const prima = existsSync(fileRadici) ? JSON.parse(readFileSync(fileRadici, 'utf8')) as unknown : []
+    for (const r of Array.isArray(prima) ? prima : []) if (radiceAccettabile(r)) radici.add(r)
+  } catch { /* illeggibile: solo quelle di adesso */ }
+  if (radice !== x.cartella) {
+    try { mkdirSync(x.cartella, { recursive: true }); writeFileSync(fileRadici, JSON.stringify([...radici], null, 1), 'utf8') } catch { /* al prossimo avvio */ }
+  }
 
   // I lavori che c'erano prima di un riavvio: chi era a metà non può riprendere (il processo non c'è più).
+  // 12/11: e la sua copia, la giunzione, il ramo e i pacchetti non servono più: via al primo giro di pulizia.
   try {
     const prima = existsSync(fileStato) ? JSON.parse(readFileSync(fileStato, 'utf8')) as Lavoro[] : []
     for (const l of Array.isArray(prima) ? prima : []) {
       if (!idLavoroValido(l.id)) continue
-      const finito = l.stato === 'finito' || l.stato === 'fallito' || l.stato === 'fermato'
-      lavori.set(l.id, finito ? l : { ...l, stato: 'fallito', motivo: 'il servizio del PC che aiutava si è riavviato a metà lavoro' })
+      if (radiceAccettabile(l.radice)) radici.add(l.radice)
+      if (terminato(l)) { lavori.set(l.id, l); continue }
+      const fallito: Lavoro = { ...l, stato: 'fallito', motivo: 'il servizio del PC che aiutava si è riavviato a metà lavoro', attivita: 'non riuscito', fine: adesso() }
+      lavori.set(l.id, fallito)
+      daPulire.push(fallito)
     }
   } catch (err) { log(`stato di prima illeggibile: ${String(err)}`) }
 
@@ -117,7 +184,12 @@ export function creaLavoratoreAiuto(x: {
       writeFileSync(fileStato, JSON.stringify(da, null, 1), 'utf8')
     } catch (err) { log(`stato non salvato: ${String(err)}`) }
   }
-  const cambia = (l: Lavoro, p: Partial<Lavoro>): void => { Object.assign(l, p); salva() }
+  const cambia = (l: Lavoro, p: Partial<Lavoro>): void => {
+    Object.assign(l, p)
+    if (terminato(l) && l.fine === undefined) l.fine = adesso()
+    salva()
+  }
+  if (daPulire.length > 0) salva()
 
   const inProgetto = <T>(progetto: string, f: () => Promise<T>): Promise<T> => {
     const prima = codaProgetto.get(progetto) ?? Promise.resolve()
@@ -127,15 +199,21 @@ export function creaLavoratoreAiuto(x: {
   }
 
   /** `node_modules` per quel `package-lock.json`: installato una volta, poi collegato a ogni copia. */
-  const moduliPer = (progetto: string, copia: string): Promise<string | undefined> => {
+  const moduliPer = (l: Lavoro, progetto: string, copia: string): Promise<string | undefined> => {
     const lock = join(copia, 'package-lock.json')
     if (!existsSync(join(copia, 'package.json')) || !existsSync(lock)) return Promise.resolve(undefined)
     const impronta = createHash('sha256').update(readFileSync(lock)).digest('hex').slice(0, 16)
-    const dove = join(x.cartella, 'progetti', progetto, 'moduli', impronta)
+    const dove = join(radiceDi(l), 'progetti', progetto, 'moduli', impronta)
+    // 12/11: segnata subito, prima di ogni attesa: il giro di pulizia non pota quella che questo lavoro sta per usare.
+    l.moduli = dove
     const gia = moduliInCorso.get(dove)
     if (gia !== undefined) return gia
     const p = (async (): Promise<string | undefined> => {
-      if (existsSync(join(dove, 'node_modules', '.package-lock.json'))) return join(dove, 'node_modules')
+      if (existsSync(join(dove, 'node_modules', '.package-lock.json'))) {
+        // Usata adesso: conta fra le più recenti, quelle che la pulizia tiene.
+        try { const ora = new Date(adesso()); utimesSync(dove, ora, ora) } catch { /* resta la data di prima */ }
+        return join(dove, 'node_modules')
+      }
       mkdirSync(dove, { recursive: true })
       copyFileSync(join(copia, 'package.json'), join(dove, 'package.json'))
       copyFileSync(lock, join(dove, 'package-lock.json'))
@@ -147,28 +225,140 @@ export function creaLavoratoreAiuto(x: {
       return join(dove, 'node_modules')
     })()
     moduliInCorso.set(dove, p)
-    p.catch(() => moduliInCorso.delete(dove))
+    // 12/11: tolta anche quando riesce: finché resta qui la pulizia non la pota mai (vale `l.moduli`).
+    void p.then(() => { moduliInCorso.delete(dove) }, () => { moduliInCorso.delete(dove) })
     return p
   }
 
+  /**
+   * Via una copia di lavoro: prima la giunzione a `node_modules` (mai entrarci), poi
+   * `git worktree remove`; se Windows lascia la cartella (file bloccati, percorsi lunghi), la
+   * toglie la guardia, solo dentro `dentro`, dopo aver staccato ogni altro collegamento.
+   * Torna se la copia non c'è più.
+   */
+  const togliCopia = async (copia: string, repo: string | undefined, dentro: string): Promise<boolean> => {
+    const mod = join(copia, 'node_modules')
+    if (eCollegamento(mod)) { try { unlinkSync(mod) } catch { try { rmdirSync(mod) } catch { /* resta */ } } }
+    if (eCollegamento(mod)) return false
+    if (repo !== undefined && existsSync(join(repo, '.git'))) await git(['worktree', 'remove', '--force', copia], repo).catch(() => undefined)
+    if (!existsSync(copia)) return true
+    const { falliti } = await staccaCollegamenti(copia)
+    if (falliti.length > 0) return false
+    try { await cancellaSicuraAsincrona(copia, { dentro: [dentro] }) } catch { return false }
+    return !existsSync(copia)
+  }
+
+  /** Tutto quello che un lavoro lascia: la copia, il ramo, i pacchetti. Anche per un lavoro rimasto a metà (senza `copia`). */
   const pulisciCopia = async (l: Lavoro): Promise<void> => {
-    if (l.copia !== undefined) {
-      const mod = join(l.copia, 'node_modules')
-      if (eCollegamento(mod)) { try { unlinkSync(mod) } catch { try { rmdirSync(mod) } catch { /* resta */ } } }
-      if (l.repo !== undefined && !eCollegamento(mod)) {
-        await git(['worktree', 'remove', '--force', l.copia], l.repo).catch(() => undefined)
-        await git(['branch', '-D', ramoDiRitorno(l.id)], l.repo).catch(() => undefined)
+    const r = radiceDi(l)
+    const base = l.progetto !== '' ? join(r, 'progetti', l.progetto) : undefined
+    const repo = l.repo ?? (base !== undefined ? join(base, 'repo') : undefined)
+    const copia = l.copia ?? (base !== undefined ? join(base, 'copie', l.id) : undefined)
+    const via = async (): Promise<void> => {
+      if (copia !== undefined) await togliCopia(copia, repo, r)
+      if (repo !== undefined && existsSync(join(repo, '.git'))) await git(['branch', '-D', ramoDiRitorno(l.id)], repo).catch(() => undefined)
+    }
+    if (l.progetto !== '') await inProgetto(l.progetto, via)
+    else await via()
+    for (const f of pacchettiDi(l)) { try { rmSync(f, { force: true }) } catch { /* resta */ } }
+  }
+
+  /** I `node_modules` di un progetto oltre i più recenti `MODULI_DA_TENERE`, e quelli rimasti a metà: via, se nessuna copia al lavoro li usa. */
+  const potaModuli = async (base: string, r: string): Promise<void> => {
+    const dir = join(base, 'moduli')
+    let voci: Array<{ p: string; quando: number; completa: boolean }>
+    try {
+      voci = readdirSync(dir).map((n) => {
+        const p = join(dir, n)
+        return { p, quando: statSync(p).mtimeMs, completa: existsSync(join(p, 'node_modules', '.package-lock.json')) }
+      })
+    } catch { return }
+    const usate = new Set([...lavori.values()].filter((l) => attivo(l) || l.ferma !== undefined).flatMap((l) => (l.moduli !== undefined ? [chiave(l.moduli)] : [])))
+    const complete = voci.filter((v) => v.completa).sort((a, b) => b.quando - a.quando)
+    const daTogliere = [...complete.slice(MODULI_DA_TENERE), ...voci.filter((v) => !v.completa)]
+    for (const v of daTogliere) {
+      if (usate.has(chiave(v.p)) || moduliInCorso.has(v.p)) continue
+      const { falliti } = await staccaCollegamenti(v.p)
+      if (falliti.length > 0) continue
+      try { await cancellaSicuraAsincrona(v.p, { dentro: [r] }); log(`tolti i node_modules vecchi ${v.p}`) } catch { /* in uso: al prossimo giro */ }
+    }
+  }
+
+  /** Una radice: pacchetti che non servono più, copie di lavori non al lavoro, rami di lavori chiusi, moduli vecchi. */
+  const spazzaRadice = async (r: string): Promise<void> => {
+    const serve: Array<[string, (l: Lavoro) => boolean]> = [
+      [join(r, 'arrivi'), (l) => l.stato === 'ricevo' || l.stato === 'preparo'],
+      [join(r, 'uscite'), () => true]
+    ]
+    for (const [cartella, tieni] of serve) {
+      let nomi: string[] = []
+      try { nomi = readdirSync(cartella) } catch { /* non c'è */ }
+      for (const n of nomi) {
+        const id = /^(r[0-9a-f]{12})\.bundle$/u.exec(n)?.[1]
+        if (id === undefined) continue
+        const l = lavori.get(id)
+        if (l !== undefined && chiave(radiceDi(l)) === chiave(r) && tieni(l)) continue
+        try { rmSync(join(cartella, n), { force: true }) } catch { /* resta */ }
       }
     }
-    for (const f of [join(arrivi, `${l.id}.bundle`), join(uscite, `${l.id}.bundle`)]) { try { rmSync(f, { force: true }) } catch { /* resta */ } }
+    let progetti: string[] = []
+    try { progetti = readdirSync(join(r, 'progetti')) } catch { /* non c'è */ }
+    for (const progetto of progetti) {
+      const base = join(r, 'progetti', progetto)
+      const repo = join(base, 'repo')
+      const copie = join(base, 'copie')
+      await inProgetto(progetto, async () => {
+        let ids: string[] = []
+        try { ids = readdirSync(copie) } catch { /* non c'è */ }
+        for (const id of ids) {
+          const l = lavori.get(id)
+          // Al lavoro (o fermato con lo specialista non ancora uscito): non si tocca.
+          if (l !== undefined && (attivo(l) || l.ferma !== undefined)) continue
+          if (!await togliCopia(join(copie, id), repo, copie)) log(`la copia ${join(copie, id)} non si toglie ancora (file in uso?): riprovo al prossimo giro`)
+        }
+        if (!existsSync(join(repo, '.git'))) return
+        await git(['worktree', 'prune'], repo).catch(() => undefined)
+        // I rami dei lavori che qui non ci sono più (chiusi o dimenticati): il ramo è già tornato, o non torna più.
+        const rami = await git(['for-each-ref', '--format=%(refname:short)', `refs/heads/${ramoDiRitorno('')}*`], repo).catch(() => '')
+        for (const ramo of rami.split(/\r?\n/u).map((s) => s.trim())) {
+          const id = ramo.slice(ramoDiRitorno('').length)
+          if (ramo.startsWith(ramoDiRitorno('')) && idLavoroValido(id) && !lavori.has(id)) await git(['branch', '-D', ramo], repo).catch(() => undefined)
+        }
+      })
+      await potaModuli(base, r)
+    }
+  }
+
+  const spazza = async (): Promise<void> => {
+    for (const l of daPulire.splice(0)) await pulisciCopia(l).catch(() => undefined)
+    const ora = adesso()
+    for (const l of lavori.values()) {
+      if (l.stato !== 'ricevo' || ora - (l.ultimoPezzo ?? l.inizio) < RICEZIONE_FERMA_MS) continue
+      cambia(l, { stato: 'fallito', motivo: 'il progetto ha smesso di arrivare (nessun pezzo da 30 minuti)', attivita: 'non riuscito' })
+      for (const f of pacchettiDi(l)) { try { rmSync(f, { force: true }) } catch { /* resta */ } }
+      log(`${l.id}: ricezione ferma da 30 minuti, lavoro non riuscito`)
+    }
+    for (const l of [...lavori.values()]) {
+      if (!terminato(l) || l.ferma !== undefined || ora - (l.fine ?? l.inizio) < LAVORO_FINITO_DURA_MS) continue
+      lavori.delete(l.id)
+      salva()
+      log(`${l.id}: finito da più di 2 giorni e mai chiuso, lo dimentico con le sue cartelle`)
+      await pulisciCopia(l).catch(() => undefined)
+    }
+    for (const r of radici) await spazzaRadice(r)
+  }
+  let catena: Promise<void> = Promise.resolve()
+  const pulizia = (): Promise<void> => {
+    catena = catena.then(spazza).catch((err: unknown) => { log(`pulizia non riuscita: ${String(err).slice(0, 200)}`) })
+    return catena
   }
 
   const lancia = async (l: Lavoro, r: RichiestaAvvio): Promise<void> => {
     const progetto = nomeProgettoSicuro(r.progetto)
-    const base = join(x.cartella, 'progetti', progetto)
+    const base = join(radiceDi(l), 'progetti', progetto)
     const repo = join(base, 'repo')
     const copia = join(base, 'copie', l.id)
-    const pacchetto = join(arrivi, `${l.id}.bundle`)
+    const pacchetto = pacchettiDi(l)[0]!
     const ramo = ramoDiRitorno(l.id)
     cambia(l, { stato: 'preparo', attivita: 'apro il progetto arrivato', repo })
     // Il repo del progetto: la prima volta un clone dal pacchetto, poi i commit nuovi. Una cosa alla volta per progetto.
@@ -176,7 +366,7 @@ export function creaLavoratoreAiuto(x: {
       mkdirSync(join(base, 'copie'), { recursive: true })
       if (!existsSync(join(repo, '.git'))) {
         // Una cartella rimasta a metà (un clone interrotto): via, ma solo dentro la cartella dell'aiuto, dalla guardia.
-        await cancellaSicuraAsincrona(repo, { dentro: [x.cartella] })
+        await cancellaSicuraAsincrona(repo, { dentro: [radiceDi(l)] })
         await git(['clone', '--no-checkout', pacchetto, repo], base)
       }
       await git(['fetch', '--no-tags', pacchetto, `+refs/heads/${r.ramoBase}:refs/remotes/arrivo/${r.ramoBase}`], repo)
@@ -189,13 +379,14 @@ export function creaLavoratoreAiuto(x: {
     cambia(l, { copia, attivita: 'preparo node_modules' })
     let notaModuli = ''
     try {
-      const moduli = await moduliPer(progetto, copia)
+      const moduli = await moduliPer(l, progetto, copia)
       if (moduli !== undefined && !existsSync(join(copia, 'node_modules'))) symlinkSync(moduli, join(copia, 'node_modules'), 'junction')
     } catch (err) {
       notaModuli = ` Attenzione: su questo PC node_modules non si è installato (${corto(String(err), 200)}): se un comando ne ha bisogno, dillo nel riepilogo invece di installarlo tu.`
       log(`${progetto}: node_modules mancante per ${l.id}: ${String(err).slice(0, 200)}`)
     }
-    if (l.stato === 'fermato') return
+    // 12/11: fermato mentre si preparava: la copia appena fatta non serve, via subito (prima restava lì).
+    if (l.stato === 'fermato') { await pulisciCopia(l); return }
     cambia(l, { stato: 'lavoro', attivita: `${r.ruolo} al lavoro` })
     const sistema = `${r.sistema}\n\nLavori su un altro PC della rete di Nicholas («Aiuta la rete»): la tua copia è ${copia}, sul ramo ${ramo}. Il ramo principale del progetto è ${r.ramoBase}. Niente push: il ramo lo rimanda il programma al PC che ha chiesto, che lo prova e lo unisce.${notaModuli}`
     const args = [
@@ -243,8 +434,8 @@ export function creaLavoratoreAiuto(x: {
     try { commit = Number((await git(['rev-list', '--count', `${r.base}..${ramo}`], copia)).trim()) || 0 } catch { commit = 0 }
     let byte = 0
     if (commit > 0) {
-      mkdirSync(uscite, { recursive: true })
-      const out = join(uscite, `${l.id}.bundle`)
+      const out = pacchettiDi(l)[1]!
+      mkdirSync(join(out, '..'), { recursive: true })
       await git(['bundle', 'create', out, ramo, `^${r.base}`], copia)
       byte = statSync(out).size
     }
@@ -260,12 +451,12 @@ export function creaLavoratoreAiuto(x: {
     })
     log(`${l.id} (${progetto}): ${l.stato}, ${commit} commit, ${byte} byte da ritirare`)
     // La copia non serve più: il ramo è nel pacchetto (o non c'è niente da rimandare).
-    const mod = join(copia, 'node_modules')
-    if (eCollegamento(mod)) { try { unlinkSync(mod) } catch { try { rmdirSync(mod) } catch { /* resta */ } } }
-    if (!eCollegamento(mod)) await git(['worktree', 'remove', '--force', copia], repo).catch(() => undefined)
+    // 12/11: se Windows la tiene bloccata, la riprende il giro di pulizia ogni 10 minuti.
+    const tolta = await inProgetto(progetto, () => togliCopia(copia, repo, join(base, 'copie')))
+    if (!tolta) log(`${l.id}: la copia ${copia} non si toglie ancora (file in uso?): riprovo al prossimo giro`)
   }
 
-  return {
+  const lavoratore: LavoratoreAiuto = {
     inCorso: () => [...lavori.values()].filter((l) => l.stato === 'ricevo' || l.stato === 'preparo' || l.stato === 'lavoro').length,
     pezzo(p) {
       if (!idLavoroValido(p.lavoro)) return { ok: false, motivo: 'lavoro non valido' }
@@ -277,14 +468,16 @@ export function creaLavoratoreAiuto(x: {
       let l = lavori.get(p.lavoro)
       if (l !== undefined && l.stato !== 'ricevo') return { ok: false, motivo: 'questo lavoro è già partito' }
       if (n === 0) {
-        l = { id: p.lavoro, stato: 'ricevo', progetto: '', ricevuti: 0, totale, inizio: adesso(), attivita: 'ricevo il progetto' }
+        l = { id: p.lavoro, stato: 'ricevo', progetto: '', ricevuti: 0, totale, inizio: adesso(), attivita: 'ricevo il progetto', radice }
         lavori.set(l.id, l)
         mkdirSync(arrivi, { recursive: true })
-        writeFileSync(join(arrivi, `${l.id}.bundle`), buf)
+        writeFileSync(pacchettiDi(l)[0]!, buf)
       } else {
         if (l === undefined || l.ricevuti !== n || l.totale !== totale) return { ok: false, motivo: `aspettavo il pezzo ${l?.ricevuti ?? 0}` }
-        appendFileSync(join(arrivi, `${l.id}.bundle`), buf)
+        appendFileSync(pacchettiDi(l)[0]!, buf)
       }
+      // 12/11: l'ora dell'ultimo pezzo: una ricezione ferma da 30 minuti la chiude il giro di pulizia.
+      l.ultimoPezzo = adesso()
       l.ricevuti = n + 1
       l.attivita = `ricevo il progetto (${l.ricevuti}/${totale})`
       return { ok: true, ricevuti: l.ricevuti }
@@ -335,7 +528,7 @@ export function creaLavoratoreAiuto(x: {
       const n = typeof p.n === 'number' && Number.isInteger(p.n) ? p.n : -1
       const totale = quantiPezzi(l.byte!)
       if (n < 0 || n >= totale) return { ok: false, motivo: 'pezzo non valido' }
-      const file = join(uscite, `${l.id}.bundle`)
+      const file = pacchettiDi(l)[1]!
       const buf = Buffer.alloc(Math.min(PEZZO_BYTE, l.byte! - n * PEZZO_BYTE))
       const fd = openSync(file, 'r')
       try { readSync(fd, buf, 0, buf.length, n * PEZZO_BYTE) } finally { closeSync(fd) }
@@ -356,6 +549,12 @@ export function creaLavoratoreAiuto(x: {
       cambia(l, { stato: 'fermato', motivo: 'fermato dal PC che l’aveva chiesto', attivita: 'fermato' })
       l.ferma?.()
       return true
-    }
+    },
+    pulizia
   }
+  // 12/11: un giro subito (i lavori rimasti a metà, le copie che Windows teneva bloccate) e poi ogni 10 minuti.
+  void pulizia()
+  const ogni = x.pulisciOgniMs ?? PULIZIA_OGNI_MS
+  if (ogni > 0) { const t = setInterval(() => { void pulizia() }, ogni); t.unref?.() }
+  return lavoratore
 }

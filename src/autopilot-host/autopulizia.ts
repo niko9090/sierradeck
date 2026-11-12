@@ -157,6 +157,11 @@ export type CopiaSuDisco = {
   conGit?: boolean
   /** `cartella` passata per `percorsoVero`. */
   cartellaVera?: string
+  /**
+   * 12/11: una copia di specialista orfana: dentro c'è solo il file `.git`, git non la conosce
+   * e non la sa leggere (il worktree a cui puntava non c'è più). Niente lavoro può stare lì dentro.
+   */
+  orfana?: boolean
 }
 
 /** Cosa dice git di una copia registrata. */
@@ -187,6 +192,7 @@ export function decidiCopia(copia: CopiaSuDisco, chats: ChatNota[], verifica?: V
   if (chatDellaCopia(copia, chats).some((c) => c.aperta)) return tieni('chat aperta')
   // Senza `.git` non c'è lavoro di git dentro: è roba rimasta (dei test).
   if (!copia.registrata && copia.conGit !== true) return { ...base, togli: true, perche: 'non è una copia registrata' }
+  if (!copia.registrata && copia.orfana === true) return { ...base, togli: true, perche: 'copia orfana: solo il file .git' }
   if (verifica === undefined) return tieni('stato non letto')
   if (!verifica.pulita) return tieni('modifiche non salvate')
   if (!verifica.unita) return tieni('commit non uniti')
@@ -215,15 +221,36 @@ export const PREFISSO_RAMO_AGENTE = 'worktree-agent-'
  * che il principale non ha, mai il ramo corrente, mai uno aperto in una copia, mai quello di uno
  * specialista al lavoro, mai uno citato da un compito ancora aperto (lo chiude il cancello).
  */
-export function decidiRamoAgente(ramo: string, p: { corrente?: string; inUso: ReadonlySet<string>; vive: ReadonlySet<string>; citati: ReadonlySet<string>; unito: boolean }): DecisioneRamo {
+export function decidiRamoAgente(ramo: string, p: { corrente?: string; inUso: ReadonlySet<string>; vive: ReadonlySet<string>; citati: ReadonlySet<string>; unito: boolean; copiato?: boolean }): DecisioneRamo {
   const tieni = (perche: string): DecisioneRamo => ({ ramo, togli: false, perche })
   if (!ramo.startsWith(PREFISSO_RAMO_AGENTE)) return tieni('non è il ramo di uno specialista')
   if (ramo === p.corrente) return tieni('ramo corrente')
   if (p.inUso.has(ramo)) return tieni('aperto in una copia')
   if (p.vive.has(`agent-${ramo.slice(PREFISSO_RAMO_AGENTE.length)}`)) return tieni('specialista al lavoro')
   if (p.citati.has(ramo)) return tieni('citato da un compito aperto')
-  if (!p.unito) return tieni('commit non uniti')
-  return { ramo, togli: true, perche: 'già unito' }
+  if (p.unito) return { ramo, togli: true, perche: 'già unito' }
+  // 12/11: unito con rebase o cherry-pick: i commit sono altri, ma ogni modifica è già nel principale.
+  if (p.copiato === true) return { ramo, togli: true, perche: RAMO_COPIATO }
+  return tieni('commit non uniti')
+}
+
+/** Il perché di un ramo le cui modifiche sono arrivate nel principale con rebase o cherry-pick. */
+export const RAMO_COPIATO = 'già nel principale (rebase o cherry-pick)'
+
+/**
+ * Le modifiche di `cosa` sono tutte nel principale anche se i suoi commit no (12/11)? Vero solo se
+ * `git cherry <base> <cosa>` dà una riga «-» (modifica uguale già in `base`) per **ogni** commit di
+ * `cosa` che `base` non ha, e nessuna «+». Un commit di unione (che `git cherry` non mostra), un
+ * errore di git o un conto che non torna: falso, e il ramo resta.
+ */
+export async function copiatoNelPrincipale(git: GitAsincrono, radice: string, base: string, cosa: string): Promise<boolean> {
+  const conto = await git(['rev-list', '--count', `${base}..${cosa}`], radice)
+  const n = Number(conto.uscita.trim())
+  if (conto.codice !== 0 || conto.uscita.trim() === '' || !Number.isInteger(n) || n <= 0) return false
+  const c = await git(['cherry', base, cosa], radice)
+  if (c.codice !== 0) return false
+  const righe = c.uscita.split(/\r?\n/u).map((r) => r.trim()).filter((r) => r !== '')
+  return righe.length === n && righe.every((r) => r.startsWith('- '))
 }
 
 /**
@@ -813,10 +840,15 @@ async function pulisciProgetto(o: OpzioniAutopulizia, radice: string, autopiloti
       }
       if (st.codice === 0) {
         // Senza HEAD letto non si sa cosa contiene: «non unita», cioè resta.
-        verifica = { pulita: st.uscita.trim() === '', unita: head !== undefined && await unito(head) }
+        // 12/11: la copia di uno specialista unita con rebase o cherry-pick conta come unita.
+        const agente = dentro === cartelleAgenti
+        verifica = { pulita: st.uscita.trim() === '', unita: head !== undefined && (await unito(head) || (agente && await copiatoNelPrincipale(git, radice, base, head))) }
+      } else if (dentro === cartelleAgenti && !copia.registrata && dotGit === 'file') {
+        // 12/11: git non la legge e dentro c'è solo `.git`: il worktree a cui puntava non c'è più.
+        try { if ((await readdir(cartella)).length === 1) copia.orfana = true } catch { /* illeggibile: resta */ }
       }
     }
-    let d = verifica !== undefined ? decidiCopia(copia, chatVere, verifica) : prima
+    let d = verifica !== undefined ? decidiCopia(copia, chatVere, verifica) : copia.orfana === true ? decidiCopia(copia, chatVere) : prima
     // Una copia con git dentro: prima di toglierla, le chat di adesso.
     if (d.togli && (copia.conGit === true || copia.registrata)) d =decidiCopia(copia, chatAdesso(), verifica)
     if (!d.togli) {
@@ -892,9 +924,13 @@ async function pulisciProgetto(o: OpzioniAutopulizia, radice: string, autopiloti
     if (vive === undefined || servono === undefined) return
     const p = { ...(corrente !== undefined ? { corrente } : {}), inUso, vive, citati: servono }
     if (!decidiRamoAgente(ramo, { ...p, unito: true }).togli) continue
-    const d = decidiRamoAgente(ramo, { ...p, unito: await unito(ramo) })
+    const giaUnito = await unito(ramo)
+    // 12/11: non antenato del principale, ma ogni sua modifica è già lì (rebase o cherry-pick): restava per sempre.
+    const d = decidiRamoAgente(ramo, { ...p, unito: giaUnito, copiato: !giaUnito && await copiatoNelPrincipale(git, radice, base, ramo) })
     if (!d.togli) continue
-    const r = await git(['branch', '-d', ramo], radice)
+    // `-d` per i rami uniti, come prima. Per quelli copiati git direbbe «non unito» anche se nessuna modifica
+    // andrebbe persa (l'ha appena verificato `git cherry`): lì `-D`, ma solo lì.
+    const r = await git(['branch', d.perche === RAMO_COPIATO ? '-D' : '-d', ramo], radice)
     if (r.codice === 0) e.ramiTolti += 1
     else e.tenute.push({ cosa: ramo, perche: 'git non lo dà per unito' })
   }

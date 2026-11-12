@@ -9,6 +9,7 @@ import {
   type Autopilota, type ChatGovernata, type Criterio, type MessaggioPerLaChat, type Traguardo
 } from '@shared/autopilota'
 import { autopilotaLeggero } from '@shared/autopilota-leggero'
+import { radiceLavoroAiuto } from '@shared/disco-prove'
 import { leggiCorpoJson } from '@shared/corpo-richiesta'
 import { chiudiFasi, leggiAggiornamentoInCorso, rigaRiepilogo } from '@shared/fasi-aggiornamento'
 import { serveRipresaDopoAggiornamento } from './ripresa-riavvio'
@@ -280,10 +281,15 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   let unico: ServizioUnico | undefined
   /** 0.103.0: chi lavora qui per gli altri PC (nasce alla prima richiesta). */
   let lavoratoreAiuto: LavoratoreAiuto | undefined
+  const cartellaAiuto = join(dirname(deps.archivio.cartella), 'aiuto')
   const lavoratore = (): LavoratoreAiuto => {
-    lavoratoreAiuto ??= creaLavoratoreAiuto({ cartella: join(dirname(deps.archivio.cartella), 'aiuto'), avvia: deps.avviaProcesso })
+    // 12/11: copie, moduli e pacchetti sul disco delle prove se quello della Temp è quasi pieno.
+    lavoratoreAiuto ??= creaLavoratoreAiuto({ cartella: cartellaAiuto, lavoro: radiceLavoroAiuto(cartellaAiuto), avvia: deps.avviaProcesso })
     return lavoratoreAiuto
   }
+  // 12/11: se ci sono lavori di prima, il lavoratore nasce subito: pulisce quello che i lavori
+  // rimasti a metà o finiti da giorni hanno lasciato, senza aspettare la prossima richiesta.
+  if (existsSync(join(cartellaAiuto, 'lavori.json'))) lavoratore()
   const servizio = (): ServizioUnico => {
     if (unico === undefined) throw new Error('autopilota non ancora pronto')
     return unico

@@ -12,6 +12,7 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { cancellaSicura } from '../src/shared/cancella-sicura.ts'
 
 const REPO = 'niko9090/sierradeck'
 const programma = JSON.parse(readFileSync('package.json', 'utf8')).version
@@ -20,6 +21,9 @@ const gh = (a) => spawnSync('gh', a, { encoding: 'utf8' })
 const ferma = (m) => { console.error(`ALLEGA APP-ANDROID.JSON FERMATO: ${m}`); process.exit(1) }
 
 const cartella = mkdtempSync(join(tmpdir(), 'app-json-'))
+// 12/11: la cartella temporanea se ne va alla fine, anche quando lo script si ferma con un errore
+// (`ferma` esce con process.exit, che salta i finally: per questo all'uscita). Dalla guardia, solo dentro Temp.
+process.on('exit', () => { try { cancellaSicura(cartella, { dentro: [tmpdir()] }) } catch { /* resta in Temp */ } })
 const file = join(cartella, 'app-android.json')
 const prendi = (da) => gh(['release', 'download', da, '-p', 'app-android.json', '-D', cartella, '--clobber']).status === 0 && existsSync(file)
 let da = 'app-android'

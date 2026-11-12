@@ -1,9 +1,9 @@
 import { execFile, spawn } from 'node:child_process'
-import { existsSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { delimiter, dirname, join } from 'node:path'
-import { tmpdir } from 'node:os'
 import type { Criterio } from '@shared/autopilota'
 import { cancellaSicura } from '@shared/cancella-sicura'
+import { radiceCriteri } from '@shared/disco-prove'
 import { giudicaCancellazioni } from './divieti'
 
 export type EsitoVerifica = {
@@ -398,7 +398,7 @@ export function gruppoMsys(bash: string, radice: number): Promise<number[]> {
  * criterio finiva in un secondo, l'autopilota ripartiva dieci minuti dopo, e i
  * criteri successivi — che sono seriali per scelta — aspettavano dietro.
  */
-export function esecutoreReale(predefinitoMs: number = TIMEOUT_PREDEFINITO_MS): Esecutore {
+export function esecutoreReale(predefinitoMs: number = TIMEOUT_PREDEFINITO_MS, radice: () => string = () => radiceCriteri()): Esecutore {
   const bash = trovaBash()
   // Detto una volta sola, all'avvio: quale shell misura i criteri. Senza questa
   // riga, una shell sbagliata si manifesta solo come sei criteri che falliscono
@@ -413,7 +413,11 @@ export function esecutoreReale(predefinitoMs: number = TIMEOUT_PREDEFINITO_MS): 
       const timeoutMs = perQuesto ?? predefinitoMs
       // 11/11: la prova è già scaduta: il comando non parte nemmeno.
       if (segnale?.aborted === true) { risolvi({ codice: 1, uscita: RIGA_ANNULLATO_PRIMA }); return }
-      const temp = tmpdir()
+      // 12/11: la Temp del criterio sta in una cartella sola e nota (`radiceCriteri`): sul disco
+      // delle prove se quello della Temp di sistema è quasi pieno, altrimenti dentro la Temp.
+      // Così la guardia resta chiusa lì e all'avvio si spazzano le cartelle rimaste.
+      const temp = radice()
+      mkdirSync(temp, { recursive: true })
       const cartella = mkdtempSync(join(temp, 'sierradeck-criterio-'))
       const script = join(cartella, nomeScript(bash))
       // `\n` e non `\r\n`: bash su Windows inciampa nei ritorni a capo di
@@ -496,7 +500,7 @@ export function esecutoreReale(predefinitoMs: number = TIMEOUT_PREDEFINITO_MS): 
         try {
           // La cartella del criterio non serve più: senza questo ne restava una
           // per esecuzione, e se ne sono contate 637 in una sera sola.
-          // Dalla guardia (0.72.0): solo dentro Temp, mai Temp intera.
+          // Dalla guardia (0.72.0): solo dentro la cartella dei criteri, mai lei intera.
           cancellaSicura(cartella, { dentro: [temp] })
         } catch {
           // Un file ancora aperto da un processo in background: si riproverà

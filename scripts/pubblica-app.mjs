@@ -25,6 +25,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { apkFirmato, ferma } from './apk-firmato.mjs'
 import { noteDi } from './note-novita.mjs'
+import { cancellaSicura } from '../src/shared/cancella-sicura.ts'
 
 export const TAG_APP = 'app-android'
 const REPO = 'niko9090/sierradeck'
@@ -47,6 +48,9 @@ if (esiste) {
 }
 
 const cartella = mkdtempSync(join(tmpdir(), 'app-'))
+// 12/11: la cartella temporanea se ne va alla fine, anche quando lo script si ferma con un errore
+// (`ferma` esce con process.exit, che salta i finally: per questo all'uscita). Dalla guardia, solo dentro Temp.
+process.on('exit', () => { try { cancellaSicura(cartella, { dentro: [tmpdir()] }) } catch { /* resta in Temp */ } })
 const copia = join(cartella, nomeApk)
 copyFileSync(apk, copia)
 const json = join(cartella, 'app-android.json')

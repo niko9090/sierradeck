@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { closeSync, mkdirSync, openSync, readSync, rmSync, statSync, appendFileSync, writeFileSync } from 'node:fs'
+import { closeSync, mkdirSync, openSync, readdirSync, readSync, rmSync, statSync, appendFileSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import {
   idLavoroValido, lavoroAffidatoValido, modoAiutoValido, PACCHETTO_MAX_BYTE, PEZZO_BYTE, quantiPezzi, ramoDiRitorno,
@@ -62,6 +62,14 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): { giro: () => Pro
   const fuori = new Map<string, number>()
   let posti: { lista: Aiutante[]; il: number } = { lista: [], il: -Infinity }
   let fermo = false
+
+  // 12/11: i pacchetti rimasti da un programma chiuso a metà spedizione o ritiro. Qui nasce uno
+  // spedizioniere solo, e prima del primo giro nessun pacchetto è in uso: via tutti (solo file `.bundle`).
+  try {
+    for (const n of readdirSync(d.cartella)) {
+      if (/^r[0-9a-f]{12}(-ritorno)?\.bundle$/u.test(n)) { try { rmSync(join(d.cartella, n), { force: true }) } catch { /* resta */ } }
+    }
+  } catch { /* la cartella non c'è ancora */ }
 
   const aggiornaPosti = async (): Promise<Aiutante[]> => {
     if (adesso() - posti.il < POSTI_VALGONO_MS) return posti.lista
@@ -163,6 +171,9 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): { giro: () => Pro
         if (sconosciuto || adesso() - silenzioDa > SILENZIO_MAX_MS) {
           fuori.set(l.pcId, adesso() + FUORI_PER_MS)
           await avanza(l.id, { stato: 'fallito', motivo: sconosciuto ? `${l.pcNome} non ha più questo lavoro (si è riavviato?)` : `${l.pcNome} non risponde da ${Math.round(SILENZIO_MAX_MS / 60_000)} minuti` })
+          // 12/11: «chiudi» anche qui, come alla fine e dopo una spedizione non riuscita: se quel PC
+          // torna, o lo tiene ancora, toglie copia, ramo e pacchetti invece di lasciarli lì.
+          await d.chiama(l.pcId, '/api/aiuto/chiudi', { lavoro: l.id }).catch(() => undefined)
           return
         }
       }
