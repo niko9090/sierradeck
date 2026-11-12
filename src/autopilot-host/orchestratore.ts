@@ -1,31 +1,16 @@
-import { spawn } from 'node:child_process'
 import { modelloAutopilotaAmmesso } from '@shared/modelli'
-import { existsSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
-import { createInterface } from 'node:readline'
 import { gitPerLeChat } from '../main/git-nel-path'
 import { POSTI_MAX } from '@shared/posti-chat'
-import { uccidiAlberi } from '@shared/uccidi-alberi'
 import { separaAvvisiNode } from '@shared/avvisi-node'
 import { eErroreDiRete } from '@shared/errori-rete'
 import { attesaLimiteMs, azzeramentoDalTesto, eLimiteDelPiano } from '@shared/limite-del-piano'
-import { NON_EREDITATE } from '../pty-host/pty-manager'
 import { applicaRiga, flussoVuoto, specialistiAlLavoro, type EffettoFlusso, type StatoFlusso } from '@shared/flusso-orchestratore'
 import type { ImpostazioniOrchestratore, RigaDialogo } from './orchestratore-store'
 
-/**
- * L'ambiente per il processo `claude`, senza le variabili che il PTY host
- * toglie già alle chat (`NON_EREDITATE`): `ELECTRON_RUN_AS_NODE` ereditata dal
- * servizio farebbe partire `claude.exe` come Node puro.
- */
-export function ambientePulito(base: NodeJS.ProcessEnv): Record<string, string> {
-  const env: Record<string, string> = {}
-  for (const [nome, valore] of Object.entries(base)) {
-    if (valore === undefined || NON_EREDITATE.includes(nome)) continue
-    env[nome] = valore
-  }
-  return env
-}
+// 12/11: `ambientePulito` sta in `@shared/ambiente-figli` (lo usa anche l'Aiutante); qui si riesporta per chi lo importava da qui.
+import { ambientePulito } from '@shared/ambiente-figli'
+export { ambientePulito }
 
 
 /**
@@ -63,14 +48,10 @@ export type TipoEvento = 'finito' | 'bloccato' | 'domanda' | 'silenzio' | 'union
 export type EventoOrchestratore = { tipo: TipoEvento; quando: string; testo: string; chat?: string }
 export type MessaggioUtente = { quando: string; testo: string }
 
-/** Un processo `claude` vivo: sostituibile, i test non avviano mai la CLI vera. */
-export type ProcessoClaude = {
-  scrivi: (riga: string) => void
-  uccidi: () => void
-  suRiga: (f: (riga: string) => void) => void
-  suUscita: (f: (codice: number | null, stderr: string) => void) => void
-}
-export type AvviaProcesso = (p: { args: string[]; cwd: string; env: Record<string, string> }) => ProcessoClaude
+// 12/11: il processo `claude` (tipi e avvio vero) sta in `processo-claude.ts`, senza il resto dell'orchestratore.
+import type { ProcessoClaude, AvviaProcesso } from './processo-claude'
+export type { ProcessoClaude, AvviaProcesso } from './processo-claude'
+export { avviaProcessoReale } from './processo-claude'
 
 // ---------------------------------------------------------------- costanti
 
@@ -707,47 +688,6 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
         if (s.riprova !== undefined) clearTimeout(s.riprova)
         spegniSe(ws, s, 'il servizio si spegne')
       }
-    }
-  }
-}
-
-// ---------------------------------------------------------------- la CLI vera
-
-/**
- * `claude` davvero, lungo: righe JSON in entrata e in uscita. Non solleva:
- * una cartella che non c'è o un avvio fallito tornano come uscita.
- */
-export function avviaProcessoReale(claudeCmd: string, uccidi: (pids: number[]) => Promise<void> = (p) => uccidiAlberi(p)): AvviaProcesso {
-  return ({ args, cwd, env }) => {
-    const righe: ((r: string) => void)[] = []
-    const uscite: ((c: number | null, e: string) => void)[] = []
-    let stderr = ''
-    let uscito: { codice: number | null; e: string } | undefined
-    const esci = (codice: number | null, e: string): void => {
-      if (uscito !== undefined) return
-      uscito = { codice, e }
-      for (const f of uscite) f(codice, e)
-    }
-    if (!existsSync(cwd)) {
-      setImmediate(() => esci(1, `la cartella «${cwd}» non esiste`))
-      return { scrivi: () => {}, uccidi: () => {}, suRiga: (f) => { righe.push(f) }, suUscita: (f) => { uscite.push(f) } }
-    }
-    const figlio = spawn(claudeCmd, args, { cwd, env, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
-    createInterface({ input: figlio.stdout }).on('line', (r) => { for (const f of righe) f(r) })
-    figlio.stderr.on('data', (b: Buffer) => { stderr = (stderr + b.toString('utf8')).slice(-4000) })
-    figlio.on('error', (err) => esci(1, `${stderr}\n${err.message}`))
-    figlio.on('close', (codice) => esci(codice, stderr))
-    figlio.stdin.on('error', () => { /* lo dice l'uscita */ })
-    return {
-      scrivi: (r) => { figlio.stdin.write(r, 'utf8') },
-      // Tutto l'albero: su Windows `kill()` lascia vivi i figli (npm, i test, i subagenti).
-      uccidi: () => {
-        try { figlio.stdin.end() } catch { /* già chiuso */ }
-        if (figlio.pid !== undefined && uscito === undefined) void uccidi([figlio.pid])
-        else figlio.kill()
-      },
-      suRiga: (f) => { righe.push(f) },
-      suUscita: (f) => { if (uscito !== undefined) f(uscito.codice, uscito.e); else uscite.push(f) }
     }
   }
 }

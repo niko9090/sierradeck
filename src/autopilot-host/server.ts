@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { creaLavoratoreAiuto, type LavoratoreAiuto } from './aiuto-lavoratore'
-import { lavoroAffidatoValido, modoAiutoValido, TETTO_CORPO_PEZZO, type Aiutante, type LavoroAffidato } from '@shared/aiuto-rete'
+import { lavoroAffidatoValido, modoAiutoValido, programmaAiuto, TETTO_CORPO_PEZZO, type Aiutante, type LavoroAffidato } from '@shared/aiuto-rete'
 import { createHash } from 'node:crypto'
 import { dirname, join } from 'node:path'
 import {
@@ -241,7 +241,9 @@ function aiutanteValido(x: unknown): Aiutante | undefined {
   if (typeof x !== 'object' || x === null) return undefined
   const o = x as Record<string, unknown>
   if (typeof o.pcId !== 'string' || o.pcId === '' || !modoAiutoValido(o.modo) || typeof o.liberi !== 'number' || !Number.isFinite(o.liberi)) return undefined
-  return { pcId: o.pcId, nome: typeof o.nome === 'string' && o.nome !== '' ? o.nome.slice(0, 80) : o.pcId.slice(0, 8), modo: o.modo, liberi: Math.max(0, Math.floor(o.liberi)) }
+  // 12/11: `programma` (SierraDeck Aiutante) viaggia anche lui: la scelta del posto lo mette per primo.
+  const programma = programmaAiuto(o.programma)
+  return { pcId: o.pcId, nome: typeof o.nome === 'string' && o.nome !== '' ? o.nome.slice(0, 80) : o.pcId.slice(0, 8), modo: o.modo, liberi: Math.max(0, Math.floor(o.liberi)), ...(programma !== undefined ? { programma } : {}) }
 }
 
 function leggiCorpo(req: IncomingMessage): Promise<unknown> {

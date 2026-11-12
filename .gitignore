@@ -29,3 +29,7 @@ android/.kotlin/
 # Gli errori mandati dagli altri PC e dal telefono (0.81.0): restano su questo PC, mai su GitHub.
 .sierradeck/errori-arrivati/
 tests/android/local.properties
+
+# SierraDeck Aiutante (12/11): build e installer a parte, si rifanno.
+out-aiutante/
+dist-aiutante/

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+  <title>SierraDeck Aiutante</title>
+  <style>
+    body { font-family: 'Segoe UI', sans-serif; background: #1d1f23; color: #e6e6e6; margin: 0; padding: 16px; font-size: 14px; }
+    h1 { font-size: 18px; margin: 0 0 4px; }
+    h2 { font-size: 14px; margin: 18px 0 6px; color: #9fc4ff; display: flex; align-items: center; gap: 6px; }
+    .nota { color: #9a9a9a; font-size: 12px; }
+    .riga { display: flex; gap: 8px; align-items: center; margin: 4px 0; }
+    .ok { color: #7bd88f; } .no { color: #ff7b72; } .attesa { color: #e5c07b; }
+    ul { margin: 0; padding-left: 18px; }
+    input[type=text], input[type=password], input[type=number], select { background: #2a2d33; color: #e6e6e6; border: 1px solid #444; border-radius: 4px; padding: 4px 6px; }
+    button { background: #2f6fd6; color: white; border: 0; border-radius: 4px; padding: 5px 10px; cursor: pointer; }
+    button.leggero { background: #3a3d44; }
+    .aiuto { background: #3a3d44; border-radius: 50%; width: 20px; height: 20px; padding: 0; font-size: 12px; }
+    .spiega { display: none; background: #262930; border-left: 3px solid #2f6fd6; padding: 6px 8px; margin: 4px 0; font-size: 12px; color: #c8c8c8; }
+    .spiega.aperta { display: block; }
+  </style>
+</head>
+<body>
+  <h1>SierraDeck Aiutante</h1>
+  <div class="nota" id="versione"></div>
+
+  <h2>Collegamento <button class="aiuto" data-spiega="sp-rete">?</button></h2>
+  <div class="spiega" id="sp-rete">L’Aiutante entra nella rete come un PC con SierraDeck: lo stesso account Google Drive e la stessa passphrase della cassaforte. Da lì gli altri PC lo vedono e gli affidano gli specialisti quando ha posti liberi, prima di ogni altro PC.</div>
+  <div id="rete"></div>
+  <div class="riga" id="riga-drive"><button id="collega-drive">Collega Google Drive</button></div>
+  <div class="riga" id="riga-cassaforte"><input type="password" id="passphrase" placeholder="Passphrase della cassaforte" /><button id="sblocca">Apri</button></div>
+  <div class="nota" id="esito-rete"></div>
+
+  <h2>Al lavoro adesso <button class="aiuto" data-spiega="sp-lavori">?</button></h2>
+  <div class="spiega" id="sp-lavori">I lavori che gli altri PC hanno affidato a questo Aiutante: chi lo fa, cosa, e per quale PC. Alla fine il ramo torna al PC che l’ha chiesto, che lo prova e lo unisce.</div>
+  <div id="posti"></div>
+  <ul id="lavori"></ul>
+
+  <h2>Cosa serve <button class="aiuto" data-spiega="sp-requisiti">?</button></h2>
+  <div class="spiega" id="sp-requisiti">Senza una di queste cose un lavoro fallirebbe a metà: finché manca, l’Aiutante dice agli altri PC che non ha posti. Il controllo si rifà ogni 10 minuti.</div>
+  <ul id="requisiti"></ul>
+
+  <h2>Impostazioni <button class="aiuto" data-spiega="sp-impostazioni">?</button></h2>
+  <div class="spiega" id="sp-impostazioni">Le stesse del programma completo: quanti lavori insieme li decide il PC (processori, memoria, carico), «più» o «meno» lo sposta un poco, oppure scegli un numero. La pausa ferma i lavori nuovi, quelli in corso finiscono.</div>
+  <div class="riga"><label for="nome">Nome di questo PC</label><input type="text" id="nome" maxlength="40" /><button class="leggero" id="salva-nome">Salva</button></div>
+  <div class="riga"><label for="posti-modo">Lavori insieme</label>
+    <select id="posti-modo">
+      <option value="0">Automatico</option>
+      <option value="1">Automatico, di più</option>
+      <option value="-1">Automatico, di meno</option>
+      <option value="scelto">Scelgo io</option>
+    </select>
+    <input type="number" id="posti-numero" min="1" max="8" style="width: 60px" />
+  </div>
+  <div class="riga"><input type="checkbox" id="aggiornamenti" /><label for="aggiornamenti">Aggiornamenti automatici</label></div>
+  <div class="riga"><input type="checkbox" id="avvio" /><label for="avvio">Parti all’accensione del PC</label></div>
+  <div class="riga"><input type="checkbox" id="pausa" /><label for="pausa">In pausa (niente lavori nuovi)</label></div>
+  <div class="riga"><label for="pc-sviluppo">PC di sviluppo (per gli errori)</label><select id="pc-sviluppo"></select></div>
+
+  <h2>Aggiornamenti ed errori</h2>
+  <div id="aggiornamento" class="nota"></div>
+  <div class="riga"><button class="leggero" id="cerca">Cerca aggiornamenti</button><button class="leggero" id="manda-errori">Manda gli errori ora</button><button class="leggero" id="registro">Apri il registro</button></div>
+  <div class="nota" id="esito-azioni"></div>
+
+  <script type="module" src="./finestra.ts"></script>
+</body>
+</html>

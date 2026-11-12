@@ -26,11 +26,23 @@ export function modoAiutoValido(x: unknown): x is ModoAiuto {
   return x === 'dedicato' || x === 'posti-liberi' || x === 'no'
 }
 
+/**
+ * 12/11: il programma che risponde. `aiutante` = SierraDeck Aiutante, il mini
+ * programma che fa solo questo (niente chat sue): chi chiede lo preferisce a
+ * ogni altro PC. Manca nelle risposte del programma completo e dei PC di prima.
+ */
+export type ProgrammaAiuto = 'aiutante'
+
 /** La risposta di un PC a «quanti posti hai per gli altri?». */
-export type PostiAiuto = { modo: ModoAiuto; liberi: number; tetto: number }
+export type PostiAiuto = { modo: ModoAiuto; liberi: number; tetto: number; programma?: ProgrammaAiuto }
 
 /** Un PC che può aiutare, come lo vede chi chiede. */
-export type Aiutante = { pcId: string; nome: string; modo: ModoAiuto; liberi: number }
+export type Aiutante = { pcId: string; nome: string; modo: ModoAiuto; liberi: number; programma?: ProgrammaAiuto }
+
+/** 12/11: `programma` da fuori (battito, risposta, corpo): solo il valore conosciuto, il resto non c'è. */
+export function programmaAiuto(x: unknown): ProgrammaAiuto | undefined {
+  return x === 'aiutante' ? 'aiutante' : undefined
+}
 
 /**
  * I ruoli che possono partire su un altro PC: chi lavora nella sua copia e
@@ -41,14 +53,17 @@ export type Aiutante = { pcId: string; nome: string; modo: ModoAiuto; liberi: nu
 export const RUOLI_IN_VIAGGIO: ReadonlySet<string> = new Set(['sviluppatore', 'interfaccia', 'verificatore'])
 
 /**
- * Dove va il prossimo specialista. Prima i PC «dedicati» con un posto libero
- * (quello più libero), poi questo PC se ha posto, poi gli altri PC che
- * prestano i posti liberi. `undefined`: resta qui (anche in fila, se qui è
- * pieno e fuori non c'è posto).
+ * Dove va il prossimo specialista. Prima SierraDeck Aiutante con un posto
+ * libero (12/11, Nicholas: «se vede che c'è collegato un aiutante preferirà
+ * sempre prima quelli»), poi i PC «dedicati», poi questo PC se ha posto, poi
+ * gli altri PC che prestano i posti liberi; in ogni gruppo quello più libero.
+ * `undefined`: resta qui (anche in fila, se qui è pieno e fuori non c'è posto).
  */
 export function scegliPosto(aiutanti: readonly Aiutante[], liberiQui: number): Aiutante | undefined {
   const conPosto = aiutanti.filter((a) => a.liberi > 0 && a.modo !== 'no')
   const migliore = (l: Aiutante[]): Aiutante | undefined => [...l].sort((p, q) => q.liberi - p.liberi || p.nome.localeCompare(q.nome))[0]
+  const aiutante = migliore(conPosto.filter((a) => a.programma === 'aiutante'))
+  if (aiutante !== undefined) return aiutante
   const dedicato = migliore(conPosto.filter((a) => a.modo === 'dedicato'))
   if (dedicato !== undefined) return dedicato
   if (liberiQui > 0) return undefined
@@ -90,6 +105,25 @@ export function ramoValido(x: unknown): x is string {
 /** Un commit per esteso. */
 export function commitValido(x: unknown): x is string {
   return typeof x === 'string' && /^[0-9a-f]{40}$/u.test(x)
+}
+
+/**
+ * 12/11: chi firma i commit nella copia del PC che aiuta: nome ed email di git
+ * del PC che chiede. Su un PC appena preparato (un Aiutante) git spesso non li
+ * ha, e allora il primo `git commit` dello specialista fallisce. Li imposta il
+ * programma nella copia (solo lì); gli specialisti `git config` non lo possono usare.
+ */
+export type AutoreGit = { nome: string; email: string }
+
+export function autoreValido(x: unknown): AutoreGit | undefined {
+  if (typeof x !== 'object' || x === null) return undefined
+  const o = x as Record<string, unknown>
+  const nome = typeof o.nome === 'string' ? o.nome.trim() : ''
+  const email = typeof o.email === 'string' ? o.email.trim() : ''
+  // eslint-disable-next-line no-control-regex
+  const pulito = (t: string): boolean => t.length > 0 && t.length <= 100 && !/[\u0000-\u001f\u007f<>]/u.test(t)
+  if (!pulito(nome) || !pulito(email) || !/^[^\s@]+@[^\s@]+$/u.test(email)) return undefined
+  return { nome, email }
 }
 
 /** Gli strumenti che uno specialista può avere su un altro PC. Il resto si toglie. */

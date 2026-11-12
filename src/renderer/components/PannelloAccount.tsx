@@ -13,7 +13,7 @@ type Props = { onChiudi?: () => void; incorporato?: boolean }
 import { descriviProgresso, type ProgressoSync } from '../progresso-sync'
 import { ModaleConferma } from './ModaleConferma'
 import { ModalePosta } from './ModalePosta'
-import { pcVivo, type BattitoPc } from '@shared/posta'
+import { eAiutante, pcVivo, type BattitoPc } from '@shared/posta'
 import { versionePcInBreve } from '@shared/salute'
 import { useLayoutStore } from '../state/layout'
 
@@ -573,6 +573,19 @@ export function AltriComputer(): React.JSX.Element | null {
             // `=== true` apposta: `pcVivo` e' un predicato di tipo e nel ramo
             // «spento» TypeScript restringerebbe `b` a `never`.
             const vivo = pcVivo(b, adesso) === true
+            // 12/11: SierraDeck Aiutante: niente chat, cartelle o cassetta; la sua versione è di un altro programma.
+            if (eAiutante(b)) {
+              return (
+                <li key={b.pcId} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <strong><NomePc id={b.pcId} nome={nomeDaMostrare(b)} /></strong>
+                    <span className="account__nota" style={{ margin: 0 }}>
+                      {' '}· Aiutante · {vivo ? 'acceso' : `spento, ultimo segno ${quando(b.battito)}`} · versione {b.versione}
+                    </span>
+                  </span>
+                </li>
+              )
+            }
             const aspettano = b.chat.filter((c) => c.aspetta).length
             const ver = versionePcInBreve({ versione: b.versione, battito: b.battito, ...(vive[b.pcId] !== undefined ? { viva: vive[b.pcId] } : {}) }, mia === '' ? '0.0.0' : mia, adesso)
             return (

@@ -1,0 +1,75 @@
+# Come si impacchetta SierraDeck Aiutante (12/11).
+#
+# Un secondo programma, accanto al programma completo e mai al suo posto:
+# appId, nome, chiave dell'installazione (nsis.guid), cartella dei dati,
+# porta e pubblicazione degli aggiornamenti sono tutti suoi. Sullo stesso PC
+# possono stare installati tutti e due.
+#
+#   npm run pacchetto-aiutante     (solo l'installer, in dist-aiutante/)
+#   npm run pubblica-aiutante      (installer + latest.yml sulla pubblicazione fissa «aiutante»)
+appId: it.ferrariconsulenze.sierradeck.aiutante
+productName: SierraDeck Aiutante
+copyright: Copyright © 2026 Ferrari Consulenze
+
+# Niente moduli nativi da ricompilare: l'Aiutante non usa né node-pty né better-sqlite3.
+npmRebuild: false
+
+directories:
+  output: dist-aiutante
+  buildResources: build
+
+# La versione e il punto di partenza dell'Aiutante: la versione la passa lo script
+# (`-c.extraMetadata.version`, da src/aiutante/versione.json), il resto è fisso.
+extraMetadata:
+  name: sierradeck-aiutante
+  productName: SierraDeck Aiutante
+  main: out-aiutante/main/index.js
+  description: 'SierraDeck Aiutante: un PC che lavora per gli altri PC della rete (Aiuta la rete).'
+
+# Solo ciò che serve a eseguire. I moduli che il programma completo usa e
+# l'Aiutante no (node-pty e better-sqlite3 sono binari nativi grossi, qrcode
+# serve al telefono) restano fuori: nel pacchetto entra electron-updater con
+# le sue dipendenze.
+files:
+  - out-aiutante/**/*
+  - package.json
+  # L'icona dell'area di notifica, a runtime.
+  - build/icon.png
+  # Niente node_modules (12/11): electron-updater è già dentro
+  # out-aiutante/main/index.js, il resto sono moduli di Node e di Electron.
+  - '!node_modules/**'
+
+win:
+  icon: build/icon.ico
+  target:
+    - target: nsis
+      arch: [x64]
+
+nsis:
+  # Per utente, senza amministratore, come il programma completo.
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: SierraDeck Aiutante
+  # Il nome del file: lo cercano pubblica-aiutante.mjs e latest.yml.
+  artifactName: SierraDeck-Aiutante-Setup-${version}.${ext}
+  # A riaprire l'Aiutante dopo un aggiornamento ci pensa electron-updater
+  # (`quitAndInstall(true, true)`); alla prima installazione lo apre l'installer.
+  runAfterFinish: true
+  deleteAppDataOnUninstall: false
+  # La chiave dell'installazione per Windows: FISSA, sua, e diversa da quella del
+  # programma completo (electron-builder.yml). Se cambiasse, un aggiornamento
+  # diventerebbe un secondo programma in «App installate». Non va cambiata.
+  guid: 79748f38-070f-4746-95cd-06711408f7e0
+  # La regola del firewall (solo rete locale) per l'Aiutante, con un nome suo.
+  include: build/installer-aiutante.nsh
+
+# Dove l'Aiutante cerca gli aggiornamenti: la pubblicazione FISSA «aiutante»,
+# con il suo latest.yml. Mai l'«ultima» pubblicazione di GitHub: da quella si
+# aggiorna il programma completo. Lo stesso indirizzo è in src/aiutante/regole.ts
+# (FEED_AIUTANTE). Si pubblica con scripts/pubblica-aiutante.mjs, non da qui.
+publish:
+  - provider: generic
+    url: https://github.com/niko9090/sierradeck/releases/download/aiutante/

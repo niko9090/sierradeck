@@ -32,7 +32,7 @@ import { apriLimiti } from './limiti-store'
 import { AUTOPULIZIA_OGNI_MS, cartelleProgettiDelServizio, creaAutopulizia } from './autopulizia'
 import { apriCode } from './coda-store'
 import { apriOrchestratori } from './orchestratore-store'
-import { avviaProcessoReale } from './orchestratore'
+import { avviaProcessoReale, claudeCmd } from './processo-claude'
 import { aggiungiRuntimeAlPath } from '@shared/runtime-noti'
 
 /** Ogni quanto si passa a vedere se qualche chat ha smesso di parlare. */
@@ -144,18 +144,7 @@ export function inAscolto(porta: number): Promise<boolean> {
   })
 }
 
-/**
- * Il percorso di claude.exe, con la stessa regola del resto del gestore.
- *
- * L'estensione `.exe` è obbligatoria: su Windows né node-pty né `child_process`
- * consultano PATHEXT, e «claude» senza estensione dà «File not found».
- */
-function claudeCmd(): string {
-  const dallAmbiente = process.env.GESTORE_CLAUDE_PATH
-  if (dallAmbiente !== undefined && dallAmbiente.trim() !== '') return dallAmbiente
-  const nativo = join(homedir(), '.local', 'bin', 'claude.exe')
-  return existsSync(nativo) ? nativo : 'claude.exe'
-}
+// 12/11: `claudeCmd` sta in `processo-claude.ts` (lo usa anche l'Aiutante).
 
 /**
  * Dove sta lo stato degli autopiloti.
