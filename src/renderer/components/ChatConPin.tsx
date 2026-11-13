@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { workspaceCorrente } from '../workspace-corrente'
+import { apriMenuContestuale } from '../menu-contestuale'
 
 /**
  * Il PIN delle chat (0.49.0) sullo schermo di questo PC.
@@ -109,51 +110,37 @@ export function ChatConPin({ sessione, titolo, children }: { sessione: string; t
   )
 }
 
-/** Il tasto della testata: protegge o toglie la protezione; il tasto destro apre lo stesso menu. */
+/** Il tasto della testata: protegge o toglie la protezione; clic e tasto destro aprono lo stesso menu (del sistema, 13/11). */
 export function TastoPin({ sessione, titolo }: { sessione: string; titolo: string }): React.JSX.Element | null {
   const { protetta, chiusa, rileggi } = usePin(sessione)
-  const [menu, setMenu] = useState<{ x: number; y: number } | undefined>(undefined)
   const [attivo, setAttivo] = useState(false)
   useEffect(() => {
     const leggi = (): void => { void window.gestore.pin.stato().then((s) => setAttivo(s.attivo)).catch(() => undefined) }
     leggi()
     return window.gestore.pin.suCambiato(leggi)
   }, [])
-  const proteggi = (si: boolean): void => { void window.gestore.pin.proteggiChat(sessione, si).then(rileggi); setMenu(undefined) }
+  const proteggi = (si: boolean): void => { void window.gestore.pin.proteggiChat(sessione, si).then(rileggi) }
+  const menu = (e: React.MouseEvent): void => apriMenuContestuale(e, [
+    ...(!attivo ? [{ id: 'spento', testo: 'Il PIN è spento: accendilo dalle Impostazioni → PIN delle chat', spenta: true }] : []),
+    protetta
+      ? { id: 'togli', testo: 'Togli il PIN da questa chat' }
+      : { id: 'metti', testo: 'Proteggi con il PIN', spenta: !attivo },
+    ...(protetta && !chiusa ? [{ id: 'richiudi', testo: 'Richiudi adesso' }] : [])
+  ], {
+    togli: () => proteggi(false),
+    metti: () => proteggi(true),
+    richiudi: () => { void window.gestore.pin.richiudi().then(rileggi) }
+  })
   return (
-    <>
-      <button
-        className="comando-riquadro"
-        onClick={(e) => setMenu({ x: e.clientX, y: e.clientY })}
-        onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY }) }}
-        title={protetta ? `«${titolo}» è protetta dal PIN${chiusa ? '' : ' (adesso aperta)'}` : 'Proteggi questa chat con il PIN'}
-        aria-label="PIN della chat"
-        style={{ opacity: protetta ? 1 : 0.55 }}
-      >
-        {protetta ? (chiusa ? '🔒' : '🔓') : '🔐'}
-      </button>
-      {menu !== undefined ? <MenuPin x={menu.x} y={menu.y} onChiudi={() => setMenu(undefined)} voci={[
-        ...(!attivo ? [{ testo: 'Il PIN è spento: accendilo dalle Impostazioni → PIN delle chat', azione: () => setMenu(undefined), spenta: true }] : []),
-        protetta
-          ? { testo: 'Togli il PIN da questa chat', azione: () => proteggi(false) }
-          : { testo: 'Proteggi con il PIN', azione: () => proteggi(true), spenta: !attivo },
-        ...(protetta && !chiusa ? [{ testo: 'Richiudi adesso', azione: () => { void window.gestore.pin.richiudi().then(rileggi); setMenu(undefined) } }] : [])
-      ]} /> : null}
-    </>
-  )
-}
-
-export function MenuPin({ x, y, voci, onChiudi }: { x: number; y: number; voci: { testo: string; azione: () => void; spenta?: boolean }[]; onChiudi: () => void }): React.JSX.Element {
-  useEffect(() => {
-    const via = (): void => onChiudi()
-    const t = setTimeout(() => window.addEventListener('mousedown', via), 0)
-    return () => { clearTimeout(t); window.removeEventListener('mousedown', via) }
-  }, [onChiudi])
-  return (
-    <div className="menu-pin" style={{ left: Math.min(x, window.innerWidth - 300), top: Math.min(y, window.innerHeight - 120) }} onMouseDown={(e) => e.stopPropagation()}>
-      {voci.map((v) => (
-        <button key={v.testo} className="menu-pin__voce" disabled={v.spenta === true && v.testo.startsWith('Proteggi')} onClick={v.azione}>{v.testo}</button>
-      ))}
-    </div>
+    <button
+      className="comando-riquadro"
+      onClick={menu}
+      onContextMenu={menu}
+      title={protetta ? `«${titolo}» è protetta dal PIN${chiusa ? '' : ' (adesso aperta)'}` : 'Proteggi questa chat con il PIN'}
+      aria-label="PIN della chat"
+      style={{ opacity: protetta ? 1 : 0.55 }}
+    >
+      {protetta ? (chiusa ? '🔒' : '🔓') : '🔐'}
+    </button>
   )
 }

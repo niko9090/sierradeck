@@ -12,7 +12,14 @@ import { workspaceDaAzione, type Azione } from '@shared/scorciatoie'
 import { azioneDelTasto, impostaScorciatoie } from '../scorciatoie-vive'
 import { fuocoAllaChatVicina } from '../fuoco-chat'
 import { useModelli } from '../modelli'
-import { MenuPin } from './ChatConPin'
+import { apriMenuContestuale } from '../menu-contestuale'
+import { vociWorkspace } from '@shared/menu-contestuale'
+import { azioniMenuWorkspace } from '@shared/menu-workspace'
+import { confermaEliminaWorkspace, controllaNomeWorkspace, NOME_WORKSPACE_MAX } from '@shared/azioni-telefono'
+import { cambiaSoloQui } from '@shared/chat-sul-drive'
+import { salvaPreferenze } from '../salva-preferenze'
+import { azioniDiFinestra } from '../azioni-finestra'
+import { ModaleConferma } from './ModaleConferma'
 import { PostiChat } from './PostiChat'
 import { MENU_PRINCIPALE, VOCE_SPECIALISTI, type IdMenu, type VoceMenu } from '@shared/menu-principale'
 
@@ -126,8 +133,16 @@ export function Console({
   onApriNovita
 }: Props): React.JSX.Element {
   const MODELLI = useModelli()
-  // Il PIN dei workspace (0.49.0): il tasto destro sul nome del workspace.
-  const [menuPinWs, setMenuPinWs] = useState<{ nome: string; x: number; y: number } | undefined>(undefined)
+  // Il tasto destro sul nome del workspace (13/11): le azioni del «⋯» del menu
+  // dei workspace e il PIN (0.49.0), nel menu del sistema.
+  const [rinominaWs, setRinominaWs] = useState<{ vecchio: string; testo: string } | undefined>(undefined)
+  const [eliminaWs, setEliminaWs] = useState<string | undefined>(undefined)
+  const [soloQuiWs, setSoloQuiWs] = useState<string[]>([])
+  useEffect(() => {
+    const applica = (p: { workspaceSoloQui?: string[] }): void => setSoloQuiWs(p.workspaceSoloQui ?? [])
+    window.gestore.preferenze.leggi().then(applica).catch(() => undefined)
+    return window.gestore.preferenze.suCambio(applica)
+  }, [])
   const [pinWs, setPinWs] = useState<{ attivo: boolean; workspace: string[] }>({ attivo: false, workspace: [] })
   useEffect(() => {
     const leggi = (): void => { void window.gestore.pin.stato().then((s) => setPinWs({ attivo: s.attivo, workspace: s.workspace })).catch(() => undefined) }
@@ -180,6 +195,34 @@ export function Console({
     setErroreWs(undefined)
     void window.gestore.workspace.apriCartella({ workspace: nome })
       .then((r) => { if (!r.ok) setErroreWs(r.messaggio) })
+      .catch((err: unknown) => setErroreWs(String(err)))
+  }
+  const menuWorkspace = (e: React.MouseEvent, n: string): void => {
+    const soloQui = soloQuiWs.includes(n)
+    const az = azioniMenuWorkspace({ nome: n, qui: true }, { attivo: workspaceAttivo, quanti: nomiWs.length, cartella: true, soloQui })
+    apriMenuContestuale(e, vociWorkspace({ azioni: az, nome: n, pin: { acceso: pinWs.attivo, protetto: pinWs.workspace.includes(n) } }), {
+      apri: () => cambiaWorkspace(n),
+      rinomina: () => setRinominaWs({ vecchio: n, testo: n }),
+      cartella: () => apriCartellaWs(n),
+      soloQui: () => {
+        setSoloQuiWs((l) => cambiaSoloQui(l, n, !soloQui))
+        void salvaPreferenze((p) => ({ ...p, workspaceSoloQui: cambiaSoloQui(p.workspaceSoloQui ?? [], n, !soloQui) }))
+      },
+      elimina: () => setEliminaWs(n),
+      'pin-metti': () => { void window.gestore.pin.proteggiWorkspace(n, true) },
+      'pin-togli': () => { void window.gestore.pin.proteggiWorkspace(n, false) },
+      gestisci: () => commuta('workspace')
+    })
+  }
+  const confermaRinominaWs = (): void => {
+    if (rinominaWs === undefined) return
+    const { vecchio, testo } = rinominaWs
+    if (testo.trim() === vecchio) { setRinominaWs(undefined); return }
+    const c = controllaNomeWorkspace(testo, nomiWs.filter((n) => n !== vecchio))
+    if (!c.ok) { setErroreWs(c.errore); return }
+    setRinominaWs(undefined)
+    void window.gestore.workspace.rinomina(vecchio, c.nome)
+      .then((st) => { setErroreWs(undefined); onStatoWorkspace?.(st) })
       .catch((err: unknown) => setErroreWs(String(err)))
   }
   useEffect(() => {
@@ -395,7 +438,24 @@ export function Console({
               onStato={(s) => onStatoWorkspace?.(s)}
               onApriCartella={apriCartellaWs}
             />
-          ) : nomiWs.map((n) => (
+          ) : nomiWs.map((n) => rinominaWs?.vecchio === n ? (
+            <span key={n} className="ws__rinomina">
+              <input
+                autoFocus
+                className="campo campo--compatto"
+                aria-label={`Nome nuovo per «${n}»`}
+                value={rinominaWs.testo}
+                maxLength={NOME_WORKSPACE_MAX}
+                onChange={(e) => setRinominaWs({ vecchio: n, testo: e.target.value })}
+                onBlur={() => setRinominaWs(undefined)}
+                onKeyDown={(e) => {
+                  e.stopPropagation()
+                  if (e.key === 'Enter') { e.preventDefault(); confermaRinominaWs() }
+                  else if (e.key === 'Escape') { e.preventDefault(); setRinominaWs(undefined) }
+                }}
+              />
+            </span>
+          ) : (
             <button
               key={n}
               className={[
@@ -406,7 +466,7 @@ export function Console({
                 workspaceCheChiamano?.has(n) === true ? 'ws__voce--chiama' : ''
               ].filter((c) => c !== '').join(' ')}
               onClick={() => cambiaWorkspace(n)}
-              onContextMenu={(e) => { e.preventDefault(); setMenuPinWs({ nome: n, x: e.clientX, y: e.clientY }) }}
+              onContextMenu={(e) => menuWorkspace(e, n)}
               title={
                 workspaceCheChiamano?.has(n) === true
                   ? `In «${n}» qualcuno aspetta una tua risposta`
@@ -418,15 +478,20 @@ export function Console({
               {workspaceCheChiamano?.has(n) === true ? <span className="ws__chiama" aria-label="richiede il tuo intervento">●</span> : null}
             </button>
           ))}
-          {menuPinWs !== undefined ? (
-            <MenuPin x={menuPinWs.x} y={menuPinWs.y} onChiudi={() => setMenuPinWs(undefined)} voci={[
-              // «Apri cartella» (0.82.0): la cartella del progetto del workspace in Esplora file.
-              { testo: `Apri la cartella di «${menuPinWs.nome}»`, azione: () => { apriCartellaWs(menuPinWs.nome); setMenuPinWs(undefined) } },
-              ...(!pinWs.attivo ? [{ testo: 'Il PIN è spento: accendilo dalle Impostazioni → PIN delle chat', azione: () => setMenuPinWs(undefined), spenta: true }] : []),
-              pinWs.workspace.includes(menuPinWs.nome)
-                ? { testo: `Togli il PIN da «${menuPinWs.nome}»`, azione: () => { void window.gestore.pin.proteggiWorkspace(menuPinWs.nome, false); setMenuPinWs(undefined) } }
-                : { testo: `Proteggi con il PIN tutto «${menuPinWs.nome}»`, azione: () => { void window.gestore.pin.proteggiWorkspace(menuPinWs.nome, true); setMenuPinWs(undefined) }, spenta: !pinWs.attivo }
-            ]} />
+          {eliminaWs !== undefined ? (
+            <ModaleConferma
+              titolo={confermaEliminaWorkspace(eliminaWs).titolo}
+              testo={confermaEliminaWorkspace(eliminaWs).testo}
+              etichettaAzione={confermaEliminaWorkspace(eliminaWs).azione}
+              onConferma={() => {
+                const nome = eliminaWs
+                setEliminaWs(undefined)
+                void azioniDiFinestra().elimina(nome)
+                  .then((st) => onStatoWorkspace?.(st))
+                  .catch((err: unknown) => setErroreWs(String(err)))
+              }}
+              onAnnulla={() => setEliminaWs(undefined)}
+            />
           ) : null}
           {erroreWs !== undefined ? (
             <span className="misura" role="status" style={{ color: 'var(--ambra)' }} title={erroreWs}>⚠ {erroreWs.length > 60 ? `${erroreWs.slice(0, 60)}…` : erroreWs}</span>

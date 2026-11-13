@@ -16,7 +16,9 @@ import { adessoDi, AIUTO_ADESSO, type SegniDalVivo } from '@shared/adesso'
 import { Aiuto } from './Aiuto'
 import { LegendaAttivita, SegnoAttivita } from './SegnoAttivita'
 import { coloreDi } from '@shared/colori-attivita'
-import { AzioniChat } from './AzioniChat'
+import { AzioniChat, chiediAzioneChat, misuraAzioniChat } from './AzioniChat'
+import { mostraMenu, suCampo } from '../menu-contestuale'
+import { vociSchedaPanoramica } from '@shared/menu-contestuale'
 import { TastoMicrofono } from './TastoMicrofono'
 import { statoAutopilotaRemoto } from '@shared/workspace-remoti'
 import type { Stato as StatoAutopilotaDiLa } from './ChatAutopilotaRemota'
@@ -330,10 +332,38 @@ function PillolaRuolo({ ruolo, nome }: { ruolo?: Ruolo; nome?: string }): React.
   )
 }
 
+/**
+ * Il tasto destro su una scheda, una chat ferma o una finita (13/11): apri,
+ * «solo mia» dove c'è il suo tasto, e le tre azioni con le loro conferme.
+ */
+function menuScheda(e: React.MouseEvent, s: SchedaVista, onApri: (p: string) => void, onSoloMia?: (s: SchedaVista, si: boolean) => void): void {
+  if (suCampo(e)) return
+  e.preventDefault()
+  e.stopPropagation()
+  const gestibile = s.sessione !== undefined && s.suPc === undefined
+  void (gestibile ? misuraAzioniChat(s.sessione as string, s.titolo, false) : Promise.resolve<Awaited<ReturnType<typeof misuraAzioniChat>>>({})).then((m) => {
+    const voci = vociSchedaPanoramica({
+      apribile: s.paneId !== undefined,
+      remota: s.suPc !== undefined,
+      ...(onSoloMia !== undefined && s.sessione !== undefined ? { soloMia: s.soloMia === true } : {}),
+      gestibile,
+      ...(m.chiudiNo !== undefined ? { chiudiNo: m.chiudiNo } : {}),
+      ...(m.eliminaNo !== undefined ? { eliminaNo: m.eliminaNo } : {})
+    })
+    return mostraMenu(voci).then((id) => {
+      if (id === 'apri' && s.paneId !== undefined) onApri(s.paneId)
+      else if (id === 'solo-mia') onSoloMia?.(s, s.soloMia !== true)
+      else if ((id === 'chiudi' || id === 'archivia' || id === 'elimina') && s.sessione !== undefined) {
+        chiediAzioneChat({ sessione: s.sessione, titolo: s.titolo, ...(m.byte !== undefined ? { byte: m.byte } : {}) }, id)
+      }
+    })
+  }).catch(() => undefined)
+}
+
 function SchedaAdesso({ s, ora, onApri, onSoloMia }: { s: SchedaVista; ora: number; onApri: (p: string) => void; onSoloMia: (s: SchedaVista, si: boolean) => void }): React.JSX.Element {
   const righe = s.righe.slice(-6)
   return (
-    <div className={`pan2-scheda pan2-scheda--${s.stato}`}>
+    <div className={`pan2-scheda pan2-scheda--${s.stato}`} onContextMenu={(e) => menuScheda(e, s, onApri, s.specialista !== true ? onSoloMia : undefined)}>
       <button className="pan2-scheda__apri" disabled={s.paneId === undefined} onClick={() => { if (s.paneId !== undefined) onApri(s.paneId) }} title="Apri questa chat a tutta larghezza">
         <span className="pan2-scheda__testa">
           <Pallino stato={s.stato} />
@@ -357,7 +387,7 @@ function SchedaAdesso({ s, ora, onApri, onSoloMia }: { s: SchedaVista; ora: numb
 
 function SchedaChatFerma({ s, ora, onApri, onSoloMia }: { s: SchedaVista; ora: number; onApri: (p: string) => void; onSoloMia: (s: SchedaVista, si: boolean) => void }): React.JSX.Element {
   return (
-    <div className="pan2-chatferma">
+    <div className="pan2-chatferma" onContextMenu={(e) => menuScheda(e, s, onApri, onSoloMia)}>
       <button className="pan2-chatferma__apri" disabled={s.paneId === undefined} onClick={() => { if (s.paneId !== undefined) onApri(s.paneId) }} title={s.titolo}>
         <span className="pan2-scheda__testa">
           <Pallino stato={s.stato} />
@@ -397,7 +427,7 @@ function Finite({ schede, ora, onApri }: { schede: SchedaVista[]; ora: number; o
       {aperta ? (
         <div className="pan2-finite">
           {schede.map((s) => (
-            <button key={s.id} className="pan2-finita" disabled={s.paneId === undefined} onClick={() => { if (s.paneId !== undefined) onApri(s.paneId) }} title={s.ultimaAzione !== '' ? s.ultimaAzione : s.titolo}>
+            <button key={s.id} className="pan2-finita" disabled={s.paneId === undefined} onClick={() => { if (s.paneId !== undefined) onApri(s.paneId) }} onContextMenu={(e) => menuScheda(e, s, onApri)} title={s.ultimaAzione !== '' ? s.ultimaAzione : s.titolo}>
               <Pallino stato={s.stato} />
               <span className="pan2-finita__ruolo">{s.nomeRuolo ?? CHAT_GENERICA}</span>
               <span className="pan2-finita__titolo">{s.titolo.replace(/^[^·]+ · /, '')}</span>

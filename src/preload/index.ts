@@ -692,6 +692,10 @@ contextBridge.exposeInMainWorld('gestore', {
     verifica: (parola: string, workspace?: string): Promise<boolean> =>
       ipcRenderer.invoke('chiavi:verifica', parola, workspace)
   },
+  /** Il tasto destro (13/11): apre il menu del sistema con queste voci, risponde l'id scelto. */
+  menu: {
+    contestuale: (voci: unknown[]): Promise<string | undefined> => ipcRenderer.invoke('menu:contestuale', voci)
+  },
   sistema: {
     cartellaUtente: (): Promise<string> => ipcRenderer.invoke('sistema:cartellaUtente'),
     versione: (): Promise<string> => ipcRenderer.invoke('sistema:versione'),

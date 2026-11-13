@@ -4,6 +4,8 @@ import { postoTendina, type PostoTendina } from '@shared/menu-workspace'
 import type { GruppoAltroPc } from '@shared/workspace-remoti'
 import { EVENTO_REMOTI } from '../workspace-remoti'
 import { Aiuto } from './Aiuto'
+import { apriMenuContestuale } from '../menu-contestuale'
+import { vociAltroPc, vociWorkspaceRemoto } from '@shared/menu-contestuale'
 
 const RILEGGI_MS = 30_000
 
@@ -31,6 +33,8 @@ export function SezioneAltriPc({ attivo, nomi, onCambia }: {
   const [porto, setPorto] = useState<string | undefined>(undefined)
   const [errore, setErrore] = useState<string | undefined>(undefined)
   const [posto, setPosto] = useState<PostoTendina | undefined>(undefined)
+  /** «Rileggi» dal tasto destro (13/11): cambia e si rilegge subito. */
+  const [giro, setGiro] = useState(0)
   const tasti = useRef(new Map<string, HTMLButtonElement>())
   const chiave = nomi.join('\n')
 
@@ -45,7 +49,7 @@ export function SezioneAltriPc({ attivo, nomi, onCambia }: {
     const t = setInterval(leggi, RILEGGI_MS)
     window.addEventListener(EVENTO_REMOTI, leggi)
     return () => { vivo = false; clearInterval(t); window.removeEventListener(EVENTO_REMOTI, leggi) }
-  }, [chiave, aperto])
+  }, [chiave, aperto, giro])
   useEffect(() => {
     if (aperto === undefined) return
     setErrore(undefined)
@@ -88,6 +92,10 @@ export function SezioneAltriPc({ attivo, nomi, onCambia }: {
             className={`ws__voce altri-pc__pc${davanti !== undefined ? ' ws__voce--attivo' : ''}`}
             aria-expanded={aperto === g.pcId}
             onClick={() => setAperto((a) => (a === g.pcId ? undefined : g.pcId))}
+            onContextMenu={(e) => apriMenuContestuale(e, vociAltroPc({ nome: g.nome, aperto: aperto === g.pcId }), {
+              mostra: () => setAperto((a) => (a === g.pcId ? undefined : g.pcId)),
+              rileggi: () => setGiro((x) => x + 1)
+            })}
             title={`${g.nome} · ${g.vivo ? 'acceso' : 'spento o non risponde'}: i suoi workspace`}
           >
             <span className={`led ${g.vivo ? 'led--lavoro' : 'led--fermo'}`} aria-label={g.vivo ? 'acceso' : 'spento'} />
@@ -107,7 +115,12 @@ export function SezioneAltriPc({ attivo, nomi, onCambia }: {
             <div className="ws-menu__lista">
               {gruppo.voci.length === 0 ? <div className="ws-menu__vuoto">Nessun workspace su {gruppo.nome}.</div> : null}
               {gruppo.voci.map((v) => (
-                <div key={v.nome} className="ws-menu__voce ws-menu__voce--su-altri">
+                <div key={v.nome} className="ws-menu__voce ws-menu__voce--su-altri"
+                  onContextMenu={(e) => apriMenuContestuale(e, vociWorkspaceRemoto({ nome: v.nome, pc: gruppo.nome, aperto: v.aperto, davanti: v.aperto && v.nome === attivo, occupato: porto !== undefined }), {
+                    apri: () => apri(gruppo, v.nome, v.aperto),
+                    // «Porta qui» (0.88.0): un progetto cambia PC solo da Progetti, con i suoi controlli.
+                    'porta-qui': () => { setAperto(undefined); window.dispatchEvent(new CustomEvent('sierradeck:pannello-drive')) }
+                  })}>
                   <span className="ws-menu__voce-nome">{v.nome}</span>
                   <span className="ws-menu__conta">{v.sparito === true ? 'non c’è più là' : v.aperto ? (v.nome === attivo ? 'davanti' : 'aperto qui') : ''}</span>
                   <button className="tasto tasto--mini tasto--acceso" disabled={porto !== undefined || (v.aperto && v.nome === attivo)}

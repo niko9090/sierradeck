@@ -9,6 +9,8 @@ import { ModaleConferma } from './ModaleConferma'
 import { Aiuto } from './Aiuto'
 import { cambiaSoloQui } from '@shared/chat-sul-drive'
 import { salvaPreferenze } from '../salva-preferenze'
+import { apriMenuContestuale } from '../menu-contestuale'
+import { vociWorkspace } from '@shared/menu-contestuale'
 
 type Props = {
   nomi: string[]
@@ -277,6 +279,13 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
           i === evidenziato ? 'ws-menu__voce--evidenziata' : ''
         ].filter((c) => c !== '').join(' ')}
         onMouseEnter={() => setEvidenziato(i)}
+        // Il tasto destro (13/11): le stesse azioni del «⋯», nel menu del sistema.
+        onContextMenu={(e) => {
+          const az = azioniMenuWorkspace(v, { attivo, quanti: nomi.length, cartella: onApriCartella !== undefined, soloQui: soloQui.includes(v.nome) })
+          setAzioniDi(undefined)
+          apriMenuContestuale(e, vociWorkspace({ azioni: az, nome: v.nome, gestisci: false }),
+            Object.fromEntries(az.map((a) => [a.azione, () => fai(a, v)])))
+        }}
       >
         <button
           className="ws-menu__voce-va"

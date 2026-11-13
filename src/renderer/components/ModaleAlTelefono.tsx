@@ -2,6 +2,8 @@ import { createPortal } from 'react-dom'
 import { useCallback, useEffect, useState } from 'react'
 import { inCorso, misura, type EsitoMandaAlTelefono, type StatoAlTelefono } from '@shared/file-telefono'
 import { Aiuto } from './Aiuto'
+import { apriMenuContestuale } from '../menu-contestuale'
+import { vociFileTelefono } from '@shared/menu-contestuale'
 
 /**
  * «📱 Manda al telefono» (0.54.0): da qui un file del PC va al telefono.
@@ -110,7 +112,11 @@ export function ModaleAlTelefono({
           {stato !== undefined && stato.elenco.length === 0 ? <p className="misura">Nessun file mandato al telefono nell’ultima settimana.</p> : null}
           <ul className="al-tel__elenco">
             {stato?.elenco.map((c) => (
-              <li key={c.id} className={`al-tel__voce al-tel__voce--${c.stato}`}>
+              <li key={c.id} className={`al-tel__voce al-tel__voce--${c.stato}`}
+                onContextMenu={(e) => apriMenuContestuale(e, vociFileTelefono({ inCorso: inCorso(c), quanteFinite: finite }), {
+                  annulla: () => { window.gestore.alTelefono.annulla(c.id).then(setStato).catch(() => undefined) },
+                  pulisci: () => { window.gestore.alTelefono.pulisci().then(setStato).catch(() => undefined) }
+                })}>
                 <div>
                   <b>{c.nome}</b> <span className="misura">· {misura(c.byte)} · {c.da === 'chat' ? `chiesto dalla chat «${c.daChat ?? ''}»` : 'dal PC'}</span>
                 </div>

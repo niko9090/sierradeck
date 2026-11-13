@@ -18,6 +18,7 @@ import { stradaBreve, type InfoStrada } from '@shared/strada-pc'
 import { creaRaggruppatore } from '@shared/spinta-specialisti'
 import { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeImage, safeStorage, screen, shell, webContents } from 'electron'
 import { vociMenuApplicazione, vociMenuContestuale } from './menu-modifica'
+import { registraMenuContestuale } from './menu-contestuale'
 import { basename, dirname, join, resolve, sep } from 'node:path'
 import { GIRO_VUOTI_MS, giroProgettiVuoti } from './progetti/vuoti'
 import { CONTROLLO_PC_OGNI_MS, PRIMO_CONTROLLO_MS, giroControlloPc, versioneDalVivo } from './controllo-pc'
@@ -4339,6 +4340,9 @@ if (!app.requestSingleInstanceLock()) {
       // mailto: `shell.openExternal` con uno schema qualunque potrebbe lanciare
       // programmi (es. un URL di protocollo registrato), e il link arriva da una
       // scheda del quaderno, che può averla scritta un autopilota.
+      // Il tasto destro sulle cose del programma (13/11): il menu del sistema.
+      registraMenuContestuale(ipcMain)
+
       ipcMain.handle('sistema:apriEsterno', async (_e, raw: unknown) => {
         if (typeof raw !== 'string' || !/^(https?:|mailto:)/i.test(raw.trim())) return
         await shell.openExternal(raw.trim())

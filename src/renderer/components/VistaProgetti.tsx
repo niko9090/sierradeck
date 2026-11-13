@@ -13,6 +13,8 @@ import { Aiuto } from './Aiuto'
 import { useLayoutStore } from '../state/layout'
 import { voceMenu } from '@shared/menu-principale'
 import { ogni } from '../state/sondaggio'
+import { apriMenuContestuale } from '../menu-contestuale'
+import { vociProgetto } from '@shared/menu-contestuale'
 
 /**
  * «Progetti» a piena pagina (0.69.0). Nicholas, 12/10: «rifai il menu
@@ -219,7 +221,17 @@ export function VistaProgetti({ onChiudi }: { onChiudi: () => void }): React.JSX
               <div key={r.id} role="row" tabIndex={0} aria-selected={acceso}
                 className={`progetti__riga${acceso ? ' progetti__riga--scelta' : ''}`}
                 style={acceso ? { boxShadow: `inset 3px 0 0 ${COLORE[v.stato.colore]}` } : undefined}
-                onClick={() => { setScelto(acceso ? undefined : r.id); setFoglio(undefined) }}>
+                onClick={() => { setScelto(acceso ? undefined : r.id); setFoglio(undefined) }}
+                // Il tasto destro (13/11): il dettaglio e le azioni del progetto, con le loro conferme.
+                onContextMenu={(e) => {
+                  const q = d !== undefined ? cartellaDelQuaderno(r, d.io.id) : undefined
+                  apriMenuContestuale(e, vociProgetto({ scelto: acceso, azioni: r.azioni, quaderno: q !== undefined }), {
+                    dettaglio: () => { setScelto(r.id); setFoglio(undefined) },
+                    nascondi: () => setScelto(undefined),
+                    quaderno: () => { if (q !== undefined) { onChiudi(); window.dispatchEvent(new CustomEvent('sierradeck:apri-quaderno', { detail: { cwd: q } })) } },
+                    ...Object.fromEntries(r.azioni.map((a) => [`azione:${a.id}`, () => faiAzione(r.id, a)]))
+                  })
+                }}>
                 <span className="progetti__cella progetti__cella--nome" title={r.cartelle.map((c) => `${c.nome}: ${c.percorso}`).join(String.fromCharCode(10))}>
                   <b>{r.nome}</b> <span className="progetti__quieto">{r.ultimoUso !== undefined ? quando(r.ultimoUso) : ''}</span>
                 </span>

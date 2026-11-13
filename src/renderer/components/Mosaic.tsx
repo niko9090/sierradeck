@@ -12,11 +12,62 @@ import { ChatConPin, TastoPin } from './ChatConPin'
 import { IndicatoreDiRiquadro } from './LineaRemota'
 import { DropOverlay } from './DropOverlay'
 import { nomiDistinti, statoChat } from '@shared/chat-vista'
-import { AzioniChat } from './AzioniChat'
+import { AzioniChat, chiediAzioneChat, misuraAzioniChat } from './AzioniChat'
+import { mostraMenu, suCampo } from '../menu-contestuale'
+import { vociChat } from '@shared/menu-contestuale'
+import { workspaceCorrente } from '../workspace-corrente'
 import { TastoCartella } from './TastoCartella'
 import { trascinamentoDivisori } from '../persistenza-layout'
 
 const SPESSORE_DIVISORE = 6
+
+/**
+ * Manda la chat in un workspace che non è aperto (vedi `ComandoSposta`): lo
+ * stesso gesto dal «⇄» della testata e dal tasto destro (13/11).
+ */
+function spostaVersoWorkspace(paneId: string, nome: string, segnala: (err: unknown) => void): void {
+  void spostaInWorkspace(
+    {
+      stacca: (id) => useLayoutStore.getState().staccaPane(id),
+      consegna: (dove, pane) => window.gestore.workspace.spostaChat(dove, pane),
+      // La memoria vince sul disco: una copia che non sapesse dell'arrivo, al
+      // ritorno in quel workspace, rimetterebbe a schermo la versione di prima
+      // — senza la chat — e il primo salvataggio la cancellerebbe anche dal
+      // file. Non «spostata male»: proprio persa.
+      ricorda: (dove, pane) => memoriaWorkspace().aggiungi(dove, pane),
+      chiudiTerminale: (ptyId) => window.gestore.pty.kill(ptyId),
+      dimentica: (id) => {
+        // Fuori dai «ceduti» e fuori dall'albero: il riquadro non torna, e
+        // lasciarlo fra i ceduti farebbe crescere quell'insieme di una voce
+        // per spostamento, per tutta la sessione.
+        useLayoutStore.getState().dimenticaCeduti([id])
+        useLayoutStore.getState().closePane(id)
+      },
+      accogli: (pane) => useLayoutStore.getState().accogliPane(pane),
+      segnala
+    },
+    paneId,
+    nome
+  )
+}
+
+/** Manda la chat in un'altra finestra: dal «⇄» e dal tasto destro (13/11). */
+function spostaVersoFinestra(paneId: string, finestraId: number, segnala: (err: unknown) => void): void {
+  void spostaRiquadro(
+    {
+      stacca: (id) => useLayoutStore.getState().staccaPane(id),
+      sposta: (pane, id) => window.gestore.finestre.sposta(pane, id),
+      // A consegna avvenuta il riquadro e' di un'altra finestra, non
+      // «ceduto»: lasciarlo li' faceva crescere l'insieme di una voce per
+      // spostamento, per tutta la sessione.
+      dimentica: (id) => useLayoutStore.getState().dimenticaCeduti([id]),
+      accogli: (pane) => useLayoutStore.getState().accogliPane(pane),
+      segnala
+    },
+    paneId,
+    finestraId
+  )
+}
 
 /**
  * Il comando «sposta in un'altra finestra», nella barra del titolo del riquadro.
@@ -35,8 +86,6 @@ function ComandoSposta({ paneId }: { paneId: string }): React.JSX.Element {
   const [finestre, setFinestre] = useState<{ id: number; titolo: string }[] | undefined>(undefined)
   const [workspace, setWorkspace] = useState<{ nomi: string[]; attivo: string } | undefined>(undefined)
   const [errore, setErrore] = useState<string | undefined>(undefined)
-  const chiudiPane = useLayoutStore((s) => s.closePane)
-
   const carica = (): void => {
     window.gestore.finestre
       .elenco()
@@ -67,47 +116,12 @@ function ComandoSposta({ paneId }: { paneId: string }): React.JSX.Element {
    */
   const versoWorkspace = (nome: string): void => {
     setErrore(undefined)
-    void spostaInWorkspace(
-      {
-        stacca: (id) => useLayoutStore.getState().staccaPane(id),
-        consegna: (dove, pane) => window.gestore.workspace.spostaChat(dove, pane),
-        // La memoria vince sul disco: una copia che non sapesse dell'arrivo, al
-        // ritorno in quel workspace, rimetterebbe a schermo la versione di prima
-        // — senza la chat — e il primo salvataggio la cancellerebbe anche dal
-        // file. Non «spostata male»: proprio persa.
-        ricorda: (dove, pane) => memoriaWorkspace().aggiungi(dove, pane),
-        chiudiTerminale: (ptyId) => window.gestore.pty.kill(ptyId),
-        dimentica: (id) => {
-          // Fuori dai «ceduti» e fuori dall'albero: il riquadro non torna, e
-          // lasciarlo fra i ceduti farebbe crescere quell'insieme di una voce
-          // per spostamento, per tutta la sessione.
-          useLayoutStore.getState().dimenticaCeduti([id])
-          chiudiPane(id)
-        },
-        accogli: (pane) => useLayoutStore.getState().accogliPane(pane),
-        segnala: (err) => setErrore(String(err))
-      },
-      paneId,
-      nome
-    )
+    spostaVersoWorkspace(paneId, nome, (err) => setErrore(String(err)))
   }
 
   const sposta = (finestraId: number): void => {
     setErrore(undefined)
-    void spostaRiquadro(
-      {
-        stacca: (id) => useLayoutStore.getState().staccaPane(id),
-        sposta: (pane, id) => window.gestore.finestre.sposta(pane, id),
-        // A consegna avvenuta il riquadro e' di un'altra finestra, non
-        // «ceduto»: lasciarlo li' faceva crescere l'insieme di una voce per
-        // spostamento, per tutta la sessione.
-        dimentica: (id) => useLayoutStore.getState().dimenticaCeduti([id]),
-        accogli: (pane) => useLayoutStore.getState().accogliPane(pane),
-        segnala: (err) => setErrore(String(err))
-      },
-      paneId,
-      finestraId
-    )
+    spostaVersoFinestra(paneId, finestraId, (err) => setErrore(String(err)))
   }
 
   return (
@@ -265,6 +279,53 @@ export function Mosaic({
   // lo si legge, con due clic sulla sua testata.
   const [rinominando, setRinominando] = useState<string | undefined>(undefined)
   const [bozzaNome, setBozzaNome] = useState('')
+  /**
+   * Il tasto destro sulla testata di una chat (13/11): rinomina, cartella,
+   * sposta, dormi/sveglia, PIN e le tre azioni con le loro conferme. Prima si
+   * chiede al PC dove si può spostare, se è protetta e se si può eliminare.
+   */
+  const menuChat = (e: React.MouseEvent, paneId: string): void => {
+    if (suCampo(e)) return
+    e.preventDefault()
+    e.stopPropagation()
+    const data = useLayoutStore.getState().panes[paneId]
+    if (data === undefined) return
+    const titolo = nomi.get(paneId) ?? data.title
+    const remota = data.remoto !== undefined
+    void Promise.all([
+      window.gestore.finestre.elenco().catch(() => []),
+      window.gestore.workspace.stato().catch(() => undefined),
+      remota ? Promise.resolve(undefined) : window.gestore.pin.stato().catch(() => undefined),
+      remota ? Promise.resolve(false) : window.gestore.pin.protetta(data.sessionUuid, workspaceCorrente()).catch(() => false),
+      remota ? Promise.resolve<Awaited<ReturnType<typeof misuraAzioniChat>>>({}) : misuraAzioniChat(data.sessionUuid, titolo, true)
+    ]).then(([finestre, ws, pin, protetta, misura]) => {
+      const voci = vociChat({
+        remota,
+        ibernata: data.ibernata === true,
+        pinAcceso: pin?.attivo === true,
+        protetta,
+        sposta: { finestre, workspace: ws === undefined ? [] : ws.nomi.filter((n) => n !== ws.attivo) },
+        ...(misura.eliminaNo !== undefined ? { eliminaNo: misura.eliminaNo } : {})
+      })
+      const chiudiRiquadro = (): void => { void window.gestore.remoto.segnaChiusa(data.sessionUuid, data.title).catch(() => undefined); closePane(paneId) }
+      return mostraMenu(voci).then((id) => {
+        if (id === undefined) return
+        if (id.startsWith('finestra:')) { spostaVersoFinestra(paneId, Number(id.slice(9)), (err) => console.warn('[sposta]', err)); return }
+        if (id.startsWith('ws:')) { spostaVersoWorkspace(paneId, id.slice(3), (err) => console.warn('[sposta]', err)); return }
+        switch (id) {
+          case 'rinomina': setBozzaNome(data.title); setRinominando(paneId); return
+          case 'cartella': void window.gestore.workspace.apriCartella({ chat: paneId }).catch(() => undefined); return
+          case 'iberna': { const k = useLayoutStore.getState().iberna(paneId); if (k !== undefined) window.gestore.pty.kill(k); return }
+          case 'sveglia': useLayoutStore.getState().sveglia(paneId); return
+          case 'pin-metti': void window.gestore.pin.proteggiChat(data.sessionUuid, true); return
+          case 'pin-togli': void window.gestore.pin.proteggiChat(data.sessionUuid, false); return
+          case 'chiudi-riquadro': chiudiRiquadro(); return
+          case 'chiudi': case 'archivia': case 'elimina':
+            chiediAzioneChat({ sessione: data.sessionUuid, titolo, onChiudi: chiudiRiquadro, ...(misura.byte !== undefined ? { byte: misura.byte } : {}) }, id)
+        }
+      })
+    }).catch(() => undefined)
+  }
   const trascinato = useLayoutStore((s) => s.trascinato)
   const iniziaTrascinamento = useLayoutStore((s) => s.iniziaTrascinamento)
   const fineTrascinamento = useLayoutStore((s) => s.fineTrascinamento)
@@ -313,6 +374,7 @@ export function Mosaic({
                 iniziaTrascinamento(paneId)
               }}
               onDragEnd={() => fineTrascinamento()}
+              onContextMenu={(e) => menuChat(e, paneId)}
               className="testata-riquadro"
               style={{ cursor: trascinato === paneId ? 'grabbing' : 'grab' }}
             >
@@ -349,8 +411,6 @@ export function Mosaic({
               ) : (
                 <span
                   className="testata-riquadro__titolo"
-                  // Il tasto destro sul titolo apre la scelta del PC ospite (0.52.0).
-                  onContextMenu={(e) => { e.preventDefault(); window.dispatchEvent(new CustomEvent('sierradeck:ospite-menu', { detail: { paneId, x: e.clientX, y: e.clientY } })) }}
                   onDoubleClick={() => { setBozzaNome(data.title); setRinominando(paneId) }}
                   title="Due clic per dargli un nome tuo"
                 >

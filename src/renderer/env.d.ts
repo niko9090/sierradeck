@@ -257,6 +257,10 @@ declare global {
         stato: () => Promise<{ allAvvio: boolean; workspace: string[] }>
         verifica: (parola: string, workspace?: string) => Promise<boolean>
       }
+      /** Il tasto destro (13/11): opzionale, le app vecchie e i finti dei test non l'hanno. */
+      menu?: {
+        contestuale: (voci: import('@shared/menu-contestuale').VoceMenu[]) => Promise<string | undefined>
+      }
       sistema: {
         cartellaUtente: () => Promise<string>
         versione: () => Promise<string>
