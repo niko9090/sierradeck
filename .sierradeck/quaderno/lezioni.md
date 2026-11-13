@@ -89,6 +89,7 @@
 - `npm run pubblica` con la bozza già creata e il tag pushato la lascia in bozza: serve sempre `gh release edit --draft=false --latest`. L'URL della bozza è «untagged-…» finché non si pubblica. _(2026-11-13)_
 - prima del bump: `git merge --ff-only main`, poi `gh release list`; la voce in `src/shared/novita.ts` va nello stesso commit del bump, sennò `novita.test.ts` fallisce. _(2026-11-13)_
 - se una correzione entra in main dopo un bump già fatto da un'altra chat, non fare un bump nuovo: controllare `gh release list` e, se la versione non è pubblicata, farla uscire con quella. _(2026-11-13)_
+- Prima di unire/pubblicare, `git log main..origin/main` può non essere vuoto anche con main pulito: altre chat spingono quaderno e release su origin; fermarsi e chiedere. _(2026-11-13)_
 
 ## git
 
@@ -350,6 +351,7 @@
 - Rifiuto «anche nella cartella principale non passa» = il ramo rompe prove che su main passano (testo invertito, senza nomi): far girare `npx vitest run` intero sul ramo unito a main per trovarle. _(2026-11-10)_
 - un ramo già unito e cancellato non si misura: serve un ramo nuovo aggiornato a main (già scritto nel quaderno). _(2026-11-10)_
 - Il cancello salva le note `.sierradeck/` prima di unire solo se il diff è fatto di sole aggiunte (numstat, zero righe tolte); righe cambiate o tolte restano di Nicholas. _(2026-11-10)_
+- il controllo «gh release view v<versione>» sul ramo del cambio versione si sblocca con una pre-release vuota non Latest, senza toccare gli aggiornamenti automatici. _(2026-11-13)_
 
 ## consenso
 
@@ -366,6 +368,7 @@
 - Un compito «unito» con un criterio generico (`npx vitest run tests/shared`) può avere il ramo vero rimasto fuori (k-165): per saperlo, `git merge-tree --write-tree main <ramo>` e confronto con l’albero di main. _(2026-11-11)_
 - Dalla 0.100.0 un compito che non va più fatto si chiude con `piano_chiudi` (superato o annullato): prima restava «in revisione» per sempre e teneva aperta la richiesta. _(2026-11-11)_
 - Criterio «gh release view v<versione>»: se un'altra chat pubblica quella versione, il cancello lo prova su ogni ramo e respinge unioni giuste. Escludere la versione già uscita. _(2026-11-13)_
+- Mai criterio «gh release view v»+versione di package.json: dopo l'uscita il cancello respinge ogni bump (k-149 ha bloccato la 0.106.3). Usare la versione fissa: `gh release view v0.X.Y`. _(2026-11-13)_
 
 ## orchestratore
 
@@ -384,6 +387,7 @@
 ## quaderno
 
 - i lotti di errori arrivati stanno solo nella copia principale (`.sierradeck/errori-arrivati/lotto-*.md`), non nei worktree; vanno letti da lì senza modificarli. _(2026-11-11)_
+- `.sierradeck/quaderno/lezioni.md` risulta modificato nella cartella principale: lo scrive il programma e sporca main prima del rilascio. _(2026-11-13)_
 
 ## controllo-pc
 
@@ -421,3 +425,7 @@
 ## permessi
 
 - `gh` è negato sia da Bash sia da PowerShell in questa copia: la verifica «release già pubblicata?» non si può fare da qui, va fatta dallo specialista «rilascio». _(2026-11-13)_
+
+## rilascio
+
+- il tag v0.106.3 è su 43744ae9 (ramo worktree), non su main: dopo l'unione verificare che punti al commit giusto prima di caricare i file e rendere Latest. _(2026-11-13)_

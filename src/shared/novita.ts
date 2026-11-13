@@ -46,8 +46,14 @@ export const NOVITA: Novita[] = [
       '**Aggiornamento tutto in una finestra:** scaricamento, versione pronta, installazione, errori e «ecco cosa cambia» dopo l\'installazione passano solo dalla finestra in basso a destra; niente più strisce o avvisi sparsi. Si apre dal numero di versione in alto.',
       '**Altri PC in ordine:** in alto un tasto solo, «Altri PC», con un elenco ordinato (accesi prima, versione, workspace, ricerca); gli Aiutanti non compaiono più lì.',
       '**Aiutante 1.0.3:** controlla davvero l\'accesso a Claude; se non va non prende lavori e mostra «Rifai l\'accesso». Il suo aggiornamento si vede nella stessa finestra, con barra. Logo SierraDeck sulla finestra.',
-      '**Schermata che cadeva:** un errore («filter») faceva cadere una schermata. Corretto.',
       '**Aiutante con l\'accesso scaduto:** viene tenuto fuori subito dai lavori, con il motivo vero e il nome del PC; gli errori uguali finiscono in un gruppo solo negli errori arrivati.',
+    ],
+  },
+  {
+    versione: '0.106.3',
+    righe: [
+      '**Schermata che cadeva:** un errore («filter») faceva cadere una schermata, per esempio su Z2-TECNICO. Corretto.',
+      '**Aiutante con l\'accesso a Claude scaduto:** il PC viene tenuto fuori subito dai lavori, con il motivo vero e il nome del PC; gli errori uguali finiscono in un gruppo solo negli errori arrivati.',
     ],
   },
   {
