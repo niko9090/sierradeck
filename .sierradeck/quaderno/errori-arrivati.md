@@ -205,3 +205,13 @@ Corretto nella versione 0.106.3, con la stessa correzione del lotto 202611131513
 
 4 gruppi, tutti «[aiuto] lavoro <id> (<ruolo>) per PC-Fisso non riuscito: lo specialista ha chiuso con un errore» (DESKTOP-O2DITVE Aiutante 1.0.1, una volta ciascuno, 15:29-15:40Z).
 Corretto nella versione 0.106.3, con la stessa correzione dei lotti 20261113151348 e 20261113152148: l’Aiutante aveva l’accesso Claude scaduto, quindi nessun codice nuovo (PC fuori dopo un accesso scaduto, motivo vero, un gruppo solo). Test: tests/main/aiuto-rete-fallimenti.test.ts.
+
+# Errori arrivati (lotto 20261113160752)
+
+1 gruppo: lavoro della rete fallito su DESKTOP-O2DITVE (Aiutante 1.0.2) per accesso Claude scaduto («OAuth session expired»).
+Non è un difetto nuovo: è il difetto della rete già corretto da k-152. Corretto nella versione 0.106.3 (PC fuori subito, motivo vero col nome del PC, un gruppo solo). Test: tests/main/aiuto-rete-fallimenti.test.ts.
+
+# Errori arrivati (lotto 20261113161352)
+
+1 gruppo: lavoro della rete fallito su DESKTOP-O2DITVE (Aiutante 1.0.2) per accesso Claude scaduto («OAuth session expired»).
+Non è un difetto nuovo: stesso difetto della rete corretto da k-152, come il lotto 20261113160752. Corretto nella versione 0.106.3.
