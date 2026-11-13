@@ -15,6 +15,7 @@ import { voceMenu } from '@shared/menu-principale'
 import { ogni } from '../state/sondaggio'
 import { apriMenuContestuale } from '../menu-contestuale'
 import { vociProgetto } from '@shared/menu-contestuale'
+import { BordoDettaglio } from './BordoDettaglio'
 
 /**
  * «Progetti» a piena pagina (0.69.0). Nicholas, 12/10: «rifai il menu
@@ -250,6 +251,7 @@ export function VistaProgetti({ onChiudi }: { onChiudi: () => void }): React.JSX
           })}
         </div>
 
+        {(sel !== undefined || foglio !== undefined) && d !== undefined ? <BordoDettaglio chiave="progettiDettaglio" /> : null}
         {sel !== undefined && foglio === undefined && d !== undefined ? (
           <Dettaglio r={sel} d={d} rim={rim} occupato={occupato} tutteLeChat={tutteLeChat} setTutteLeChat={setTutteLeChat}
             onChiudi={() => setScelto(undefined)} onAzione={(a) => faiAzione(sel.id, a)} onApriChat={apriChat}

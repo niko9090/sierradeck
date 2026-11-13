@@ -67,7 +67,11 @@ import { PannelloChat } from './components/PannelloChat'
 import { PannelloSalute } from './components/PannelloSalute'
 import { PannelloDomande } from './components/PannelloDomande'
 import { PannelloSpecialisti, useAttesaSpecialisti } from './components/PannelloSpecialisti'
-import { MISURE, limita } from '@shared/misure-pannelli'
+import { MISURE, MISURE_LIBERE, MOSAICO_MINIMO_PX, limita } from '@shared/misure-pannelli'
+import { Divisore } from './components/Divisore'
+import { useMisuraTrascinabile } from './misure-vive'
+import { apriMenuContestuale } from './menu-contestuale'
+import { vociAutopilota } from '@shared/menu-contestuale'
 import type { StatoLavoro } from '../main/cassaforte/lavoro-in-corso'
 import { useAvviaNomiPc } from './state/nomi-pc'
 import { BarraAffiancate, BarraLinguette, CorpoPanoramica, PANORAMICA, type SchedaVista } from './components/WorkspacePanoramica'
@@ -1611,6 +1615,9 @@ export function App(): React.JSX.Element {
 
   // Prima di qualunque cosa: se c'e' una parola d'ordine, non si deve
   // vedere nemmeno per un istante quello che protegge.
+  // La larghezza della colonna dell'autopilota, scelta col mouse (13/11): solo su questo PC. Prima dei «return» qui sotto: è un hook.
+  const misuraColonna = useMisuraTrascinabile('colonnaAutopilota')
+  const colonnaRef = useRef<HTMLElement | null>(null)
   if (chiuso === undefined) return <div className="serratura" />
   if (chiuso) return <Serratura onAperto={() => setChiuso(false)} />
 
@@ -2169,7 +2176,22 @@ export function App(): React.JSX.Element {
           )}
           {/* La colonna sottile dell'autopilota, sulle linguette delle chat e fra le chat affiancate: si apre e si chiude. */}
           {(autopilotaVisto !== undefined || remotoDelWorkspace !== undefined) && colonnaVista && (vistaElenco === undefined || linguetta !== PANORAMICA) ? (
-            <aside className="pan-colonna" aria-label={remotoDelWorkspace !== undefined ? `L’autopilota, su ${remotoDelWorkspace.pcNome}` : 'L’autopilota'}>
+            <>
+            <aside
+              ref={colonnaRef}
+              className="pan-colonna"
+              aria-label={remotoDelWorkspace !== undefined ? `L’autopilota, su ${remotoDelWorkspace.pcNome}` : 'L’autopilota'}
+              style={misuraColonna.larghezza !== undefined ? { flexBasis: misuraColonna.larghezza } : undefined}
+              // Il tasto destro sulla colonna (13/11): i pannelli vicini, la cartella, la misura, chiuderla.
+              onContextMenu={(e) => apriMenuContestuale(e, vociAutopilota({ dove: 'colonna', remoto: remotoDelWorkspace !== undefined }), {
+                autopiloti: () => setAperto('autopiloti'),
+                domande: () => { if (!colonnaDomande.aperta) commutaColonna('domande') },
+                specialisti: () => salvaSpecialistiLato({ aperto: true }),
+                cartella: () => { void window.gestore.workspace.apriCartella({ workspace: workspace.attivo }).catch(() => undefined) },
+                misura: () => misuraColonna.onMisura(undefined, true),
+                'chiudi-colonna': () => cambiaColonna(false)
+              })}
+            >
               {remotoDelWorkspace !== undefined ? <SegnoRemoto pcNome={remotoDelWorkspace.pcNome} giu={autopilotaDiLa.giu} /> : null}
               {autopilotaVisto !== undefined ? (
                 <FornisciSorgente value={sorgente}>
@@ -2179,6 +2201,18 @@ export function App(): React.JSX.Element {
                 <p className="chatap__pensa">{autopilotaDiLa.giu ? '' : autopilotaDiLa.nessuno === true ? `● Su ${remotoDelWorkspace.pcNome} questo workspace non ha ancora un autopilota: lo avvii dalla Panoramica.` : `● Mi collego a ${remotoDelWorkspace.pcNome}…`}</p>
               ) : null}
             </aside>
+            <Divisore
+              chiave="colonnaAutopilota"
+              lato="destra"
+              nome={MISURE_LIBERE.colonnaAutopilota.nome}
+              misura={misuraColonna.larghezza}
+              misuraAttuale={() => colonnaRef.current?.getBoundingClientRect().width ?? 280}
+              // Le chat a destra restano leggibili (come per le colonne Domande e Specialisti).
+              spazio={() => window.innerWidth - MOSAICO_MINIMO_PX - (colonnaDomande.aperta ? colonnaDomande.larghezza : 0) - (specialistiLato.aperto ? specialistiLato.larghezza : 0)}
+              onMisura={misuraColonna.onMisura}
+              classe="divisore--tra"
+            />
+            </>
           ) : null}
           {root ? (
             <FornisciRegolaChatRemote value={regolaRemote}>

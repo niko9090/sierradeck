@@ -217,6 +217,9 @@ function Divider({ box, containerRef }: {
   return (
     <div
       onPointerDown={onPointerDown}
+      // Doppio clic (13/11): le due chat ai lati tornano alla stessa misura.
+      onDoubleClick={() => useLayoutStore.getState().pareggia(box.splitId, box.index)}
+      title="Trascina per cambiare le misure delle chat. Doppio clic: le due chat tornano uguali."
       style={
         orizzontale
           ? {

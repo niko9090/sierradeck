@@ -19,6 +19,9 @@ import { coloreDi } from '@shared/colori-attivita'
 import { AzioniChat, chiediAzioneChat, misuraAzioniChat } from './AzioniChat'
 import { mostraMenu, suCampo } from '../menu-contestuale'
 import { vociSchedaPanoramica } from '@shared/menu-contestuale'
+import { Divisore } from './Divisore'
+import { useMisuraTrascinabile } from '../misure-vive'
+import { MISURE_LIBERE } from '@shared/misure-pannelli'
 import { TastoMicrofono } from './TastoMicrofono'
 import { statoAutopilotaRemoto } from '@shared/workspace-remoti'
 import type { Stato as StatoAutopilotaDiLa } from './ChatAutopilotaRemota'
@@ -228,15 +231,20 @@ export function CorpoPanoramica({ workspace, autopilota, dormiente, cwd, remoto,
   const chat = finite.filter((s) => s.specialista !== true)
   const finiteAp = finite.filter((s) => s.specialista === true)
   const cartella = dormiente?.cwd ?? cwd
+  // La conversazione a sinistra si allarga col mouse (13/11): la misura resta su questo PC.
+  const misuraDialogo = useMisuraTrascinabile('panDialogo')
+  const corpo = useRef<HTMLDivElement | null>(null)
+  const dialogo = useRef<HTMLElement | null>(null)
   return (
-    <div className="pan-corpo pan2" aria-label={`Panoramica di ${workspace}`}>
+    <div ref={corpo} className="pan-corpo pan2" aria-label={`Panoramica di ${workspace}`}
+      style={misuraDialogo.larghezza !== undefined ? { gridTemplateColumns: `${misuraDialogo.larghezza}px 0 minmax(0, 1fr)` } : undefined}>
       <header className="pan2-situazione">
         <div className="pan2-obiettivo">
           Workspace «{workspace}»{remoto !== undefined ? ` su ${remoto.pcNome}` : ''}: {schede.length === 1 ? 'una chat' : `${schede.length} chat`}.{autopilota === undefined && remoto === undefined ? ' Il suo autopilota aspetta il tuo primo messaggio, a sinistra.' : ''}
           <Aiuto di="la Panoramica">A sinistra l’autopilota del workspace: l’avanzamento, la coda delle richieste e la conversazione con lui; quello che ha fatto da solo è in «Cosa è successo». Al centro: «Adesso» le chat al lavoro o che aspettano te, le altre chat del workspace, le finite. Tocca una scheda per aprire la sua chat. «Solo mia» su una chat: l’autopilota non la tocca e non le scrive. Le domande stanno nella colonna Domande.</Aiuto>
         </div>
       </header>
-      <section className="pan2-dialogo" aria-label="Conversazione con l’autopilota">
+      <section ref={dialogo} className="pan2-dialogo" aria-label="Conversazione con l’autopilota">
         {autopilota !== undefined ? (
           <ChatAutopilota autopilota={autopilota} onCambiato={onRicarica} soloConversazione campoPronto />
         ) : remoto !== undefined ? (
@@ -245,6 +253,17 @@ export function CorpoPanoramica({ workspace, autopilota, dormiente, cwd, remoto,
           <PrimoMessaggio workspace={workspace} {...(cartella !== undefined ? { cwd: cartella } : {})} onRicarica={onRicarica} />
         )}
       </section>
+      <Divisore
+        chiave="panDialogo"
+        lato="destra"
+        nome={MISURE_LIBERE.panDialogo.nome}
+        misura={misuraDialogo.larghezza}
+        misuraAttuale={() => dialogo.current?.getBoundingClientRect().width ?? 420}
+        // Al centro restano almeno 320 pixel per le schede.
+        spazio={() => (corpo.current?.getBoundingClientRect().width ?? window.innerWidth) - 320}
+        onMisura={misuraDialogo.onMisura}
+        classe="divisore--griglia"
+      />
       <section className="pan2-centro" aria-label="Il lavoro del workspace">
         {/* 0.90.0: le chat degli specialisti al lavoro, da guardare dal vivo. */}
         {autopilota !== undefined ? <ChatSpecialisti workspace={workspace} /> : null}

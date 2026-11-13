@@ -6,6 +6,9 @@ import { EVENTO_REMOTI } from '../workspace-remoti'
 import { Aiuto } from './Aiuto'
 import { apriMenuContestuale } from '../menu-contestuale'
 import { vociAltroPc, vociWorkspaceRemoto } from '@shared/menu-contestuale'
+import { Divisore } from './Divisore'
+import { useMisuraTrascinabile } from '../misure-vive'
+import { MISURE_LIBERE } from '@shared/misure-pannelli'
 
 const RILEGGI_MS = 30_000
 
@@ -36,6 +39,9 @@ export function SezioneAltriPc({ attivo, nomi, onCambia }: {
   /** «Rileggi» dal tasto destro (13/11): cambia e si rilegge subito. */
   const [giro, setGiro] = useState(0)
   const tasti = useRef(new Map<string, HTMLButtonElement>())
+  // Quanto è larga la sezione nella fascia (13/11): col mouse dal suo bordo sinistro; senza misura, quanto le serve.
+  const misura = useMisuraTrascinabile('altriPc')
+  const sezione = useRef<HTMLDivElement | null>(null)
   const chiave = nomi.join('\n')
 
   useEffect(() => {
@@ -81,7 +87,18 @@ export function SezioneAltriPc({ attivo, nomi, onCambia }: {
   }
 
   return (
-    <div className="sezione altri-pc" aria-label="Altri PC">
+    <div ref={sezione} className={`sezione altri-pc${misura.larghezza !== undefined ? ' altri-pc--misurata' : ''}`} aria-label="Altri PC"
+      style={misura.larghezza !== undefined ? { width: misura.larghezza } : undefined}>
+      <Divisore
+        chiave="altriPc"
+        lato="sinistra"
+        nome={MISURE_LIBERE.altriPc.nome}
+        misura={misura.larghezza}
+        misuraAttuale={() => sezione.current?.getBoundingClientRect().width ?? 240}
+        spazio={() => window.innerWidth / 2}
+        onMisura={misura.onMisura}
+        classe="divisore--assoluto"
+      />
       <span className="serigrafia">Altri PC</span>
       {gruppi.map((g) => {
         const davanti = g.voci.find((v) => v.aperto && v.nome === attivo)

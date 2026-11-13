@@ -11,6 +11,9 @@
  * ricordi di aggiungere un `useDrag` al componente nuovo.
  */
 
+import { chiaveDelPannello } from '@shared/misure-pannelli'
+import { leggiMisure, scriviMisura } from './misure-vive'
+
 /** Di quanto si può spingere una finestra oltre il bordo prima che si fermi. */
 const MARGINE = 24
 /** La striscia sul bordo destro che allarga invece di spostare. */
@@ -75,6 +78,15 @@ export function attivaChiusuraFuori(chiudi: () => void, doc: Document = document
   }
   doc.addEventListener('mousedown', premuto)
   return () => doc.removeEventListener('mousedown', premuto)
+}
+
+/** La chiave con cui si ricorda la larghezza di quel pannello (13/11). */
+function chiaveDi(p: HTMLElement): string | undefined {
+  return chiaveDelPannello({
+    etichetta: p.getAttribute('aria-label'),
+    classi: [...p.classList],
+    titolo: p.querySelector('.pannello__testa')?.firstElementChild?.textContent
+  })
 }
 
 export function attivaTrascinamento(doc: Document = document): () => void {
@@ -144,16 +156,52 @@ export function attivaTrascinamento(doc: Document = document): () => void {
   const lasciato = (): void => {
     mobile?.classList.remove('pannello--in-mano')
     allargando?.classList.remove('pannello--in-mano')
+    // La larghezza scelta col bordo destro resta (13/11): alla prossima apertura il pannello torna così.
+    if (allargando !== undefined) {
+      const chiave = chiaveDi(allargando)
+      const w = Number.parseFloat(allargando.style.width)
+      if (chiave !== undefined && Number.isFinite(w)) scriviMisura(chiave, w)
+    }
     mobile = undefined
     allargando = undefined
   }
 
+  // Doppio clic sul bordo destro: la larghezza iniziale, e si dimentica quella scelta.
+  const doppio = (e: MouseEvent): void => {
+    const p = (e.target as HTMLElement | null)?.closest?.('.pannello') as HTMLElement | null | undefined
+    if (p === null || p === undefined || e.clientX <= p.getBoundingClientRect().right - MANIGLIA) return
+    p.style.width = ''
+    const chiave = chiaveDi(p)
+    if (chiave !== undefined) scriviMisura(chiave, undefined)
+  }
+
+  // Un pannello che compare prende la larghezza che gli era stata data.
+  const applica = (p: HTMLElement): void => {
+    const chiave = chiaveDi(p)
+    const w = chiave !== undefined ? leggiMisure()[chiave] : undefined
+    if (w !== undefined) p.style.width = `${Math.min(w, doc.documentElement.clientWidth - 32)}px`
+  }
+  const Osservatore = doc.defaultView?.MutationObserver
+  const osserva = Osservatore !== undefined && doc.body !== null ? new Osservatore((cambi) => {
+    for (const c of cambi) {
+      for (const n of c.addedNodes) {
+        const el = n as HTMLElement
+        if (el.classList?.contains('pannello') === true) applica(el)
+      }
+    }
+  }) : undefined
+  if (osserva !== undefined && doc.body !== null) osserva.observe(doc.body, { childList: true, subtree: true })
+  doc.querySelectorAll<HTMLElement>('.pannello').forEach(applica)
+
   doc.addEventListener('mousedown', premuto)
   doc.addEventListener('mousemove', mosso)
   doc.addEventListener('mouseup', lasciato)
+  doc.addEventListener('dblclick', doppio)
   return () => {
+    osserva?.disconnect()
     doc.removeEventListener('mousedown', premuto)
     doc.removeEventListener('mousemove', mosso)
     doc.removeEventListener('mouseup', lasciato)
+    doc.removeEventListener('dblclick', doppio)
   }
 }

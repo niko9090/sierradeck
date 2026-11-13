@@ -1,6 +1,7 @@
 import { createPortal } from 'react-dom'
 import { apriMenuContestuale } from '../menu-contestuale'
 import { vociAutopilota } from '@shared/menu-contestuale'
+import { BordoDettaglio } from './BordoDettaglio'
 import { useEffect, useState } from 'react'
 import { TendinaMenu } from './TendinaMenu'
 import { SpecialistiVista } from './SpecialistiVista'
@@ -155,6 +156,7 @@ export function PannelloAutopiloti({
           })}
         </div>
 
+        {sel !== undefined || senzaAutopilota ? <BordoDettaglio chiave="autopilotiDettaglio" /> : null}
         {sel !== undefined ? (
           <div className="progetti__dettaglio">
             <div className="progetti__dtesta">

@@ -194,6 +194,22 @@ export function resizeSplit(
   return { ...root, sizes }
 }
 
+/**
+ * Il doppio clic su un divisore del mosaico (13/11): le due chat ai suoi lati
+ * tornano alla stessa misura, le altre non si toccano.
+ */
+export function pareggiaSplit(root: LayoutNode, splitId: string, index: number): LayoutNode {
+  if (root.type === 'pane') return root
+  if (root.id !== splitId) return { ...root, children: root.children.map((c) => pareggiaSplit(c, splitId, index)) }
+  const a = root.sizes[index]
+  const b = root.sizes[index + 1]
+  if (a === undefined || b === undefined) return root
+  const sizes = [...root.sizes]
+  sizes[index] = (a + b) / 2
+  sizes[index + 1] = (a + b) / 2
+  return { ...root, sizes }
+}
+
 export function listPaneIds(root: LayoutNode): string[] {
   if (root.type === 'pane') return [root.id]
   return root.children.flatMap(listPaneIds)

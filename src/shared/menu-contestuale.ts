@@ -302,5 +302,5 @@ export function vociFileTelefono(p: { inCorso: boolean; quanteFinite: number }):
 
 /** Il tasto destro su un divisore: la misura iniziale, come il doppio clic. */
 export function vociDivisore(nome: string): VoceMenu[] {
-  return [{ id: 'iniziale', testo: `Larghezza iniziale di ${nome}` }]
+  return [{ id: 'iniziale', testo: `Misura iniziale per ${nome}` }]
 }

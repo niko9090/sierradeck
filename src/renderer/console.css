@@ -5162,3 +5162,22 @@ label.gc-voce { cursor: pointer; }
 .altri-pc__testa { display: flex; align-items: center; gap: 6px; color: var(--testo); }
 .pan-barra__pc { border-bottom: 0; border-radius: 4px; margin-left: 6px; }
 .remoto__barra--sola { display: flex; align-items: center; gap: 8px; }
+
+/* ── I bordi da trascinare (13/11): ogni sezione si allarga col mouse ──
+   Sottili e invisibili finché non ci si passa sopra; il doppio clic torna alla
+   misura iniziale. Dove stanno lo dice la variante: fra due fratelli di una
+   riga flessibile (`--tra`), appoggiati al bordo di chi li contiene
+   (`--assoluto`), o nella colonna di mezzo di una griglia (`--griglia`). */
+.divisore { width: 6px; cursor: col-resize; z-index: 4; touch-action: none; background: transparent; transition: background 120ms; }
+.divisore:hover, .divisore:focus-visible { background: var(--luce-tenue); outline: none; }
+.divisore--tra { position: relative; flex: 0 0 6px; align-self: stretch; margin: 0 -3px; }
+.divisore--assoluto { position: absolute; top: 0; bottom: 0; }
+.divisore--assoluto.divisore--destra { right: -3px; }
+.divisore--assoluto.divisore--sinistra { left: -3px; }
+.divisore--griglia { grid-row: 2; grid-column: 2; position: relative; margin: 0 -3px; }
+.bordo-dettaglio { display: flex; align-self: stretch; flex: 0 0 0; }
+body.divisore-in-mano { cursor: col-resize; user-select: none; }
+/* La Panoramica con la colonna del bordo in mezzo (larga zero: il bordo ci sta sopra). */
+.pan2 { grid-template-columns: minmax(380px, 44%) 0 minmax(0, 1fr); }
+.altri-pc--misurata { flex: 0 0 auto; overflow-x: auto; scrollbar-width: none; }
+.altri-pc--misurata::-webkit-scrollbar { display: none; }
