@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { createServer, type Server } from 'node:http'
-import { creaClientAutopilota } from '../../src/main/autopilot-client'
+import { creaClientAutopilota, MESSAGGIO_AUTOPILOTA_SPARITO } from '../../src/main/autopilot-client'
 
 let server: Server | undefined
 afterEach(() => { server?.close(); server = undefined })
@@ -289,5 +289,44 @@ describe('la coda del workspace', () => {
     const porta = await new Promise<number>((ris) => server!.listen(0, '127.0.0.1', () => ris((server!.address() as { port: number }).port)))
     const client = creaClientAutopilota({ porta, avviaServizio: () => {} })
     expect(await client.coda('W')).toBeUndefined()
+  })
+
+  // k-148: l'id non c'è più nel servizio, ma il programma sa di che workspace era.
+  describe('dialoga a un autopilota sparito', () => {
+    function servizioSenza(viste: { percorso: string; corpo: unknown }[]): Promise<number> {
+      server = createServer((req, res) => {
+        let dati = ''
+        req.on('data', (c) => { dati += c })
+        req.on('end', () => {
+          const corpo = dati === '' ? undefined : JSON.parse(dati)
+          viste.push({ percorso: req.url ?? '', corpo })
+          const manda = (stato: number, c: unknown): void => { res.writeHead(stato, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(c)) }
+          if ((req.url ?? '').startsWith('/autopiloti?')) return manda(200, [{ id: 'ap-1', cwd: '/prova/cartella', workspace: 'ws-prova' }])
+          if (req.url === '/orchestratore/messaggio') return manda(200, { id: 'ap-2', cwd: '/prova/cartella', workspace: 'ws-prova' })
+          manda(404, { errore: 'autopilota inesistente' })
+        })
+      })
+      return new Promise((ris) => server!.listen(0, '127.0.0.1', () => ris((server!.address() as { port: number }).port)))
+    }
+
+    it('consegna il testo al workspace di prima, senza errore', async () => {
+      const viste: { percorso: string; corpo: unknown }[] = []
+      const porta = await servizioSenza(viste)
+      const client = creaClientAutopilota({ porta, avviaServizio: () => {} })
+      await client.elenca()
+      const r = await client.dialoga('ap-1', 'ciao')
+      expect(r.ricevuto).toBe(true)
+      expect(r.autopilota?.id).toBe('ap-2')
+      const consegna = viste.find((v) => v.percorso === '/orchestratore/messaggio')
+      expect(consegna?.corpo).toEqual({ testo: 'ciao', cwd: '/prova/cartella', workspace: 'ws-prova' })
+    })
+
+    it('se non sa di che workspace era, risponde in italiano e non scrive a nessuno', async () => {
+      const viste: { percorso: string; corpo: unknown }[] = []
+      const porta = await servizioSenza(viste)
+      const client = creaClientAutopilota({ porta, avviaServizio: () => {} })
+      await expect(client.dialoga('ap-9', 'ciao')).rejects.toThrow(MESSAGGIO_AUTOPILOTA_SPARITO)
+      expect(viste.some((v) => v.percorso === '/orchestratore/messaggio')).toBe(false)
+    })
   })
 })
