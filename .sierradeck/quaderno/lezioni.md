@@ -79,6 +79,7 @@
 - Se `.git` del principale è rovinato (anche `refs/heads/main` a zeri), lo sha vero sta in `.git/logs/refs/heads/main` e `ORIG_HEAD`; clonare e sovrapporre l'albero funziona, con `/XD` solo sui percors… _(2026-11-12)_
 - Con `core.autocrlf=true` il clone mostra centinaia di file «M» dopo la copia da Windows: nessuna differenza vera. Dopo `git add -A` restano solo le modifiche reali. _(2026-11-12)_
 - `gh release create --draft --verify-tag` seguito da `npm run pubblica` ha funzionato al primo colpo: una release sola, nessun 422, `latest.yml` presente. _(2026-11-12)_
+- vitest stampa «×» nei nomi di alcuni test (es. «(×2)»): cercare i fallimenti con «FAIL» o col riepilogo finale, non con «×» _(2026-11-13)_
 
 ## git
 
