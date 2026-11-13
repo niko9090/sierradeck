@@ -18,6 +18,8 @@ import { LegendaAttivita, SegnoAttivita } from './SegnoAttivita'
 import { coloreDi } from '@shared/colori-attivita'
 import { AzioniChat } from './AzioniChat'
 import { TastoMicrofono } from './TastoMicrofono'
+import { statoAutopilotaRemoto } from '@shared/workspace-remoti'
+import type { Stato as StatoAutopilotaDiLa } from './ChatAutopilotaRemota'
 
 /**
  * Il workspace dell'autopilota a linguette (0.77.0). Nicholas, 16/10:
@@ -62,7 +64,7 @@ function Pallino({ stato }: { stato: StatoScheda }): React.JSX.Element {
 }
 
 /** La barra delle linguette: Panoramica, una per chat, «Altre ▾», e la colonna dell'autopilota. */
-export function BarraLinguette({ schede, linguetta, onLinguetta, colonna, onColonna, conAutopilota, onMosaico }: {
+export function BarraLinguette({ schede, linguetta, onLinguetta, colonna, onColonna, conAutopilota, onMosaico, suPc }: {
   schede: SchedaVista[]
   linguetta: string
   onLinguetta: (id: string) => void
@@ -70,6 +72,8 @@ export function BarraLinguette({ schede, linguetta, onLinguetta, colonna, onColo
   onColonna: (v: boolean) => void
   conAutopilota: boolean
   onMosaico: () => void
+  /** Il workspace vive su questo PC (sezione «Altri PC»): sempre Panoramica, col segno del PC. */
+  suPc?: string
 }): React.JSX.Element {
   const barra = useRef<HTMLDivElement | null>(null)
   const [larghezza, setLarghezza] = useState(1200)
@@ -124,7 +128,13 @@ export function BarraLinguette({ schede, linguetta, onLinguetta, colonna, onColo
           {colonna ? '⟨ Autopilota' : 'Autopilota ⟩'}
         </button>
       ) : null}
-      <InterruttoreVista vista="panoramica" onPanoramica={() => onLinguetta(PANORAMICA)} onAffiancate={onMosaico} />
+      {suPc !== undefined ? (
+        <span className="segno-remoto pan-barra__pc" title={`Questo workspace vive su ${suPc}: lo comanda il suo autopilota, le chat si guardano.`}>
+          <span className="segno-remoto__punto" aria-hidden="true" />Su {suPc}
+        </span>
+      ) : (
+        <InterruttoreVista vista="panoramica" onPanoramica={() => onLinguetta(PANORAMICA)} onAffiancate={onMosaico} />
+      )}
     </div>
   )
 }
@@ -187,12 +197,17 @@ export function BarraAffiancate({ onPanoramica, colonna = false, onColonna, conA
  * Le domande stanno solo nella colonna Domande (30/10: un posto solo).
  * In ogni workspace, anche senza autopilota (c-30): le chat esistenti sono schede.
  */
-export function CorpoPanoramica({ workspace, autopilota, dormiente, cwd, schede, onApri, onRicarica, onSoloMia }: {
+export function CorpoPanoramica({ workspace, autopilota, dormiente, cwd, remoto, schede, onApri, onRicarica, onSoloMia }: {
   workspace: string
   autopilota?: Autopilota
   dormiente?: Dormiente
   /** La cartella di una chat del workspace: dove nasce il suo autopilota, se non c'è ancora. */
   cwd?: string
+  /**
+   * Il workspace vive su un altro PC (sezione «Altri PC», 13/11): mentre l'autopilota di là si
+   * legge, o se quel PC non risponde, lo si dice; mai il campo che ne crea uno qui.
+   */
+  remoto?: { pcId: string; pcNome: string; stato: StatoAutopilotaDiLa; sparito?: boolean; cwdLa?: string; onRileggi: () => void }
   schede: SchedaVista[]
   onApri: (paneId: string) => void
   onRicarica: () => void
@@ -215,13 +230,15 @@ export function CorpoPanoramica({ workspace, autopilota, dormiente, cwd, schede,
     <div className="pan-corpo pan2" aria-label={`Panoramica di ${workspace}`}>
       <header className="pan2-situazione">
         <div className="pan2-obiettivo">
-          Workspace «{workspace}»: {schede.length === 1 ? 'una chat' : `${schede.length} chat`}.{autopilota === undefined ? ' Il suo autopilota aspetta il tuo primo messaggio, a sinistra.' : ''}
+          Workspace «{workspace}»{remoto !== undefined ? ` su ${remoto.pcNome}` : ''}: {schede.length === 1 ? 'una chat' : `${schede.length} chat`}.{autopilota === undefined && remoto === undefined ? ' Il suo autopilota aspetta il tuo primo messaggio, a sinistra.' : ''}
           <Aiuto di="la Panoramica">A sinistra l’autopilota del workspace: l’avanzamento, la coda delle richieste e la conversazione con lui; quello che ha fatto da solo è in «Cosa è successo». Al centro: «Adesso» le chat al lavoro o che aspettano te, le altre chat del workspace, le finite. Tocca una scheda per aprire la sua chat. «Solo mia» su una chat: l’autopilota non la tocca e non le scrive. Le domande stanno nella colonna Domande.</Aiuto>
         </div>
       </header>
       <section className="pan2-dialogo" aria-label="Conversazione con l’autopilota">
         {autopilota !== undefined ? (
           <ChatAutopilota autopilota={autopilota} onCambiato={onRicarica} soloConversazione campoPronto />
+        ) : remoto !== undefined ? (
+          <AutopilotaDiLa workspace={workspace} remoto={remoto} />
         ) : (
           <PrimoMessaggio workspace={workspace} {...(cartella !== undefined ? { cwd: cartella } : {})} onRicarica={onRicarica} />
         )}
@@ -425,6 +442,61 @@ export function PrimoMessaggio({ workspace, cwd, onRicarica }: { workspace: stri
             <button className="tasto" disabled={primo.trim() === ''} onClick={manda}>Manda</button>
             <TastoMicrofono campo={campo} />
           </span>
+        </>
+      )}
+      {nota !== undefined ? <div className="progetti__quieto">{nota}</div> : null}
+    </div>
+  )
+}
+
+/**
+ * L'autopilota di un workspace che vive su un altro PC, finché non si vede
+ * (13/11): «Mi collego…», «non risponde», o — se là non c'è — il primo
+ * messaggio che lo fa nascere **su quel PC** (la sua rotta
+ * `/api/autopilota/crea`, nella cartella di una chat di là). Mai uno qui.
+ */
+export function AutopilotaDiLa({ workspace, remoto }: { workspace: string; remoto: { pcId: string; pcNome: string; stato: StatoAutopilotaDiLa; sparito?: boolean; cwdLa?: string; onRileggi: () => void } }): React.JSX.Element {
+  const [primo, setPrimo] = useState('')
+  const [nota, setNota] = useState<string | undefined>(undefined)
+  const [invio, setInvio] = useState(false)
+  const campo = useRef<HTMLTextAreaElement | null>(null)
+  const stato = statoAutopilotaRemoto(remoto.stato, remoto.pcNome)
+  const manda = (): void => {
+    const testo = primo.trim()
+    if (testo === '' || remoto.cwdLa === undefined || invio) return
+    setInvio(true)
+    setNota(`Lo mando a ${remoto.pcNome}…`)
+    void window.gestore.autopilotiAltri.azione(remoto.pcId, '/api/autopilota/crea', { obiettivo: testo, cwd: remoto.cwdLa, workspace })
+      .then((e) => {
+        if (!e.ok) { setNota(`Non è partito su ${remoto.pcNome}: ${e.messaggio}`); return }
+        setPrimo(''); setNota(undefined); remoto.onRileggi()
+      })
+      .catch((e: unknown) => setNota(`Non è partito su ${remoto.pcNome}: ${String(e)}`))
+      .finally(() => setInvio(false))
+  }
+  return (
+    <div className="elenco-ws__autopilota" role="status">
+      <b>Autopilota di «{workspace}» · su {remoto.pcNome}</b>
+      {remoto.sparito === true ? <div className="progetti__quieto">{remoto.pcNome} non elenca più questo workspace.</div> : null}
+      {stato.tipo !== 'nessuno' ? (
+        <div className="progetti__quieto">● {stato.tipo === 'pronto' ? `Mi collego a ${remoto.pcNome}…` : stato.testo}</div>
+      ) : (
+        <>
+          <div className="progetti__quieto">
+            {stato.testo}
+            <Aiuto di="l’autopilota su un altro PC">Il workspace vive su {remoto.pcNome}: il suo autopilota nasce e lavora là, con i file di là, e qui lo vedi come se fossi su quel PC. Le chat non si scrivono da qui: le comanda lui.</Aiuto>
+          </div>
+          {remoto.cwdLa === undefined ? (
+            <div className="progetti__quieto">Non so in quale cartella lavorare su {remoto.pcNome}: avvialo da quel PC.</div>
+          ) : (
+            <>
+              <textarea ref={campo} className="campo" rows={4} value={primo} onChange={(e) => setPrimo(e.target.value)} placeholder={`Scrivigli cosa fare: nasce su ${remoto.pcNome} e comincia`} />
+              <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <button className="tasto" disabled={primo.trim() === '' || invio} onClick={manda} title={`Avvia l’autopilota su ${remoto.pcNome}, nella cartella ${remoto.cwdLa}`}>Avvia su {remoto.pcNome}</button>
+                <TastoMicrofono campo={campo} />
+              </span>
+            </>
+          )}
         </>
       )}
       {nota !== undefined ? <div className="progetti__quieto">{nota}</div> : null}

@@ -23,6 +23,7 @@ import { EtichettaOpzione } from './EtichettaOpzione'
 import { testoAvvio, testoConsegnato, type FaseSottofondo } from '@shared/sottofondo'
 import { workspaceCorrente } from '../workspace-corrente'
 import { chiusaDopo, giudicaRiquadroRemoto } from '@shared/chiuse'
+import { useRegolaChatRemote } from '../workspace-remoti'
 
 type Props = {
   paneId: string
@@ -65,6 +66,13 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
   /** Il nome di adesso di quel PC (0.52.4): quello scelto, con l'hostname a parte. */
   const nomeVivo = useNomePc(remoto.pcId, remoto.pcNome)
   const nomePc = nomeVivo.nome
+  /**
+   * Sola lettura (13/11, Nicholas: «posso scrivere direttamente nelle chat, cosa che abbiamo
+   * tolto anche in locale»): in un workspace con autopilota, o che vive su un altro PC, la
+   * chat si guarda e basta; si parla con l'autopilota. Niente campo, tasti, opzioni né avvio.
+   */
+  const regola = useRegolaChatRemote()
+  const soloLettura = !regola.scrivibile
   const [pc, setPc] = useState<PcRemoto | undefined>(undefined)
   const [cassaforteAperta, setCassaforteAperta] = useState(true)
   const [driveCollegato, setDriveCollegato] = useState(true)
@@ -198,7 +206,8 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
       .then((r) => {
         if (!vivo) return
         if (r.messaggio !== '') setAvviso(r.messaggio)
-        if (r.qui) { useLayoutStore.getState().rendiLocale(paneId); return }
+        // In un workspace che vive su un altro PC il riquadro resta da guardare: locale diventerebbe un terminale da scrivere.
+        if (r.qui) { if (!regola.workspaceRemoto) useLayoutStore.getState().rendiLocale(paneId); return }
         if (r.pc !== '' && r.pc !== remoto.pcId) rendiRemoto(paneId, { ...remoto, pcId: r.pc, pcNome: r.nome })
       })
       .catch((e: unknown) => { if (vivo) setAvviso(`Non riesco a controllare dove vive questa chat: ${String(e)}`) })
@@ -293,7 +302,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
   const chatId = fase.tipo === 'viva' ? fase.chat.id : undefined
   /** 0.102.2: un tasto vero nella chat di là; lo schermo si rilegge subito dopo. */
   const premi = (t: TastoRemoto): void => {
-    if (chatId === undefined) return
+    if (chatId === undefined || soloLettura) return
     void window.gestore.remoto.tasto(remoto.pcId, chatId, t).then((r) => {
       if (!r.ok) setAvviso(r.messaggio)
       ultimaIl.current = 0
@@ -308,7 +317,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
    */
   const manda = (): void => {
     const t = testo.trim()
-    if (t === '') return
+    if (t === '' || soloLettura) return
     ultimaAzioneRef.current = Date.now()
     // La chat là è chiusa (0.58.4): il testo la avvia in sottofondo e parte appena è pronta.
     if (chatId === undefined) {
@@ -345,7 +354,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [linea.fase, coda, chatId])
   const scegli = (opzione: string): void => {
-    if (chatId === undefined || invio) return
+    if (chatId === undefined || invio || soloLettura) return
     setInvio(true)
     void window.gestore.remoto.scegli(remoto.pcId, chatId, opzione).then((r) => {
       if (r.ok) setAvviso(undefined)
@@ -363,7 +372,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
   }
   /** Chiede al PC di casa di avviarla in sottofondo, con il testo in coda (se c'è). */
   const avviaLa = (t?: string, idPrima?: string): void => {
-    if (remoto.sessione === undefined) return
+    if (remoto.sessione === undefined || soloLettura) return
     ultimaAzioneRef.current = Date.now()
     const id = t !== undefined ? (idPrima ?? nuovoIdMessaggio()) : undefined
     const conTesto = t !== undefined && id !== undefined ? { testo: t, id } : {}
@@ -489,9 +498,9 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
         <div
           className="remoto__tastiera"
           tabIndex={0}
-          title="Clicca qui e usa Esc, frecce, Invio, Tab e Ctrl+C: vanno alla chat di là"
+          title={soloLettura ? 'Da guardare: questa chat la comanda l’autopilota' : 'Clicca qui e usa Esc, frecce, Invio, Tab e Ctrl+C: vanno alla chat di là'}
           onKeyDown={(e) => {
-            if (chatId === undefined) return
+            if (chatId === undefined || soloLettura) return
             const t = tastoDaEvento(e)
             if (t === undefined) return
             e.preventDefault()
@@ -507,7 +516,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
           />
         </div>
       ) : null}
-      {!chiusaPin && fase.tipo === 'viva' ? (
+      {!chiusaPin && fase.tipo === 'viva' && !soloLettura ? (
         <div className="remoto__tasti" aria-label="Tasti per la chat di là">
           {BARRA_TASTI.map((b) => (
             <button key={b.tasto} className="tasto tasto--mini" title={b.titolo} onClick={() => premi(b.tasto)}>{b.etichetta}</button>
@@ -524,16 +533,16 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
           <div className="remoto__avviso-titolo">Su {nomePc} questa chat non è aperta adesso</div>
           <div className="remoto__avviso-testo">
             Quel PC risponde, ma fra le sue chat aperte non c’è {remoto.sessione !== undefined ? 'questa conversazione' : `nessuna chat nella cartella ${remoto.cwd}`}.
-            {remoto.sessione !== undefined ? ` Scrivile qui sotto: la avvio su ${nomePc} in sottofondo — là non si apre nessuna finestra, non cambia workspace e non ruba lo schermo — e il messaggio parte appena è pronta. Oppure avviala adesso, senza scrivere.` : ''}
-            {' '}Puoi anche lasciargli un’azione nella cassetta: la esegue lui, quando vuole.
+            {remoto.sessione !== undefined && !soloLettura ? ` Scrivile qui sotto: la avvio su ${nomePc} in sottofondo — là non si apre nessuna finestra, non cambia workspace e non ruba lo schermo — e il messaggio parte appena è pronta. Oppure avviala adesso, senza scrivere.` : ''}
+            {soloLettura ? ' La avvia l’autopilota, se gli serve: chiediglielo nella sua chat.' : ' Puoi anche lasciargli un’azione nella cassetta: la esegue lui, quando vuole.'}
           </div>
           <div className="remoto__azioni">
-            {remoto.sessione !== undefined ? (
+            {remoto.sessione !== undefined && !soloLettura ? (
               <button className="tasto tasto--primario" disabled={inAvvio} onClick={() => avviaLa()} title={`Dice a ${nomePc} di avviare la conversazione con --resume nella sua cartella, senza riquadro e senza finestre: da qui la vedi e le scrivi`}>
                 Avvia là in sottofondo
               </button>
             ) : null}
-            <button className="tasto" onClick={() => setPostaAperta(true)} title="Scrive nella cassetta di quel PC: la esegue lui in una sua chat, quando è acceso">Scrivile nella cassetta</button>
+            {!soloLettura ? <button className="tasto" onClick={() => setPostaAperta(true)} title="Scrive nella cassetta di quel PC: la esegue lui in una sua chat, quando è acceso">Scrivile nella cassetta</button> : null}
             <button className="tasto" onClick={riprova}>Ricontrolla</button>
           </div>
           {fase.altre.length > 0 ? (
@@ -558,7 +567,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
           </div>
           <div className="remoto__avviso-testo">{fase.messaggio}</div>
           <div className="remoto__azioni">
-            {driveCollegato && (fase.motivo === 'spento' || fase.motivo === 'non-so' || fase.motivo === 'irraggiungibile') ? (
+            {!soloLettura && driveCollegato && (fase.motivo === 'spento' || fase.motivo === 'non-so' || fase.motivo === 'irraggiungibile') ? (
               <button className="tasto tasto--primario" onClick={() => setPostaAperta(true)} title="Scrive nella cassetta di quel PC sul Drive: la esegue lui, in questa chat, quando torna acceso">
                 Scrivile nella cassetta, la fa quando torna
               </button>
@@ -584,7 +593,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
         </div>
       ) : null}
 
-      {!chiusaPin && scelte !== undefined && chatId !== undefined ? (
+      {!chiusaPin && !soloLettura && scelte !== undefined && chatId !== undefined ? (
         <div className="remoto__scelte">
           <div className="remoto__scelte-titolo">La chat aspetta una scelta: tocca l’opzione, la premo là per te.</div>
           {scelte.opzioni.map((o) => (
@@ -617,6 +626,12 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
         </div>
       ) : null}
       <CodaInvii coda={coda} onTogli={(id) => setCoda((c) => consegnato(c, id))} />
+      {soloLettura ? (
+        <div className="remoto__barra remoto__barra--sola" role="note">
+          <span className="remoto__dove">Da guardare</span>
+          <span className="remoto__nota">Questa chat la comanda l’autopilota{regola.pcNome !== undefined ? ` su ${regola.pcNome}` : ''}: scrivi a lui, nella Panoramica.</span>
+        </div>
+      ) : (
       <div className="remoto__barra">
         {/* Su quale PC si scrive, sempre accanto alla casella (0.39.3; 0.92.0 in una pastiglia, non una riga in più). */}
         <span className="remoto__dove" title={`Quello che mandi arriva nel terminale di ${nomePc}, non qui`}>→ {nomePc}</span>
@@ -639,6 +654,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
           Manda
         </button>
       </div>
+      )}
       {/* 0.92.0: la spiegazione sta sul «?» della testata; qui resta solo ciò che blocca. */}
       {!cassaforteAperta ? <div className="remoto__nota">La cassaforte di qui è chiusa: senza, non ho la chiave per bussare a quel PC (Account → Cassaforte).</div> : null}
       {postaAperta && pc !== undefined ? (

@@ -6,7 +6,7 @@ import { proponiNuovaChat, type PropostaChat } from '../nuova-chat'
 import { ModaleNuovaChat } from './ModaleNuovaChat'
 import { cambiaSchermo } from '../cambio-schermo'
 import { MenuWorkspace } from './MenuWorkspace'
-import { SuAltriPc } from './SuAltriPc'
+import { SezioneAltriPc } from './SezioneAltriPc'
 import { serveIlMenu } from '../menu-workspace'
 import { workspaceDaAzione, type Azione } from '@shared/scorciatoie'
 import { azioneDelTasto, impostaScorciatoie } from '../scorciatoie-vive'
@@ -54,8 +54,10 @@ type Props = {
   workspaceCheChiamano?: Set<string>
   /** Mostra le novità di questa versione: la si preme sul numero. */
   onApriNovita: () => void
-  /** Tutti i workspace: stanno nella fascia, non dietro un menu. */
+  /** I workspace di questo PC: stanno nella fascia, non dietro un menu. */
   workspaceNomi: string[]
+  /** I workspace che vivono su altri PC (13/11): stanno nella sezione «Altri PC», non nella fascia. */
+  workspaceRemoti?: Readonly<Record<string, unknown>>
   /**
    * Com'è messo l'aggiornamento del programma, adesso.
    *
@@ -108,6 +110,7 @@ export function Console({
   onApri,
   workspaceAttivo,
   workspaceNomi,
+  workspaceRemoti = {},
   ledAutopiloti,
   domandeInAttesa = 0,
   domandeAperte = false,
@@ -155,7 +158,7 @@ export function Console({
    * workspace che si lascia, altrimenti tornandoci si troverebbe vuoto — solo
    * senza dover aprire niente.
    */
-  const nomiWs = (workspaceNomi.length > 0 ? workspaceNomi : [workspaceAttivo]).filter((x) => x !== '')
+  const nomiWs = (workspaceNomi.length > 0 ? workspaceNomi : [workspaceAttivo]).filter((x) => x !== '' && workspaceRemoti[x] === undefined)
   const cambiaWorkspace = (nome: string): void => {
     if (nome === workspaceAttivo) return
     // L'errore non si ingoia: se il cambio non riesce, premere il nome del
@@ -425,7 +428,6 @@ export function Console({
                 : { testo: `Proteggi con il PIN tutto «${menuPinWs.nome}»`, azione: () => { void window.gestore.pin.proteggiWorkspace(menuPinWs.nome, true); setMenuPinWs(undefined) }, spenta: !pinWs.attivo }
             ]} />
           ) : null}
-          {!serveIlMenu(nomiWs) ? <SuAltriPc /> : null}
           {erroreWs !== undefined ? (
             <span className="misura" role="status" style={{ color: 'var(--ambra)' }} title={erroreWs}>⚠ {erroreWs.length > 60 ? `${erroreWs.slice(0, 60)}…` : erroreWs}</span>
           ) : null}
@@ -439,6 +441,8 @@ export function Console({
           </button>
         </div>
       </div>
+      {/* «Altri PC» (13/11): i workspace che vivono su altri PC, separati da quelli di qui. */}
+      <SezioneAltriPc attivo={workspaceAttivo} nomi={[...nomiWs, ...Object.keys(workspaceRemoti)]} onCambia={cambiaWorkspace} />
       <div className="sezione sezione--vuota" />
       <div className="sezione">
         {/* 0.82.0: quante chat degli autopiloti lavorano su questo PC, sempre in vista. */}

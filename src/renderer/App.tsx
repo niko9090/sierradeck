@@ -75,6 +75,8 @@ import { ChatAutopilota } from './components/ChatAutopilota'
 import { ChatSpecialisti } from './components/ChatSpecialisti'
 import { RigaPcGiu, useAutopilotaRemoto } from './components/ChatAutopilotaRemota'
 import { FornisciSorgente, SORGENTE_LOCALE, sorgenteRemota } from './sorgente-autopilota'
+import { FornisciRegolaChatRemote, useWorkspaceRemoti } from './workspace-remoti'
+import { cartellaAutopilotaLocale, chatRemotaScrivibile, separaWorkspace } from '@shared/workspace-remoti'
 import { gruppoStabile, numeraUguali, righeDalVivo, ultimaAzioneDalVivo, type StatoScheda } from '@shared/panoramica'
 import { ruoloDaContenuto } from '@shared/adozione'
 import { RUOLI, RUOLI_ORDINE } from '@shared/ruoli-agenti'
@@ -1021,9 +1023,9 @@ export function App(): React.JSX.Element {
   // la colonna sottile dell'autopilota, e per ogni chat il gruppo mostrato e da quando (8 s di quiete).
   const [linguettaPerWs, setLinguettaPerWs] = useState<Record<string, string>>({})
   const [colonnaAutopilota, setColonnaAutopilota] = useState(false)
-  // k-60: la chat remota è aperta di suo (Nicholas la vuole sempre in vista); si chiude col tasto della barra.
-  // 0.102.0: il PC dove vive il workspace attivo, se è stato aperto da un altro PC (anche senza chat).
-  const [suPcAttivo, setSuPcAttivo] = useState<{ nome: string; su: { pcId: string; pcNome: string } } | undefined>(undefined)
+  // k-60: in un workspace di un altro PC la colonna dell'autopilota è aperta di suo (Nicholas la vuole
+  // sempre in vista); si chiude col tasto della barra. La 0.102.0 l'aveva tolto: torna (13/11).
+  const [colonnaRemotaChiusa, setColonnaRemotaChiusa] = useState(false)
   const gruppiMostrati = useRef(new Map<string, { gruppo: StatoScheda; statoDal: number; stato: StatoScheda }>())
   const nateIl = useRef(new Map<string, number>())
   const davantiPrima = useRef(new Map<string, string>())
@@ -1578,22 +1580,10 @@ export function App(): React.JSX.Element {
     return () => window.removeEventListener('beforeunload', allaChiusura)
   }, [])
 
-  // 0.102.0: su quale PC vive il workspace davanti (aperto da un altro PC, anche senza chat là).
-  useEffect(() => {
-    const nome = workspace.attivo
-    if (nome === '') { setSuPcAttivo(undefined); return }
-    let vivo = true
-    window.gestore.workspace.suPc(nome)
-      .then((su) => { if (vivo) setSuPcAttivo(su !== undefined ? { nome, su } : undefined) })
-      .catch(() => { if (vivo) setSuPcAttivo(undefined) })
-    return () => { vivo = false }
-  }, [workspace.attivo, workspace.nomi])
-  // Il workspace davanti è di un altro PC? Dai riquadri dal vivo, o dal segno qui sopra. Con
-  // l'autopilota qui, è di qui.
-  const autopilotaQui = autopilotaDelWorkspace(autopiloti, workspace.attivo)
-  const remotoDelWorkspace = autopilotaQui === undefined
-    ? (Object.values(riquadriAperti).find((p) => p.remoto !== undefined)?.remoto ?? (suPcAttivo?.nome === workspace.attivo ? suPcAttivo.su : undefined))
-    : undefined
+  // Sezione «Altri PC» (13/11): su quale PC vive il workspace davanti lo dice il registro
+  // (workspace-su-pc.json), non il primo riquadro né un autopilota nato qui per sbaglio.
+  const remotiQui = useWorkspaceRemoti(workspace.nomi)
+  const remotoDelWorkspace = workspace.attivo !== '' ? remotiQui[workspace.attivo] : undefined
   const { stato: autopilotaDiLa, rileggi: rileggiDiLa } = useAutopilotaRemoto(remotoDelWorkspace?.pcId, workspace.attivo)
 
   useEffect(() => {
@@ -1626,7 +1616,8 @@ export function App(): React.JSX.Element {
 
   // La vista a elenco (0.74.0) del workspace davanti: le voci e la chat che sta davanti.
   const vistaElenco = ((): { voci: VoceElenco[]; davanti: string | undefined } | undefined => {
-    if (!workspaceElenco.includes(workspace.attivo)) return undefined
+    // Un workspace di un altro PC si apre sempre nella Panoramica, con l'autopilota di là (13/11).
+    if (!workspaceElenco.includes(workspace.attivo) && remotoDelWorkspace === undefined) return undefined
     const tutte: VoceElenco[] = Object.values(riquadriAperti).map((p) => ({
       paneId: p.id,
       titolo: p.title,
@@ -1642,13 +1633,23 @@ export function App(): React.JSX.Element {
     return { voci, davanti }
   })()
   // L'autopilota del workspace (30/10: uno per workspace, sempre acceso), in tutte e due le viste.
-  const autopilotaFisso = autopilotaDelWorkspace(autopiloti, workspace.attivo)
+  // Per un workspace di un altro PC conta solo l'autopilota di là: uno nato qui per sbaglio (prima,
+  // dal primo messaggio mentre quello di là si caricava) non lo copre più.
+  const autopilotaFisso = remotoDelWorkspace === undefined ? autopilotaDelWorkspace(autopiloti, workspace.attivo) : undefined
   // k-60: un workspace aperto da un altro PC non ha qui il suo autopilota: sta là. Si vede dal vivo, con gli specialisti di quel PC di fianco.
   // 0.102.0 (Nicholas, 12/11: «la grafica sia IDENTICA a quello che vedrebbe su quel PC»): le
   // stesse schermate di qui — autopilota, barra, coda, specialisti a destra — con i dati di là.
   const sorgente = remotoDelWorkspace !== undefined ? sorgenteRemota(remotoDelWorkspace.pcId, remotoDelWorkspace.pcNome) : SORGENTE_LOCALE
   const autopilotaVisto = autopilotaFisso ?? (remotoDelWorkspace !== undefined ? autopilotaDiLa.autopilota : undefined)
   const ricaricaVisto = remotoDelWorkspace !== undefined ? rileggiDiLa : ricaricaAutopiloti
+  // Le chat di altri PC si scrivono da qui solo in un workspace di qui senza autopilota (13/11).
+  const regolaRemote = {
+    scrivibile: chatRemotaScrivibile({ workspaceRemoto: remotoDelWorkspace !== undefined, conAutopilota: autopilotaVisto !== undefined }),
+    workspaceRemoto: remotoDelWorkspace !== undefined,
+    ...(remotoDelWorkspace !== undefined ? { pcNome: remotoDelWorkspace.pcNome } : {})
+  }
+  const colonnaVista = remotoDelWorkspace !== undefined ? !colonnaRemotaChiusa : colonnaAutopilota
+  const cambiaColonna = (v: boolean): void => { if (remotoDelWorkspace !== undefined) setColonnaRemotaChiusa(!v); else setColonnaAutopilota(v) }
   // La Panoramica (0.77.0): una scheda per chat del workspace, più gli specialisti che hanno finito.
   const linguetta = vistaElenco !== undefined ? (linguettaPerWs[workspace.attivo] ?? PANORAMICA) : PANORAMICA
   const schedePanoramica = ((): SchedaVista[] => {
@@ -1703,6 +1704,10 @@ export function App(): React.JSX.Element {
     }
     return numeraUguali(fuori)
   })()
+  // La cartella di là di una chat del workspace remoto: dove nascerebbe l'autopilota su quel PC.
+  const cartellaLa = remotoDelWorkspace !== undefined
+    ? Object.values(riquadriAperti).find((p) => p.remoto !== undefined && p.remoto.pcId === remotoDelWorkspace.pcId)?.remoto?.cwd
+    : undefined
   const vaiLinguetta = (id: string): void => {
     setLinguettaPerWs((m) => (m[workspace.attivo] === id ? m : { ...m, [workspace.attivo]: id }))
     if (id !== PANORAMICA) setDavantiScelto(id)
@@ -1785,7 +1790,8 @@ export function App(): React.JSX.Element {
         aperto={aperto}
         onApri={setAperto}
         workspaceAttivo={workspace.attivo}
-        workspaceNomi={workspace.nomi}
+        workspaceNomi={separaWorkspace(workspace.nomi, remotiQui).locali}
+        workspaceRemoti={remotiQui}
         onStatoWorkspace={aggiornaWorkspace}
         workspaceCheChiamano={workspaceChiamano}
         onApriNovita={apriNovita}
@@ -2146,22 +2152,23 @@ export function App(): React.JSX.Element {
               schede={schedePanoramica}
               linguetta={linguetta}
               onLinguetta={vaiLinguetta}
-              colonna={colonnaAutopilota}
-              onColonna={setColonnaAutopilota}
+              colonna={colonnaVista}
+              onColonna={cambiaColonna}
               conAutopilota={autopilotaFisso !== undefined || remotoDelWorkspace !== undefined}
               onMosaico={() => impostaElenco(workspace.attivo, false)}
+              {...(remotoDelWorkspace !== undefined ? { suPc: remotoDelWorkspace.pcNome } : {})}
             />
           ) : (
             // Tutte le chat affiancate (0.78.1): la stessa barra in alto, con l'interruttore per tornare alla Panoramica.
             <BarraAffiancate
               onPanoramica={() => { setLinguettaPerWs((m) => ({ ...m, [workspace.attivo]: PANORAMICA })); impostaElenco(workspace.attivo, true) }}
-              colonna={colonnaAutopilota}
-              onColonna={setColonnaAutopilota}
+              colonna={colonnaVista}
+              onColonna={cambiaColonna}
               conAutopilota={autopilotaFisso !== undefined || remotoDelWorkspace !== undefined}
             />
           )}
           {/* La colonna sottile dell'autopilota, sulle linguette delle chat e fra le chat affiancate: si apre e si chiude. */}
-          {(autopilotaVisto !== undefined || remotoDelWorkspace !== undefined) && colonnaAutopilota && (vistaElenco === undefined || linguetta !== PANORAMICA) ? (
+          {(autopilotaVisto !== undefined || remotoDelWorkspace !== undefined) && colonnaVista && (vistaElenco === undefined || linguetta !== PANORAMICA) ? (
             <aside className="pan-colonna" aria-label={remotoDelWorkspace !== undefined ? `L’autopilota, su ${remotoDelWorkspace.pcNome}` : 'L’autopilota'}>
               {remotoDelWorkspace !== undefined ? <SegnoRemoto pcNome={remotoDelWorkspace.pcNome} giu={autopilotaDiLa.giu} /> : null}
               {autopilotaVisto !== undefined ? (
@@ -2169,17 +2176,19 @@ export function App(): React.JSX.Element {
                   <ChatAutopilota key={`${sorgente.chiave}|${autopilotaVisto.id}`} autopilota={autopilotaVisto} onCambiato={ricaricaVisto} />
                 </FornisciSorgente>
               ) : remotoDelWorkspace !== undefined ? (
-                <p className="chatap__pensa">{autopilotaDiLa.giu ? '' : autopilotaDiLa.nessuno === true ? `● Su ${remotoDelWorkspace.pcNome} questo workspace non ha ancora un autopilota.` : `● Leggo l’autopilota su ${remotoDelWorkspace.pcNome}…`}</p>
+                <p className="chatap__pensa">{autopilotaDiLa.giu ? '' : autopilotaDiLa.nessuno === true ? `● Su ${remotoDelWorkspace.pcNome} questo workspace non ha ancora un autopilota: lo avvii dalla Panoramica.` : `● Mi collego a ${remotoDelWorkspace.pcNome}…`}</p>
               ) : null}
             </aside>
           ) : null}
           {root ? (
-            <Mosaic
-              node={root}
-              pensano={pensano}
-              chiedono={chiedono}
-              {...(vistaElenco?.davanti !== undefined ? { solo: vistaElenco.davanti } : {})}
-            />
+            <FornisciRegolaChatRemote value={regolaRemote}>
+              <Mosaic
+                node={root}
+                pensano={pensano}
+                chiedono={chiedono}
+                {...(vistaElenco?.davanti !== undefined ? { solo: vistaElenco.davanti } : {})}
+              />
+            </FornisciRegolaChatRemote>
           ) : vistaElenco !== undefined ? (
             <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--testo-quieto)', fontSize: 13 }}>
               Nessuna chat aperta: l’autopilota apre le sue quando parte.
@@ -2200,14 +2209,32 @@ export function App(): React.JSX.Element {
           {autopilotaVisto !== undefined ? <FornisciSorgente value={sorgente}><ChatSpecialisti workspace={workspace.attivo} colonna pieno={root === undefined} /></FornisciSorgente> : null}
           {/* La Panoramica (0.77.0): sopra i terminali, che restano montati e della stessa misura. */}
           {vistaElenco !== undefined && linguetta === PANORAMICA ? (
+            // La stessa sorgente della colonna e degli specialisti: per un workspace di un altro PC,
+            // conversazione e specialisti arrivano da là (prima qui si leggeva la sorgente locale).
+            <FornisciSorgente value={sorgente}>
             <CorpoPanoramica
               key={workspace.attivo}
               workspace={workspace.attivo}
               {...(autopilotaVisto !== undefined ? { autopilota: autopilotaVisto } : {})}
-              {...(migrazione !== null && migrazione.stato === 'fatta' && migrazione.dormienti.some((d) => d.workspace === workspace.attivo)
+              {...(remotoDelWorkspace === undefined && migrazione !== null && migrazione.stato === 'fatta' && migrazione.dormienti.some((d) => d.workspace === workspace.attivo)
                 ? { dormiente: migrazione.dormienti.find((d) => d.workspace === workspace.attivo)! }
                 : {})}
-              {...(Object.values(riquadriAperti)[0]?.cwd !== undefined ? { cwd: Object.values(riquadriAperti)[0]!.cwd } : {})}
+              {...(() => {
+                // Mai la cartella di una chat di un altro PC, e niente per un workspace remoto:
+                // l'autopilota di qui nasce solo per un workspace di qui.
+                const cwd = cartellaAutopilotaLocale({ workspaceRemoto: remotoDelWorkspace !== undefined, riquadri: Object.values(riquadriAperti) })
+                return cwd !== undefined ? { cwd } : {}
+              })()}
+              {...(remotoDelWorkspace !== undefined ? {
+                remoto: {
+                  pcId: remotoDelWorkspace.pcId,
+                  pcNome: remotoDelWorkspace.pcNome,
+                  stato: autopilotaDiLa,
+                  ...(remotoDelWorkspace.sparito === true ? { sparito: true } : {}),
+                  ...(cartellaLa !== undefined ? { cwdLa: cartellaLa } : {}),
+                  onRileggi: rileggiDiLa
+                }
+              } : {})}
               schede={schedePanoramica}
               onSoloMia={(s, si) => {
                 if (s.sessione === undefined) return
@@ -2220,8 +2247,9 @@ export function App(): React.JSX.Element {
                 }
               }}
               onApri={vaiLinguetta}
-              onRicarica={ricaricaAutopiloti}
+              onRicarica={ricaricaVisto}
             />
+            </FornisciSorgente>
           ) : null}
         </div>
         {/* Le Domande: una colonna fissa accanto alle chat, come nell'app

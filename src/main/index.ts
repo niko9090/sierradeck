@@ -89,6 +89,8 @@ import type { InSospesoVista } from '@shared/libera-spazio'
 import { chatDiWorkspaceSoloQui, chatNonSale } from '@shared/chat-sul-drive'
 import { cartellaDiUnaChat, cartellaDiUnWorkspace, testoCartellaNonQui, type DoveCartella, type RiquadroCartella } from '@shared/apri-cartella'
 import { cartellaDaNomeWorkspace, cartellaVietataPerChat, eSessioneInterna, riordinaCreatiDalProgramma, sessioniInterne, suAltriPc, togliInterneAggiunte, workspaceDaAltroPc, workspaceDaCreare } from '@shared/workspace-riparazioni'
+import { gruppiAltriPc, remotiDiQui, type RegistroSuPc, type WorkspaceRemoto } from '@shared/workspace-remoti'
+import { leggiSuPc as leggiSuPcFile, migraLinguetteRemote, scriviSuPc } from './workspace-su-pc-file'
 import { leggiEliminati } from './workspace-ritrova'
 import { annotaEliminato, copieDellaLista, riparaListaAllAvvio, type EsitoAvvio } from './workspace-ritrova'
 import { cartellaVuota, elencoRecuperoWorkspace, mettiWorkspaceNelRecupero, recuperoLeggibile, ripristinaWorkspace } from './workspace-recupero-file'
@@ -2512,7 +2514,7 @@ if (!app.requestSingleInstanceLock()) {
       azioneAutopilotaAltroPc = async (pc, percorso, corpo, visore) => {
         const nome = postino.altrui().find((b) => b.pcId === pc)?.nome ?? pc
         if (!rottaAutopilotaAltroPc(percorso)) return { ok: false, stato: 403, messaggio: `«${percorso}» non è un’azione su un autopilota` }
-        const cosa = percorso === '/api/autopilota/dialogo' ? 'scrivo all’autopilota' : percorso === '/api/autopilota/ferma' ? 'fermo l’autopilota' : percorso === '/api/autopilota/riprendi' ? 'faccio riprendere l’autopilota' : percorso === '/api/rispondi' ? 'rispondo alla domanda dell’autopilota' : percorso === '/api/autopilota/vai' ? 'do il via all’autopilota' : ''
+        const cosa = percorso === '/api/autopilota/dialogo' ? 'scrivo all’autopilota' : percorso === '/api/autopilota/ferma' ? 'fermo l’autopilota' : percorso === '/api/autopilota/riprendi' ? 'faccio riprendere l’autopilota' : percorso === '/api/rispondi' ? 'rispondo alla domanda dell’autopilota' : percorso === '/api/autopilota/vai' ? 'do il via all’autopilota' : percorso === '/api/autopilota/crea' ? `avvio l’autopilota di «${typeof corpo.workspace === 'string' ? corpo.workspace : '?'}»` : ''
         const chi = typeof corpo.autopilota === 'string' ? corpo.autopilota : typeof corpo.domanda === 'string' ? `domanda ${corpo.domanda}` : ''
         try {
           const dati = await remoto.chiama(pc, percorso, corpo, visore)
@@ -2998,21 +3000,41 @@ if (!app.requestSingleInstanceLock()) {
        * («portalo qui con Sposta»), ora si apre con l'autopilota di là, come su
        * quel PC. Vale solo finché quel PC dice di avere ancora quel workspace.
        */
-      const FILE_SU_PC = join(dati, 'workspace-su-pc.json')
-      const leggiSuPc = (): Record<string, { pcId: string; pcNome: string }> => {
-        try {
-          const j = JSON.parse(readFileSync(FILE_SU_PC, 'utf8')) as unknown
-          return typeof j === 'object' && j !== null && !Array.isArray(j) ? j as Record<string, { pcId: string; pcNome: string }> : {}
-        } catch { return {} }
+      const leggiSuPc = (): RegistroSuPc => leggiSuPcFile(dati)
+      /**
+       * Sezione «Altri PC» (13/11): i workspace di qui che vivono su un altro
+       * PC. Vale il registro, non il battito: un battito vecchio non fa più
+       * diventare «di qui» un workspace remoto. La prima volta le linguette
+       * remote di prima (tutte le chat su un altro PC) entrano nel registro.
+       */
+      let altriPcMigrati = false
+      const remotiAdesso = (): Record<string, WorkspaceRemoto> => {
+        const a = workspaceStore?.leggi()
+        if (a === undefined) return {}
+        if (!altriPcMigrati) {
+          altriPcMigrati = true
+          try { migraLinguetteRemote(dati, a, identitaPc.leggi().id, (r) => registro.info(r)) } catch (err) { registro.errore(`[altri-pc] migrazione non riuscita: ${String(err)}`) }
+        }
+        return remotiDiQui(a.workspace.map((w) => w.nome), leggiSuPc(), postino.altrui().map((b) => ({ pcId: b.pcId, nome: nomeDaMostrare(b), ...(b.workspace !== undefined ? { workspace: b.workspace } : {}) })))
       }
       ipcMain.handle('workspace:suPc', (_e, nome: unknown) => {
         if (typeof nome !== 'string' || nome === '') return undefined
-        const v = leggiSuPc()[nome]
-        if (v === undefined || typeof v.pcId !== 'string') return undefined
-        const battito = postino.altrui().find((b) => b.pcId === v.pcId)
-        // Quel PC non elenca più il workspace (o non lo si conosce): qui è di questo PC.
-        if (battito !== undefined && battito.workspace !== undefined && !battito.workspace.includes(nome)) return undefined
-        return { pcId: v.pcId, pcNome: battito !== undefined ? nomeDaMostrare(battito) : v.pcNome }
+        const v = remotiAdesso()[nome]
+        return v === undefined ? undefined : { pcId: v.pcId, pcNome: v.pcNome }
+      })
+      ipcMain.handle('workspace:remoti', () => remotiAdesso())
+      ipcMain.handle('workspace:sezioneAltriPc', () => {
+        const io = identitaPc.leggi()
+        const a = workspaceStore?.leggi()
+        const remoti = remotiAdesso()
+        const ora = Date.now()
+        const battiti = unBattitoPerNome(senzaAiutanti(postino.altrui()).filter((b) => b.pcId !== io.id), nomeDaMostrare)
+        return gruppiAltriPc({
+          nomiQui: (a?.workspace ?? []).map((w) => w.nome).filter((n) => remoti[n] === undefined),
+          remoti,
+          pc: battiti.map((b) => ({ pcId: b.pcId, nome: nomeDaMostrare(b), vivo: battitoVivo(b.battito, ora), ...(b.workspace !== undefined ? { workspace: b.workspace } : {}) })),
+          attivo: a?.attivo ?? ''
+        })
       })
       ipcMain.handle('workspace:apriDaAltroPc', async (e, pcId: unknown, nome: unknown) => {
         if (typeof pcId !== 'string' || typeof nome !== 'string' || nome === '') return { ok: false, messaggio: 'richiesta non valida' }
@@ -3033,8 +3055,12 @@ if (!app.requestSingleInstanceLock()) {
         // 0.102.0: anche senza chat là si apre — con l'autopilota di quel PC,
         // come lo si vedrebbe là (prima: «portalo qui con Sposta»). Il segno
         // «vive su <PC>» sta in `workspace-su-pc.json`.
+        // Un nome che qui c'è già come workspace di questo PC non diventa remoto: sarebbero due in uno.
+        if (store.leggi().workspace.some((w) => w.nome === nome) && leggiSuPc()[nome] === undefined) {
+          return { ok: false, messaggio: `Qui c’è già un workspace «${nome}» di questo PC: rinominalo prima di aprire quello di ${pcNome}.` }
+        }
         try {
-          scriviJsonAtomico(FILE_SU_PC, { ...leggiSuPc(), [nome]: { pcId, pcNome } }, 'workspace-su-pc')
+          scriviSuPc(dati, { ...leggiSuPc(), [nome]: { pcId, pcNome } })
         } catch (err) { registro.errore(`[workspace] «${nome}»: segno «su ${pcNome}» non scritto: ${String(err)}`) }
         const prima = store.leggi()
         let dopo = aggiungiWorkspace(prima, nome)

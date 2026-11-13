@@ -5155,3 +5155,10 @@ label.gc-voce { cursor: pointer; }
 .remoto__tastiera { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; outline: none; }
 .remoto__tastiera:focus-visible { box-shadow: inset 0 0 0 1px var(--blu, #4aa3ff); }
 .remoto__tasti { display: flex; flex-wrap: wrap; gap: 4px; padding: 3px 6px; border-top: 1px solid var(--bordo); }
+
+/* «Altri PC» (13/11): la sezione dei workspace che vivono su altri PC, e il loro segno nella Panoramica. */
+.altri-pc { border-left: 1px solid var(--bordo); }
+.altri-pc__pc { display: inline-flex; align-items: center; gap: 5px; }
+.altri-pc__testa { display: flex; align-items: center; gap: 6px; color: var(--testo); }
+.pan-barra__pc { border-bottom: 0; border-radius: 4px; margin-left: 6px; }
+.remoto__barra--sola { display: flex; align-items: center; gap: 8px; }

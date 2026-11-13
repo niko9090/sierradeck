@@ -434,6 +434,10 @@ declare global {
         altriPc: () => Promise<{ pc: string; nome: string; workspace: string[] }[]>
         apriDaAltroPc: (pc: string, nome: string) => Promise<{ ok: boolean; messaggio: string }>
         suPc: (nome: string) => Promise<{ pcId: string; pcNome: string } | undefined>
+        /** Sezione «Altri PC» (13/11): i workspace di qui che vivono su un altro PC, per nome. */
+        remoti?: () => Promise<Record<string, import('@shared/workspace-remoti').WorkspaceRemoto>>
+        /** Sezione «Altri PC»: i PC, accesi o no, con i loro workspace. */
+        sezioneAltriPc?: () => Promise<import('@shared/workspace-remoti').GruppoAltroPc[]>
         /** «Apri cartella» (0.82.0): la cartella del progetto del workspace o della chat, in Esplora file. */
         apriCartella: (q: { workspace: string } | { chat: string }) => Promise<{ ok: boolean; messaggio: string }>
         crea: (nome: string, cartella?: string) => Promise<StatoWorkspace>

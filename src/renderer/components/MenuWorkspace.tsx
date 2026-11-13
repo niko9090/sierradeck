@@ -57,7 +57,8 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
   /** Quante chat di altri PC per workspace (0.39.3). */
   const [remote, setRemote] = useState<Record<string, number>>({})
   /** I workspace degli altri PC che qui non ci sono (0.65.1): un gruppo per PC. */
-  const [altrove, setAltrove] = useState<{ pc: string; nome: string; workspace: string[] }[]>([])
+  // Vuoto dal 13/11: gli altri PC hanno la loro sezione («Altri PC»), separata dai workspace di qui.
+  const altrove: { pc: string; nome: string; workspace: string[] }[] = []
   const [recenti, setRecenti] = useState<string[]>([])
   const [nomePc, setNomePc] = useState<string | undefined>(undefined)
   const [porto, setPorto] = useState<string | undefined>(undefined)
@@ -122,7 +123,7 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
     setEvidenziato(Math.max(0, vociInFila(gruppiMenuWorkspace({ nomi, attivo, recenti, filtro: '', nomePc, altrove })).findIndex((v) => v.qui && v.nome === attivo)))
     void window.gestore.workspace.dove().then((d) => setConti(contaChatPerWorkspace(d))).catch(() => undefined)
     void window.gestore.workspace.remote().then(setRemote).catch(() => undefined)
-    void window.gestore.workspace.altriPc().then(setAltrove).catch(() => undefined)
+    // 13/11: i workspace degli altri PC stanno nella sezione «Altri PC», non più in questo menu.
     void window.gestore.workspace.recenti?.()?.then(setRecenti).catch(() => undefined)
     void window.gestore.posta?.identita?.()?.then((i) => setNomePc(i.nome)).catch(() => undefined)
     // La ricerca ha il fuoco: la tastiera arriva a lei e non al terminale sotto.

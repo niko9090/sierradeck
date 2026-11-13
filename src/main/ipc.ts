@@ -1,6 +1,7 @@
 import { annotaEliminato, annotaRinominato } from './workspace-ritrova'
 import { elencoRecuperoWorkspace, mettiWorkspaceNelRecupero, recuperoLeggibile, ripristinaWorkspace } from './workspace-recupero-file'
 import { leggiRecentiWorkspace, rinominaRecenteWorkspace, toccaRecenteWorkspace } from './workspace-recenti-file'
+import { rinominaSuPc, togliSuPc } from './workspace-su-pc-file'
 import { creaRichiestaUnita } from '@shared/richiesta-unita'
 import { modelloAutopilotaAmmesso, modelloValido } from '@shared/modelli'
 import { leggiPermessi } from '@shared/permessi-nicholas'
@@ -1328,6 +1329,8 @@ export function registerLayoutIpc(
     }
     // Annotata (0.65.1): un workspace eliminato da Nicholas non si «ritrova» dalle copie.
     annotaEliminato(dirname(store.percorso), validateNomeWorkspace(raw))
+    // «Altri PC»: un workspace remoto eliminato esce anche dal registro dei PC.
+    if (a !== precedente) togliSuPc(dirname(store.percorso), validateNomeWorkspace(raw))
     dopoNome(validateNomeWorkspace(raw), undefined)
     if (a.attivo !== precedente.attivo) annunciaCambio(event, a, precedente.attivo)
     return statoDi(a)
@@ -1376,6 +1379,7 @@ export function registerLayoutIpc(
       // e svuotava quello nuovo (vedi `RegistroConsegne.rinomina`).
       consegne.rinomina(vecchio, nuovo)
       rinominaRecenteWorkspace(dirname(store.percorso), vecchio, nuovo)
+      rinominaSuPc(dirname(store.percorso), vecchio, nuovo)
       annotaRinominato(dirname(store.percorso), vecchio)
       dopoNome(vecchio, nuovo)
       registro.inviaATutte('workspace:rinominato', { vecchio, nuovo, attivo: a.attivo })
