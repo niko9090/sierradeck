@@ -11,7 +11,7 @@ import { useLayoutStore } from '../state/layout'
 import { contaChat, contaWorkspace, eChiusuraAutomatica, type Istantanea } from '@shared/istantanea'
 import { SezionePin } from './SezionePin'
 import { SezioneQuadernoPersonale } from './SezioneQuadernoPersonale'
-import { SezioneAggiornamenti } from './SezioneAggiornamenti'
+import { SezioneAggiornamenti, apriFinestraAggiornamenti } from './SezioneAggiornamenti'
 import { SezioneErrori } from './SezioneErrori'
 import { SezioneNotifiche } from './SezioneNotifiche'
 import { SezioneLimiti } from './SezioneLimiti'
@@ -711,7 +711,7 @@ export function PannelloImpostazioni(
             </TendinaMenu>
           ) : null}
         </span>
-        <Aiuto di="Impostazioni">Solo le preferenze: aggiornamenti, nome del computer e rete, comportamento delle chat, l’account Google, aspetto, notifiche. A sinistra le sezioni; in cima come stanno versione, Drive, cassaforte e telefoni (un clic porta alla sezione). In «Generali» c’è anche la ricerca.</Aiuto>
+        <Aiuto di="Impostazioni">Solo le preferenze: aggiornamenti, nome del computer e rete, comportamento delle chat, l’account Google, aspetto, notifiche. A sinistra le sezioni; in cima come stanno versione, Drive, cassaforte e telefoni (un clic porta alla sezione; «Versione» apre la finestra degli aggiornamenti). In «Generali» c’è anche la ricerca.</Aiuto>
         <button className="tasto tasto--mini" onClick={onChiudi} aria-label="Chiudi">×</button>
       </div>
       {fabbrica ? (
@@ -736,7 +736,7 @@ export function PannelloImpostazioni(
         </nav>
         <div className="impostazioni-vista__destra">
           <div className="impostazioni__tessere">
-            {tessera('Versione', stati.versione, () => vai('aggiornamenti'))}
+            {tessera('Versione', stati.versione, () => apriFinestraAggiornamenti())}
             {tessera('Drive', stati.drive, () => setTab('account'))}
             {tessera('Cassaforte', stati.cassaforte, () => setTab('account'))}
             {tessera('Telefoni', stati.telefoni, () => vai('computer'))}

@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
   GRANDEZZA_MASSIMA, GRANDEZZA_MINIMA, GRANDEZZA_PREDEFINITA, LETTURA_INIZIALE, MARGINE_NOVITA, chiaveNotizia, grandezzaNeiLimiti,
-  leggiGrandezzaSalvata, leggiVista, posizioneInBassoADestra, segnaLetto, suStato, testaNovita,
+  installataDaMostrare, leggiGrandezzaSalvata, leggiVersioneVista, leggiVista, posizioneInBassoADestra, segnaLetto, suStato, testaNovita,
+  versionePrima,
   type LetturaNovita, type StatoPerNovita
 } from '../../src/shared/finestra-novita'
 
@@ -137,5 +138,32 @@ describe('la grandezza scelta da chi la usa', () => {
     expect(p.y).toBeGreaterThanOrEqual(area.y)
     expect(p.x + p.width).toBe(area.width - MARGINE_NOVITA)
     expect(p.y + p.height).toBe(area.height - MARGINE_NOVITA)
+  })
+})
+
+describe('il primo avvio dopo un’installazione (13/11)', () => {
+  it('versionePrima confronta x.y.z come numeri', () => {
+    expect(versionePrima('0.99.9', '0.106.2')).toBe(true)
+    expect(versionePrima('0.106.2', '0.106.2')).toBe(false)
+    expect(versionePrima('1.0.0', '0.106.2')).toBe(false)
+  })
+  it('leggiVersioneVista accetta solo una versione', () => {
+    expect(leggiVersioneVista({ versione: '0.106.2' })).toBe('0.106.2')
+    expect(leggiVersioneVista({ versione: 'qualcosa' })).toBeUndefined()
+    expect(leggiVersioneVista(undefined)).toBeUndefined()
+  })
+  it('si mostra con una versione vista più vecchia, o senza file col segno riuscito; mai tornando indietro', () => {
+    expect(installataDaMostrare({ vista: '0.106.1', attuale: '0.106.2', tentativoRiuscito: false })).toBe(true)
+    expect(installataDaMostrare({ vista: '0.106.2', attuale: '0.106.2', tentativoRiuscito: true })).toBe(false)
+    expect(installataDaMostrare({ vista: '0.107.0', attuale: '0.106.2', tentativoRiuscito: true })).toBe(false)
+    expect(installataDaMostrare({ vista: undefined, attuale: '0.106.2', tentativoRiuscito: true })).toBe(true)
+    expect(installataDaMostrare({ vista: undefined, attuale: '0.106.2', tentativoRiuscito: false })).toBe(false)
+    expect(installataDaMostrare({ vista: '0.1.0', attuale: '', tentativoRiuscito: true })).toBe(false)
+  })
+  it('sulle novità la ricerca automatica dell’avvio non cambia la frase; quella chiesta dal telefono sì', () => {
+    expect(testaNovita({ fase: 'cerco' }, '0.106.2', { tipo: 'novita' }).titolo).toBe('Installata: ecco cosa cambia')
+    expect(testaNovita({ fase: 'aggiornato' }, '0.106.2', { tipo: 'novita' }).titolo).toBe('Installata: ecco cosa cambia')
+    expect(testaNovita({ fase: 'cerco', daTelefono: true }, '0.106.2', { tipo: 'novita' }).titolo).toBe('Cerco aggiornamenti…')
+    expect(testaNovita({ fase: 'cerco' }, '0.106.2', { tipo: 'aggiornamento' }).titolo).toBe('Cerco aggiornamenti…')
   })
 })

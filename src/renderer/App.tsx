@@ -878,7 +878,8 @@ export function App(): React.JSX.Element {
   // Le novità e «cosa cambia» (0.39.0) stanno dal 13/11 nella finestra degli
   // aggiornamenti in basso a destra, fuori dalla faccia del programma. Si
   // chiedono dal numero di versione in alto o dalle Impostazioni (che mandano
-  // `sierradeck:apri-novita`); all'avvio non si aprono da sole.
+  // `sierradeck:apri-novita`). Da sole solo al primo avvio dopo
+  // un'installazione: lo decide il main (`controllaInstallata`).
   const apriNovita = useCallback((): void => {
     void window.gestore.finestraNovita?.apri({ tipo: 'novita' }).catch(() => undefined)
   }, [])

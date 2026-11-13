@@ -12,8 +12,10 @@ import { Aiuto } from './Aiuto'
  * Dall'11/11 in cima ci sono le notifiche vere (`AvvisiDelPc`): cosa avvisa
  * e come, per telefono, pagina e Telegram, le stesse scelte che si vedono
  * nell'app e nella pagina, tenute da questo PC. Sotto, le due scelte del PC:
- * il fumetto del salvataggio automatico sul Drive e la notifica di Windows per
- * l'aggiornamento che aspetta (preferenze, salvate dal pannello).
+ * il fumetto del salvataggio automatico sul Drive e la finestra degli
+ * aggiornamenti quando l'aggiornamento aspetta a lungo (preferenze, salvate dal
+ * pannello). Dal 13/11 niente notifica di Windows per l'aggiornamento: tutto
+ * passa dalla sua finestra.
  */
 export function SezioneNotifiche({ p, cambia, vede }: { p: Preferenze; cambia: (x: Partial<Preferenze>) => void; vede?: (...id: string[]) => boolean }): React.JSX.Element {
   const mostra = vede ?? (() => true)
@@ -23,10 +25,10 @@ export function SezioneNotifiche({ p, cambia, vede }: { p: Preferenze; cambia: (
       {mostra('avviso-windows-aggiornamento') ? (
         <label className="impostazioni__riga impostazioni__riga--spunta">
           <input type="checkbox" checked={p.avvisoWindowsAggiornamento} onChange={(e) => cambia({ avvisoWindowsAggiornamento: e.target.checked })} />
-          <span className="con-aiuto">Avvisa con Windows se l’aggiornamento aspetta
+          <span className="con-aiuto">Mostra la finestra degli aggiornamenti se l’attesa è lunga
             {/* Dentro la <label>: senza preventDefault un clic sulla spiegazione cambierebbe la spunta. */}
-            <span onClick={(e) => e.preventDefault()}><Aiuto di="Avviso di Windows per l’aggiornamento">
-              Acceso: se una versione nuova è pronta e le chat non finiscono il turno per molto tempo, Windows mostra «SierraDeck aspetta per aggiornarsi». Spento: Windows non dice niente; l’attesa si vede lo stesso in Aggiornamenti e nel registro. Non cambia mai quando si installa.
+            <span onClick={(e) => e.preventDefault()}><Aiuto di="Finestra degli aggiornamenti per l’attesa lunga">
+              Acceso: se hai premuto «Installa e riavvia» e le chat non finiscono il turno per molto tempo, la finestra degli aggiornamenti in basso a destra si mostra anche con SierraDeck nascosto. Spento: si vede solo quando apri SierraDeck o premi il numero di versione in alto. Non cambia mai quando si installa.
             </Aiuto></span>
           </span>
         </label>
