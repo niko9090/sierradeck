@@ -32,6 +32,7 @@
 - la suite completa (vitest, circa 620 file) richiede circa 3,5 minuti: usare un timeout ampio. _(2026-11-12)_
 - per logica di percorsi Windows passare path.win32 come parametro, così il test gira uguale su ogni sistema _(2026-11-13)_
 - tests/shared/novita.test.ts limita ogni voce delle novità a 8 righe: per aggiungere una correzione a una voce piena bisogna unire due righe. _(2026-11-13)_
+- per simulare il servizio spento basta aprire e chiudere un server http su porta 0 e usare quella porta: `fetch failed` vero, senza mock _(2026-11-13)_
 
 ## worktree
 
@@ -117,6 +118,7 @@
 - lo stato `fermo` era tolto: un guasto non di rete non aspetta più Nicholas, riprova da solo con attesa crescente (tetto 5 min). _(2026-11-11)_
 - il client non sa il workspace di un id sparito: lo ricorda lui (id→cwd/workspace) e riscrive via /orchestratore/messaggio, che riusa l'autopilota del workspace. _(2026-11-13)_
 - Mai criteri «la versione di package.json è già su GitHub»: dopo, il programma li rimisura su ogni ramo e respinge il bump successivo (13/11, 0.106.3 bloccata, sbloccata con pre-release vuota). _(2026-11-13)_
+- il client segna `scaduto` (timeout) e `spento` (fetch failed/ECONNREFUSED/ECONNRESET): per un errore atteso usare `servizioIndisponibile`, non il solo `scaduto _(2026-11-13)_
 
 ## controllo
 
