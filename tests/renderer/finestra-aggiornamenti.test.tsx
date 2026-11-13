@@ -63,6 +63,6 @@ describe('fuori dalla faccia del programma', () => {
     expect(pannelli).toContain('!accessorie.has(w.id)')
   })
   it('l’ingresso del renderer sceglie la finestra con ?finestra=aggiornamenti', () => {
-    expect(readFileSync('src/renderer/main.tsx', 'utf8')).toContain("get('finestra') === 'aggiornamenti'")
+    expect(readFileSync('src/renderer/main.tsx', 'utf8')).toContain("finestra === 'aggiornamenti' ? <FinestraAggiornamenti />")
   })
 })
