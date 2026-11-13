@@ -383,3 +383,7 @@
 ## ipc
 
 - `preferenze:imposta` ora risponde `{ preferenze, salvato }`: chi lo chiama dal renderer usi `salvaPreferenze` (src/renderer/salva-preferenze.ts), non `imposta` diretto. _(2026-11-12)_
+
+## testo
+
+- Nella Salute la differenza di versione va guardata con major.minor (`stessoMinor` in src/shared/salute.ts): le funzioni elencate a mano nei messaggi diventano false con le release. _(2026-11-13)_
