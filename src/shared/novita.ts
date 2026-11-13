@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.105.1',
+    righe: [
+      '**Salute più giusta:** se un PC ha una versione più vecchia, il messaggio non elenca più funzioni fisse. Se cambiano solo correzioni dice che aggiornarlo non è urgente; se cambiano funzioni dice quali novità mancano là.',
+    ],
+  },
+  {
     versione: '0.105.0',
     righe: [
       '**SierraDeck Aiutante:** un programma a parte, leggero, che fa solo una cosa: lavorare per gli altri PC («Aiuta la rete»). Niente chat; entra nella rete col Drive come un PC normale e si aggiorna da solo, aspettando che i lavori finiscano. SierraDeck manda gli specialisti prima agli Aiutanti, poi agli altri PC.',
