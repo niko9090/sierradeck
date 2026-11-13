@@ -338,6 +338,8 @@
 - nel client dell'autopilota ogni POST che fa scrivere il servizio su disco deve passare `attesaScrittura`: senza, valgono i 3 s di lettura e sotto carico scade. _(2026-11-10)_
 - gli errori di rete dell'API nei turni (ENOTFOUND, Can't reach the API server) vanno trattati come passeggeri, come quelli dell'aggiornamento: avviso, non ERRORE. _(2026-11-10)_
 - `eErroreDiRete` in src/shared/errori-rete.ts è l'unico elenco degli errori di rete, condiviso da aggiornamenti e autopilota: aggiungere i codici lì. _(2026-11-10)_
+- «Aiuta la rete» rimanda lo stesso compito a un PC con l'accesso Claude scaduto («OAuth session expired»): fallisce in pochi secondi e al rilancio va di nuovo lì (13/11, DESKTOP-O2DITVE). _(2026-11-13)_
+- Se «Aiuta la rete» manda un compito a un PC che fallisce sempre, l'Agent lanciato con isolation: "worktree" resta su questo PC (13/11, k-152). _(2026-11-13)_
 
 ## cancello
 
