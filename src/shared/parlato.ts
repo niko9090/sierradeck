@@ -184,6 +184,12 @@ function tolleranza(forma: string): number {
 /** Le parole di riempimento che possono precedere la parola di sveglia. */
 const RIEMPITIVI = new Set(['ehi', 'ei', 'hey', 'ehy', 'ok', 'okay', 'oke', 'allora', 'ciao', 'senti', 'oh', 'o', 'eh', 'e'])
 
+/**
+ * Parole italiane vere a un errore dalla parola di sveglia (13/11): non svegliano,
+ * o «la serra in giardino…» detto da qualcuno nella stanza partirebbe come messaggio.
+ */
+const PAROLE_VERE = new Set(['serra', 'serre', 'sera', 'sere'].map(formaSveglia))
+
 /** Una parola di sveglia accettabile: da 2 a 20 lettere, una o due parole. */
 export function parolaSvegliaValida(p: string): boolean {
   const t = p.trim()
@@ -209,7 +215,7 @@ export function cercaParolaSveglia(testo: string, parola: string = PAROLA_SVEGLI
   if (prima === undefined) return undefined
   const tol = tolleranza(voluta)
   const resto = (a: number): { resto: string } => ({ resto: testo.slice(a).replace(/^[\s,.;:!?…\-–—]+/u, '').trim() })
-  if (quanteParole === 1 && distanza(formaSveglia(prima.t), voluta) <= tol) return resto(prima.a)
+  if (quanteParole === 1 && distanza(formaSveglia(prima.t), voluta) <= tol && (formaSveglia(prima.t) === voluta || !PAROLE_VERE.has(formaSveglia(prima.t)))) return resto(prima.a)
   const seconda = parole[i + 1]
   if (seconda !== undefined) {
     const unite = formaSveglia(prima.t + seconda.t)

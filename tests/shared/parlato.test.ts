@@ -195,3 +195,12 @@ describe('regole dei modi', () => {
     expect(voce).not.toMatch(/invioDaSolo:/u)
   })
 })
+
+describe('parole vere vicine alla parola di sveglia (13/11)', () => {
+  it('«serra» non sveglia, «Sierra» e «Siera» sì', () => {
+    expect(cercaParolaSveglia('Serra, apri le finestre')).toBeUndefined()
+    expect(cercaParolaSveglia('la serra in giardino')).toBeUndefined()
+    expect(cercaParolaSveglia('Sierra, fammi il riassunto')?.resto).toBe('fammi il riassunto')
+    expect(cercaParolaSveglia('Siera fammi il riassunto')?.resto).toBe('fammi il riassunto')
+  })
+})
