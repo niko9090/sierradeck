@@ -1658,7 +1658,7 @@ if (!app.requestSingleInstanceLock()) {
         dati,
         scarica: (url, init) => net.fetch(url, init),
         log: (riga) => registro.info(riga),
-        avvisa: (s) => { for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('voce-locale:cambiato', s) }
+        avvisa: (s) => { for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('voce-locale:cambiato', s) }
       })
       ipcMain.handle('voce-locale:stato', () => voceLocale.stato())
       ipcMain.handle('voce-locale:scarica', (_e, modello: unknown) => voceLocale.scarica(eIdModello(modello) ? modello : 'preciso'))
