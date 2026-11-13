@@ -31,6 +31,7 @@
 - per la regola del quaderno usare un repository git vero (repositoryDiPartenza): i mock non vedono il comportamento di `git status`/`add`/`commit` sui file riscritti. _(2026-11-11)_
 - la suite completa (vitest, circa 620 file) richiede circa 3,5 minuti: usare un timeout ampio. _(2026-11-12)_
 - per logica di percorsi Windows passare path.win32 come parametro, così il test gira uguale su ogni sistema _(2026-11-13)_
+- tests/shared/novita.test.ts limita ogni voce delle novità a 8 righe: per aggiungere una correzione a una voce piena bisogna unire due righe. _(2026-11-13)_
 
 ## worktree
 
@@ -87,6 +88,7 @@
 - i file del lotto errori-arrivati non sono tracciati e non stanno nel worktree: per il titolo del gruppo leggerli con Read dalla cartella principale. _(2026-11-13)_
 - `npm run pubblica` con la bozza già creata e il tag pushato la lascia in bozza: serve sempre `gh release edit --draft=false --latest`. L'URL della bozza è «untagged-…» finché non si pubblica. _(2026-11-13)_
 - prima del bump: `git merge --ff-only main`, poi `gh release list`; la voce in `src/shared/novita.ts` va nello stesso commit del bump, sennò `novita.test.ts` fallisce. _(2026-11-13)_
+- se una correzione entra in main dopo un bump già fatto da un'altra chat, non fare un bump nuovo: controllare `gh release list` e, se la versione non è pubblicata, farla uscire con quella. _(2026-11-13)_
 
 ## git
 
@@ -405,6 +407,7 @@
 ## errori
 
 - `chiama` ora porta stato e motivo nell'errore: riconoscere i 404 dal motivo, non dal testo del messaggio. _(2026-11-13)_
+
 ## voce
 
 - whisper.cpp 1.9.2 su questo PC (i7-3770, niente AVX2, CPU al 100%): 15-37 s per una frase di 3 s col modello small q5_1; «Sierra» la scrive giusta, «fammi» a volte «famiglia». Le misure vanno rifatte a PC scarico. _(2026-11-13)_
