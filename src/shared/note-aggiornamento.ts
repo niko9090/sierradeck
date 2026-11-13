@@ -35,10 +35,10 @@ export type Blocco =
   | { tipo: 'codice'; testo: string }
 
 /** Il testo grezzo di una versione, com'e' scritto nella release. */
-export type NotaVersione = { versione: string; testo: string }
+export type NotaVersione = { versione: string; testo: string; /** ISO, quando la fonte la dà (GitHub: `published_at`). */ data?: string }
 
 /** Una versione pronta da disegnare. */
-export type NotaResa = { versione: string; blocchi: Blocco[] }
+export type NotaResa = { versione: string; blocchi: Blocco[]; /** ISO, se si sa: la finestra la mostra accanto al numero. */ data?: string }
 
 /** Quello che la finestra di «Installa» mostra, sul PC e sul telefono. */
 export type NoteAggiornamento = {
@@ -326,17 +326,25 @@ export function markdownDaHtml(html: string): string {
     .trim()
 }
 
+/** Una data ISO che si legge davvero, o niente. */
+export function dataValida(x: unknown): string | undefined {
+  if (typeof x !== 'string' || x.length > 40) return undefined
+  const t = Date.parse(x)
+  return Number.isNaN(t) ? undefined : new Date(t).toISOString()
+}
+
 /** Le release dall'API pubblica di GitHub: solo quelle vere (niente bozze, niente prove). */
 export function daRilasciGithub(json: unknown): NotaVersione[] {
   if (!Array.isArray(json)) return []
   const note: NotaVersione[] = []
   for (const r of json as unknown[]) {
     if (typeof r !== 'object' || r === null) continue
-    const x = r as { tag_name?: unknown; body?: unknown; draft?: unknown; prerelease?: unknown }
+    const x = r as { tag_name?: unknown; body?: unknown; draft?: unknown; prerelease?: unknown; published_at?: unknown }
     if (x.draft === true || x.prerelease === true || typeof x.tag_name !== 'string') continue
     const versione = versioneDaTag(x.tag_name)
     if (versione === undefined) continue
-    note.push({ versione, testo: typeof x.body === 'string' ? x.body : '' })
+    const data = dataValida(x.published_at)
+    note.push({ versione, testo: typeof x.body === 'string' ? x.body : '', ...(data !== undefined ? { data } : {}) })
   }
   return note
 }
@@ -375,6 +383,8 @@ export async function raccogliNote(p: {
   rilasci?: () => Promise<unknown>
   /** `info.releaseNotes` di electron-updater, se c'e'. */
   releaseNotes?: unknown
+  /** `info.releaseDate` di electron-updater: la data della nuova, se GitHub non la dà. */
+  dataNuova?: unknown
   dove?: string
 }): Promise<NoteAggiornamento> {
   const dove = p.dove ?? PAGINA_VERSIONI
@@ -390,7 +400,11 @@ export async function raccogliNote(p: {
   const daAggiornamento = noteFra(daNoteAggiornamento(p.releaseNotes, p.nuova), p.installata, p.nuova)
   const unite = noteFra([...daGithub, ...daAggiornamento], p.installata, p.nuova)
   const fonte: NoteAggiornamento['fonte'] = daGithub.length > 0 ? 'github' : unite.length > 0 ? 'aggiornamento' : 'nessuna'
-  const note = unite.map((n) => ({ versione: n.versione, blocchi: analizzaMarkdown(n.testo) }))
+  const dataNuova = dataValida(p.dataNuova)
+  const note = unite.map((n): NotaResa => {
+    const data = n.data ?? (n.versione === p.nuova ? dataNuova : undefined)
+    return { versione: n.versione, blocchi: analizzaMarkdown(n.testo), ...(data !== undefined ? { data } : {}) }
+  })
   let avviso: string | undefined
   if (unite.length === 0) {
     avviso = `Non sono riuscito a leggere le note della ${p.nuova}${guastoGithub !== undefined ? ' (GitHub non ha risposto)' : ''}. Le trovi scritte per esteso nella pagina delle versioni: ${dove}. Puoi installare lo stesso: le note servono a sapere cosa cambia, non sono un permesso.`

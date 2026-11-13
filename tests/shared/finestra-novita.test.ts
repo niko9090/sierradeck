@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
-  GRANDEZZA_NOVITA, LETTURA_INIZIALE, MARGINE_NOVITA, chiaveNotizia, leggiVista, posizioneInBassoADestra, segnaLetto, suStato, titoloNovita,
+  GRANDEZZA_MASSIMA, GRANDEZZA_MINIMA, GRANDEZZA_PREDEFINITA, LETTURA_INIZIALE, MARGINE_NOVITA, chiaveNotizia, grandezzaNeiLimiti,
+  leggiGrandezzaSalvata, leggiVista, posizioneInBassoADestra, segnaLetto, suStato, testaNovita,
   type LetturaNovita, type StatoPerNovita
 } from '../../src/shared/finestra-novita'
 
@@ -17,7 +18,7 @@ describe('posizioneInBassoADestra', () => {
   })
   it('in uno schermo più piccolo della finestra si stringe e non esce', () => {
     const area = { x: 0, y: 0, width: 300, height: 200 }
-    const p = posizioneInBassoADestra(area, GRANDEZZA_NOVITA.installa, 12)
+    const p = posizioneInBassoADestra(area, GRANDEZZA_PREDEFINITA, 12)
     expect(p.width).toBe(276)
     expect(p.height).toBe(176)
     expect(p.x).toBeGreaterThanOrEqual(area.x)
@@ -101,9 +102,40 @@ describe('le viste', () => {
     expect(leggiVista('qualcosa')).toEqual({ tipo: 'aggiornamento' })
     expect(leggiVista(undefined)).toEqual({ tipo: 'aggiornamento' })
   })
-  it('i titoli', () => {
-    expect(titoloNovita({ tipo: 'aggiornamento' })).toBe('Aggiornamento')
-    expect(titoloNovita({ tipo: 'novita' })).toBe('Cosa c’è di nuovo')
-    expect(titoloNovita({ tipo: 'installa', versione: '9.9.9' })).toBe('Cosa cambia con la 9.9.9')
+  it('la testa: frase dello stato e versioni', () => {
+    const agg = { tipo: 'aggiornamento' } as const
+    expect(testaNovita({ fase: 'pronto', versione: '0.106.2' }, '0.106.0', agg)).toEqual({ titolo: 'Nuova versione 0.106.2 pronta', versioni: 'da 0.106.0 → a 0.106.2' })
+    expect(testaNovita({ fase: 'scarico', versione: '0.106.2', percento: 45 }, '0.106.0', agg).titolo).toBe('Sto scaricando… 45%')
+    expect(testaNovita({ fase: 'disponibile', versione: '0.106.2' }, '0.106.0', agg).titolo).toBe('Nuova versione 0.106.2')
+    expect(testaNovita({ fase: 'aggiornato' }, '0.106.1', agg)).toEqual({ titolo: 'Sei aggiornato', versioni: 'versione 0.106.1' })
+    expect(testaNovita({ fase: 'fermo' }, '0.106.1', { tipo: 'novita' }).titolo).toBe('Installata: ecco cosa cambia')
+    expect(testaNovita({ fase: 'errore', errore: 'x' }, '0.106.1', agg)).toEqual({ titolo: 'Aggiornamento non riuscito', versioni: 'versione 0.106.1' })
+    // Una versione in uno stato tranquillo (la ricerca dopo «pronta») non fa dire «da → a».
+    expect(testaNovita({ fase: 'cerco', versione: '0.106.2' }, '0.106.1', agg).versioni).toBe('versione 0.106.1')
+  })
+})
+
+describe('la grandezza scelta da chi la usa', () => {
+  it('predefinita più grande di prima, e fra i limiti', () => {
+    expect(GRANDEZZA_PREDEFINITA).toEqual({ width: 520, height: 640 })
+    expect(grandezzaNeiLimiti(GRANDEZZA_PREDEFINITA)).toEqual(GRANDEZZA_PREDEFINITA)
+  })
+  it('il file letto: valori buoni restano, troppo piccoli o troppo grandi si fermano ai limiti', () => {
+    expect(leggiGrandezzaSalvata({ width: 700.4, height: 820.6 })).toEqual({ width: 700, height: 821 })
+    expect(leggiGrandezzaSalvata({ width: 10, height: 10 })).toEqual(GRANDEZZA_MINIMA)
+    expect(leggiGrandezzaSalvata({ width: 99999, height: 99999 })).toEqual(GRANDEZZA_MASSIMA)
+  })
+  it('un file rovinato torna alla predefinita', () => {
+    for (const x of [undefined, null, 'x', {}, { width: '600', height: 600 }, { width: Number.NaN, height: 600 }, { width: Infinity, height: 600 }]) {
+      expect(leggiGrandezzaSalvata(x)).toEqual(GRANDEZZA_PREDEFINITA)
+    }
+  })
+  it('su uno schermo piccolo la grandezza ricordata si stringe e resta dentro l’area di lavoro', () => {
+    const area = { x: 0, y: 0, width: 1366, height: 728 }
+    const p = posizioneInBassoADestra(area, leggiGrandezzaSalvata({ width: 1600, height: 1400 }))
+    expect(p.x).toBeGreaterThanOrEqual(area.x)
+    expect(p.y).toBeGreaterThanOrEqual(area.y)
+    expect(p.x + p.width).toBe(area.width - MARGINE_NOVITA)
+    expect(p.y + p.height).toBe(area.height - MARGINE_NOVITA)
   })
 })

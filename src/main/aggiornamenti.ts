@@ -92,6 +92,10 @@ export type StatoAggiornamento = {
   daTelefono?: boolean
   /** Da 0 a 100 mentre scarica. */
   percento?: number
+  /** Mentre scarica (13/11): byte arrivati, byte in tutto, byte al secondo. Per «32 di 71 MB · 2,3 MB/s · ancora 20 s». */
+  scaricati?: number
+  totale?: number
+  velocita?: number
   /** Che cosa è andato storto, se è andato storto. */
   errore?: string
   /**
@@ -481,6 +485,8 @@ export function creaAggiornamenti(
    * se GitHub non risponde quando si apre la finestra di «Installa».
    */
   let noteDellAggiornamento: unknown
+  /** `info.releaseDate`: la data della nuova versione, per la finestra degli aggiornamenti. */
+  let dataDellAggiornamento: unknown
   /**
    * Le fasi di questo aggiornamento (0.84.3). «scarico» si apre al primo pezzo
    * scaricato e si chiude a scaricamento finito; «salvo» a «Installa»;
@@ -565,6 +571,7 @@ export function creaAggiornamenti(
   autoUpdater.on('update-available', (info) => {
     mancaDetto = false
     noteDellAggiornamento = info.releaseNotes ?? undefined
+    dataDellAggiornamento = info.releaseDate
     annuncia({ fase: 'disponibile', versione: String(info.version) })
   })
   /** Il 404 su latest.yml già detto in questa sessione: si dice una volta sola (0.86.2). */
@@ -588,7 +595,7 @@ export function creaAggiornamenti(
   })
   autoUpdater.on('download-progress', (p) => {
     if (!fasi.some((f) => f.passo === 'scarico' && f.fino === undefined)) fasi = segnaPasso([], 'scarico', new Date().toISOString())
-    annuncia({ ...stato, fase: 'scarico', percento: Math.round(p.percent) })
+    annuncia({ ...stato, fase: 'scarico', percento: Math.round(p.percent), scaricati: p.transferred, totale: p.total, velocita: p.bytesPerSecond })
   })
   autoUpdater.on('update-downloaded', (info) => {
     // Con l'auto-download l'installer arriva qui, non da `scarica()`: senza
@@ -603,6 +610,7 @@ export function creaAggiornamenti(
     episodio404 = undefined
     fasi = chiudiFasi(fasi, new Date().toISOString())
     if (info.releaseNotes !== undefined && info.releaseNotes !== null) noteDellAggiornamento = info.releaseNotes
+    if (info.releaseDate !== undefined) dataDellAggiornamento = info.releaseDate
     annuncia({ fase: 'pronto', versione: String(info.version) })
   })
   /**
@@ -949,6 +957,7 @@ export function creaAggiornamenti(
         installata,
         nuova,
         releaseNotes: noteDellAggiornamento,
+        dataNuova: dataDellAggiornamento,
         dove: `https://github.com/${owner}/${repo}/releases`,
         rilasci: async () => {
           const risposta = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases?per_page=100`, {
