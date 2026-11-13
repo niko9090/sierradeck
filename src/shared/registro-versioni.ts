@@ -72,6 +72,11 @@ export function voceDaPezzi(pezzi: Pezzo[]): VoceRegistro {
         resto[0].testo = resto[0].testo.replace(dueDopo ? /^\s*:\s*/ : /^\s+/, '')
         if (resto[0].testo === '') resto.shift()
       }
+      // Il testo va a capo sotto il titolo: comincia con la maiuscola («la 0.106.0…» → «La 0.106.0…»).
+      const primoResto = resto[0]
+      if (primoResto !== undefined && primoResto.codice === undefined && primoResto.link === undefined) {
+        primoResto.testo = primoResto.testo.charAt(0).toLocaleUpperCase('it') + primoResto.testo.slice(1)
+      }
       if (titolo !== '') return { titolo, testo: resto }
     }
   }
@@ -144,11 +149,17 @@ export function registroInstallata(
   }))
 }
 
-/** Quali schede sono aperte all'inizio: la prima sempre; tutte se sono poche (fino a 3) e si sta per aggiornare. */
+/**
+ * Quali schede sono aperte all'inizio. Sempre la prima. Prima di aggiornare
+ * anche le saltate con novità (le correzioni restano chiuse, si aprono col
+ * clic), al massimo 3 aperte; se le versioni sono fino a 3, tutte.
+ */
 export function aperteAllInizio(registro: VersioneRegistro[]): Set<string> {
   const aggiornamento = registro.some((v) => v.ruolo === 'nuova' || v.ruolo === 'saltata')
-  if (aggiornamento && registro.length <= 3) return new Set(registro.map((v) => v.versione))
-  return new Set(registro.slice(0, 1).map((v) => v.versione))
+  if (!aggiornamento) return new Set(registro.slice(0, 1).map((v) => v.versione))
+  if (registro.length <= 3) return new Set(registro.map((v) => v.versione))
+  const aperte = registro.filter((v, i) => i === 0 || v.tipo !== 'correzioni').slice(0, 3)
+  return new Set(aperte.map((v) => v.versione))
 }
 
 /** La riga sopra le schede: quante versioni, di che tipo. */

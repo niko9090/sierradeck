@@ -20,10 +20,10 @@ describe('tipoVersione', () => {
 
 describe('le righe «**Titolo:** testo»', () => {
   it('titolo in grassetto e testo separati', () => {
-    expect(voceDaPezzi(analizzaRiga('**Si apre di nuovo:** la 0.106.0 si fermava.'))).toEqual({ titolo: 'Si apre di nuovo', testo: [{ testo: 'la 0.106.0 si fermava.' }] })
+    expect(voceDaPezzi(analizzaRiga('**Si apre di nuovo:** la 0.106.0 si fermava.'))).toEqual({ titolo: 'Si apre di nuovo', testo: [{ testo: 'La 0.106.0 si fermava.' }] })
   })
   it('anche con i due punti fuori dal grassetto', () => {
-    expect(voceDaPezzi(analizzaRiga('**Invio manda**: va a capo con Maiusc.'))).toEqual({ titolo: 'Invio manda', testo: [{ testo: 'va a capo con Maiusc.' }] })
+    expect(voceDaPezzi(analizzaRiga('**Invio manda**: va a capo con Maiusc.'))).toEqual({ titolo: 'Invio manda', testo: [{ testo: 'Va a capo con Maiusc.' }] })
   })
   it('una riga senza titolo resta tutta testo; un grassetto in mezzo non è un titolo', () => {
     expect(voceDaPezzi(analizzaRiga('Testo semplice.'))).toEqual({ testo: [{ testo: 'Testo semplice.' }] })
@@ -48,7 +48,7 @@ describe('le righe «**Titolo:** testo»', () => {
       'Allegato anche l’installer.', '', '- Si aggiorna da solo.'
     ].join('\n')
     const voci = vociDaBlocchi(analizzaMarkdown(corpo))
-    expect(voci).toEqual([{ titolo: 'Si apre di nuovo', testo: [{ testo: 'la finestra restava vuota.' }] }])
+    expect(voci).toEqual([{ titolo: 'Si apre di nuovo', testo: [{ testo: 'La finestra restava vuota.' }] }])
   })
 })
 
@@ -77,10 +77,10 @@ describe('registroAggiornamento: la nuova e tutte le saltate', () => {
     const r = registroAggiornamento([nota('0.106.0', 'x'), nota('0.106.2', 'y'), nota('0.106.1', 'z')], '0.105.9', '0.106.2')
     expect(r.map((v) => v.versione)).toEqual(['0.106.2', '0.106.1', '0.106.0'])
   })
-  it('aperte all’inizio: tutte se sono fino a 3, altrimenti solo la nuova', () => {
+  it('aperte all’inizio: tutte se sono fino a 3, altrimenti la nuova e quelle con novità', () => {
     expect([...aperteAllInizio(registroAggiornamento(note, '0.105.2', '0.106.2'))]).toEqual(['0.106.2', '0.106.1', '0.106.0'])
     const tante = registroAggiornamento([nota('0.106.3', 'a'), ...note], '0.105.2', '0.106.3')
-    expect([...aperteAllInizio(tante)]).toEqual(['0.106.3'])
+    expect([...aperteAllInizio(tante)]).toEqual(['0.106.3', '0.106.0'])
   })
   it('il riassunto conta novità e correzioni', () => {
     expect(riassuntoRegistro(registroAggiornamento(note, '0.105.2', '0.106.2'), '0.105.2')).toBe('3 versioni dopo la 0.105.2: 1 con novità, 2 di correzioni')
