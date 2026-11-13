@@ -1,14 +1,15 @@
 import { autoUpdater } from 'electron-updater'
 import type { Registro } from '../main/registro'
-import { CERCA_AGGIORNAMENTI_MS, decidiInstallazione, FEED_AIUTANTE, type FaseAggiornamento } from './regole'
+import { CANALE_AIUTANTE, CERCA_AGGIORNAMENTI_MS, decidiInstallazione, FEED_AIUTANTE, type FaseAggiornamento } from './regole'
 
 /**
  * **Gli aggiornamenti dell'Aiutante** (12/11). Nicholas: «con l'abilitazione
  * agli aggiornamenti automatici».
  *
- * Da dove: la pubblicazione FISSA `aiutante` su GitHub, con il suo
- * `latest.yml` (`FEED_AIUTANTE`). Mai l'«ultima» pubblicazione: da quella si
- * aggiorna il programma completo, e i due non si devono pestare.
+ * Da dove (13/11): l'ultima pubblicazione del programma completo, a cui
+ * `npm run pubblica` allega sempre l'Aiutante (`FEED_AIUTANTE`), leggendo il
+ * suo file `aiutante.yml` (canale `CANALE_AIUTANTE`), mai `latest.yml`, che è
+ * del programma completo: i due non si pestano.
  *
  * Come, senza perdere lavoro (la regola di Nicholas: l'aggiornamento non deve
  * interrompere niente): si cerca all'avvio e ogni ora; si scarica in
@@ -33,7 +34,10 @@ export function avviaAggiornamenti(d: {
   const adesso = d.adesso ?? Date.now
   const stato: StatoAggiornamento = { fase: 'niente' }
   if (!d.attivo) return { stato: () => stato, cerca: () => {}, ferma: () => {} }
-  autoUpdater.setFeedURL({ provider: 'generic', url: FEED_AIUTANTE })
+  // Il canale nella configurazione, non `autoUpdater.channel = …`: quello accenderebbe anche allowDowngrade.
+  // Un pezzo per richiesta (come feedAlternativo del programma completo): a più pezzi insieme
+  // releases/latest/download di GitHub risponde «501 Unsupported client range».
+  autoUpdater.setFeedURL({ provider: 'generic', url: FEED_AIUTANTE, channel: CANALE_AIUTANTE, useMultipleRangeRequest: false })
   autoUpdater.autoInstallOnAppQuit = false
   autoUpdater.logger = {
     info: (m: unknown) => d.registro.info(`[aggiornamenti] ${String(m)}`),

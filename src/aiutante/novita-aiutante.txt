@@ -1,6 +1,11 @@
-Le novità di SierraDeck Aiutante, una voce per versione. Le legge
-scripts/pubblica-aiutante.mjs per le note della pubblicazione «aiutante».
+Le novità di SierraDeck Aiutante, una voce per versione (la più nuova in
+cima). Dal 13/11 l'Aiutante esce allegato alla release del programma
+completo (scripts/allega-aiutante.mjs, dentro npm run pubblica).
 Ogni riga fra apici singoli; dentro, un apice si scrive \'.
+
+versione: '1.0.1'
+  'Si scarica e si aggiorna dalla release del programma completo: l\'installer è allegato a ogni nuova versione di SierraDeck, accanto a quello del programma.',
+  'Legge solo il suo file degli aggiornamenti (aiutante.yml), mai quello del programma completo: i due non si pestano.',
 
 versione: '1.0.0'
   'Prima uscita: SierraDeck Aiutante entra nella rete come un PC normale (Drive e passphrase della cassaforte) e fa solo «Aiuta la rete»: riceve gli specialisti dagli altri PC, li fa lavorare e rimanda il ramo.',

@@ -14,10 +14,10 @@ describe('le cartelle temporanee degli script', () => {
   const conTemp = readdirSync(SCRIPT).filter((n) => n.endsWith('.mjs')).filter((n) => /mkdtempSync\(/u.test(readFileSync(join(SCRIPT, n), 'utf8')))
 
   it('ci sono gli script di pubblicazione dell’app', () => {
-    expect(conTemp).toEqual(expect.arrayContaining(['allega-json.mjs', 'pubblica-app.mjs']))
+    expect(conTemp).toEqual(expect.arrayContaining(['allega-json.mjs', 'pubblica-app.mjs', 'allega-aiutante.mjs']))
   })
 
-  for (const n of ['allega-json.mjs', 'pubblica-app.mjs']) {
+  for (const n of ['allega-json.mjs', 'pubblica-app.mjs', 'allega-aiutante.mjs']) {
     it(`${n}: la cartella se ne va all’uscita, dalla guardia, solo dentro Temp`, () => {
       const testo = readFileSync(join(SCRIPT, n), 'utf8')
       expect(testo).toMatch(/import \{ cancellaSicura \} from '\.\.\/src\/shared\/cancella-sicura\.ts'/u)
