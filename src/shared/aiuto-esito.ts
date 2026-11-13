@@ -61,7 +61,7 @@ export function colpaDelPc(c: CausaFallimento): boolean {
  */
 export function causaDalTesto(testo: string, tipo?: string): CausaFallimento {
   const t = testo
-  if (/not logged in|please run \/login|invalid api key|authentication[_ ]error|oauth token (?:has )?expired|token (?:has )?expired|api error:? 401|status(?: code)?:? 401|\b401 unauthori[sz]ed|\bunauthori[sz]ed\b|credentials? (?:not found|missing|expired)/iu.test(t)) return 'accesso'
+  if (/failed to authenticate|oauth session (?:has )?expired|could not be refreshed|session expired|not logged in|please run \/login|invalid api key|authentication[_ ]error|oauth token (?:has )?expired|token (?:has )?expired|api error:? 401|status(?: code)?:? 401|\b401 unauthori[sz]ed|\bunauthori[sz]ed\b|credentials? (?:not found|missing|expired)/iu.test(t)) return 'accesso'
   if (eLimiteDelPiano(t) || /credit balance is too low|usage limit|quota (?:exceeded|esaurita)/iu.test(t)) return 'limite'
   if (/model.{0,60}(?:not (?:available|found|supported)|non disponibile)|not_found_error.{0,40}model|invalid model|model.{0,30}is not available/iu.test(t)) return 'modello'
   if (tipo === 'error_max_turns' || /max(?:imum)?[ _-]turns/iu.test(t)) return 'turni'
@@ -115,6 +115,13 @@ export function causaDelMotivo(motivo: string | undefined): CausaFallimento {
   return causaDalTesto(motivo)
 }
 
+/** Il motivo con il nome del PC dove è successo: «accesso Claude scaduto su X» (+ i dettagli fra parentesi). */
+export function motivoSuPc(motivo: string, causa: CausaFallimento | undefined, pcNome: string): string {
+  if (causa !== 'accesso') return motivo
+  const i = motivo.indexOf(' (')
+  return `accesso Claude scaduto su ${pcNome}${i > 0 ? motivo.slice(i) : ''}`
+}
+
 /** La frase corta di un motivo (quella prima delle parentesi coi dettagli), per la vista. */
 export function motivoBreve(motivo: string): string {
   const nota = Object.values(FRASI).find((f) => motivo.startsWith(f))
@@ -131,6 +138,10 @@ export const RIPROVA_STESSO_PC_MS = 10 * 60_000
 export const PAUSA_PROGETTO_MS = 30 * 60_000
 /** Tre compiti diversi falliti di fila su un PC (per colpa sua): il PC è in pausa per tutti. */
 export const PAUSA_PC_MS = 30 * 60_000
+/** Accesso Claude scaduto su quel PC: subito fuori per tutti, senza aspettare altri fallimenti (finché non riesce un lavoro, o per un'ora). */
+export const PAUSA_ACCESSO_MS = 60 * 60_000
+/** PC che non risponde o ha perso il lavoro: fuori subito per un quarto d'ora. */
+export const PAUSA_IRRAGGIUNGIBILE_MS = 15 * 60_000
 export const FALLITI_PER_PAUSA_PROGETTO = 2
 export const COMPITI_PER_PAUSA_PC = 3
 
@@ -192,6 +203,18 @@ export function pauseAiuti(lavori: readonly LavoroAffidato[], adesso: number): P
     const perche = ultimo.motivo !== undefined ? motivoBreve(ultimo.motivo) : fraseCausa('sconosciuta')
     if (fine + RIPROVA_STESSO_PC_MS > adesso) pause.push({ tipo: 'compito', pcId: ultimo.pcId, workspace: ultimo.workspace, compito: chiaveCompito(ultimo), fino: fine + RIPROVA_STESSO_PC_MS, perche })
     if (g.length >= FALLITI_PER_PAUSA_PROGETTO && fine + PAUSA_PROGETTO_MS > adesso) pause.push({ tipo: 'progetto', pcId: ultimo.pcId, workspace: ultimo.workspace, fino: fine + PAUSA_PROGETTO_MS, perche })
+  }
+  // Accesso scaduto o PC che non risponde: fuori subito, a meno che dopo non sia riuscito un lavoro.
+  for (const pcId of new Set(falliti.map((l) => l.pcId))) {
+    const chiusi = lavori
+      .filter((l): l is Chiuso => l.pcId === pcId && l.fine !== undefined && (l.stato === 'finito' || l.stato === 'fallito'))
+      .sort((a, b) => Date.parse(a.fine) - Date.parse(b.fine))
+    const ultimo = chiusi[chiusi.length - 1]
+    if (ultimo === undefined || ultimo.stato !== 'fallito') continue
+    const causa = causaDi(ultimo)
+    if (causa !== 'accesso' && causa !== 'pc') continue
+    const fino = Date.parse(ultimo.fine) + (causa === 'accesso' ? PAUSA_ACCESSO_MS : PAUSA_IRRAGGIUNGIBILE_MS)
+    if (fino > adesso) pause.push({ tipo: 'pc', pcId, fino, perche: ultimo.motivo !== undefined ? motivoBreve(ultimo.motivo) : fraseCausa(causa) })
   }
   // Per PC.
   for (const pcId of new Set(falliti.map((l) => l.pcId))) {

@@ -80,7 +80,7 @@ import type { ArchivioAttesa } from './attesa-store'
 import { creaCambi, type Cambi } from '@shared/spinta-specialisti'
 import { attesaDopoScadenza, UNIONE_MAX_MS } from './tempi-unione'
 import { togliCopiaUnita } from './autopulizia'
-import { causaDelMotivo, chiaveCompito, COMPITI_PER_PAUSA_PC, colpaDelPc, fraseCausa, motivoBreve, motivoDelRisultato, pauseAiuti, pcInPausa, serieGuasti, type CausaFallimento } from '@shared/aiuto-esito'
+import { causaDelMotivo, chiaveCompito, COMPITI_PER_PAUSA_PC, colpaDelPc, fraseCausa, motivoBreve, motivoDelRisultato, motivoSuPc, pauseAiuti, pcInPausa, serieGuasti, type CausaFallimento } from '@shared/aiuto-esito'
 
 /** 0.89.4: dopo quanto il lavoro fermo sveglia l'autopilota. 11/11: senza un tetto di spinte (`lavoro-fermo.ts`). */
 export const FERMO_DOPO_MS = 3 * 60_000
@@ -3001,14 +3001,15 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       cambiSpecialisti.segna()
       if (chiuso) {
         // 13/11: il motivo intero nel registro di questo PC (prima 160 caratteri di «ha chiuso con un errore»).
-        const riga = `[aiuto] ${l.workspace} — ${l.compito ?? l.id} da ${l.pcNome}: ${p.stato}${p.ramo !== undefined ? `, ramo ${p.ramo}` : ''}${motivo !== undefined ? ` — ${motivo}` : ''}`
+        const motivoPc = motivo !== undefined ? motivoSuPc(motivo, causa, l.pcNome) : undefined
+        const riga = `[aiuto] ${l.workspace} — ${l.compito ?? l.id} da ${l.pcNome}: ${p.stato}${p.ramo !== undefined ? `, ramo ${p.ramo}` : ''}${motivoPc !== undefined ? ` — ${motivoPc}` : ''}`
         if (fallito) console.error(riga)
         else console.info(riga)
         if (fallito) {
           const pause = pauseAiuti(affidati(), oraMs()).filter((q) => q.tipo !== 'spedizione' && q.pcId === l.pcId)
           const pausaPc = pause.find((q) => q.tipo === 'pc')
           const pausaProgetto = pause.find((q) => q.tipo === 'progetto' && q.workspace === l.workspace)
-          if (pausaPc !== undefined) console.error(`[aiuto] ${l.pcNome} in pausa per tutti i progetti fino alle ${new Date(pausaPc.fino).toISOString()}: ${COMPITI_PER_PAUSA_PC} compiti diversi falliti di fila (${pausaPc.perche})`)
+          if (pausaPc !== undefined) console.error(`[aiuto] ${l.pcNome} in pausa per tutti i progetti fino alle ${new Date(pausaPc.fino).toISOString()}: ${causa === 'accesso' || causa === 'pc' ? 'non adatto ai lavori' : `${COMPITI_PER_PAUSA_PC} compiti diversi falliti di fila`} (${pausaPc.perche})`)
           else if (pausaProgetto !== undefined) console.error(`[aiuto] ${l.pcNome} in pausa per ${l.workspace} fino alle ${new Date(pausaProgetto.fino).toISOString()}: lo stesso compito è fallito due volte là (${pausaProgetto.perche})`)
           // Una notifica sola, quando la serie arriva a 3 (non a ogni fallimento dopo), con il perché.
           if (causa !== undefined && colpaDelPc(causa) && seriePrima < COMPITI_PER_PAUSA_PC && serieGuasti(affidati(), l.pcId).compiti >= COMPITI_PER_PAUSA_PC) {
@@ -3024,7 +3025,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
           chat: l.id,
           testo: p.stato === 'finito'
             ? `${l.compito ?? 'il lavoro'} affidato a ${l.pcNome} è finito${p.ramo !== undefined ? ` (ramo ${p.ramo}, già qui: il programma lo prova e lo unisce da solo)` : ' senza commit'}. Riepilogo:\n${(p.riepilogo ?? '').slice(0, 4000)}`
-            : `${l.compito ?? 'il lavoro'} affidato a ${l.pcNome} non è riuscito: ${(motivo ?? 'motivo sconosciuto').slice(0, 400)}. ${causa !== undefined && colpaDelPc(causa) ? `Non è colpa del compito: rilancialo uguale, il programma per un po’ non lo rimanda a ${l.pcNome} (lo fa qui o su un altro PC).` : 'Rilancialo (il programma sceglie di nuovo dove, e per un po’ non lo rimanda a quel PC).'}${p.riepilogo !== undefined && p.riepilogo !== '' ? `\nRiepilogo:\n${p.riepilogo.slice(0, 2000)}` : ''}`
+            : `${l.compito ?? 'il lavoro'} affidato a ${l.pcNome} non è riuscito: ${(motivoPc ?? 'motivo sconosciuto').slice(0, 400)}. ${causa !== undefined && colpaDelPc(causa) ? `Non è colpa del compito: rilancialo uguale, il programma per un po’ non lo rimanda a ${l.pcNome} (lo fa qui o su un altro PC).` : 'Rilancialo (il programma sceglie di nuovo dove, e per un po’ non lo rimanda a quel PC).'}${p.riepilogo !== undefined && p.riepilogo !== '' ? `\nRiepilogo:\n${p.riepilogo.slice(0, 2000)}` : ''}`
         }, true)
       }
       return true
