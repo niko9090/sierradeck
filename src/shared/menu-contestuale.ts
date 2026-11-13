@@ -278,10 +278,9 @@ export function vociSpecialista(p:
 // ── domande ────────────────────────────────────────────────────────────────
 
 /** Una conversazione della colonna Domande. */
-export function vociDomanda(p: { aperta: boolean; scrivibile: boolean; filtro: 'aspettano' | 'tutte' }): VoceMenu[] {
+export function vociDomanda(p: { aperta: boolean; filtro: 'aspettano' | 'tutte' }): VoceMenu[] {
   return pulisci([
     { id: 'apri', testo: 'Apri', spenta: p.aperta },
-    { id: 'scrivi', testo: 'Rispondi scrivendo', spenta: !p.scrivibile },
     SEPARATORE,
     p.filtro === 'aspettano' ? { id: 'tutte', testo: 'Mostra tutte' } : { id: 'aspettano', testo: 'Mostra solo quelle che aspettano te' },
     { id: 'chiudi-colonna', testo: 'Chiudi la colonna' }

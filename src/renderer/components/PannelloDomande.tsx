@@ -296,10 +296,9 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
                     setScelta(c.chiave)
                     setNota(undefined)
                   }}
-                  // Il tasto destro (13/11): apri, rispondi scrivendo, il filtro, chiudi la colonna.
-                  onContextMenu={(e) => apriMenuContestuale(e, vociDomanda({ aperta: c.chiave === aperta?.chiave, scrivibile: c.scheda === undefined, filtro }), {
+                  // Il tasto destro (13/11): apri, il filtro, chiudi la colonna.
+                  onContextMenu={(e) => apriMenuContestuale(e, vociDomanda({ aperta: c.chiave === aperta?.chiave, filtro }), {
                     apri: () => { setScelta(c.chiave); setNota(undefined) },
-                    scrivi: () => { setScelta(c.chiave); setNota(undefined); setTimeout(() => campoScrivi.current?.focus(), 0) },
                     tutte: () => setFiltro('tutte'),
                     aspettano: () => setFiltro('aspettano'),
                     'chiudi-colonna': onChiudi

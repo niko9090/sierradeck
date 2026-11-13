@@ -138,9 +138,9 @@ describe('tasto destro: le voci di ogni cosa', () => {
     expect(voce(f, 'giu').spenta).not.toBe(true)
   })
 
-  it('domanda: apri, rispondi scrivendo, il filtro, chiudi la colonna', () => {
-    expect(forma(vociDomanda({ aperta: false, scrivibile: true, filtro: 'aspettano' }))).toEqual(['apri', 'scrivi', '-', 'tutte', 'chiudi-colonna'])
-    expect(forma(vociDomanda({ aperta: true, scrivibile: false, filtro: 'tutte' }))).toContain('aspettano')
+  it('domanda: apri, il filtro, chiudi la colonna', () => {
+    expect(forma(vociDomanda({ aperta: false, filtro: 'aspettano' }))).toEqual(['apri', '-', 'tutte', 'chiudi-colonna'])
+    expect(forma(vociDomanda({ aperta: true, filtro: 'tutte' }))).toContain('aspettano')
   })
 
   it('file verso il telefono: Annulla solo finché non è arrivato', () => {
@@ -160,7 +160,7 @@ describe('tasto destro: le voci di ogni cosa', () => {
       vociSchedaPanoramica({ apribile: true, remota: false, soloMia: false, gestibile: true }),
       vociAutopilota({ dove: 'colonna' }), vociAltroPc({ nome: 'P', aperto: true }),
       vociProgetto({ scelto: false, azioni: [{ id: 'apri', titolo: 'Apri' }], quaderno: true }),
-      vociSpecialista({ stato: 'fila', primo: false, ultimo: true }), vociDomanda({ aperta: false, scrivibile: true, filtro: 'tutte' }),
+      vociSpecialista({ stato: 'fila', primo: false, ultimo: true }), vociDomanda({ aperta: false, filtro: 'tutte' }),
       vociFileTelefono({ inCorso: true, quanteFinite: 1 })
     ]
     for (const v of tutti) expect(vociValide(v)).toEqual(v)
