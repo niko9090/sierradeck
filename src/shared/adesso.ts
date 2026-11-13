@@ -81,7 +81,7 @@ const daQuanto = (dal: string | undefined, ora: number): string => {
 }
 
 /** La riga di una chat della flotta. */
-function rigaChat(a: Autopilota & SegniDalVivo, c: ChatGovernata, ora: number): RigaAdesso {
+function rigaChat(a: Autopilota & SegniDalVivo, c: ChatGovernata, ora: number, chats: ChatGovernata[] = Array.isArray(a.chats) ? a.chats : []): RigaAdesso {
   // 0.84.3 (collaudo c-96, D1): senza sigle anche qui, come nel Punto. Una chat
   // senza ruolo è «Una chat», distinta dal suo compito; il compito senza «(c-14)».
   const base = { id: c.id, chi: nomeChi(c), compito: senzaSigle(compitoBreve(c.compito)) }
@@ -108,7 +108,7 @@ function rigaChat(a: Autopilota & SegniDalVivo, c: ChatGovernata, ora: number): 
   const riferimento = segno ?? (raccolti === undefined ? undefined : Math.max(raccolti, aperta ?? raccolti))
   // (collaudo c-96, D2) Chi ha detto «aspetto» una sorella che dà segni non è
   // ferma: aspetta. Se la sorella tace anche lei, valgono le regole di sotto.
-  const sorella = c.segnale?.tipo === 'aspetto' && c.segnale.di !== undefined ? a.chats.find((x) => x.id === c.segnale?.di && x.stato === 'lavoro') : undefined
+  const sorella = c.segnale?.tipo === 'aspetto' && c.segnale.di !== undefined ? chats.find((x) => x.id === c.segnale?.di && x.stato === 'lavoro') : undefined
   const segnoSorella = sorella !== undefined ? istante(a.segniChat?.[sorella.id]) : undefined
   if (sorella !== undefined && segnoSorella !== undefined && ora - segnoSorella < MUTA_DA_MS) {
     return { ...base, testo: `aspetta ${nomeChi(sorella)} («${senzaSigle(compitoBreve(sorella.compito, 40))}»), che lavora${daQuanto(c.segnale?.quando, ora)}`, tono: 'aspetta' }
@@ -145,11 +145,13 @@ function rigaSola(a: Autopilota & SegniDalVivo, ora: number): RigaAdesso {
  */
 export function adessoDi(a: Autopilota & SegniDalVivo, ora: number): Adesso {
   if (a.stato === 'finito' || a.stato === 'intervista' || a.stato === 'pronto') return { righe: [], finite: 0 }
-  if (a.chats.length === 0) return a.sessionId === undefined ? { righe: [], finite: 0 } : { righe: [rigaSola(a, ora)], finite: 0 }
-  const vive = a.chats.filter((c) => c.stato !== 'finita')
+  // Da un altro PC o da una lettura parziale `chats` può mancare: lista vuota.
+  const chats = Array.isArray(a.chats) ? a.chats : []
+  if (chats.length === 0) return a.sessionId === undefined ? { righe: [], finite: 0 } : { righe: [rigaSola(a, ora)], finite: 0 }
+  const vive = chats.filter((c) => c.stato !== 'finita')
   const peso: Record<RigaAdesso['tono'], number> = { ferma: 0, aspetta: 1, pausa: 2, lavoro: 3 }
-  const righe = vive.map((c) => rigaChat(a, c, ora)).sort((x, y) => peso[x.tono] - peso[y.tono])
-  return { righe, finite: a.chats.length - vive.length }
+  const righe = vive.map((c) => rigaChat(a, c, ora, chats)).sort((x, y) => peso[x.tono] - peso[y.tono])
+  return { righe, finite: chats.length - vive.length }
 }
 
 /** Lo stesso colore su PC, pagina e app. */

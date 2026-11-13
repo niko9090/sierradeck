@@ -102,12 +102,13 @@ export function MessaggiVersoLaChat({ autopilota: a }: { autopilota: Autopilota 
 /** Le righe di `adessoDi` con il nome di chi lavora, senza sigle e con il segnale della chat. */
 function righeAdesso(a: Autopilota & SegniDalVivo, ora: number): { chat: ChatNelPunto[]; finite: number } {
   const adesso = adessoDi(a, ora)
+  const chats = Array.isArray(a.chats) ? a.chats : []
   const chat = adesso.righe.map((r): ChatNelPunto => {
-    const c = a.chats.find((x) => x.id === r.id)
+    const c = chats.find((x) => x.id === r.id)
     const s = c?.segnale
     let parola = ''
     if (s !== undefined) {
-      const sorella = s.tipo === 'aspetto' && s.di !== undefined ? a.chats.find((x) => x.id === s.di) : undefined
+      const sorella = s.tipo === 'aspetto' && s.di !== undefined ? chats.find((x) => x.id === s.di) : undefined
       parola = s.tipo === 'aspetto' && s.di !== undefined
         ? (sorella !== undefined ? `aspetta ${nomeChi(sorella)} («${senzaSigle(compitoBreve(sorella.compito, 40))}»)` : 'aspetta un’altra chat')
         : senzaSigle(parolaSegnale(s))
