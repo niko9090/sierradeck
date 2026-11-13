@@ -341,6 +341,7 @@
 - «Aiuta la rete» rimanda lo stesso compito a un PC con l'accesso Claude scaduto («OAuth session expired»): fallisce in pochi secondi e al rilancio va di nuovo lì (13/11, DESKTOP-O2DITVE). _(2026-11-13)_
 - Se «Aiuta la rete» manda un compito a un PC che fallisce sempre, l'Agent lanciato con isolation: "worktree" resta su questo PC (13/11, k-152). _(2026-11-13)_
 - Correzione: isolation "worktree" NON tiene l'Agent su questo PC (k-154 è andato lo stesso a un Aiutante). Finché il servizio non ha la correzione di k-152, il PC scelto è a caso. _(2026-11-13)_
+- la cartella E:\Users\nikof\... della cartella principale non è raggiungibile da tutti i PC: le voci del quaderno su lotti d'errore vanno scritte anche senza i file originali. _(2026-11-13)_
 
 ## cancello
 
@@ -416,3 +417,7 @@
 
 - whisper.cpp 1.9.2 su questo PC (i7-3770, niente AVX2, CPU al 100%): 15-37 s per una frase di 3 s col modello small q5_1; «Sierra» la scrive giusta, «fammi» a volte «famiglia». Le misure vanno rifatte a PC scarico. _(2026-11-13)_
 - Il `tar` di Git Bash non apre gli zip: serve `%SystemRoot%\System32\tar.exe` (bsdtar), che accetta anche i nomi con `*` per estrarre solo alcuni file. _(2026-11-13)_
+
+## permessi
+
+- `gh` è negato sia da Bash sia da PowerShell in questa copia: la verifica «release già pubblicata?» non si può fare da qui, va fatta dallo specialista «rilascio». _(2026-11-13)_
