@@ -97,6 +97,22 @@ describe('le voci del pannello', () => {
     expect(uff?.spiegazione).toContain('9 giorni fa')
     expect(uff?.azioni[0]).toMatchObject({ id: 'riprova-pc', pc: 'uff' })
   })
+  it('k-144: la frase sulla versione dipende dalla differenza vera, senza elenco di funzioni', () => {
+    const spiega = (versione: string, mia: string): string | undefined => componiSalute({
+      ...base, versione: mia,
+      pc: [{ pcId: 'p', nome: 'PROVA', versione, battito: '2026-10-02T14:58:00.000Z', stato: 'acceso', strada: 'Tailscale' }]
+    }).voci.find((v) => v.chiave === 'pc:p')?.spiegazione
+    const patch = spiega('0.103.0', '0.103.1')
+    expect(patch).toContain('Ha la 0.103.0, Questo PC ha la 0.103.1: solo correzioni: aggiornarlo non è urgente.')
+    const minor = spiega('0.102.0', '0.103.1')
+    expect(minor).toContain('là mancano le novità della 0.103.1.')
+    expect(minor).not.toContain('solo correzioni')
+    expect(spiega('0.38.2', '1.0.0')).toContain('là mancano le novità della 1.0.0.')
+    for (const t of [patch, minor]) {
+      expect(t).not.toContain('chat dal vivo')
+      expect(t).not.toContain('spostamento dei progetti')
+    }
+  })
   it('l’installazione non riuscita, gli errori e le consegne non partite', () => {
     const s = componiSalute({
       ...base,

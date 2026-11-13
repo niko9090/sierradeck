@@ -109,6 +109,13 @@ export function quantoFa(iso: string | undefined, adesso: number): string {
   return g === 1 ? '1 giorno fa' : `${g} giorni fa`
 }
 
+/** Stesso major.minor: cambia solo la patch (correzioni). */
+export function stessoMinor(a: string, b: string): boolean {
+  const x = a.split('.').map((n) => Number.parseInt(n, 10) || 0)
+  const y = b.split('.').map((n) => Number.parseInt(n, 10) || 0)
+  return (x[0] ?? 0) === (y[0] ?? 0) && (x[1] ?? 0) === (y[1] ?? 0)
+}
+
 /** Confronta due versioni `x.y.z`. */
 export function prima(a: string, b: string): boolean {
   const x = a.split('.').map((n) => Number.parseInt(n, 10) || 0)
@@ -278,7 +285,7 @@ export function componiSalute(i: IngressiSalute): Salute {
     voci.push({
       chiave: `pc:${p.pcId}`, gruppo: 'pc', tono,
       titolo: `${p.nome} · ${raggiungibile ? 'acceso' : p.stato === 'chiave' || p.stato === 'rifiutato' ? 'risponde ma non entra' : p.stato === 'altro' ? 'non lo trovo a quell’indirizzo' : 'non so se è acceso'} · ${p.versione}`,
-      spiegazione: `Ultimo battito sul Drive: ${eta}.${battitoFermoPerDrivePieno ? ' Il battito non si aggiorna perché il Drive è pieno (un account solo per tutti i PC): il PC risponde, ma la versione del battito può essere vecchia.' : ''} Adesso ${strada}. ${indietro ? `Ha la ${p.versione}, ${nomeQui} ha la ${i.versione}: alcune cose nuove (le chat dal vivo, lo spostamento dei progetti) là non ci sono ancora.` : attendibile ? 'Ha la stessa versione di questo PC, o più nuova.' : 'Se sia aggiornato non si sa finché non risponde.'}${origineVersione !== '' ? ` ${origineVersione}` : ''}`,
+      spiegazione: `Ultimo battito sul Drive: ${eta}.${battitoFermoPerDrivePieno ? ' Il battito non si aggiorna perché il Drive è pieno (un account solo per tutti i PC): il PC risponde, ma la versione del battito può essere vecchia.' : ''} Adesso ${strada}. ${indietro ? `Ha la ${p.versione}, ${nomeQui} ha la ${i.versione}: ${stessoMinor(p.versione, i.versione) ? 'solo correzioni: aggiornarlo non è urgente.' : `là mancano le novità della ${i.versione}.`}` : attendibile ? 'Ha la stessa versione di questo PC, o più nuova.' : 'Se sia aggiornato non si sa finché non risponde.'}${origineVersione !== '' ? ` ${origineVersione}` : ''}`,
       ...(rispostaDiversa !== undefined
         ? { cosaFare: p.stato === 'chiave' ? `Su ${p.nome} apri la cassaforte (Account → Cassaforte) con la stessa passphrase di qui.` : p.stato === 'rifiutato' ? `Su ${p.nome}, in Impostazioni → Client, accetta anche da fuori la rete locale, oppure usate la stessa rete o Tailscale.` : `Controlla che ${p.nome} sia acceso, sulla stessa rete o con Tailscale: l’indirizzo che avevo ora è di un altro.` }
         : raggiungibile
