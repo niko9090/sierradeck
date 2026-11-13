@@ -215,3 +215,8 @@ Non è un difetto nuovo: è il difetto della rete già corretto da k-152. Corret
 
 1 gruppo: lavoro della rete fallito su DESKTOP-O2DITVE (Aiutante 1.0.2) per accesso Claude scaduto («OAuth session expired»).
 Non è un difetto nuovo: stesso difetto della rete corretto da k-152, come il lotto 20261113160752. Corretto nella versione 0.106.3.
+
+# Errori arrivati (lotto 20261113220708)
+
+1 gruppo: Z2-TECNICO, 0.106.2, «[renderer] errore di render — TypeError: Cannot read properties of undefined (reading 'length') at adessoDi» (CorpoPanoramica).
+Corretto nella versione 0.107.1: un autopilota arrivato da un altro PC senza `chats` faceva cadere `adessoDi` (e il Punto dal vivo), ora vale come lista vuota. Test: tests/shared/adesso-senza-chats.test.ts.

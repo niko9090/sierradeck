@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.107.1',
+    righe: [
+      '**Panoramica che cadeva:** non cade più quando un autopilota arriva da un altro PC senza l\'elenco delle chat.',
+    ],
+  },
+  {
     versione: '0.107.0',
     righe: [
       '**Aggiornamento tutto in una finestra:** scaricamento, versione pronta, installazione, errori e «ecco cosa cambia» dopo l\'installazione passano solo dalla finestra in basso a destra; niente più strisce o avvisi sparsi. Si apre dal numero di versione in alto.',
