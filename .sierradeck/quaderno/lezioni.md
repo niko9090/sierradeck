@@ -30,6 +30,7 @@
 - il cane da guardia (20 min) e il backoff si sommano: nei test con fake timer il secondo riavvio parte 30 s dopo lo scatto del cane, non subito. _(2026-11-11)_
 - per la regola del quaderno usare un repository git vero (repositoryDiPartenza): i mock non vedono il comportamento di `git status`/`add`/`commit` sui file riscritti. _(2026-11-11)_
 - la suite completa (vitest, circa 620 file) richiede circa 3,5 minuti: usare un timeout ampio. _(2026-11-12)_
+- per logica di percorsi Windows passare path.win32 come parametro, così il test gira uguale su ogni sistema _(2026-11-13)_
 
 ## worktree
 
@@ -80,6 +81,8 @@
 - Con `core.autocrlf=true` il clone mostra centinaia di file «M» dopo la copia da Windows: nessuna differenza vera. Dopo `git add -A` restano solo le modifiche reali. _(2026-11-12)_
 - `gh release create --draft --verify-tag` seguito da `npm run pubblica` ha funzionato al primo colpo: una release sola, nessun 422, `latest.yml` presente. _(2026-11-12)_
 - vitest stampa «×» nei nomi di alcuni test (es. «(×2)»): cercare i fallimenti con «FAIL» o col riepilogo finale, non con «×» _(2026-11-13)_
+- `gh release view --json` non ha il campo isLatest: lo stato latest si legge da `gh release list` (colonna «Latest»). _(2026-11-13)_
+- `npm run pubblica` con una release in bozza già creata carica i file ma la lascia bozza: serve sempre `gh release edit --draft=false --latest`. _(2026-11-13)_
 
 ## git
 
@@ -388,3 +391,7 @@
 ## testo
 
 - Nella Salute la differenza di versione va guardata con major.minor (`stessoMinor` in src/shared/salute.ts): le funzioni elencate a mano nei messaggi diventano false con le release. _(2026-11-13)_
+
+## windows
+
+- path.relative fra dischi diversi dà un percorso assoluto, non '..': dopo relative controllare sempre isAbsolute _(2026-11-13)_
