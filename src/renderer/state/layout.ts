@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import {
-  createPane, splitPane, removePane, resizeSplit, listPaneIds, buildPreset, movePane
+  createPane, splitPane, removePane, resizeSplit, pareggiaSplit, listPaneIds, buildPreset, movePane
 } from '@shared/layout-tree'
 import type { LayoutNode, Direction, PresetName, DropPosition } from '@shared/layout-tree'
 import { normalizzaTitolo } from '@shared/titolo'
@@ -91,6 +91,8 @@ type State = {
   closePane: (id: string) => void
   split: (targetId: string, direction: Direction) => void
   resize: (splitId: string, index: number, delta: number) => void
+  /** Doppio clic sul divisore (13/11): le due chat ai lati tornano uguali. */
+  pareggia: (splitId: string, index: number) => void
   applyPreset: (name: PresetName) => void
   setPtyId: (paneId: string, ptyId: string) => void
   /**
@@ -322,6 +324,9 @@ export const useLayoutStore = create<State>((set, get) => ({
 
   resize: (splitId, index, delta) =>
     set((s) => (s.root ? { root: resizeSplit(s.root, splitId, index, delta) } : s)),
+
+  pareggia: (splitId, index) =>
+    set((s) => (s.root ? { root: pareggiaSplit(s.root, splitId, index) } : s)),
 
   applyPreset: (name) =>
     set((s) => {

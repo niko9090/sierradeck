@@ -26,9 +26,14 @@ const PAROLA: Record<string, string> = { avviato: 'parte', lavoro: 'al lavoro', 
 
 const alLavoro = (s: Specialista): boolean => s.stato === 'lavoro' || s.stato === 'avviato'
 
-/** Pura: gli specialisti da mostrare (al lavoro, o finiti da poco), non le chat adottate. */
-export function specialistiInVista(v: VistaOrchestratore | undefined, ora: number): Specialista[] {
+/**
+ * Pura: gli specialisti da mostrare (al lavoro, o finiti da poco), non le chat adottate.
+ * Con `workspace`, una vista di un altro workspace non dà niente (13/11: nella colonna di
+ * un workspace mai gli specialisti di un altro, qui o su un altro PC).
+ */
+export function specialistiInVista(v: VistaOrchestratore | undefined, ora: number, workspace?: string): Specialista[] {
   if (v === undefined) return []
+  if (workspace !== undefined && typeof v.workspace === 'string' && v.workspace.trim() !== workspace.trim()) return []
   return v.specialisti.filter((s) => s.adottata !== true && (alLavoro(s) || (s.fine !== undefined && ora - Date.parse(s.fine) < RESTA_DOPO_MS)))
 }
 
@@ -95,7 +100,7 @@ export function ChatSpecialisti({ workspace, colonna = false, pieno = false }: {
   useEffect(() => sorgente.suSpecialistiCambiati(() => sond.rileggi()), [sond, sorgente])
   const [ora, setOra] = useState(() => Date.now())
   useEffect(() => { const t = setInterval(() => setOra(Date.now()), 30_000); return () => clearInterval(t) }, [])
-  const lista = specialistiInVista(v, ora)
+  const lista = specialistiInVista(v, ora, workspace)
   if (lista.length === 0) return null
   return (
     <aside className={colonna ? (pieno ? 'chat-specialisti chat-specialisti--pieno' : 'chat-specialisti chat-specialisti--colonna') : 'chat-specialisti'} aria-label="Le chat degli specialisti">

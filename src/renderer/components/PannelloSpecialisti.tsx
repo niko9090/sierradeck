@@ -4,6 +4,8 @@ import { SPIEGA_STIME, daQuanto, minutiTesto, nomeWorkspace, postiTesto, priorit
 import { MISURE, larghezzaEffettiva, larghezzaTrascinata, limita, massimoColonna, passoFreccia, suggerimentoBarra } from '@shared/misure-pannelli'
 import { useLarghezzaFinestra } from '../larghezza-finestra'
 import { Aiuto } from './Aiuto'
+import { apriMenuContestuale } from '../menu-contestuale'
+import { vociSpecialista } from '@shared/menu-contestuale'
 
 /** Ogni quanto si rilegge la lista, in millisecondi. */
 export const RILETTURA_MS = 4000
@@ -54,7 +56,12 @@ export function ListaSpecialisti({ vista, adesso, daTogliere, daFermare, onMossa
         {alLavoro.length === 0 ? <div className="spec__vuoto">Nessuno al lavoro</div> : (
           <ul className="spec__elenco" aria-label="Al lavoro adesso">
             {alLavoro.map((v) => (
-              <li key={v.id} className="spec__riga">
+              <li key={v.id} className="spec__riga"
+                onContextMenu={(e) => apriMenuContestuale(e, vociSpecialista({ stato: 'lavora', ...(v.perPc !== undefined ? { perPc: v.perPc } : {}), fermaRichiesta: v.fermaRichiesta === true }), {
+                  cima: () => onMossa(v.id, 'cima'),
+                  // «Ferma» chiede conferma nella riga, come il suo tasto.
+                  ferma: () => onFerma?.(v.id)
+                })}>
                 <span className="spec__posto" title="Il posto occupato">Posto {v.posto}</span>
                 <span className="spec__corpo">
                   <span className="spec__ws">{v.workspaceNome ?? nomeWorkspace(v.workspace)}</span>
@@ -97,7 +104,14 @@ export function ListaSpecialisti({ vista, adesso, daTogliere, daFermare, onMossa
             {inFila.map((v, i) => {
               const manca = v.prenotata ? quantoManca(v.prenotataFino, adesso) : ''
               return (
-                <li key={v.id} className={`spec__riga${v.prenotata ? ' spec__riga--tocca' : ''}`}>
+                <li key={v.id} className={`spec__riga${v.prenotata ? ' spec__riga--tocca' : ''}`}
+                  onContextMenu={(e) => apriMenuContestuale(e, vociSpecialista({ stato: 'fila', primo: i === 0, ultimo: i === inFila.length - 1 }), {
+                    su: () => onMossa(v.id, 'su'),
+                    giu: () => onMossa(v.id, 'giu'),
+                    cima: () => onMossa(v.id, 'cima'),
+                    // «Togli» chiede conferma nella riga, come il suo tasto.
+                    togli: () => onTogli(v.id)
+                  })}>
                   <span className="spec__posto" title="Il posto in fila">{v.posizione}°</span>
                   <span className="spec__corpo">
                     <span className="spec__ws">{v.workspaceNome ?? nomeWorkspace(v.workspace)}{v.parcheggiata === true ? <span className="spec__parcheggiato"> · parcheggiato</span> : null}</span>

@@ -15,6 +15,7 @@ import type { NoteAggiornamento } from '@shared/note-aggiornamento'
 import type { Consumi } from '@shared/consumi'
 import type { Anteprima } from '../main/anteprima'
 import type { StatoAggiornamento } from '../main/aggiornamenti'
+import type { VistaNovita } from '@shared/finestra-novita'
 import type { AzioneChat, ChatArchiviata, ChatInRecupero, EsitoAzioni, VistaSpazio } from '@shared/gestione-chat'
 
 type ElencoProgetti = {
@@ -106,6 +107,16 @@ declare global {
       dettatura: {
         stato: () => Promise<import('@shared/dettatura').StatoDettatura>
         apri: () => Promise<{ ok: boolean; messaggio?: string; comeAttivare?: string }>
+      }
+      /** «Parlato» (13/11): facoltativo, i finti dei test e le app vecchie non l'hanno. */
+      voceLocale?: {
+        stato: () => Promise<import('@shared/modello-voce').StatoModello>
+        scarica: (modello: import('@shared/modello-voce').IdModello) => Promise<import('@shared/modello-voce').StatoModello>
+        annulla: () => Promise<void>
+        rimuovi: () => Promise<import('@shared/modello-voce').StatoModello>
+        trascrivi: (pcm: Uint8Array, parola: string) => Promise<{ ok: true; testo: string; ms: number } | { ok: false; messaggio: string }>
+        suCambio: (cb: (s: import('@shared/modello-voce').StatoModello) => void) => () => void
+        suFinestraNascosta: (cb: () => void) => () => void
       }
       migrazione: {
         stato: () => Promise<import('@shared/migrazione-elenco').StatoMigrazione | null>
@@ -202,6 +213,13 @@ declare global {
         }
         suCambiate: (cb: () => void) => () => void
       }
+      /** Gestione progetti (13/11): opzionale, i finti dei test e le versioni di prima non l'hanno. */
+      gestione?: {
+        apri: () => Promise<void>
+        vista: () => Promise<import('../shared/gestione-progetti').VistaGestione>
+        azione: (corpo: { azione: string; id?: string; ids?: string[]; tieni?: string; pc?: string; percorso?: string; nome?: string; ws?: string }) => Promise<{ ok: boolean; messaggio: string }>
+        suCambiata: (cb: () => void) => () => void
+      }
       /** «Sposta su questo PC» (0.88.0). */
       sposta: {
         avvia: (progetto: string) => Promise<import('../shared/sposta').VistaSposta | undefined>
@@ -257,6 +275,10 @@ declare global {
         stato: () => Promise<{ allAvvio: boolean; workspace: string[] }>
         verifica: (parola: string, workspace?: string) => Promise<boolean>
       }
+      /** Il tasto destro (13/11): opzionale, le app vecchie e i finti dei test non l'hanno. */
+      menu?: {
+        contestuale: (voci: import('@shared/menu-contestuale').VoceMenu[]) => Promise<string | undefined>
+      }
       sistema: {
         cartellaUtente: () => Promise<string>
         versione: () => Promise<string>
@@ -277,6 +299,16 @@ declare global {
         aggiornaAdesso: () => Promise<void>
         note: () => Promise<NoteAggiornamento | undefined>
         suStato: (cb: (s: StatoAggiornamento) => void) => () => void
+      }
+      /** La finestra degli aggiornamenti in basso a destra (13/11): opzionale, i finti dei test non la hanno. */
+      finestraNovita?: {
+        apri: (vista?: VistaNovita) => Promise<void>
+        nascondi: () => Promise<void>
+        letto: () => Promise<void>
+        stato: () => Promise<{ aperta: boolean; nonLetto: boolean }>
+        vista: () => Promise<VistaNovita>
+        suStato: (cb: (s: { aperta: boolean; nonLetto: boolean }) => void) => () => void
+        suVista: (cb: (v: VistaNovita) => void) => () => void
       }
       /** La gestione delle chat (0.79.0): le stesse risposte di /api/chat/gestione/… */
       chatGestione: {
@@ -434,6 +466,10 @@ declare global {
         altriPc: () => Promise<{ pc: string; nome: string; workspace: string[] }[]>
         apriDaAltroPc: (pc: string, nome: string) => Promise<{ ok: boolean; messaggio: string }>
         suPc: (nome: string) => Promise<{ pcId: string; pcNome: string } | undefined>
+        /** Sezione «Altri PC» (13/11): i workspace di qui che vivono su un altro PC, per nome. */
+        remoti?: () => Promise<Record<string, import('@shared/workspace-remoti').WorkspaceRemoto>>
+        /** Sezione «Altri PC»: i PC, accesi o no, con i loro workspace. */
+        sezioneAltriPc?: () => Promise<import('@shared/workspace-remoti').GruppoAltroPc[]>
         /** «Apri cartella» (0.82.0): la cartella del progetto del workspace o della chat, in Esplora file. */
         apriCartella: (q: { workspace: string } | { chat: string }) => Promise<{ ok: boolean; messaggio: string }>
         crea: (nome: string, cartella?: string) => Promise<StatoWorkspace>

@@ -1,6 +1,6 @@
 {
   "name": "sierradeck",
-  "version": "0.105.2",
+  "version": "0.106.0",
   "private": true,
   "main": "./out/main/index.js",
   "allowScripts": {
@@ -24,11 +24,11 @@
     "icona": "electron scripts/genera-icona.mjs",
     "pulisci-dist": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/pulisci-dist.mjs",
     "pacchetto": "node scripts/controlla-credenziali.mjs && node scripts/controlla-pacchetto.mjs --prima && npm run build && npm run pulisci-dist && electron-builder --win --publish never && node scripts/controlla-pacchetto.mjs --dopo",
-    "pubblica": "node scripts/controlla-credenziali.mjs && node scripts/controlla-pacchetto.mjs --prima && npm run build && npm run pulisci-dist && electron-builder --win --publish always && node scripts/controlla-pacchetto.mjs --dopo && node scripts/allega-json.mjs",
+    "pubblica": "node scripts/controlla-credenziali.mjs && node scripts/controlla-pacchetto.mjs --prima && npm run build && npm run pulisci-dist && electron-builder --win --publish always && node scripts/controlla-pacchetto.mjs --dopo && node scripts/allega-json.mjs && npm run build-aiutante && node scripts/allega-aiutante.mjs",
     "dev-aiutante": "electron-vite dev -c electron.vite.aiutante.config.ts --entry out-aiutante/main/index.js",
     "build-aiutante": "electron-vite build -c electron.vite.aiutante.config.ts",
     "pacchetto-aiutante": "node scripts/controlla-credenziali.mjs && npm run build-aiutante && node scripts/pacchetto-aiutante.mjs",
-    "pubblica-aiutante": "node scripts/controlla-credenziali.mjs && npm run build-aiutante && node scripts/pubblica-aiutante.mjs"
+    "pubblica-aiutante": "node scripts/pubblica-aiutante.mjs"
   },
   "dependencies": {
     "better-sqlite3": "13.0.3",

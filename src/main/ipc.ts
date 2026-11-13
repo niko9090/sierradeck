@@ -1,6 +1,7 @@
 import { annotaEliminato, annotaRinominato } from './workspace-ritrova'
 import { elencoRecuperoWorkspace, mettiWorkspaceNelRecupero, recuperoLeggibile, ripristinaWorkspace } from './workspace-recupero-file'
 import { leggiRecentiWorkspace, rinominaRecenteWorkspace, toccaRecenteWorkspace } from './workspace-recenti-file'
+import { rinominaSuPc, togliSuPc } from './workspace-su-pc-file'
 import { creaRichiestaUnita } from '@shared/richiesta-unita'
 import { modelloAutopilotaAmmesso, modelloValido } from '@shared/modelli'
 import { leggiPermessi } from '@shared/permessi-nicholas'
@@ -19,6 +20,7 @@ import type { HostToCore } from '@shared/protocol'
 import { openDatabase, listSessions, rimuoviSessioni, type Db } from './db'
 import { workspaceDelleSessioni } from '@shared/dove-chiedono'
 import { remotePerWorkspace } from '@shared/workspace'
+import { nomeWorkspaceNuovo } from '@shared/progetti-identita'
 import { leggiAnteprima, type Anteprima } from './anteprima'
 import { indexAll } from './indexer/indexer'
 import { pathToSlug } from './indexer/project-scanner'
@@ -1103,6 +1105,24 @@ export type PrimaDiEliminare = {
   cartella?: (nome: string, dopo: Archivio) => Promise<string | undefined>
 }
 
+/**
+ * Prima di rinominare un workspace dal pannello (Gestione progetti, 13/11): il
+ * workspace e la cartella del suo progetto si chiamano sempre uguali, quindi
+ * la cartella si rinomina con lui. `prima` torna il motivo per non farlo.
+ */
+export type PrimaDiRinominare = { prima?: (vecchio: string, nuovo: string) => Promise<string | undefined> }
+
+/**
+ * La rinomina di un workspace come la fa il pannello (le ricevute, i recenti,
+ * l'annuncio alle finestre), senza toccare la cartella: per Gestione progetti
+ * e per la sistemazione dei nomi. Pronta quando `registerLayoutIpc` è girata.
+ */
+let rinominaDalCore: ((vecchio: string, nuovo: string) => StatoWorkspace) | undefined
+export function rinominaWorkspaceDalCore(vecchio: string, nuovo: string): StatoWorkspace {
+  if (rinominaDalCore === undefined) throw new Error('i workspace non sono ancora pronti')
+  return rinominaDalCore(vecchio, nuovo)
+}
+
 export function registerLayoutIpc(
   store: WorkspaceStore,
   /**
@@ -1128,7 +1148,8 @@ export function registerLayoutIpc(
    * lavoro, un autopilota attivo); `cartella` è la cartella vuota del
    * progetto che va nel recupero con il workspace, se ce n'è una.
    */
-  elimina: PrimaDiEliminare = {}
+  elimina: PrimaDiEliminare = {},
+  rinomina: PrimaDiRinominare = {}
 ): void {
   /**
    * Il layout che spetta a questa finestra, con lo scontrino che le dà diritto a
@@ -1294,9 +1315,15 @@ export function registerLayoutIpc(
 
   ipcMain.handle('workspace:crea', (event, raw: unknown, rawCartella?: unknown): StatoWorkspace => {
     const precedente = store.leggi()
-    const a = creaWorkspace(precedente, validateNomeWorkspace(raw))
+    // Il workspace e la cartella del progetto hanno lo stesso nome (13/11): con
+    // una cartella scelta il suo nome, senza il nome chiesto valido anche per la cartella.
+    const cartella = typeof rawCartella === 'string' && rawCartella.trim() !== '' ? rawCartella : undefined
+    const chiesto = validateNomeWorkspace(raw)
+    const nome = validateNomeWorkspace(nomeWorkspaceNuovo(chiesto, cartella, precedente.workspace.map((w) => w.nome)))
+    if (nome !== chiesto) registra(`[workspace] «${chiesto}» creato come «${nome}»: lo stesso nome della cartella del progetto`)
+    const a = creaWorkspace(precedente, nome)
     scriviOSolleva(a, 'il workspace nuovo')
-    dopoCreato(validateNomeWorkspace(raw), typeof rawCartella === 'string' && rawCartella.trim() !== '' ? rawCartella : undefined)
+    dopoCreato(nome, cartella)
     if (a.attivo !== precedente.attivo) annunciaCambio(event, a, precedente.attivo)
     return statoDi(a)
   })
@@ -1328,6 +1355,8 @@ export function registerLayoutIpc(
     }
     // Annotata (0.65.1): un workspace eliminato da Nicholas non si «ritrova» dalle copie.
     annotaEliminato(dirname(store.percorso), validateNomeWorkspace(raw))
+    // «Altri PC»: un workspace remoto eliminato esce anche dal registro dei PC.
+    if (a !== precedente) togliSuPc(dirname(store.percorso), validateNomeWorkspace(raw))
     dopoNome(validateNomeWorkspace(raw), undefined)
     if (a.attivo !== precedente.attivo) annunciaCambio(event, a, precedente.attivo)
     return statoDi(a)
@@ -1356,9 +1385,7 @@ export function registerLayoutIpc(
   // quindi — a differenza di crea/elimina — non passa da `annunciaCambio`, che
   // farebbe traslocare i layout. Si dice a tutte le finestre com'è cambiato il
   // nome, così aggiornano le linguette e spostano la chiave della loro memoria.
-  ipcMain.handle('workspace:rinomina', (_event, rawVecchio: unknown, rawNuovo: unknown): StatoWorkspace => {
-    const vecchio = validateNomeWorkspace(rawVecchio)
-    const nuovo = validateNomeWorkspace(rawNuovo)
+  const rinominaCore = (vecchio: string, nuovo: string): StatoWorkspace => {
     const precedente = store.leggi()
     if (!precedente.workspace.some((w) => w.nome === vecchio)) {
       throw new Error(`il workspace «${vecchio}» non esiste`)
@@ -1376,11 +1403,26 @@ export function registerLayoutIpc(
       // e svuotava quello nuovo (vedi `RegistroConsegne.rinomina`).
       consegne.rinomina(vecchio, nuovo)
       rinominaRecenteWorkspace(dirname(store.percorso), vecchio, nuovo)
+      rinominaSuPc(dirname(store.percorso), vecchio, nuovo)
       annotaRinominato(dirname(store.percorso), vecchio)
       dopoNome(vecchio, nuovo)
       registro.inviaATutte('workspace:rinominato', { vecchio, nuovo, attivo: a.attivo })
     }
     return statoDi(a)
+  }
+  rinominaDalCore = rinominaCore
+  ipcMain.handle('workspace:rinomina', async (_event, rawVecchio: unknown, rawNuovo: unknown): Promise<StatoWorkspace> => {
+    const vecchio = validateNomeWorkspace(rawVecchio)
+    const nuovo = validateNomeWorkspace(rawNuovo)
+    const prima = store.leggi()
+    if (!prima.workspace.some((w) => w.nome === vecchio)) throw new Error(`il workspace «${vecchio}» non esiste`)
+    if (nuovo !== vecchio && prima.workspace.some((w) => w.nome === nuovo)) throw new Error(`«${nuovo}» esiste già: scegli un altro nome`)
+    // La cartella del progetto si rinomina con lui (13/11), o si dice perché no.
+    if (nuovo !== vecchio) {
+      const no = await rinomina.prima?.(vecchio, nuovo)
+      if (no !== undefined) throw new Error(no)
+    }
+    return rinominaCore(vecchio, nuovo)
   })
 
   // Prende il layout corrente e restituisce quello nuovo: un solo giro, quindi

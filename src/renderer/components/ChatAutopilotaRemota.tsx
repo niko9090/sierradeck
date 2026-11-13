@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Autopilota } from '@shared/autopilota'
+import type { AutopilotiDiPc } from '@shared/autopiloti-altri'
 import { conversazione, haDomandaAperta, staPensando } from '@shared/chat-autopilota'
 import { autopilotaDelPcRemoto, letturaSpecialisti, rigaPcNonRisponde, type EsitoAzione, type LetturaSpecialisti } from '@shared/autopilota-remoto'
 import { chiaveWorkspace } from '@shared/coda-richieste'
@@ -46,49 +47,79 @@ export type Stato = {
   giu: boolean
 }
 
+/**
+ * La lettura dell'autopilota remoto, senza React: la prova i test.
+ *
+ * 13/11 (Nicholas: «ho aperto una chat remota e nella parte a destra con gli
+ * agenti c'era quello giusto e anche uno di un altro workspace»): prima una
+ * lettura partita per il workspace di prima, finita dopo il cambio, scriveva
+ * il SUO autopilota come quello del workspace nuovo (e lo teneva: l'id restava
+ * quello). Ora ogni `punta` apre un giro nuovo: quello che torna da un giro
+ * vecchio si butta, e non tiene fermo il giro nuovo.
+ */
+export function creaLettoreAutopilotaRemoto(d: {
+  elenco: (pcId: string) => Promise<Pick<AutopilotiDiPc, 'autopiloti' | 'errore'>>
+  azione: (pcId: string) => Azione
+  metti: (f: (s: Stato) => Stato) => void
+}): { punta: (pcId: string | undefined, workspace: string) => void; leggi: () => Promise<void> } {
+  type Giro = { pcId: string; workspace: string; id?: string; inViaggio: boolean }
+  let giro: Giro | undefined
+  return {
+    punta(pcId, workspace) {
+      giro = pcId === undefined ? undefined : { pcId, workspace, inViaggio: false }
+    },
+    async leggi() {
+      const g = giro
+      if (g === undefined || g.inViaggio) return
+      g.inViaggio = true
+      const vale = (): boolean => giro === g
+      try {
+        if (g.id === undefined) {
+          const r = await d.elenco(g.pcId)
+          if (!vale()) return
+          if (r.errore !== undefined) { d.metti((s) => ({ ...s, giu: true })); return }
+          const riga = autopilotaDelPcRemoto(r.autopiloti, g.workspace)
+          if (riga === undefined) { d.metti(() => ({ nessuno: true, giu: false })); return }
+          g.id = riga.id
+        }
+        const e = await d.azione(g.pcId)('/api/autopilota', { autopilota: g.id })
+        if (!vale()) return
+        if (!e.ok) {
+          // 404: là non c'è più; si rilegge l'elenco al giro dopo. Il resto: non risponde.
+          if (e.stato === 404) delete g.id
+          d.metti((s) => ({ ...s, giu: e.stato !== 404 }))
+          return
+        }
+        const a = e.dati as Autopilota
+        // Un autopilota di un altro workspace non passa per quello di questo.
+        if (a.workspace !== undefined && a.workspace !== g.workspace) { delete g.id; return }
+        d.metti(() => ({ autopilota: a, giu: false }))
+      } catch {
+        if (vale()) d.metti((s) => ({ ...s, giu: true }))
+      } finally {
+        g.inViaggio = false
+      }
+    }
+  }
+}
+
 /** Legge dal PC remoto l'autopilota del workspace, ogni pochi secondi, finché il componente c'è. */
 export function useAutopilotaRemoto(pcId: string | undefined, workspace: string): { stato: Stato; rileggi: () => void } {
   const [stato, setStato] = useState<Stato>({ giu: false })
-  const id = useRef<string | undefined>(undefined)
-  const vivo = useRef(true)
-  const inViaggio = useRef(false)
-  const leggi = useCallback(async (): Promise<void> => {
-    if (inViaggio.current || pcId === undefined) return
-    inViaggio.current = true
-    try {
-      if (id.current === undefined) {
-        const r = await window.gestore.autopilotiAltri.diPc(pcId)
-        if (!vivo.current) return
-        if (r.errore !== undefined) { setStato((s) => ({ ...s, giu: true })); return }
-        const riga = autopilotaDelPcRemoto(r.autopiloti, workspace)
-        if (riga === undefined) { setStato({ nessuno: true, giu: false }); return }
-        id.current = riga.id
-      }
-      const e = await azioneSu(pcId)('/api/autopilota', { autopilota: id.current })
-      if (!vivo.current) return
-      if (!e.ok) {
-        // 404: là non c'è più; si rilegge l'elenco al giro dopo. Il resto: non risponde.
-        if (e.stato === 404) id.current = undefined
-        setStato((s) => ({ ...s, giu: e.stato !== 404 }))
-        return
-      }
-      setStato({ autopilota: e.dati as Autopilota, giu: false })
-    } catch {
-      if (vivo.current) setStato((s) => ({ ...s, giu: true }))
-    } finally {
-      inViaggio.current = false
-    }
-  }, [pcId, workspace])
+  const lettore = useMemo(() => creaLettoreAutopilotaRemoto({
+    elenco: (pc) => window.gestore.autopilotiAltri.diPc(pc),
+    azione: azioneSu,
+    metti: (f) => setStato(f)
+  }), [])
   useEffect(() => {
-    vivo.current = true
-    id.current = undefined
+    lettore.punta(pcId, workspace)
     setStato({ giu: false })
-    if (pcId === undefined) return () => { vivo.current = false }
-    void leggi()
-    const t = setInterval(() => { void leggi() }, RILEGGI_CHAT_MS)
-    return () => { vivo.current = false; clearInterval(t) }
-  }, [leggi, pcId])
-  return { stato, rileggi: () => { void leggi() } }
+    if (pcId === undefined) return undefined
+    void lettore.leggi()
+    const t = setInterval(() => { void lettore.leggi() }, RILEGGI_CHAT_MS)
+    return () => { lettore.punta(undefined, ''); clearInterval(t) }
+  }, [lettore, pcId, workspace])
+  return { stato, rileggi: () => { void lettore.leggi() } }
 }
 
 /** La chat con l'autopilota che gira su un altro PC. */

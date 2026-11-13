@@ -132,6 +132,10 @@ export type LocaliBattito = {
   /** `size` (0.65.0): quanto è lungo il `.jsonl` sul disco, per sapere se la copia è intera. */
   chat: { sessione: string; cwd?: string; mtime?: number; size?: number }[]
   progetti: { id: string; percorso: string }[]
+  /** Le cartelle di qui dei progetti di altri PC (Gestione progetti, 13/11): le copie rimaste. */
+  copie?: { id: string; percorso: string }[]
+  /** I workspace di questo PC e il progetto collegato (13/11). */
+  workspace?: { nome: string; progetto?: string }[]
 }
 
 /** Quante chat al massimo nel battito: le più recenti. */
@@ -179,6 +183,15 @@ export type ComandoPosta =
   | { tipo: 'sposta-prepara'; progetto: string; verso: string; versoNome: string; sposta: string }
   | { tipo: 'sposta-concludi'; progetto: string; verso: string; percorso: string; proprietarioDal: string; sposta: string }
   | { tipo: 'errori'; invio: InvioErrori }
+  /*
+   * Gestione progetti (13/11): le scelte di Nicholas per un progetto che vive
+   * su un altro PC. Le esegue quel PC, anche se era spento quando sono state
+   * chieste. Un PC di una versione di prima non le conosce e le dà fallite.
+   */
+  | { tipo: 'progetto-rinomina'; progetto: string; nome: string }
+  | { tipo: 'progetto-elimina'; progetto: string; nome: string; percorsi: string[] }
+  | { tipo: 'progetto-pulisci-copia'; progetto: string; percorso: string }
+  | { tipo: 'progetto-sposta-qui'; progetto: string }
 
 /** Il motivo, per esteso, di una voce rifiutata da una chat protetta (0.49.1). */
 export const ESITO_PROTETTA = 'Chat protetta: inserisci il PIN. Su quel PC questa chat è protetta dal PIN e non è aperta per chi ha scritto: aprila dal vivo (il riquadro della chat o «Chat … dal vivo» sul telefono), metti il PIN lì e rimanda il messaggio.'

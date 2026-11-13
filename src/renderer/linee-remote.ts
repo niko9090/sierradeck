@@ -24,6 +24,8 @@ export function lineaPc(pcId: string): Linea {
 export function useLineaPc(pcId: string): Linea {
   return useSyncExternalStore(
     (f) => { chiPc.add(f); return () => { chiPc.delete(f) } },
+    () => perPc.get(pcId) ?? LINEA_NUOVA,
+    // Anche senza finestra (le prove con renderToStaticMarkup): la stessa lettura.
     () => perPc.get(pcId) ?? LINEA_NUOVA
   )
 }
@@ -46,6 +48,7 @@ export function pubblicaLinea(paneId: string, linea: Linea | undefined): void {
 export function useLineaRemota(paneId: string): Linea | undefined {
   return useSyncExternalStore(
     (f) => { chi.add(f); return () => { chi.delete(f) } },
+    () => linee.get(paneId),
     () => linee.get(paneId)
   )
 }

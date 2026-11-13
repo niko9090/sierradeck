@@ -83,6 +83,7 @@
 - vitest stampa «×» nei nomi di alcuni test (es. «(×2)»): cercare i fallimenti con «FAIL» o col riepilogo finale, non con «×» _(2026-11-13)_
 - `gh release view --json` non ha il campo isLatest: lo stato latest si legge da `gh release list` (colonna «Latest»). _(2026-11-13)_
 - `npm run pubblica` con una release in bozza già creata carica i file ma la lascia bozza: serve sempre `gh release edit --draft=false --latest`. _(2026-11-13)_
+- REGOLA di Nicholas: l'Aiutante esce SEMPRE allegato alla release del programma completo (`npm run pubblica` → `scripts/allega-aiutante.mjs`: installer, blockmap e `aiutante.yml` per ultimo; 7 file in tutto); mai più da solo sulla pubblicazione fissa «aiutante». _(2026-11-13)_
 - i file del lotto errori-arrivati non sono tracciati e non stanno nel worktree: per il titolo del gruppo leggerli con Read dalla cartella principale. _(2026-11-13)_
 - `npm run pubblica` con la bozza già creata e il tag pushato la lascia in bozza: serve sempre `gh release edit --draft=false --latest`. L'URL della bozza è «untagged-…» finché non si pubblica. _(2026-11-13)_
 - prima del bump: `git merge --ff-only main`, poi `gh release list`; la voce in `src/shared/novita.ts` va nello stesso commit del bump, sennò `novita.test.ts` fallisce. _(2026-11-13)_
@@ -243,6 +244,7 @@
 - scriviQuandoPronta guarda solo i riquadri del workspace corrente: un avviso mandato a una chat di un workspace tenuto dietro sparisce in silenzio, quindi non va segnato come consegnato. _(2026-11-09)_
 - PannelloDomande mostra String(e) grezzo invece di testoErroreDialogo: a Nicholas arriva il messaggio tecnico con «Error invoking remote method». _(2026-11-10)_
 - le chiamate preferenze.imposta hanno un .catch vuoto (App.tsx:979 e simili): un salvataggio fallito non si vede. _(2026-11-12)_
+- Un hook che cambia sorgente (workspace o PC) non deve tenere il valore di prima: `useSondaggio` lo legava al sondaggio vecchio, e `useAutopilotaRemoto` lasciava scrivere una lettura in viaggio del workspace precedente. Ogni lettura va legata al suo giro. _(2026-11-13)_
 
 ## fermate
 
@@ -403,3 +405,7 @@
 ## errori
 
 - `chiama` ora porta stato e motivo nell'errore: riconoscere i 404 dal motivo, non dal testo del messaggio. _(2026-11-13)_
+## voce
+
+- whisper.cpp 1.9.2 su questo PC (i7-3770, niente AVX2, CPU al 100%): 15-37 s per una frase di 3 s col modello small q5_1; «Sierra» la scrive giusta, «fammi» a volte «famiglia». Le misure vanno rifatte a PC scarico. _(2026-11-13)_
+- Il `tar` di Git Bash non apre gli zip: serve `%SystemRoot%\System32\tar.exe` (bsdtar), che accetta anche i nomi con `*` per estrarre solo alcuni file. _(2026-11-13)_

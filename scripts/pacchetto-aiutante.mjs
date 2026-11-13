@@ -5,7 +5,8 @@
 // Prima `npm run build-aiutante` (lo fa lo script npm), poi electron-builder con
 // la configurazione dell'Aiutante e la sua versione (src/aiutante/versione.json).
 // Il risultato sta in dist-aiutante/: SierraDeck-Aiutante-Setup-<versione>.exe,
-// il suo .blockmap e latest.yml.
+// il suo .blockmap e aiutante.yml (il canale «aiutante»: mai latest.yml, che è del
+// programma completo). Lo carica scripts/allega-aiutante.mjs, dentro `npm run pubblica`.
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -24,6 +25,9 @@ export function nomeInstaller(versione) {
   return `SierraDeck-Aiutante-Setup-${versione}.exe`
 }
 
+/** Il file degli aggiornamenti dell'Aiutante: il canale «aiutante» di electron-builder. */
+export const YML_AIUTANTE = 'aiutante.yml'
+
 /** Gli argomenti di electron-builder: sempre la configurazione dell'Aiutante, mai quella del programma completo. */
 export function argomentiBuilder(versione) {
   return ['electron-builder', '--win', '--config', CONFIG_AIUTANTE, '--publish', 'never', `-c.extraMetadata.version=${versione}`]
@@ -39,7 +43,7 @@ export function costruisci() {
   return versione
 }
 
-// Lanciato da solo (non importato da pubblica-aiutante.mjs).
+// Lanciato da solo (non importato da allega-aiutante.mjs).
 if (process.argv[1] !== undefined && process.argv[1].replace(/\\/g, '/').endsWith('scripts/pacchetto-aiutante.mjs')) {
   const v = costruisci()
   console.log(`\nSierraDeck Aiutante ${v}: installer in dist-aiutante/${nomeInstaller(v)}`)

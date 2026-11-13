@@ -13,7 +13,7 @@ describe('«N di M chat» sul PC (0.82.0)', () => {
   it('sta nella fascia in alto, accanto alla versione', () => {
     const src = readFileSync('src/renderer/components/Console.tsx', 'utf8')
     expect(src).toContain('<PostiChat />')
-    expect(src.indexOf('<PostiChat />')).toBeLessThan(src.indexOf('className="versione"'))
+    expect(src.indexOf('<PostiChat />')).toBeLessThan(src.indexOf('className={`versione'))
   })
 
   it('prima della risposta del servizio non inventa numeri', () => {

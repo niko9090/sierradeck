@@ -108,6 +108,38 @@ export function OspiteAzioniChat(): React.JSX.Element | null {
 }
 
 /**
+ * Quanto libera la chat e perché il PC non la chiude o non la elimina adesso:
+ * le stesse risposte che legge il menu «🗂» all'apertura, per il tasto destro
+ * (13/11). `chiudeQui`: il riquadro si chiude da sé, «Chiudi» va sempre.
+ */
+export async function misuraAzioniChat(sessione: string, titolo: string, chiudeQui: boolean): Promise<{ byte?: number; eliminaNo?: string; chiudiNo?: string }> {
+  try {
+    const s = await window.gestore.chatGestione.selezione([sessione])
+    const chiudiNo = chiudeQui ? undefined : motivoNonChiudeScelta(s, sessione, titolo)
+    return { byte: s.byte, ...(s.escluse[0]?.motivo !== undefined ? { eliminaNo: s.escluse[0].motivo } : {}), ...(chiudiNo !== undefined ? { chiudiNo } : {}) }
+  } catch { return {} }
+}
+
+/**
+ * Chiudi, Archivia o Elimina dal PC di una chat, dal tasto destro (13/11): la
+ * stessa conferma e lo stesso esito del menu «🗂», mostrati dall'ospite in `App`.
+ */
+export function chiediAzioneChat(p: { sessione: string; titolo: string; onChiudi?: () => void; byte?: number }, azione: AzioneVista): void {
+  const nome = nomeScelte([p.titolo])
+  const conferma = azione === 'chiudi' ? (): Conferma => confermaChiudiChat(nome)
+    : azione === 'archivia' ? (): Conferma => confermaArchiviaChat(nome)
+    : (d: boolean): Conferma => confermaEliminaChat(nome, p.byte !== undefined ? byteLeggibili(p.byte) : 'lo spazio di questa chat', d)
+  const fai = async (ancheDalDrive: boolean): Promise<EsitoAzioni> => {
+    if (azione === 'chiudi' && p.onChiudi !== undefined) {
+      p.onChiudi()
+      return { azione, esiti: [{ sessione: p.sessione, ok: true }], fatte: 1, rifiutate: 0, messaggio: '1 chat chiusa.' }
+    }
+    return window.gestore.chatGestione.azione({ azione, sessioni: [p.sessione], ancheDalDrive })
+  }
+  mostraNellOspite?.({ chiave: ++chiavi, azione, conferma, fai })
+}
+
+/**
  * Le tre azioni di **una** chat (0.79.0): Chiudi, Archivia, Elimina dal PC,
  * ognuna con il suo «?» corto. Stanno dietro un tasto, perché il riquadro, le
  * schede della Panoramica e l'elenco hanno già poco posto.

@@ -6,13 +6,20 @@ import { proponiNuovaChat, type PropostaChat } from '../nuova-chat'
 import { ModaleNuovaChat } from './ModaleNuovaChat'
 import { cambiaSchermo } from '../cambio-schermo'
 import { MenuWorkspace } from './MenuWorkspace'
-import { SuAltriPc } from './SuAltriPc'
+import { SezioneAltriPc } from './SezioneAltriPc'
 import { serveIlMenu } from '../menu-workspace'
 import { workspaceDaAzione, type Azione } from '@shared/scorciatoie'
 import { azioneDelTasto, impostaScorciatoie } from '../scorciatoie-vive'
 import { fuocoAllaChatVicina } from '../fuoco-chat'
 import { useModelli } from '../modelli'
-import { MenuPin } from './ChatConPin'
+import { apriMenuContestuale } from '../menu-contestuale'
+import { vociWorkspace } from '@shared/menu-contestuale'
+import { azioniMenuWorkspace } from '@shared/menu-workspace'
+import { confermaEliminaWorkspace, controllaNomeWorkspace, NOME_WORKSPACE_MAX } from '@shared/azioni-telefono'
+import { cambiaSoloQui } from '@shared/chat-sul-drive'
+import { salvaPreferenze } from '../salva-preferenze'
+import { azioniDiFinestra } from '../azioni-finestra'
+import { ModaleConferma } from './ModaleConferma'
 import { PostiChat } from './PostiChat'
 import { MENU_PRINCIPALE, VOCE_SPECIALISTI, type IdMenu, type VoceMenu } from '@shared/menu-principale'
 
@@ -54,8 +61,10 @@ type Props = {
   workspaceCheChiamano?: Set<string>
   /** Mostra le novità di questa versione: la si preme sul numero. */
   onApriNovita: () => void
-  /** Tutti i workspace: stanno nella fascia, non dietro un menu. */
+  /** I workspace di questo PC: stanno nella fascia, non dietro un menu. */
   workspaceNomi: string[]
+  /** I workspace che vivono su altri PC (13/11): stanno nella sezione «Altri PC», non nella fascia. */
+  workspaceRemoti?: Readonly<Record<string, unknown>>
   /**
    * Com'è messo l'aggiornamento del programma, adesso.
    *
@@ -108,6 +117,7 @@ export function Console({
   onApri,
   workspaceAttivo,
   workspaceNomi,
+  workspaceRemoti = {},
   ledAutopiloti,
   domandeInAttesa = 0,
   domandeAperte = false,
@@ -123,8 +133,25 @@ export function Console({
   onApriNovita
 }: Props): React.JSX.Element {
   const MODELLI = useModelli()
-  // Il PIN dei workspace (0.49.0): il tasto destro sul nome del workspace.
-  const [menuPinWs, setMenuPinWs] = useState<{ nome: string; x: number; y: number } | undefined>(undefined)
+  // Il tasto destro sul nome del workspace (13/11): le azioni del «⋯» del menu
+  // dei workspace e il PIN (0.49.0), nel menu del sistema.
+  const [rinominaWs, setRinominaWs] = useState<{ vecchio: string; testo: string } | undefined>(undefined)
+  const [eliminaWs, setEliminaWs] = useState<string | undefined>(undefined)
+  const [soloQuiWs, setSoloQuiWs] = useState<string[]>([])
+  useEffect(() => {
+    const applica = (p: { workspaceSoloQui?: string[] }): void => setSoloQuiWs(p.workspaceSoloQui ?? [])
+    window.gestore.preferenze.leggi().then(applica).catch(() => undefined)
+    return window.gestore.preferenze.suCambio(applica)
+  }, [])
+  // La finestra degli aggiornamenti (13/11): il pallino sul numero di versione finché c'è una notizia non guardata.
+  const [novitaNonLette, setNovitaNonLette] = useState(false)
+  useEffect(() => {
+    const f = window.gestore.finestraNovita
+    if (f === undefined) return
+    void f.stato().then((s) => setNovitaNonLette(s.nonLetto)).catch(() => undefined)
+    return f.suStato((s) => setNovitaNonLette(s.nonLetto))
+  }, [])
+  const apriStatoAggiornamento = (): void => { void window.gestore.finestraNovita?.apri({ tipo: 'aggiornamento' }).catch(() => undefined) }
   const [pinWs, setPinWs] = useState<{ attivo: boolean; workspace: string[] }>({ attivo: false, workspace: [] })
   useEffect(() => {
     const leggi = (): void => { void window.gestore.pin.stato().then((s) => setPinWs({ attivo: s.attivo, workspace: s.workspace })).catch(() => undefined) }
@@ -155,7 +182,7 @@ export function Console({
    * workspace che si lascia, altrimenti tornandoci si troverebbe vuoto — solo
    * senza dover aprire niente.
    */
-  const nomiWs = (workspaceNomi.length > 0 ? workspaceNomi : [workspaceAttivo]).filter((x) => x !== '')
+  const nomiWs = (workspaceNomi.length > 0 ? workspaceNomi : [workspaceAttivo]).filter((x) => x !== '' && workspaceRemoti[x] === undefined)
   const cambiaWorkspace = (nome: string): void => {
     if (nome === workspaceAttivo) return
     // L'errore non si ingoia: se il cambio non riesce, premere il nome del
@@ -177,6 +204,34 @@ export function Console({
     setErroreWs(undefined)
     void window.gestore.workspace.apriCartella({ workspace: nome })
       .then((r) => { if (!r.ok) setErroreWs(r.messaggio) })
+      .catch((err: unknown) => setErroreWs(String(err)))
+  }
+  const menuWorkspace = (e: React.MouseEvent, n: string): void => {
+    const soloQui = soloQuiWs.includes(n)
+    const az = azioniMenuWorkspace({ nome: n, qui: true }, { attivo: workspaceAttivo, quanti: nomiWs.length, cartella: true, soloQui })
+    apriMenuContestuale(e, vociWorkspace({ azioni: az, nome: n, pin: { acceso: pinWs.attivo, protetto: pinWs.workspace.includes(n) } }), {
+      apri: () => cambiaWorkspace(n),
+      rinomina: () => setRinominaWs({ vecchio: n, testo: n }),
+      cartella: () => apriCartellaWs(n),
+      soloQui: () => {
+        setSoloQuiWs((l) => cambiaSoloQui(l, n, !soloQui))
+        void salvaPreferenze((p) => ({ ...p, workspaceSoloQui: cambiaSoloQui(p.workspaceSoloQui ?? [], n, !soloQui) }))
+      },
+      elimina: () => setEliminaWs(n),
+      'pin-metti': () => { void window.gestore.pin.proteggiWorkspace(n, true) },
+      'pin-togli': () => { void window.gestore.pin.proteggiWorkspace(n, false) },
+      gestisci: () => commuta('workspace')
+    })
+  }
+  const confermaRinominaWs = (): void => {
+    if (rinominaWs === undefined) return
+    const { vecchio, testo } = rinominaWs
+    if (testo.trim() === vecchio) { setRinominaWs(undefined); return }
+    const c = controllaNomeWorkspace(testo, nomiWs.filter((n) => n !== vecchio))
+    if (!c.ok) { setErroreWs(c.errore); return }
+    setRinominaWs(undefined)
+    void window.gestore.workspace.rinomina(vecchio, c.nome)
+      .then((st) => { setErroreWs(undefined); onStatoWorkspace?.(st) })
       .catch((err: unknown) => setErroreWs(String(err)))
   }
   useEffect(() => {
@@ -392,7 +447,24 @@ export function Console({
               onStato={(s) => onStatoWorkspace?.(s)}
               onApriCartella={apriCartellaWs}
             />
-          ) : nomiWs.map((n) => (
+          ) : nomiWs.map((n) => rinominaWs?.vecchio === n ? (
+            <span key={n} className="ws__rinomina">
+              <input
+                autoFocus
+                className="campo campo--compatto"
+                aria-label={`Nome nuovo per «${n}»`}
+                value={rinominaWs.testo}
+                maxLength={NOME_WORKSPACE_MAX}
+                onChange={(e) => setRinominaWs({ vecchio: n, testo: e.target.value })}
+                onBlur={() => setRinominaWs(undefined)}
+                onKeyDown={(e) => {
+                  e.stopPropagation()
+                  if (e.key === 'Enter') { e.preventDefault(); confermaRinominaWs() }
+                  else if (e.key === 'Escape') { e.preventDefault(); setRinominaWs(undefined) }
+                }}
+              />
+            </span>
+          ) : (
             <button
               key={n}
               className={[
@@ -403,7 +475,7 @@ export function Console({
                 workspaceCheChiamano?.has(n) === true ? 'ws__voce--chiama' : ''
               ].filter((c) => c !== '').join(' ')}
               onClick={() => cambiaWorkspace(n)}
-              onContextMenu={(e) => { e.preventDefault(); setMenuPinWs({ nome: n, x: e.clientX, y: e.clientY }) }}
+              onContextMenu={(e) => menuWorkspace(e, n)}
               title={
                 workspaceCheChiamano?.has(n) === true
                   ? `In «${n}» qualcuno aspetta una tua risposta`
@@ -415,17 +487,21 @@ export function Console({
               {workspaceCheChiamano?.has(n) === true ? <span className="ws__chiama" aria-label="richiede il tuo intervento">●</span> : null}
             </button>
           ))}
-          {menuPinWs !== undefined ? (
-            <MenuPin x={menuPinWs.x} y={menuPinWs.y} onChiudi={() => setMenuPinWs(undefined)} voci={[
-              // «Apri cartella» (0.82.0): la cartella del progetto del workspace in Esplora file.
-              { testo: `Apri la cartella di «${menuPinWs.nome}»`, azione: () => { apriCartellaWs(menuPinWs.nome); setMenuPinWs(undefined) } },
-              ...(!pinWs.attivo ? [{ testo: 'Il PIN è spento: accendilo dalle Impostazioni → PIN delle chat', azione: () => setMenuPinWs(undefined), spenta: true }] : []),
-              pinWs.workspace.includes(menuPinWs.nome)
-                ? { testo: `Togli il PIN da «${menuPinWs.nome}»`, azione: () => { void window.gestore.pin.proteggiWorkspace(menuPinWs.nome, false); setMenuPinWs(undefined) } }
-                : { testo: `Proteggi con il PIN tutto «${menuPinWs.nome}»`, azione: () => { void window.gestore.pin.proteggiWorkspace(menuPinWs.nome, true); setMenuPinWs(undefined) }, spenta: !pinWs.attivo }
-            ]} />
+          {eliminaWs !== undefined ? (
+            <ModaleConferma
+              titolo={confermaEliminaWorkspace(eliminaWs).titolo}
+              testo={confermaEliminaWorkspace(eliminaWs).testo}
+              etichettaAzione={confermaEliminaWorkspace(eliminaWs).azione}
+              onConferma={() => {
+                const nome = eliminaWs
+                setEliminaWs(undefined)
+                void azioniDiFinestra().elimina(nome)
+                  .then((st) => onStatoWorkspace?.(st))
+                  .catch((err: unknown) => setErroreWs(String(err)))
+              }}
+              onAnnulla={() => setEliminaWs(undefined)}
+            />
           ) : null}
-          {!serveIlMenu(nomiWs) ? <SuAltriPc /> : null}
           {erroreWs !== undefined ? (
             <span className="misura" role="status" style={{ color: 'var(--ambra)' }} title={erroreWs}>⚠ {erroreWs.length > 60 ? `${erroreWs.slice(0, 60)}…` : erroreWs}</span>
           ) : null}
@@ -439,6 +515,8 @@ export function Console({
           </button>
         </div>
       </div>
+      {/* «Altri PC» (13/11): i workspace che vivono su altri PC, separati da quelli di qui. */}
+      <SezioneAltriPc attivo={workspaceAttivo} nomi={[...nomiWs, ...Object.keys(workspaceRemoti)]} onCambia={cambiaWorkspace} />
       <div className="sezione sezione--vuota" />
       <div className="sezione">
         {/* 0.82.0: quante chat degli autopiloti lavorano su questo PC, sempre in vista. */}
@@ -446,10 +524,17 @@ export function Console({
         {/* La versione e il modo di cercare un aggiornamento quando si vuole:
             l'attesa automatica è ogni sei ore, e chi ha appena pubblicato non
             ha voglia di aspettarle. */}
+        {/* 13/11: apre la finestra degli aggiornamenti in basso a destra. Con una
+            notizia non guardata (pallino) o un aggiornamento in corso apre lo
+            stato; altrimenti le novità di questa versione. */}
         <button
-          className="versione"
-          onClick={onApriNovita}
-          title="Cosa è cambiato in questa versione"
+          className={`versione${novitaNonLette ? ' versione--nonletto' : ''}`}
+          onClick={() => {
+            if (novitaNonLette || spiaAggiornamento(aggiornamento) !== undefined) apriStatoAggiornamento()
+            else onApriNovita()
+          }}
+          title={novitaNonLette ? 'C’è una novità sull’aggiornamento: aprila' : 'Cosa è cambiato in questa versione'}
+          aria-label={novitaNonLette ? `Versione ${versione}: c’è una novità sull’aggiornamento` : `Versione ${versione}: cosa è cambiato`}
         >
           v{versione}
         </button>
@@ -457,20 +542,21 @@ export function Console({
             non c’è niente da dire: una spia che è sempre accesa non è una
             spia, è decorazione. */}
         {spiaAggiornamento(aggiornamento) !== undefined ? (
-          <span
-            className={`spia-agg spia-agg--${aggiornamento?.fase ?? "fermo"}`}
+          <button
+            className={`spia-agg spia-agg--tasto spia-agg--${aggiornamento?.fase ?? "fermo"}`}
+            onClick={apriStatoAggiornamento}
             title={
               aggiornamento?.daTelefono === true
-                ? 'Richiesto da un telefono accoppiato'
-                : 'Aggiornamento del programma'
+                ? 'Richiesto da un telefono accoppiato. Apre la finestra dell’aggiornamento'
+                : 'Apre la finestra dell’aggiornamento'
             }
           >
             {spiaAggiornamento(aggiornamento)}
-          </span>
+          </button>
         ) : null}
         <button
           className="tasto tasto--icona"
-          onClick={() => void window.gestore.aggiornamenti.cerca()}
+          onClick={() => { apriStatoAggiornamento(); void window.gestore.aggiornamenti.cerca() }}
           title="Cerca ora un aggiornamento"
         >
           ⟳

@@ -305,6 +305,16 @@ export function creaLoggerUpdater(
   }
 }
 
+/**
+ * Chi vuole sapere ogni stato annunciato, oltre alle finestre (13/11): la
+ * finestra degli aggiornamenti in basso a destra decide lì se mostrarsi.
+ */
+const ascoltatoriAnnunci = new Set<(s: StatoAggiornamento) => void>()
+export function ascoltaAnnunci(f: (s: StatoAggiornamento) => void): () => void {
+  ascoltatoriAnnunci.add(f)
+  return () => { ascoltatoriAnnunci.delete(f) }
+}
+
 export function creaAggiornamenti(
   finestre: () => BrowserWindow[],
   /** La cartella dei dati: da lì arrivano le credenziali, se il server le chiede. */
@@ -502,6 +512,9 @@ export function creaAggiornamenti(
       if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
         w.webContents.send('aggiornamenti:stato', nuovo)
       }
+    }
+    for (const f of ascoltatoriAnnunci) {
+      try { f(nuovo) } catch (err) { guaio(`ascoltatore dell'annuncio: ${String(err)}`) }
     }
   }
 

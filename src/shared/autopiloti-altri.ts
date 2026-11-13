@@ -39,7 +39,9 @@ export const ROTTE_AUTOPILOTA_ALTRO_PC: readonly string[] = [
   // k-60: gli specialisti al lavoro e in fila su quel PC, e cambiarne la lista (precedenza, Togli): la regola la decide quel PC.
   '/api/specialisti/attesa', '/api/specialisti/attesa/priorita', '/api/specialisti/attesa/togli',
   // 0.102.0: la conversazione di uno specialista, per le sue chat a destra come sul PC dove gira.
-  '/api/autopilota/specialista'
+  '/api/autopilota/specialista',
+  // «Altri PC» (13/11): un workspace remoto senza autopilota lo fa nascere là, mai qui.
+  '/api/autopilota/crea'
 ]
 
 export function rottaAutopilotaAltroPc(percorso: string): boolean {

@@ -21,6 +21,7 @@ import type { StatoLavoro } from '../main/cassaforte/lavoro-in-corso'
 import type { Consumi } from '@shared/consumi'
 import type { Anteprima } from '../main/anteprima'
 import type { StatoAggiornamento } from '../main/aggiornamenti'
+import type { VistaNovita } from '@shared/finestra-novita'
 import type { SpawnRequest } from '../main/validation'
 
 // `env` non e' piu' esposto: GESTORE_CLAUDE_PATH serviva al renderer solo per
@@ -266,6 +267,25 @@ contextBridge.exposeInMainWorld('gestore', {
   dettatura: {
     stato: (): Promise<import('../shared/dettatura').StatoDettatura> => ipcRenderer.invoke('dettatura:stato'),
     apri: (): Promise<{ ok: boolean; messaggio?: string; comeAttivare?: string }> => ipcRenderer.invoke('dettatura:apri')
+  },
+  /** «Parlato» (13/11): Whisper sul PC, scaricato col consenso; la finestra manda le frasi e riceve il testo. */
+  voceLocale: {
+    stato: (): Promise<import('../shared/modello-voce').StatoModello> => ipcRenderer.invoke('voce-locale:stato'),
+    scarica: (modello: import('../shared/modello-voce').IdModello): Promise<import('../shared/modello-voce').StatoModello> => ipcRenderer.invoke('voce-locale:scarica', modello),
+    annulla: (): Promise<void> => ipcRenderer.invoke('voce-locale:annulla'),
+    rimuovi: (): Promise<import('../shared/modello-voce').StatoModello> => ipcRenderer.invoke('voce-locale:rimuovi'),
+    trascrivi: (pcm: Uint8Array, parola: string): Promise<{ ok: true; testo: string; ms: number } | { ok: false; messaggio: string }> => ipcRenderer.invoke('voce-locale:trascrivi', pcm, parola),
+    suCambio: (cb: (s: import('../shared/modello-voce').StatoModello) => void): (() => void) => {
+      const h = (_e: unknown, s: import('../shared/modello-voce').StatoModello): void => cb(s)
+      ipcRenderer.on('voce-locale:cambiato', h)
+      return () => { ipcRenderer.off('voce-locale:cambiato', h) }
+    },
+    /** La finestra è andata nell'area di notifica (la X): «Parlato» si spegne. */
+    suFinestraNascosta: (cb: () => void): (() => void) => {
+      const h = (): void => cb()
+      ipcRenderer.on('finestra:nascosta', h)
+      return () => { ipcRenderer.off('finestra:nascosta', h) }
+    }
   },
   /** La trasformazione dei workspace (0.74.1): lo stato, «Torna come prima», «Rifai». */
   migrazione: {
@@ -517,6 +537,21 @@ contextBridge.exposeInMainWorld('gestore', {
     }
   },
   /**
+   * **Gestione progetti** (13/11): la finestra separata per decidere dove e di
+   * chi sono i progetti, unire i doppioni, rinominare, eliminare.
+   */
+  gestione: {
+    apri: (): Promise<void> => ipcRenderer.invoke('gestione:apri'),
+    vista: (): Promise<import('@shared/gestione-progetti').VistaGestione> => ipcRenderer.invoke('gestione:vista'),
+    azione: (corpo: { azione: string; id?: string; ids?: string[]; tieni?: string; pc?: string; percorso?: string; nome?: string; ws?: string }): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('gestione:azione', corpo),
+    suCambiata: (cb: () => void): (() => void) => {
+      const h = (): void => cb()
+      ipcRenderer.on('gestione:cambiata', h)
+      ipcRenderer.on('casa:cambiate', h)
+      return () => { ipcRenderer.removeListener('gestione:cambiata', h); ipcRenderer.removeListener('casa:cambiate', h) }
+    }
+  },
+  /**
    * «Sposta su questo PC» (0.88.0): l'unico modo in cui un progetto cambia PC.
    * Lo stato si rilegge; `casa.suCambiate` avvisa a ogni passo.
    */
@@ -692,6 +727,10 @@ contextBridge.exposeInMainWorld('gestore', {
     verifica: (parola: string, workspace?: string): Promise<boolean> =>
       ipcRenderer.invoke('chiavi:verifica', parola, workspace)
   },
+  /** Il tasto destro (13/11): apre il menu del sistema con queste voci, risponde l'id scelto. */
+  menu: {
+    contestuale: (voci: unknown[]): Promise<string | undefined> => ipcRenderer.invoke('menu:contestuale', voci)
+  },
   sistema: {
     cartellaUtente: (): Promise<string> => ipcRenderer.invoke('sistema:cartellaUtente'),
     versione: (): Promise<string> => ipcRenderer.invoke('sistema:versione'),
@@ -738,6 +777,24 @@ contextBridge.exposeInMainWorld('gestore', {
       const h = (_e: unknown, s: StatoAggiornamento): void => cb(s)
       ipcRenderer.on('aggiornamenti:stato', h)
       return () => ipcRenderer.off('aggiornamenti:stato', h)
+    }
+  },
+  /** La finestra degli aggiornamenti in basso a destra (13/11). */
+  finestraNovita: {
+    apri: (vista?: VistaNovita): Promise<void> => ipcRenderer.invoke('finestra-novita:apri', vista ?? { tipo: 'aggiornamento' }),
+    nascondi: (): Promise<void> => ipcRenderer.invoke('finestra-novita:nascondi'),
+    letto: (): Promise<void> => ipcRenderer.invoke('finestra-novita:letto'),
+    stato: (): Promise<{ aperta: boolean; nonLetto: boolean }> => ipcRenderer.invoke('finestra-novita:stato'),
+    vista: (): Promise<VistaNovita> => ipcRenderer.invoke('finestra-novita:vista'),
+    suStato: (cb: (s: { aperta: boolean; nonLetto: boolean }) => void): (() => void) => {
+      const h = (_e: unknown, s: { aperta: boolean; nonLetto: boolean }): void => cb(s)
+      ipcRenderer.on('finestra-novita:stato', h)
+      return () => ipcRenderer.off('finestra-novita:stato', h)
+    },
+    suVista: (cb: (v: VistaNovita) => void): (() => void) => {
+      const h = (_e: unknown, v: VistaNovita): void => cb(v)
+      ipcRenderer.on('finestra-novita:vista', h)
+      return () => ipcRenderer.off('finestra-novita:vista', h)
     }
   },
   /**
@@ -922,6 +979,10 @@ contextBridge.exposeInMainWorld('gestore', {
     apriDaAltroPc: (pc: string, nome: string): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('workspace:apriDaAltroPc', pc, nome),
     /** 0.102.0: il PC dove vive un workspace aperto da un altro PC; assente: di questo PC. */
     suPc: (nome: string): Promise<{ pcId: string; pcNome: string } | undefined> => ipcRenderer.invoke('workspace:suPc', nome),
+    /** Sezione «Altri PC» (13/11): i workspace di qui che vivono su un altro PC, per nome. */
+    remoti: (): Promise<Record<string, { pcId: string; pcNome: string; sparito?: boolean }>> => ipcRenderer.invoke('workspace:remoti'),
+    /** Sezione «Altri PC»: i PC, accesi o no, con i loro workspace. */
+    sezioneAltriPc: (): Promise<{ pcId: string; nome: string; vivo: boolean; voci: { nome: string; aperto: boolean; davanti: boolean; sparito?: boolean }[] }[]> => ipcRenderer.invoke('workspace:sezioneAltriPc'),
     /** «Apri cartella» (0.82.0): la cartella del progetto del workspace o della chat, in Esplora file. */
     apriCartella: (q: { workspace: string } | { chat: string }): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('cartella:apri', q),
     crea: (nome: string, cartella?: string): Promise<StatoWorkspace> => ipcRenderer.invoke('workspace:crea', nome, cartella),

@@ -3,6 +3,7 @@ import { frenoDrive, MESSAGGIO_DRIVE_PIENO, RICONTROLLO_PIENO_MIN } from './cass
 import { nonRipartePerAltri } from '@shared/apertura-solo-utente'
 import { portaInVista, statoApertura } from '@shared/finestra-visibile'
 import { chiudiPannelliConLApp, finestreDiChat, finestreViveSenzaServizio, segnaFinestraDiServizio } from './finestre-pannello'
+import { chiudiFinestraNovita, finestraNovitaViva, impostaFinestraNovita, suStatoAggiornamento } from './finestra-novita'
 import { workspaceVisti } from './chat-vista'
 import { APP_ID, portePerLaProva } from './identita-app'
 import { scelteDiTerminale } from '@shared/scelte-terminale'
@@ -16,8 +17,9 @@ import { hookSegnali, leggiSegnale, SEGNALI_PER_CHAT, statoChat, statoDaSegnali,
 import { contestoSopraDomanda, domandaInFondo, domandaPerBattito } from '@shared/domande-telefono'
 import { stradaBreve, type InfoStrada } from '@shared/strada-pc'
 import { creaRaggruppatore } from '@shared/spinta-specialisti'
-import { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeImage, safeStorage, screen, shell, webContents } from 'electron'
+import { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeImage, net, safeStorage, screen, shell, webContents } from 'electron'
 import { vociMenuApplicazione, vociMenuContestuale } from './menu-modifica'
+import { registraMenuContestuale } from './menu-contestuale'
 import { basename, dirname, join, resolve, sep } from 'node:path'
 import { GIRO_VUOTI_MS, giroProgettiVuoti } from './progetti/vuoti'
 import { CONTROLLO_PC_OGNI_MS, PRIMO_CONTROLLO_MS, giroControlloPc, versioneDalVivo } from './controllo-pc'
@@ -76,7 +78,7 @@ import { apriAlTelefono, type AlTelefono } from './al-telefono'
 import { apriQuadernoPersonale } from './quaderno-personale'
 import { datiPannello, pcPerPannello } from './pannello-drive-dati'
 import { dentroCartella, eNomeDiSistema, eSenzaNome, nomeNormalizzato, raggruppaProgetti } from '@shared/progetti-unificati'
-import { conSpazioDrive, type Pannello } from '@shared/pannello-drive'
+import { ACCESO_ENTRO_MS, conSpazioDrive, type Pannello } from '@shared/pannello-drive'
 import { conVista } from '@shared/progetti-vista'
 import { conVistaSalute } from '@shared/salute-vista'
 import { memoriaBreve } from '@shared/memoria-breve'
@@ -89,6 +91,8 @@ import type { InSospesoVista } from '@shared/libera-spazio'
 import { chatDiWorkspaceSoloQui, chatNonSale } from '@shared/chat-sul-drive'
 import { cartellaDiUnaChat, cartellaDiUnWorkspace, testoCartellaNonQui, type DoveCartella, type RiquadroCartella } from '@shared/apri-cartella'
 import { cartellaDaNomeWorkspace, cartellaVietataPerChat, eSessioneInterna, riordinaCreatiDalProgramma, sessioniInterne, suAltriPc, togliInterneAggiunte, workspaceDaAltroPc, workspaceDaCreare } from '@shared/workspace-riparazioni'
+import { gruppiAltriPc, remotiDiQui, type RegistroSuPc, type WorkspaceRemoto } from '@shared/workspace-remoti'
+import { leggiSuPc as leggiSuPcFile, migraLinguetteRemote, scriviSuPc } from './workspace-su-pc-file'
 import { leggiEliminati } from './workspace-ritrova'
 import { annotaEliminato, copieDellaLista, riparaListaAllAvvio, type EsitoAvvio } from './workspace-ritrova'
 import { cartellaVuota, elencoRecuperoWorkspace, mettiWorkspaceNelRecupero, recuperoLeggibile, ripristinaWorkspace } from './workspace-recupero-file'
@@ -134,7 +138,7 @@ import { avviaRitiro, consegnaDaIdTesto, doveConsegnare, leggiConsegne, finestra
 import type { Chat } from './client-rotte'
 import { accendiAvvisi, ipcAvvisi } from './avvisi-avvio'
 import { leggiEsitoAltroPc, type EsitoAltroPc } from './risposta-verificata'
-import { creaAggiornamenti, leggiAggiornamentoAppenaFatto, type EsitoQuiete } from './aggiornamenti'
+import { ascoltaAnnunci, creaAggiornamenti, leggiAggiornamentoAppenaFatto, type EsitoQuiete } from './aggiornamenti'
 import { attesaMassimaMs, descriviAttesaDrive, lavoroAutomatico, percheNonFinito } from './attesa-drive'
 import { claudeDaAggiornare, notaClaude } from './claude-versione'
 import { contatoreDrive, cpuRamDa } from './risorse'
@@ -157,7 +161,7 @@ import { creaMandaAChat, type MandaAChat } from './progetti/manda-a-chat'
 import { pcNotiDaDisco, risolviPercorsiMiei } from './progetti/migra-proprietari'
 import { creaInvioDoppioni, richiestaDoppioni } from './progetti/doppioni-al-servizio'
 import { MOTIVO_DRIVE_PIENO_SPOSTA } from '@shared/sposta'
-import { creaLatoProprietario, creaSposta, giornaleSuDisco, gitDaSalvare, pulisciCopia, saleDaQuestoPc, vistaSposta, type Sposta } from './progetti/sposta'
+import { copieNonMie, creaLatoProprietario, creaSposta, giornaleSuDisco, gitDaSalvare, pulisciCopia, saleDaQuestoPc, vistaSposta, type Sposta } from './progetti/sposta'
 import { creaClientPcRemoto, ErroreRemoto } from './pc-remoto'
 import { ultimeRighe as ultimeRigheDelRegistro } from './risoluzione'
 import { eFinitaDiAutopilota, motivoChiusaSenzaCartella } from '@shared/chiusa-senza-cartella'
@@ -165,9 +169,14 @@ import { rispostaConPazienza, riquadriDaTogliere, type RiquadroDaTogliere } from
 import { misuraAvvio } from './misura-avvio'
 import { trovaChatRemota, storiaRemotaSicura, PORTA_CLIENT_PREDEFINITA, type EsitoRemoto, type PcRemoto, type ChatSuPc } from '@shared/pc-remoto'
 import { progettoDiCwd, staDentro } from './progetti/registro'
+import { apriCollegamenti } from './progetti/collegamenti'
+import { apriStatoGestione, creaGestioneProgetti, type GestioneProgetti } from './progetti/gestione'
+import { annullaRinomina, riparaCopieGit, rinominaCartellaProgetto } from './progetti/rinomina-progetto'
+import { apriGestioneProgetti, avvisaGestioneProgetti, chiudiGestioneProgetti } from './finestra-gestione-progetti'
+import { collega as collegaWs, decidiProgettoWorkspace, nomeComune, progettoDelWorkspace, ultimoPezzo } from '@shared/progetti-identita'
 import { impostaChiusaSenzaCartella, impostaGuardiaCasa, impostaPrimaDiAprire, impostaRisolviCartella, primoIndice, reindicizzaSessioni } from './ipc'
 import { ascoltaSenzaFinestra, smettiSenzaFinestra, impostaAdozioneSottofondo, avviaPtySenzaFinestra, agganciaPtyAlSottofondo, impostaPrimaDiRiagganciare, ptyDiSessione } from './ipc'
-import { statoDi as statoWorkspaceDi, type PrimaDiEliminare } from './ipc'
+import { rinominaWorkspaceDalCore, statoDi as statoWorkspaceDi, type PrimaDiEliminare } from './ipc'
 import { impostaAllaRiapertura, impostaGestioneSessioni } from './ipc'
 import { impostaFiduciaPrimaDelLancio } from './ipc'
 import { avviaScoperta } from './modelli-scoperti'
@@ -226,6 +235,9 @@ import { dormienteVivo } from '@shared/migrazione-adozione'
 import { creaAutoriparazione } from './autoriparazione'
 import { riassuntoRiparazione } from '@shared/autoriparazione'
 import { apriDettatura, statoDettatura } from './dettatura'
+import { creaVoceLocale, PCM_MAX_BYTE } from './voce-locale'
+import { eIdModello } from '@shared/modello-voce'
+import { parolaSvegliaValida, PAROLA_SVEGLIA_PREDEFINITA } from '@shared/parlato'
 
 /**
  * Chi è questo PC (0.52.4): l'identità, con il nome scelto, letta anche dal
@@ -628,6 +640,10 @@ let gestioneChatGlobale: GestioneChat | undefined
 let ultimaRiparazione: (EsitoAvvio & { quando: string }) | undefined
 /** «Creare un workspace crea il progetto» (0.65.1): la cartella del progetto di un workspace, creata se serve. */
 let progettoPerWorkspaceGlobale: ((nome: string, opz?: { crea?: boolean }) => Promise<string | undefined>) | undefined
+/** Gestione progetti (13/11): la finestra separata, le scelte di Nicholas e i comandi per posta. */
+let gestioneGlobale: GestioneProgetti | undefined
+/** Dopo un workspace creato dal pannello (13/11): il suo progetto, senza doppioni. Pronto più tardi. */
+let dopoCreatoGlobale: ((nome: string, cartella?: string) => Promise<unknown>) | undefined
 /** Un workspace che c'è già diventa un progetto, con le sue chat mai usate (0.65.1). */
 let progettoDelWorkspaceGlobale: ((nome: string) => Promise<{ ok: boolean; messaggio: string; cartella?: string }>) | undefined
 /** «Apri cartella» (0.82.0): dove sta la cartella del progetto di un workspace o di una chat. */
@@ -1042,12 +1058,14 @@ export function apriNuovaFinestra(): void {
   // ce n'è una nascosta, «Apri» se non ce n'è più nessuna — e quelle parole
   // vanno riscritte quando lo stato cambia, non solo quando l'icona nasce.
   win.on('hide', aggiornaMenuArea)
+  // «Parlato» si spegne quando la finestra va nell'area di notifica: nessuno vedrebbe più il microfono aperto.
+  win.on('hide', () => { if (!win.webContents.isDestroyed()) win.webContents.send('finestra:nascosta') })
   win.on('show', aggiornaMenuArea)
   win.on('closed', aggiornaMenuArea)
   // L'ultima finestra di chat se n'e' andata davvero: le finestre pannello
   // vanno con lei (0.38.0), e al riavvio si riaprono.
   win.on('closed', () => {
-    if (finestreDiChat().filter((w) => !w.isDestroyed()).length === 0) chiudiPannelliConLApp()
+    if (finestreDiChat().filter((w) => !w.isDestroyed()).length === 0) { chiudiPannelliConLApp(); chiudiFinestraNovita(); chiudiGestioneProgetti() }
   })
 
   collegaFinestra(win, ptyClient)
@@ -1270,6 +1288,9 @@ if (!app.requestSingleInstanceLock()) {
       // campi e nella chat dell'autopilota dipendevano dal menu predefinito di
       // Electron (vedi `menu-modifica.ts`). Resta nascosto: torna premendo Alt.
       Menu.setApplicationMenu(Menu.buildFromTemplate(vociMenuApplicazione()))
+      // La finestra degli aggiornamenti in basso a destra (13/11): prima di ogni
+      // finestra, perché segue gli spostamenti di quelle che nascono.
+      impostaFinestraNovita({ preload: join(__dirname, '../preload/index.js') })
       // Prima le risorse di processo — handler `ipcMain`, PTY host, SQLite — che
       // sono una sola per applicazione; poi la finestra, che vi si collega. Se
       // l'ordine si invertisse, la seconda finestra tenterebbe di registrare una
@@ -1631,6 +1652,22 @@ if (!app.requestSingleInstanceLock()) {
       // La dashboard dell'autopilota (0.79.0): gli ultimi segnali delle sue chat, per il riassunto.
       ipcMain.handle('segnali:di', (_e, sessioni: unknown) => Object.fromEntries((Array.isArray(sessioni) ? sessioni : [])
         .filter((x): x is string => typeof x === 'string').slice(0, 50).map((x) => [x, segnaliPerSessione.get(x) ?? []])))
+      // «Parlato» (13/11): Whisper sul PC. Lo scaricamento parte solo dal tasto del consenso nella finestra.
+      const voceLocale = creaVoceLocale({
+        cartella: join(dati, 'voce-locale'),
+        dati,
+        scarica: (url, init) => net.fetch(url, init),
+        log: (riga) => registro.info(riga),
+        avvisa: (s) => { for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('voce-locale:cambiato', s) }
+      })
+      ipcMain.handle('voce-locale:stato', () => voceLocale.stato())
+      ipcMain.handle('voce-locale:scarica', (_e, modello: unknown) => voceLocale.scarica(eIdModello(modello) ? modello : 'preciso'))
+      ipcMain.handle('voce-locale:annulla', () => { voceLocale.annulla() })
+      ipcMain.handle('voce-locale:rimuovi', () => voceLocale.rimuovi())
+      ipcMain.handle('voce-locale:trascrivi', (_e, pcm: unknown, parola: unknown) => {
+        if (!(pcm instanceof Uint8Array) || pcm.byteLength > PCM_MAX_BYTE) return { ok: false, messaggio: 'audio non valido' }
+        return voceLocale.trascrivi(pcm, { parola: typeof parola === 'string' && parolaSvegliaValida(parola) ? parola.trim() : PAROLA_SVEGLIA_PREDEFINITA })
+      })
       ipcMain.handle('dettatura:apri', (e) => {
         // La finestra del tasto davanti a tutto: Windows apre la dettatura sulla finestra davanti.
         BrowserWindow.fromWebContents(e.sender)?.focus()
@@ -1647,7 +1684,12 @@ if (!app.requestSingleInstanceLock()) {
       // Dove stavano le finestre: va aperto prima che ne nasca una, perche' e'
       // la prima ad avere bisogno di sapere dove tornare.
       finestreStore = apriFinestreStore(dati)
-      registerLayoutIpc(workspaceStore, registro.info, (nome, cartella) => { void progettoPerWorkspaceGlobale?.(nome, cartella !== undefined ? { crea: false } : undefined).catch(() => undefined) }, (vecchio, nuovo) => {
+      registerLayoutIpc(workspaceStore, registro.info, (nome, cartella) => {
+        // Gestione progetti (13/11): con la cartella scelta, quella è il progetto (registrata, mai due volte); senza, nasce col nome del workspace.
+        void (dopoCreatoGlobale?.(nome, cartella) ?? progettoPerWorkspaceGlobale?.(nome, cartella !== undefined ? { crea: false } : undefined))?.catch(() => undefined)
+      }, (vecchio, nuovo) => {
+        // I collegamenti workspace → progetto seguono il nome (13/11).
+        gestioneGlobale?.dopoNome(vecchio, nuovo)
         // La vista a elenco segue il nome del workspace (0.74.0).
         const p = impostazioni.preferenze()
         const lista = rinominaInElenco(p.workspaceElenco, vecchio, nuovo)
@@ -1658,6 +1700,9 @@ if (!app.requestSingleInstanceLock()) {
         // Pronte più tardi (servono gli autopiloti): fino ad allora si chiede ogni volta.
         rifiuto: async (nome) => primaDiEliminareGlobale?.rifiuto?.(nome),
         cartella: async (nome, dopo) => primaDiEliminareGlobale?.cartella?.(nome, dopo)
+      }, {
+        // La cartella del progetto si rinomina col workspace (13/11).
+        prima: async (vecchio, nuovo) => gestioneGlobale?.primaDiRinominareWorkspace(vecchio, nuovo)
       })
       registerFinestreIpc(apriNuovaFinestra)
 
@@ -1731,6 +1776,8 @@ if (!app.requestSingleInstanceLock()) {
       const identitaPc = apriIdentitaPc(dati, { nome: () => hostname(), casa: () => homedir(), documenti: () => app.getPath('documents'), ...(cartellaProva !== undefined && cartellaProva !== '' ? { prova: cartellaProva } : {}) })
       identitaPcGlobale = identitaPc
       const registroProgetti = apriRegistroProgetti(dati)
+      // Gestione progetti (13/11): i workspace collegati al loro progetto per id.
+      const collegamentiProgetti = apriCollegamenti(dati)
       // I progetti di questo PC migrati da un altro PC hanno solo dei candidati:
       // qui si guarda quale cartella c'è davvero (all'avvio e dopo ogni arrivo).
       const risolviCartelleMie = (): void => {
@@ -2135,6 +2182,11 @@ if (!app.requestSingleInstanceLock()) {
             if (r === undefined) return { ok: false, riprova: true, esito: 'questo PC non è ancora pronto a ricevere gli errori' }
             return r.ok ? { ok: true, esito: `salvati in ${r.file}` } : { ok: false, esito: r.errore }
           }
+          // Gestione progetti (13/11): rinomina, elimina, pulisci copia, sposta qui.
+          if (c.tipo === 'progetto-rinomina' || c.tipo === 'progetto-elimina' || c.tipo === 'progetto-pulisci-copia' || c.tipo === 'progetto-sposta-qui') {
+            const r = gestioneGlobale === undefined ? undefined : await gestioneGlobale.comando(c, voce.daPc)
+            return r ?? { ok: false, riprova: true, esito: 'Gestione progetti non è ancora pronta su questo PC' }
+          }
           if (c.verso !== voce.daPc) return { ok: false, esito: JSON.stringify({ ok: false, messaggio: 'un PC può chiedere un progetto solo per sé' }) }
           const lato = latoProprietarioGlobale
           if (lato === undefined) return { ok: false, esito: JSON.stringify({ ok: false, riprova: true, messaggio: 'la sincronia di questo PC non è ancora pronta' }) }
@@ -2512,7 +2564,7 @@ if (!app.requestSingleInstanceLock()) {
       azioneAutopilotaAltroPc = async (pc, percorso, corpo, visore) => {
         const nome = postino.altrui().find((b) => b.pcId === pc)?.nome ?? pc
         if (!rottaAutopilotaAltroPc(percorso)) return { ok: false, stato: 403, messaggio: `«${percorso}» non è un’azione su un autopilota` }
-        const cosa = percorso === '/api/autopilota/dialogo' ? 'scrivo all’autopilota' : percorso === '/api/autopilota/ferma' ? 'fermo l’autopilota' : percorso === '/api/autopilota/riprendi' ? 'faccio riprendere l’autopilota' : percorso === '/api/rispondi' ? 'rispondo alla domanda dell’autopilota' : percorso === '/api/autopilota/vai' ? 'do il via all’autopilota' : ''
+        const cosa = percorso === '/api/autopilota/dialogo' ? 'scrivo all’autopilota' : percorso === '/api/autopilota/ferma' ? 'fermo l’autopilota' : percorso === '/api/autopilota/riprendi' ? 'faccio riprendere l’autopilota' : percorso === '/api/rispondi' ? 'rispondo alla domanda dell’autopilota' : percorso === '/api/autopilota/vai' ? 'do il via all’autopilota' : percorso === '/api/autopilota/crea' ? `avvio l’autopilota di «${typeof corpo.workspace === 'string' ? corpo.workspace : '?'}»` : ''
         const chi = typeof corpo.autopilota === 'string' ? corpo.autopilota : typeof corpo.domanda === 'string' ? `domanda ${corpo.domanda}` : ''
         try {
           const dati = await remoto.chiama(pc, percorso, corpo, visore)
@@ -2906,8 +2958,23 @@ if (!app.requestSingleInstanceLock()) {
         const progetti = registroProgetti.leggi().progetti
           .filter((g) => g.proprietario === me && g.percorso !== undefined && existsSync(g.percorso))
           .map((g) => ({ id: g.id, percorso: g.percorso as string }))
-        localiInMemoria = { il: Date.now(), l: { chat, progetti } }
+        // Gestione progetti (13/11): le copie di qui dei progetti di altri PC, e i workspace con il loro progetto.
+        let copie: { id: string; percorso: string }[] = []
+        try { copie = copieDiQui() } catch { copie = [] }
+        const coll = collegamentiProgetti.leggi()
+        const reg = registroProgetti.leggi().progetti
+        const workspace = (workspaceStore?.leggi().workspace ?? []).map((w) => {
+          const e = progettoDelWorkspace(w.nome, coll, reg)
+          return { nome: w.nome, ...(e.tipo === 'collegato' || e.tipo === 'nome' ? { progetto: e.progetto.id } : {}) }
+        })
+        localiInMemoria = { il: Date.now(), l: { chat, progetti, copie, workspace } }
         return localiInMemoria.l
+      }
+      /** Le cartelle di qui dei progetti di altri PC (le «copie rimaste»): stesse regole del riassetto, mai toccate da sole. */
+      const copieDiQui = (): { id: string; percorso: string }[] => {
+        let diPrima: Record<string, Record<string, string[]>> = {}
+        try { diPrima = JSON.parse(readFileSync(join(dati, 'progetti-percorsi-di-prima.json'), 'utf8')) as typeof diPrima } catch { /* nessun percorso di prima */ }
+        return copieNonMie(registroProgetti.leggi(), identitaPc.leggi(), existsSync, diPrima).map((x) => ({ id: x.progetto.id, percorso: x.percorso }))
       }
       /**
        * **Creare un workspace crea il progetto** (0.65.1). Il caso «visitafacile»:
@@ -2920,22 +2987,33 @@ if (!app.requestSingleInstanceLock()) {
        */
       progettoPerWorkspaceGlobale = async (nome: string, opz?: { crea?: boolean }): Promise<string | undefined> => {
         const io = identitaPc.leggi()
-        const cartella = join(io.cartellaProgetti, cartellaDaNomeWorkspace(nome))
-        // Un progetto, un PC (0.88.0): con lo stesso nome e' lo stesso progetto.
-        const gia = registroProgetti.leggi().progetti.find((p) => nomeNormalizzato(p.nome) === nomeNormalizzato(cartellaDaNomeWorkspace(nome)) || nomeNormalizzato(p.nome) === nomeNormalizzato(nome))
-        if (gia !== undefined && gia.proprietario !== undefined && gia.proprietario !== io.id) {
-          registro.info(`[workspace] «${nome}» vive su ${nomePcDi(gia.proprietario)}: qui non creo cartelle`)
-          return undefined
+        // Gestione progetti (13/11): una regola sola (`decidiProgettoWorkspace`), il collegamento per id prima del nome.
+        const decidi = (): ReturnType<typeof decidiProgettoWorkspace> => decidiProgettoWorkspace(nome, collegamentiProgetti.leggi(), registroProgetti.leggi().progetti, { io: io.id, esiste: existsSync, diSistema: eNomeDiSistema })
+        let d = decidi()
+        // Prima di creare, il registro del Drive: un progetto nato su un altro PC
+        // da poco non è ancora qui (la gara che faceva i doppioni).
+        if (d.tipo === 'crea' && opz?.crea !== false) {
+          await Promise.race([sincronia.arrivo().catch(() => undefined), new Promise((ok) => setTimeout(ok, 8_000))])
+          d = decidi()
         }
-        if (gia !== undefined && gia.percorso !== undefined && existsSync(gia.percorso)) return gia.percorso
-        if (eNomeDiSistema(nome) || cartellaDaNomeWorkspace(nome) === '') return undefined
+        if (d.tipo === 'altrove') { registro.info(`[workspace] «${nome}» vive su ${nomePcDi(d.pc)}: qui non creo cartelle`); return undefined }
+        if (d.tipo === 'niente') { if (opz?.crea !== false) registro.info(`[workspace] «${nome}»: nessun progetto nuovo — ${d.perche}`); return undefined }
+        if (d.tipo === 'usa') {
+          if (d.collega) collegamentiProgetti.scrivi(collegaWs(collegamentiProgetti.leggi(), nome, { id: d.id, nome: ultimoPezzo(d.percorso) }))
+          return d.percorso
+        }
         // Leggere non crea (0.80.0): la finestra della chat nuova chiede solo dove sta il progetto.
         if (opz?.crea === false) return undefined
-        try { mkdirSync(cartella, { recursive: true }) } catch (err) { registro.info(`[workspace] «${nome}»: cartella del progetto non creata (${String(err)})`); return undefined }
-        const { registro: reg, progetto } = aggiungiProgetto(registroProgetti.leggi(), { pcId: io.id, percorso: cartella, adesso: new Date().toISOString() })
-        registroProgetti.scrivi(reg)
-        registro.info(`[workspace] «${nome}»: progetto ${progetto.id} creato in ${cartella}, di ${io.nome}`)
-        return cartella
+        const cartella = join(io.cartellaProgetti, d.nomeCartella)
+        const prima = registroProgetti.leggi()
+        const { registro: reg, progetto, gia } = aggiungiProgetto(prima, { pcId: io.id, percorso: cartella, nome: d.nomeCartella, adesso: new Date().toISOString(), esiste: existsSync })
+        if (gia === 'altro-pc') { registro.info(`[workspace] «${nome}»: «${progetto.nome}» è già di ${nomePcDi(progetto.proprietario ?? '')}, non lo registro due volte`); return undefined }
+        const dove = progetto.percorso ?? cartella
+        try { mkdirSync(dove, { recursive: true }) } catch (err) { registro.info(`[workspace] «${nome}»: cartella del progetto non creata (${String(err)})`); return undefined }
+        if (reg !== prima) registroProgetti.scrivi(reg)
+        collegamentiProgetti.scrivi(collegaWs(collegamentiProgetti.leggi(), nome, { id: progetto.id, nome: ultimoPezzo(dove) }))
+        registro.info(`[workspace] «${nome}»: progetto ${progetto.id} ${gia === undefined ? 'creato' : 'ritrovato'} in ${dove}, di ${io.nome}`)
+        return dove
       }
       /**
        * Un workspace che c'è già diventa un progetto (0.65.1, «visitafacile»):
@@ -2998,21 +3076,41 @@ if (!app.requestSingleInstanceLock()) {
        * («portalo qui con Sposta»), ora si apre con l'autopilota di là, come su
        * quel PC. Vale solo finché quel PC dice di avere ancora quel workspace.
        */
-      const FILE_SU_PC = join(dati, 'workspace-su-pc.json')
-      const leggiSuPc = (): Record<string, { pcId: string; pcNome: string }> => {
-        try {
-          const j = JSON.parse(readFileSync(FILE_SU_PC, 'utf8')) as unknown
-          return typeof j === 'object' && j !== null && !Array.isArray(j) ? j as Record<string, { pcId: string; pcNome: string }> : {}
-        } catch { return {} }
+      const leggiSuPc = (): RegistroSuPc => leggiSuPcFile(dati)
+      /**
+       * Sezione «Altri PC» (13/11): i workspace di qui che vivono su un altro
+       * PC. Vale il registro, non il battito: un battito vecchio non fa più
+       * diventare «di qui» un workspace remoto. La prima volta le linguette
+       * remote di prima (tutte le chat su un altro PC) entrano nel registro.
+       */
+      let altriPcMigrati = false
+      const remotiAdesso = (): Record<string, WorkspaceRemoto> => {
+        const a = workspaceStore?.leggi()
+        if (a === undefined) return {}
+        if (!altriPcMigrati) {
+          altriPcMigrati = true
+          try { migraLinguetteRemote(dati, a, identitaPc.leggi().id, (r) => registro.info(r)) } catch (err) { registro.errore(`[altri-pc] migrazione non riuscita: ${String(err)}`) }
+        }
+        return remotiDiQui(a.workspace.map((w) => w.nome), leggiSuPc(), postino.altrui().map((b) => ({ pcId: b.pcId, nome: nomeDaMostrare(b), ...(b.workspace !== undefined ? { workspace: b.workspace } : {}) })))
       }
       ipcMain.handle('workspace:suPc', (_e, nome: unknown) => {
         if (typeof nome !== 'string' || nome === '') return undefined
-        const v = leggiSuPc()[nome]
-        if (v === undefined || typeof v.pcId !== 'string') return undefined
-        const battito = postino.altrui().find((b) => b.pcId === v.pcId)
-        // Quel PC non elenca più il workspace (o non lo si conosce): qui è di questo PC.
-        if (battito !== undefined && battito.workspace !== undefined && !battito.workspace.includes(nome)) return undefined
-        return { pcId: v.pcId, pcNome: battito !== undefined ? nomeDaMostrare(battito) : v.pcNome }
+        const v = remotiAdesso()[nome]
+        return v === undefined ? undefined : { pcId: v.pcId, pcNome: v.pcNome }
+      })
+      ipcMain.handle('workspace:remoti', () => remotiAdesso())
+      ipcMain.handle('workspace:sezioneAltriPc', () => {
+        const io = identitaPc.leggi()
+        const a = workspaceStore?.leggi()
+        const remoti = remotiAdesso()
+        const ora = Date.now()
+        const battiti = unBattitoPerNome(senzaAiutanti(postino.altrui()).filter((b) => b.pcId !== io.id), nomeDaMostrare)
+        return gruppiAltriPc({
+          nomiQui: (a?.workspace ?? []).map((w) => w.nome).filter((n) => remoti[n] === undefined),
+          remoti,
+          pc: battiti.map((b) => ({ pcId: b.pcId, nome: nomeDaMostrare(b), vivo: battitoVivo(b.battito, ora), ...(b.workspace !== undefined ? { workspace: b.workspace } : {}) })),
+          attivo: a?.attivo ?? ''
+        })
       })
       ipcMain.handle('workspace:apriDaAltroPc', async (e, pcId: unknown, nome: unknown) => {
         if (typeof pcId !== 'string' || typeof nome !== 'string' || nome === '') return { ok: false, messaggio: 'richiesta non valida' }
@@ -3033,8 +3131,12 @@ if (!app.requestSingleInstanceLock()) {
         // 0.102.0: anche senza chat là si apre — con l'autopilota di quel PC,
         // come lo si vedrebbe là (prima: «portalo qui con Sposta»). Il segno
         // «vive su <PC>» sta in `workspace-su-pc.json`.
+        // Un nome che qui c'è già come workspace di questo PC non diventa remoto: sarebbero due in uno.
+        if (store.leggi().workspace.some((w) => w.nome === nome) && leggiSuPc()[nome] === undefined) {
+          return { ok: false, messaggio: `Qui c’è già un workspace «${nome}» di questo PC: rinominalo prima di aprire quello di ${pcNome}.` }
+        }
         try {
-          scriviJsonAtomico(FILE_SU_PC, { ...leggiSuPc(), [nome]: { pcId, pcNome } }, 'workspace-su-pc')
+          scriviSuPc(dati, { ...leggiSuPc(), [nome]: { pcId, pcNome } })
         } catch (err) { registro.errore(`[workspace] «${nome}»: segno «su ${pcNome}» non scritto: ${String(err)}`) }
         const prima = store.leggi()
         let dopo = aggiungiWorkspace(prima, nome)
@@ -3678,23 +3780,35 @@ if (!app.requestSingleInstanceLock()) {
         return esito.canceled ? undefined : esito.filePaths[0]
       }
       ipcMain.handle('progetti:elenca', () => elencoProgetti())
-      const mettiSulDrive = (percorso: string): void => {
-        const { registro: reg, progetto } = aggiungiProgetto(registroProgetti.leggi(), {
-          pcId: identitaPc.leggi().id, percorso, adesso: new Date().toISOString()
-        })
-        registroProgetti.scrivi(reg)
-        registro.info(`[progetti] «${progetto.nome}» sul Drive da ${percorso}`)
+      // Gestione progetti (13/11): mai un secondo progetto con la stessa chiave (`chiaveProgetto`),
+      // né uno che c'è già su un altro PC. Lo si dice, e lo sistema Nicholas in Gestione progetti.
+      const mettiSulDrive = (percorso: string): string | undefined => {
+        const io = identitaPc.leggi()
+        const prima = registroProgetti.leggi()
+        const { registro: reg, progetto, gia } = aggiungiProgetto(prima, { pcId: io.id, percorso, adesso: new Date().toISOString(), esiste: existsSync })
+        if (gia === 'altro-pc') {
+          registro.info(`[progetti] ${percorso} non messo sul Drive: «${progetto.nome}» è già un progetto di ${nomePcDi(progetto.proprietario ?? '')}`)
+          return `«${progetto.nome}» è già un progetto di ${nomePcDi(progetto.proprietario ?? '')}: non lo metto due volte. Se questa è la cartella giusta, usa «Imposta proprietario» in Gestione progetti.`
+        }
+        if (gia === 'stessa-chiave') {
+          registro.info(`[progetti] ${percorso} non messo sul Drive: «${progetto.nome}» è già un progetto di questo PC in ${progetto.percorso ?? '?'}`)
+          return `«${progetto.nome}» è già un progetto di questo PC (${progetto.percorso ?? '?'}): non lo metto due volte.`
+        }
+        if (reg !== prima) registroProgetti.scrivi(reg)
+        registro.info(`[progetti] «${progetto.nome}» sul Drive da ${percorso}${gia === 'aggiornato' ? ' (stesso progetto, la cartella di prima non c’era più)' : ''}`)
+        gestioneGlobale?.segui().catch(() => undefined)
+        return undefined
       }
       ipcMain.handle('progetti:aggiungi', async (event) => {
         const percorso = await scegliCartellaDa(event, 'Quale cartella mettere sul Drive')
-        if (percorso !== undefined) mettiSulDrive(percorso)
-        return elencoProgetti()
+        const no = percorso !== undefined ? mettiSulDrive(percorso) : undefined
+        return { ...elencoProgetti(), ...(no !== undefined ? { messaggio: no } : {}) }
       })
       // Per percorso, senza finestra: la chat nuova «fra i progetti SierraDeck»
       // con la casella «e mettila sul Drive».
       ipcMain.handle('progetti:aggiungiPercorso', (_e, raw: unknown) => {
-        if (typeof raw === 'string' && raw.trim() !== '' && existsSync(raw)) mettiSulDrive(raw)
-        return elencoProgetti()
+        const no = typeof raw === 'string' && raw.trim() !== '' && existsSync(raw) ? mettiSulDrive(raw) : undefined
+        return { ...elencoProgetti(), ...(no !== undefined ? { messaggio: no } : {}) }
       })
       // Le due cartelle-base di una chat nuova: Documenti e quella dei progetti.
       ipcMain.handle('sistema:cartelleBase', async (_e, ws: unknown) => {
@@ -4114,6 +4228,175 @@ if (!app.requestSingleInstanceLock()) {
         }
       }
 
+      // **Gestione progetti** (13/11): la finestra separata, le scelte di Nicholas
+      // su dove e di chi sono i progetti, e la regola «il workspace si chiama come
+      // la cartella». Le regole in `@shared/gestione-progetti` e `@shared/progetti-identita`.
+      {
+        const STATI_VIVI = new Set(['intervista', 'pronto', 'lavoro', 'attesa'])
+        const dentroUna = (cwd: string | undefined, cartelle: string[]): boolean => cwd !== undefined && cwd !== '' && cartelle.some((c) => dentroCartella(cwd, c))
+        const occupato = async (cartella: string | undefined, ws: string[]): Promise<string | undefined> => {
+          const cartelle = cartella === undefined ? [] : [cartella, `${cartella}.sierradeck-wt`]
+          const vive = chatAperte.filter((c) => c.viva === true && dentroUna(c.cwd, cartelle))
+          if (vive.length > 0) return `${vive.length === 1 ? `la chat «${vive[0]?.titolo ?? ''}» è aperta` : `${vive.length} chat sono aperte`} nel progetto. Chiudile prima.`
+          let autopiloti: Autopilota[]
+          try { autopiloti = (await clientAutopilota.elenca()).filter((a) => a.archiviato !== true) } catch { return 'non riesco a sapere se un autopilota ci lavora. Riprova fra poco.' }
+          const ap = autopiloti.find((a) => dentroUna(a.cwd, cartelle) || (a.workspace !== undefined && ws.includes(a.workspace) && STATI_VIVI.has(a.stato)))
+          if (ap !== undefined) return `l’autopilota «${(ap.nome ?? ap.obiettivo).slice(0, 40)}» lavora nel progetto: fermalo e archivialo prima.`
+          // Un workspace a schermo con chat nella cartella: la finestra riscriverebbe le cartelle di prima.
+          const archivio = workspaceStore?.leggi()
+          for (const f of finestreDiChat()) {
+            if (f.isDestroyed()) continue
+            const nomeWs = workspaceDellaFinestra(f.id)
+            const w = archivio?.workspace.find((x) => x.nome === nomeWs)
+            if (w === undefined) continue
+            const conChat = Object.values(w.perSlot).some((l) => l.panes.some((pane) => pane.remoto === undefined && dentroUna(pane.cwd, cartelle)))
+            if (conChat) return `il workspace «${w.nome}» è aperto in una finestra con chat del progetto. Passa a un altro workspace, poi riprova.`
+          }
+          return undefined
+        }
+        const fermi = async (): Promise<Record<string, string> | undefined> => {
+          try {
+            const fuori: Record<string, string> = {}
+            for (const a of await clientAutopilota.elenca()) if (a.archiviato !== true && a.workspace !== undefined) fuori[a.workspace] = `è la casa dell’autopilota «${(a.nome ?? a.obiettivo).slice(0, 40)}»: rinominalo a mano`
+            return fuori
+          } catch { return undefined }
+        }
+        const ultimoUso = (): Record<string, string> => {
+          const io = identitaPc.leggi()
+          const fuori: Record<string, string> = {}
+          const battiti = postino.altrui()
+          const locale = chatLocaliDaIndice()
+          for (const p of registroProgetti.leggi().progetti) {
+            if (p.proprietario === undefined || p.percorso === undefined) continue
+            const perc = p.percorso
+            const date = p.proprietario === io.id
+              ? locale.filter((c) => c.cwd !== undefined && dentroCartella(c.cwd, perc)).map((c) => c.ultimoMessaggio ?? '')
+              : (battiti.find((b) => b.pcId === p.proprietario)?.locali?.chat ?? []).filter((c) => c.cwd !== undefined && dentroCartella(c.cwd, perc)).map((c) => (c.mtime !== undefined ? new Date(c.mtime).toISOString() : ''))
+            const ultimo = date.filter((x) => x !== '').sort().pop()
+            if (ultimo !== undefined) fuori[p.id] = ultimo
+          }
+          return fuori
+        }
+        const avvisaTutti = (): void => { avvisaGestioneProgetti(); mandaAlleFinestre('casa:cambiate') }
+        const gestione = creaGestioneProgetti({
+          io: () => { const i = identitaPc.leggi(); return { id: i.id, nome: i.nome } },
+          registro: registroProgetti,
+          collegamenti: collegamentiProgetti,
+          stato: apriStatoGestione(dati),
+          workspace: () => workspaceStore?.leggi().workspace.map((w) => w.nome) ?? [],
+          pc: () => senzaAiutanti(postino.altrui()).map((b) => {
+            const vivo = remoto.vivoDa(b.pcId)
+            return { id: b.pcId, nome: nomePcDi(b.pcId), battito: b.battito, acceso: Date.now() - Date.parse(b.battito) < ACCESO_ENTRO_MS || (vivo !== undefined && vivo < ACCESO_ENTRO_MS) }
+          }),
+          locali: () => Object.fromEntries(postino.altrui().map((b) => [b.pcId, b.locali])),
+          copieQui: copieDiQui,
+          esiste: existsSync,
+          ultimoUso,
+          spazioDrive: () => {
+            const pp = spazio.subito()?.misura?.perProgetto
+            return pp === undefined ? undefined : Object.fromEntries(Object.entries(pp).map(([id, x]) => [id, { file: x.file, byte: x.byte }]))
+          },
+          occupato,
+          fermi,
+          rinominaWorkspace: (vecchio, nuovo) => { rinominaWorkspaceDalCore(vecchio, nuovo) },
+          spostaCwdWorkspace: (mappa, dentro) => {
+            const store = workspaceStore
+            if (store === undefined) return
+            const a = store.leggi()
+            const cartelle = dentro.flatMap((x) => [x, `${x}.sierradeck-wt`])
+            let cambiate = 0
+            const nuovo = { ...a, workspace: a.workspace.map((w) => ({ ...w, perSlot: Object.fromEntries(Object.entries(w.perSlot).map(([k, l]) => [k, { ...l, panes: l.panes.map((pane) => {
+              if (pane.remoto !== undefined || !dentroUna(pane.cwd, cartelle)) return pane
+              cambiate += 1
+              return { ...pane, cwd: mappa(pane.cwd) }
+            }) }])) })) }
+            if (cambiate === 0) return
+            mettiDaParteArchivio(store.percorso, 'workspaces.prima-della-rinomina.json')
+            if (!store.scrivi(nuovo)) throw new Error('workspaces.json non si è potuto scrivere')
+            registro.info(`[gestione] ${cambiate} chat dei workspace passano alla cartella nuova`)
+          },
+          rinominaCartella: (percorso, nuovoNome) => rinominaCartellaProgetto({
+            percorso, nuovoNome, radiceChat: join(radiceClaude, 'projects'), slug: pathToSlug,
+            cwdSessioni: chatLocaliDaIndice().map((c) => c.cwd).filter((c): c is string => c !== undefined)
+          }),
+          annullaCartella: (da, a) => { annullaRinomina(da, a) },
+          dopoRinominaCartella: async (nuovo, mappa) => {
+            const avviso = await riparaCopieGit(nuovo, mappa)
+            void reindicizzaSessioni().catch(() => undefined)
+            return avviso
+          },
+          togliDalDrive: (id) => sincronia.togliProgettoDalDrive(id),
+          inRecupero: (cartella, motivo, progetto) => nelRecuperoDeiProgrammi(cartella, motivo, progetto),
+          vietata: (cartella) => cartellaVietataPerChat(cartella, { casa: homedir(), documenti: app.getPath('documents') }) || dentroCartella(identitaPc.leggi().cartellaProgetti, cartella),
+          pulisciCopia: pulisciCopiaQui,
+          posta: {
+            manda: async (pcId, comando, testoVoce) => {
+              const id = `gp-${randomUUID()}`
+              const p = await postino.aggiungi(pcId, { id, comando, cwd: '', testo: testoVoce })
+              return p === undefined ? undefined : id
+            },
+            esito: async (pcId, voce) => {
+              const p = await postino.posta(pcId)
+              const v = p?.voci.find((x) => x.id === voce)
+              if (v === undefined) return undefined
+              return { stato: v.stato === 'consegnata' ? 'consegnata' : v.stato === 'fallita' ? 'fallita' : 'attesa', ...(v.esito !== undefined ? { esito: v.esito } : {}) }
+            }
+          },
+          spostaQui: async (progetto) => {
+            const s = await sposta.avvia(progetto)
+            return { ok: s.fase !== 'fallita', messaggio: s.messaggio }
+          },
+          apri: (cartella) => { finestraPerAprire(undefined)?.webContents.send('client:apri', { cartella }) },
+          apriRemoto: async (pc, cartella) => {
+            try { await remoto.chiama(pc, '/api/apri', { cartella }); return { ok: true, messaggio: `Aperta una chat su ${nomePcDi(pc)}, in ${cartella}: la trovi fra le chat di quel PC.` } } catch (err) { return { ok: false, messaggio: `${nomePcDi(pc)}: ${err instanceof Error ? err.message : String(err)}` } }
+          },
+          scegliCartella: async () => {
+            const opzioni: Electron.OpenDialogOptions = { title: 'La cartella del progetto su questo PC', properties: ['openDirectory'] }
+            const e = await dialog.showOpenDialog(opzioni)
+            return e.canceled ? undefined : e.filePaths[0]
+          },
+          salvaRegistro: () => { void sincronia.salva(true).catch(() => undefined) },
+          copiaWorkspace: (nomeCopia) => { if (workspaceStore !== undefined) mettiDaParteArchivio(workspaceStore.percorso, nomeCopia) },
+          avvisa: avvisaTutti,
+          log: (m) => registro.info(m)
+        })
+        gestioneGlobale = gestione
+        // Il workspace creato con una cartella scelta: quella cartella è il progetto (13/11).
+        dopoCreatoGlobale = async (nome, cartella) => {
+          if (cartella !== undefined && existsSync(cartella)) {
+            const io = identitaPc.leggi()
+            const prima = registroProgetti.leggi()
+            const { registro: reg, progetto, gia } = aggiungiProgetto(prima, { pcId: io.id, percorso: cartella, adesso: new Date().toISOString(), esiste: existsSync })
+            if (gia === 'altro-pc') registro.info(`[workspace] «${nome}»: la cartella ${cartella} ha il nome di «${progetto.nome}», che è di ${nomePcDi(progetto.proprietario ?? '')}: non la registro (Gestione progetti)`)
+            else {
+              if (reg !== prima) registroProgetti.scrivi(reg)
+              collegamentiProgetti.scrivi(collegaWs(collegamentiProgetti.leggi(), nome, { id: progetto.id, nome: ultimoPezzo(progetto.percorso ?? cartella) }))
+              registro.info(`[workspace] «${nome}»: progetto ${progetto.id} nella cartella scelta ${progetto.percorso ?? cartella}`)
+            }
+          } else {
+            await progettoPerWorkspaceGlobale?.(nome)
+          }
+          await gestione.dopoCreato(nome)
+          avvisaTutti()
+        }
+        ipcMain.handle('gestione:apri', () => { apriGestioneProgetti(join(__dirname, '../preload/index.js')) })
+        ipcMain.handle('gestione:vista', () => gestione.vista())
+        ipcMain.handle('gestione:azione', async (_e, corpo: unknown) => {
+          try { return await gestione.azione(corpo) } catch (err) { registro.errore(`[gestione] azione non riuscita: ${String(err)}`); return { ok: false, messaggio: `Non è andata: ${err instanceof Error ? err.message : String(err)}` } }
+        })
+        // La sistemazione dei nomi, una volta, quando il servizio degli autopiloti risponde; poi il seguito.
+        const giroNomi = async (): Promise<void> => {
+          try {
+            const m = await gestione.migraNomi()
+            if (m !== undefined) await gestione.segui()
+            await gestione.avanza()
+          } catch (err) { registro.info(`[gestione] giro dei nomi non riuscito: ${String(err)}`) }
+        }
+        const primoGiroNomi = setTimeout(() => { void giroNomi() }, 45_000)
+        const timerNomi = setInterval(() => { void giroNomi() }, 2 * 60_000)
+        app.on('before-quit', () => { clearTimeout(primoGiroNomi); clearInterval(timerNomi) })
+      }
+
       // **Le chat già avviate adottate** (0.78.0, Nicholas: «le chat già avviate
       // non le hai convertite»). Gli autopiloti veri diventano l'autopilota del
       // loro workspace e adottano le sue chat; poi un giro che adotta le nuove e
@@ -4313,6 +4596,9 @@ if (!app.requestSingleInstanceLock()) {
       // mailto: `shell.openExternal` con uno schema qualunque potrebbe lanciare
       // programmi (es. un URL di protocollo registrato), e il link arriva da una
       // scheda del quaderno, che può averla scritta un autopilota.
+      // Il tasto destro sulle cose del programma (13/11): il menu del sistema.
+      registraMenuContestuale(ipcMain)
+
       ipcMain.handle('sistema:apriEsterno', async (_e, raw: unknown) => {
         if (typeof raw !== 'string' || !/^(https?:|mailto:)/i.test(raw.trim())) return
         await shell.openExternal(raw.trim())
@@ -5861,7 +6147,8 @@ if (!app.requestSingleInstanceLock()) {
       // decide l'utente. Il secondo «sì» esiste perché installare chiude il
       // programma con le chat aperte dentro.
       aggiornamenti = creaAggiornamenti(
-        () => finestreDiChat(),
+        // Anche la finestra degli aggiornamenti in basso a destra (13/11) riceve lo stato.
+        () => [...finestreDiChat(), ...finestraNovitaViva()],
         dati,
         // L'installer sostituisce i file che questi processi tengono aperti:
         // vanno chiusi prima, o l'installazione si ferma a metà e l'icona
@@ -6000,6 +6287,9 @@ if (!app.requestSingleInstanceLock()) {
         registro.info(`[aggiornamenti] un altro PC ha una versione piu nuova (${altre.join(', ')}): cerco subito`)
         void a.cerca()
       }, 60_000).unref?.()
+      // Una notizia nuova dell'aggiornamento apre la finestra in basso a destra (13/11).
+      ascoltaAnnunci(suStatoAggiornamento)
+      suStatoAggiornamento(aggiornamenti.stato())
       ipcMain.handle('aggiornamenti:stato', () => aggiornamenti?.stato() ?? { fase: 'fermo' })
       ipcMain.handle('aggiornamenti:cerca', () => aggiornamenti?.cerca())
       ipcMain.handle('aggiornamenti:scarica', () => aggiornamenti?.scarica())

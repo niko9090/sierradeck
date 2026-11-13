@@ -36,3 +36,9 @@ if (typeof letto.versione !== 'string' || typeof letto.apk !== 'string') ferma(`
 const u = spawnSync('gh', ['release', 'upload', tag, file, '--clobber'], { stdio: 'inherit' })
 if (u.status !== 0) ferma(`gh release upload su ${tag} è uscito con ${u.status}`)
 console.log(`app-android.json (app ${letto.versione}, da ${da}) allegato a ${tag}`)
+
+// 13/11: il titolo è sempre «SierraDeck X.Y.Z», come Aiutante e App Android
+// (senza, la release prendeva il nome nudo del tag/versione: «0.105.2»).
+const t = spawnSync('gh', ['release', 'edit', tag, '--title', `SierraDeck ${programma}`], { stdio: 'inherit' })
+if (t.status !== 0) ferma(`gh release edit --title su ${tag} è uscito con ${t.status}`)
+console.log(`titolo della release: SierraDeck ${programma}`)

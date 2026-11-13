@@ -1,4 +1,7 @@
 import { createPortal } from 'react-dom'
+import { apriMenuContestuale } from '../menu-contestuale'
+import { vociAutopilota } from '@shared/menu-contestuale'
+import { BordoDettaglio } from './BordoDettaglio'
 import { useEffect, useState } from 'react'
 import { TendinaMenu } from './TendinaMenu'
 import { SpecialistiVista } from './SpecialistiVista'
@@ -135,7 +138,14 @@ export function PannelloAutopiloti({
             return (
               <div key={r.id} role="row" tabIndex={0} aria-selected={acceso}
                 className={`progetti__riga${acceso ? ' progetti__riga--scelta' : ''}`}
-                onClick={() => setScelto(r.id)}>
+                onClick={() => setScelto(r.id)}
+                // Il tasto destro (13/11): il dettaglio, la cartella, rileggi.
+                onContextMenu={(e) => apriMenuContestuale(e, vociAutopilota({ dove: 'elenco', scelto: acceso }), {
+                  dettaglio: () => setScelto(r.id),
+                  nascondi: () => setScelto(''),
+                  cartella: () => { if (r.workspace === undefined) return; void window.gestore.workspace.apriCartella({ workspace: r.workspace }).then((x) => { if (!x.ok) onErrore(x.messaggio) }).catch((err: unknown) => onErrore(String(err))) },
+                  aggiorna: onRicarica
+                })}>
                 <span className="progetti__cella" title={r.cwd}><b>{nomeDi(r)}</b> <span className="progetti__quieto">{r.cwd.split(/[\\/]/).filter((x) => x !== '').pop() ?? ''}</span></span>
                 <span className="progetti__cella">{r.vista.chat.testo}</span>
                 <span className="progetti__cella progetti__quieto" title={r.vista.ultima}>{r.vista.ultima}</span>
@@ -146,6 +156,7 @@ export function PannelloAutopiloti({
           })}
         </div>
 
+        {sel !== undefined || senzaAutopilota ? <BordoDettaglio chiave="autopilotiDettaglio" /> : null}
         {sel !== undefined ? (
           <div className="progetti__dettaglio">
             <div className="progetti__dtesta">

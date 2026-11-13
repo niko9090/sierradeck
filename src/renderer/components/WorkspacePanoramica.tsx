@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { invioManda, SUGGERIMENTO_INVIO } from '@shared/invio-manda'
 import type { Autopilota } from '@shared/autopilota'
 import type { Dormiente } from '@shared/migrazione-elenco'
 import {
@@ -16,8 +17,15 @@ import { adessoDi, AIUTO_ADESSO, type SegniDalVivo } from '@shared/adesso'
 import { Aiuto } from './Aiuto'
 import { LegendaAttivita, SegnoAttivita } from './SegnoAttivita'
 import { coloreDi } from '@shared/colori-attivita'
-import { AzioniChat } from './AzioniChat'
+import { AzioniChat, chiediAzioneChat, misuraAzioniChat } from './AzioniChat'
+import { mostraMenu, suCampo } from '../menu-contestuale'
+import { vociSchedaPanoramica } from '@shared/menu-contestuale'
+import { Divisore } from './Divisore'
+import { useMisuraTrascinabile } from '../misure-vive'
+import { MISURE_LIBERE } from '@shared/misure-pannelli'
 import { TastoMicrofono } from './TastoMicrofono'
+import { statoAutopilotaRemoto } from '@shared/workspace-remoti'
+import type { Stato as StatoAutopilotaDiLa } from './ChatAutopilotaRemota'
 
 /**
  * Il workspace dell'autopilota a linguette (0.77.0). Nicholas, 16/10:
@@ -62,7 +70,7 @@ function Pallino({ stato }: { stato: StatoScheda }): React.JSX.Element {
 }
 
 /** La barra delle linguette: Panoramica, una per chat, «Altre ▾», e la colonna dell'autopilota. */
-export function BarraLinguette({ schede, linguetta, onLinguetta, colonna, onColonna, conAutopilota, onMosaico }: {
+export function BarraLinguette({ schede, linguetta, onLinguetta, colonna, onColonna, conAutopilota, onMosaico, suPc }: {
   schede: SchedaVista[]
   linguetta: string
   onLinguetta: (id: string) => void
@@ -70,6 +78,8 @@ export function BarraLinguette({ schede, linguetta, onLinguetta, colonna, onColo
   onColonna: (v: boolean) => void
   conAutopilota: boolean
   onMosaico: () => void
+  /** Il workspace vive su questo PC (sezione «Altri PC»): sempre Panoramica, col segno del PC. */
+  suPc?: string
 }): React.JSX.Element {
   const barra = useRef<HTMLDivElement | null>(null)
   const [larghezza, setLarghezza] = useState(1200)
@@ -124,7 +134,13 @@ export function BarraLinguette({ schede, linguetta, onLinguetta, colonna, onColo
           {colonna ? '⟨ Autopilota' : 'Autopilota ⟩'}
         </button>
       ) : null}
-      <InterruttoreVista vista="panoramica" onPanoramica={() => onLinguetta(PANORAMICA)} onAffiancate={onMosaico} />
+      {suPc !== undefined ? (
+        <span className="segno-remoto pan-barra__pc" title={`Questo workspace vive su ${suPc}: lo comanda il suo autopilota, le chat si guardano.`}>
+          <span className="segno-remoto__punto" aria-hidden="true" />Su {suPc}
+        </span>
+      ) : (
+        <InterruttoreVista vista="panoramica" onPanoramica={() => onLinguetta(PANORAMICA)} onAffiancate={onMosaico} />
+      )}
     </div>
   )
 }
@@ -187,12 +203,17 @@ export function BarraAffiancate({ onPanoramica, colonna = false, onColonna, conA
  * Le domande stanno solo nella colonna Domande (30/10: un posto solo).
  * In ogni workspace, anche senza autopilota (c-30): le chat esistenti sono schede.
  */
-export function CorpoPanoramica({ workspace, autopilota, dormiente, cwd, schede, onApri, onRicarica, onSoloMia }: {
+export function CorpoPanoramica({ workspace, autopilota, dormiente, cwd, remoto, schede, onApri, onRicarica, onSoloMia }: {
   workspace: string
   autopilota?: Autopilota
   dormiente?: Dormiente
   /** La cartella di una chat del workspace: dove nasce il suo autopilota, se non c'è ancora. */
   cwd?: string
+  /**
+   * Il workspace vive su un altro PC (sezione «Altri PC», 13/11): mentre l'autopilota di là si
+   * legge, o se quel PC non risponde, lo si dice; mai il campo che ne crea uno qui.
+   */
+  remoto?: { pcId: string; pcNome: string; stato: StatoAutopilotaDiLa; sparito?: boolean; cwdLa?: string; onRileggi: () => void }
   schede: SchedaVista[]
   onApri: (paneId: string) => void
   onRicarica: () => void
@@ -211,21 +232,39 @@ export function CorpoPanoramica({ workspace, autopilota, dormiente, cwd, schede,
   const chat = finite.filter((s) => s.specialista !== true)
   const finiteAp = finite.filter((s) => s.specialista === true)
   const cartella = dormiente?.cwd ?? cwd
+  // La conversazione a sinistra si allarga col mouse (13/11): la misura resta su questo PC.
+  const misuraDialogo = useMisuraTrascinabile('panDialogo')
+  const corpo = useRef<HTMLDivElement | null>(null)
+  const dialogo = useRef<HTMLElement | null>(null)
   return (
-    <div className="pan-corpo pan2" aria-label={`Panoramica di ${workspace}`}>
+    <div ref={corpo} className="pan-corpo pan2" aria-label={`Panoramica di ${workspace}`}
+      style={misuraDialogo.larghezza !== undefined ? { gridTemplateColumns: `${misuraDialogo.larghezza}px 0 minmax(0, 1fr)` } : undefined}>
       <header className="pan2-situazione">
         <div className="pan2-obiettivo">
-          Workspace «{workspace}»: {schede.length === 1 ? 'una chat' : `${schede.length} chat`}.{autopilota === undefined ? ' Il suo autopilota aspetta il tuo primo messaggio, a sinistra.' : ''}
+          Workspace «{workspace}»{remoto !== undefined ? ` su ${remoto.pcNome}` : ''}: {schede.length === 1 ? 'una chat' : `${schede.length} chat`}.{autopilota === undefined && remoto === undefined ? ' Il suo autopilota aspetta il tuo primo messaggio, a sinistra.' : ''}
           <Aiuto di="la Panoramica">A sinistra l’autopilota del workspace: l’avanzamento, la coda delle richieste e la conversazione con lui; quello che ha fatto da solo è in «Cosa è successo». Al centro: «Adesso» le chat al lavoro o che aspettano te, le altre chat del workspace, le finite. Tocca una scheda per aprire la sua chat. «Solo mia» su una chat: l’autopilota non la tocca e non le scrive. Le domande stanno nella colonna Domande.</Aiuto>
         </div>
       </header>
-      <section className="pan2-dialogo" aria-label="Conversazione con l’autopilota">
+      <section ref={dialogo} className="pan2-dialogo" aria-label="Conversazione con l’autopilota">
         {autopilota !== undefined ? (
           <ChatAutopilota autopilota={autopilota} onCambiato={onRicarica} soloConversazione campoPronto />
+        ) : remoto !== undefined ? (
+          <AutopilotaDiLa workspace={workspace} remoto={remoto} />
         ) : (
           <PrimoMessaggio workspace={workspace} {...(cartella !== undefined ? { cwd: cartella } : {})} onRicarica={onRicarica} />
         )}
       </section>
+      <Divisore
+        chiave="panDialogo"
+        lato="destra"
+        nome={MISURE_LIBERE.panDialogo.nome}
+        misura={misuraDialogo.larghezza}
+        misuraAttuale={() => dialogo.current?.getBoundingClientRect().width ?? 420}
+        // Al centro restano almeno 320 pixel per le schede.
+        spazio={() => (corpo.current?.getBoundingClientRect().width ?? window.innerWidth) - 320}
+        onMisura={misuraDialogo.onMisura}
+        classe="divisore--griglia"
+      />
       <section className="pan2-centro" aria-label="Il lavoro del workspace">
         {/* 0.90.0: le chat degli specialisti al lavoro, da guardare dal vivo. */}
         {autopilota !== undefined ? <ChatSpecialisti workspace={workspace} /> : null}
@@ -313,10 +352,38 @@ function PillolaRuolo({ ruolo, nome }: { ruolo?: Ruolo; nome?: string }): React.
   )
 }
 
+/**
+ * Il tasto destro su una scheda, una chat ferma o una finita (13/11): apri,
+ * «solo mia» dove c'è il suo tasto, e le tre azioni con le loro conferme.
+ */
+function menuScheda(e: React.MouseEvent, s: SchedaVista, onApri: (p: string) => void, onSoloMia?: (s: SchedaVista, si: boolean) => void): void {
+  if (suCampo(e)) return
+  e.preventDefault()
+  e.stopPropagation()
+  const gestibile = s.sessione !== undefined && s.suPc === undefined
+  void (gestibile ? misuraAzioniChat(s.sessione as string, s.titolo, false) : Promise.resolve<Awaited<ReturnType<typeof misuraAzioniChat>>>({})).then((m) => {
+    const voci = vociSchedaPanoramica({
+      apribile: s.paneId !== undefined,
+      remota: s.suPc !== undefined,
+      ...(onSoloMia !== undefined && s.sessione !== undefined ? { soloMia: s.soloMia === true } : {}),
+      gestibile,
+      ...(m.chiudiNo !== undefined ? { chiudiNo: m.chiudiNo } : {}),
+      ...(m.eliminaNo !== undefined ? { eliminaNo: m.eliminaNo } : {})
+    })
+    return mostraMenu(voci).then((id) => {
+      if (id === 'apri' && s.paneId !== undefined) onApri(s.paneId)
+      else if (id === 'solo-mia') onSoloMia?.(s, s.soloMia !== true)
+      else if ((id === 'chiudi' || id === 'archivia' || id === 'elimina') && s.sessione !== undefined) {
+        chiediAzioneChat({ sessione: s.sessione, titolo: s.titolo, ...(m.byte !== undefined ? { byte: m.byte } : {}) }, id)
+      }
+    })
+  }).catch(() => undefined)
+}
+
 function SchedaAdesso({ s, ora, onApri, onSoloMia }: { s: SchedaVista; ora: number; onApri: (p: string) => void; onSoloMia: (s: SchedaVista, si: boolean) => void }): React.JSX.Element {
   const righe = s.righe.slice(-6)
   return (
-    <div className={`pan2-scheda pan2-scheda--${s.stato}`}>
+    <div className={`pan2-scheda pan2-scheda--${s.stato}`} onContextMenu={(e) => menuScheda(e, s, onApri, s.specialista !== true ? onSoloMia : undefined)}>
       <button className="pan2-scheda__apri" disabled={s.paneId === undefined} onClick={() => { if (s.paneId !== undefined) onApri(s.paneId) }} title="Apri questa chat a tutta larghezza">
         <span className="pan2-scheda__testa">
           <Pallino stato={s.stato} />
@@ -340,7 +407,7 @@ function SchedaAdesso({ s, ora, onApri, onSoloMia }: { s: SchedaVista; ora: numb
 
 function SchedaChatFerma({ s, ora, onApri, onSoloMia }: { s: SchedaVista; ora: number; onApri: (p: string) => void; onSoloMia: (s: SchedaVista, si: boolean) => void }): React.JSX.Element {
   return (
-    <div className="pan2-chatferma">
+    <div className="pan2-chatferma" onContextMenu={(e) => menuScheda(e, s, onApri, onSoloMia)}>
       <button className="pan2-chatferma__apri" disabled={s.paneId === undefined} onClick={() => { if (s.paneId !== undefined) onApri(s.paneId) }} title={s.titolo}>
         <span className="pan2-scheda__testa">
           <Pallino stato={s.stato} />
@@ -380,7 +447,7 @@ function Finite({ schede, ora, onApri }: { schede: SchedaVista[]; ora: number; o
       {aperta ? (
         <div className="pan2-finite">
           {schede.map((s) => (
-            <button key={s.id} className="pan2-finita" disabled={s.paneId === undefined} onClick={() => { if (s.paneId !== undefined) onApri(s.paneId) }} title={s.ultimaAzione !== '' ? s.ultimaAzione : s.titolo}>
+            <button key={s.id} className="pan2-finita" disabled={s.paneId === undefined} onClick={() => { if (s.paneId !== undefined) onApri(s.paneId) }} onContextMenu={(e) => menuScheda(e, s, onApri)} title={s.ultimaAzione !== '' ? s.ultimaAzione : s.titolo}>
               <Pallino stato={s.stato} />
               <span className="pan2-finita__ruolo">{s.nomeRuolo ?? CHAT_GENERICA}</span>
               <span className="pan2-finita__titolo">{s.titolo.replace(/^[^·]+ · /, '')}</span>
@@ -420,11 +487,67 @@ export function PrimoMessaggio({ workspace, cwd, onRicarica }: { workspace: stri
       ) : (
         <>
           <div className="progetti__quieto">Aspetta il tuo primo messaggio.</div>
-          <textarea ref={campo} className="campo" rows={4} value={primo} onChange={(e) => setPrimo(e.target.value)} placeholder="Scrivigli cosa fare: lo mette in coda e comincia" />
+          <textarea ref={campo} className="campo" rows={4} value={primo} onChange={(e) => setPrimo(e.target.value)} placeholder="Scrivigli cosa fare: lo mette in coda e comincia"
+            onKeyDown={(e) => { if (invioManda({ key: e.key, shiftKey: e.shiftKey, isComposing: e.nativeEvent.isComposing, keyCode: e.nativeEvent.keyCode })) { e.preventDefault(); manda() } }} />
           <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <button className="tasto" disabled={primo.trim() === ''} onClick={manda}>Manda</button>
+            <button className="tasto" disabled={primo.trim() === ''} onClick={manda} title={SUGGERIMENTO_INVIO}>Manda</button>
             <TastoMicrofono campo={campo} />
           </span>
+        </>
+      )}
+      {nota !== undefined ? <div className="progetti__quieto">{nota}</div> : null}
+    </div>
+  )
+}
+
+/**
+ * L'autopilota di un workspace che vive su un altro PC, finché non si vede
+ * (13/11): «Mi collego…», «non risponde», o — se là non c'è — il primo
+ * messaggio che lo fa nascere **su quel PC** (la sua rotta
+ * `/api/autopilota/crea`, nella cartella di una chat di là). Mai uno qui.
+ */
+export function AutopilotaDiLa({ workspace, remoto }: { workspace: string; remoto: { pcId: string; pcNome: string; stato: StatoAutopilotaDiLa; sparito?: boolean; cwdLa?: string; onRileggi: () => void } }): React.JSX.Element {
+  const [primo, setPrimo] = useState('')
+  const [nota, setNota] = useState<string | undefined>(undefined)
+  const [invio, setInvio] = useState(false)
+  const campo = useRef<HTMLTextAreaElement | null>(null)
+  const stato = statoAutopilotaRemoto(remoto.stato, remoto.pcNome)
+  const manda = (): void => {
+    const testo = primo.trim()
+    if (testo === '' || remoto.cwdLa === undefined || invio) return
+    setInvio(true)
+    setNota(`Lo mando a ${remoto.pcNome}…`)
+    void window.gestore.autopilotiAltri.azione(remoto.pcId, '/api/autopilota/crea', { obiettivo: testo, cwd: remoto.cwdLa, workspace })
+      .then((e) => {
+        if (!e.ok) { setNota(`Non è partito su ${remoto.pcNome}: ${e.messaggio}`); return }
+        setPrimo(''); setNota(undefined); remoto.onRileggi()
+      })
+      .catch((e: unknown) => setNota(`Non è partito su ${remoto.pcNome}: ${String(e)}`))
+      .finally(() => setInvio(false))
+  }
+  return (
+    <div className="elenco-ws__autopilota" role="status">
+      <b>Autopilota di «{workspace}» · su {remoto.pcNome}</b>
+      {remoto.sparito === true ? <div className="progetti__quieto">{remoto.pcNome} non elenca più questo workspace.</div> : null}
+      {stato.tipo !== 'nessuno' ? (
+        <div className="progetti__quieto">● {stato.tipo === 'pronto' ? `Mi collego a ${remoto.pcNome}…` : stato.testo}</div>
+      ) : (
+        <>
+          <div className="progetti__quieto">
+            {stato.testo}
+            <Aiuto di="l’autopilota su un altro PC">Il workspace vive su {remoto.pcNome}: il suo autopilota nasce e lavora là, con i file di là, e qui lo vedi come se fossi su quel PC. Le chat non si scrivono da qui: le comanda lui.</Aiuto>
+          </div>
+          {remoto.cwdLa === undefined ? (
+            <div className="progetti__quieto">Non so in quale cartella lavorare su {remoto.pcNome}: avvialo da quel PC.</div>
+          ) : (
+            <>
+              <textarea ref={campo} className="campo" rows={4} value={primo} onChange={(e) => setPrimo(e.target.value)} placeholder={`Scrivigli cosa fare: nasce su ${remoto.pcNome} e comincia`} />
+              <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <button className="tasto" disabled={primo.trim() === '' || invio} onClick={manda} title={`Avvia l’autopilota su ${remoto.pcNome}, nella cartella ${remoto.cwdLa}`}>Avvia su {remoto.pcNome}</button>
+                <TastoMicrofono campo={campo} />
+              </span>
+            </>
+          )}
         </>
       )}
       {nota !== undefined ? <div className="progetti__quieto">{nota}</div> : null}
