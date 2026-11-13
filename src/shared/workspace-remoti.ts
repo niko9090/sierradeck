@@ -98,8 +98,23 @@ export function separaWorkspace(nomi: readonly string[], remoti: Readonly<Record
 
 /** Una riga della sezione: un workspace di quel PC, già aperto qui o da aprire. */
 export type VoceAltroPc = { nome: string; aperto: boolean; davanti: boolean; sparito?: boolean }
-/** Un PC della sezione, con i suoi workspace. */
-export type GruppoAltroPc = { pcId: string; nome: string; vivo: boolean; voci: VoceAltroPc[] }
+/**
+ * Un PC della sezione, con i suoi workspace. `versione` e `visto` (l'ultimo
+ * battito, ISO) ci sono solo se il battito li porta.
+ */
+export type GruppoAltroPc = { pcId: string; nome: string; vivo: boolean; voci: VoceAltroPc[]; versione?: string; visto?: string }
+
+/** Un PC come lo dà il battito, per la sezione. `aiutante`: SierraDeck Aiutante, che qui non compare. */
+export type PcPerSezione = {
+  pcId: string
+  nome: string
+  vivo: boolean
+  workspace?: readonly string[] | undefined
+  aiutante?: boolean | undefined
+  versione?: string | undefined
+  /** L'ultimo battito (ISO). */
+  visto?: string | undefined
+}
 
 /**
  * La sezione «Altri PC»: un gruppo per PC (prima gli accesi, poi per nome),
@@ -111,21 +126,27 @@ export type GruppoAltroPc = { pcId: string; nome: string; vivo: boolean; voci: V
 export function gruppiAltriPc(p: {
   nomiQui: readonly string[]
   remoti: Readonly<Record<string, WorkspaceRemoto>>
-  pc: readonly { pcId: string; nome: string; vivo: boolean; workspace?: readonly string[] | undefined }[]
+  pc: readonly PcPerSezione[]
   attivo: string
 }): GruppoAltroPc[] {
   const qui = new Set(p.nomiQui.map((n) => n.toLowerCase()))
   const gruppi = new Map<string, GruppoAltroPc>()
-  for (const pc of p.pc) {
+  // Gli Aiutanti (13/11, Nicholas: «non elencare gli Aiutanti») non hanno workspace: stanno in «Altri computer».
+  const pcs = p.pc.filter((pc) => pc.aiutante !== true)
+  for (const pc of pcs) {
     if (gruppi.has(pc.pcId)) continue
-    gruppi.set(pc.pcId, { pcId: pc.pcId, nome: pc.nome, vivo: pc.vivo, voci: [] })
+    gruppi.set(pc.pcId, {
+      pcId: pc.pcId, nome: pc.nome, vivo: pc.vivo, voci: [],
+      ...(pc.versione !== undefined && pc.versione !== '' ? { versione: pc.versione } : {}),
+      ...(pc.visto !== undefined && pc.visto !== '' ? { visto: pc.visto } : {})
+    })
   }
   for (const [nome, r] of Object.entries(p.remoti)) {
     let g = gruppi.get(r.pcId)
     if (g === undefined) { g = { pcId: r.pcId, nome: r.pcNome, vivo: false, voci: [] }; gruppi.set(r.pcId, g) }
     g.voci.push({ nome, aperto: true, davanti: nome === p.attivo, ...(r.sparito === true ? { sparito: true } : {}) })
   }
-  for (const pc of p.pc) {
+  for (const pc of pcs) {
     const g = gruppi.get(pc.pcId)
     if (g === undefined) continue
     for (const nome of new Set(pc.workspace ?? [])) {
@@ -135,6 +156,72 @@ export function gruppiAltriPc(p: {
   }
   const fuori = [...gruppi.values()].map((g) => ({ ...g, voci: [...g.voci].sort((a, b) => a.nome.localeCompare(b.nome)) }))
   return fuori.sort((a, b) => (a.vivo === b.vivo ? a.nome.localeCompare(b.nome) : a.vivo ? -1 : 1))
+}
+
+/** Da quanti PC in su la tendina «Altri PC» mostra la casella per cercare. */
+export const ALTRI_PC_CON_RICERCA = 6
+
+/**
+ * Il riassunto del tasto «Altri PC · N» nella fascia: quanti PC, quanti
+ * accesi, il workspace davanti (se è di un altro PC) e se qualcosa chiede di
+ * guardare: un workspace aperto qui che là non c'è più, o il cui PC è spento.
+ */
+export function riassuntoAltriPc(gruppi: readonly GruppoAltroPc[], attivo: string): {
+  totale: number
+  accesi: number
+  davanti?: { pc: string; nome: string }
+  attenzione?: string
+} {
+  let davanti: { pc: string; nome: string } | undefined
+  const motivi: string[] = []
+  for (const g of gruppi) {
+    for (const v of g.voci) {
+      if (!v.aperto) continue
+      if (v.nome === attivo && davanti === undefined) davanti = { pc: g.nome, nome: v.nome }
+      if (v.sparito === true) motivi.push(`«${v.nome}» non c’è più su ${g.nome}`)
+      else if (!g.vivo) motivi.push(`${g.nome} è spento: «${v.nome}» aspetta`)
+    }
+  }
+  return {
+    totale: gruppi.length,
+    accesi: gruppi.filter((g) => g.vivo).length,
+    ...(davanti !== undefined ? { davanti } : {}),
+    ...(motivi.length > 0 ? { attenzione: motivi.join(' · ') } : {})
+  }
+}
+
+/** Minuscole e senza accenti: «Ufficio» si trova anche scrivendo «uffi». */
+function pieghi(t: string): string {
+  return t.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim()
+}
+
+/**
+ * Il filtro della tendina: un PC resta se il testo sta nel suo nome (con tutti
+ * i suoi workspace) o in quello di almeno un suo workspace (con solo quelli).
+ * `trovatiDentro`: i PC rimasti per un workspace, da mostrare aperti.
+ */
+export function filtraAltriPc(gruppi: readonly GruppoAltroPc[], testo: string): { gruppi: GruppoAltroPc[]; trovatiDentro: Set<string> } {
+  const q = pieghi(testo)
+  const trovatiDentro = new Set<string>()
+  if (q === '') return { gruppi: [...gruppi], trovatiDentro }
+  const fuori: GruppoAltroPc[] = []
+  for (const g of gruppi) {
+    if (pieghi(g.nome).includes(q)) { fuori.push(g); continue }
+    const voci = g.voci.filter((v) => pieghi(v.nome).includes(q))
+    if (voci.length === 0) continue
+    trovatiDentro.add(g.pcId)
+    fuori.push({ ...g, voci })
+  }
+  return { gruppi: fuori, trovatiDentro }
+}
+
+/**
+ * La riga di stato di un PC nella tendina: «acceso», «spento · visto 3 ore fa»,
+ * con la versione se c'è. `quantoFa` è quello della Salute.
+ */
+export function statoPcBreve(g: Pick<GruppoAltroPc, 'vivo' | 'visto' | 'versione'>, quantoFa: (iso: string) => string): string {
+  const stato = g.vivo ? 'acceso' : g.visto !== undefined ? `spento · visto ${quantoFa(g.visto)}` : 'spento'
+  return g.versione !== undefined ? `${stato} · v${g.versione}` : stato
 }
 
 /**

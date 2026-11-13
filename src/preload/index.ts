@@ -982,7 +982,7 @@ contextBridge.exposeInMainWorld('gestore', {
     /** Sezione «Altri PC» (13/11): i workspace di qui che vivono su un altro PC, per nome. */
     remoti: (): Promise<Record<string, { pcId: string; pcNome: string; sparito?: boolean }>> => ipcRenderer.invoke('workspace:remoti'),
     /** Sezione «Altri PC»: i PC, accesi o no, con i loro workspace. */
-    sezioneAltriPc: (): Promise<{ pcId: string; nome: string; vivo: boolean; voci: { nome: string; aperto: boolean; davanti: boolean; sparito?: boolean }[] }[]> => ipcRenderer.invoke('workspace:sezioneAltriPc'),
+    sezioneAltriPc: (): Promise<{ pcId: string; nome: string; vivo: boolean; versione?: string; visto?: string; voci: { nome: string; aperto: boolean; davanti: boolean; sparito?: boolean }[] }[]> => ipcRenderer.invoke('workspace:sezioneAltriPc'),
     /** «Apri cartella» (0.82.0): la cartella del progetto del workspace o della chat, in Esplora file. */
     apriCartella: (q: { workspace: string } | { chat: string }): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('cartella:apri', q),
     crea: (nome: string, cartella?: string): Promise<StatoWorkspace> => ipcRenderer.invoke('workspace:crea', nome, cartella),
