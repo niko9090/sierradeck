@@ -1,6 +1,6 @@
 import { existsSync, lstatSync, readdirSync, writeFileSync, appendFileSync, mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join, parse, relative, resolve, sep } from 'node:path'
+import path, { join, relative, sep } from 'node:path'
 import type { Git } from './worktree'
 import { cancellaSicura } from '@shared/cancella-sicura'
 
@@ -41,13 +41,18 @@ export type EsitoGitLocale =
   | { fatto: true; file: number; grandi: string[] }
   | { fatto: false; motivo: string }
 
+/** Il modulo path da usare (`path.win32` nei test, così girano uguale ovunque). */
+export type PathModulo = Pick<typeof path, 'resolve' | 'parse' | 'relative' | 'isAbsolute' | 'sep'>
+
 /** Una cartella dove git non si crea mai: la radice di un disco, la cartella dell'utente o una sopra. */
-export function cartellaVietata(cwd: string, casa: string = homedir()): boolean {
-  const c = resolve(cwd)
-  if (parse(c).root === c || parse(c).root === `${c}${sep}`) return true
-  const h = resolve(casa)
-  // La casa stessa, o una cartella che la contiene.
-  return c.toLowerCase() === h.toLowerCase() || !relative(c, h).startsWith('..') && relative(c, h) !== ''
+export function cartellaVietata(cwd: string, casa: string = homedir(), modulo: PathModulo = path): boolean {
+  const c = modulo.resolve(cwd)
+  if (modulo.parse(c).root === c || modulo.parse(c).root === `${c}${modulo.sep}`) return true
+  const h = modulo.resolve(casa)
+  if (c.toLowerCase() === h.toLowerCase()) return true
+  // Una cartella che contiene la casa. Su dischi diversi `relative` torna un percorso assoluto: non è «sopra».
+  const r = modulo.relative(c, h)
+  return r !== '' && !modulo.isAbsolute(r) && !r.startsWith('..')
 }
 
 /** Conta i file che entrerebbero e trova quelli grandi. Si ferma appena supera i tetti. */

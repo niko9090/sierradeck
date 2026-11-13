@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import path, { join } from 'node:path'
 import { gitReale, type Git } from '../../src/autopilot-host/worktree'
 import { cartellaVietata, FILE_GRANDE_BYTE, preparaGitLocale } from '../../src/autopilot-host/git-locale'
 
@@ -49,6 +49,21 @@ describe('git locale automatico', () => {
     expect(cartellaVietata('C:\\Users\\qualcuno', 'C:\\Users\\qualcuno')).toBe(true)
     expect(cartellaVietata('C:\\Users', 'C:\\Users\\qualcuno')).toBe(true)
     expect(cartellaVietata('C:\\Users\\qualcuno\\progetti\\bot', 'C:\\Users\\qualcuno')).toBe(false)
+  })
+
+  it('un progetto su un altro disco rispetto alla casa non è vietato; casa, sopra la casa e radice sì', () => {
+    const w = path.win32
+    const casa = 'C:\\Users\\qualcuno'
+    expect(cartellaVietata('D:\\progetti\\sito', casa, w)).toBe(false)
+    expect(cartellaVietata('d:\\progetti\\sito', 'D:\\Users\\qualcuno', w)).toBe(false)
+    expect(cartellaVietata('c:\\users\\qualcuno\\progetti\\bot', casa, w)).toBe(false)
+    expect(cartellaVietata('D:\\progetti\\sito', 'd:\\Users\\qualcuno', w)).toBe(false)
+    expect(cartellaVietata(casa, casa, w)).toBe(true)
+    expect(cartellaVietata('c:\\users\\QUALCUNO\\', casa, w)).toBe(true)
+    expect(cartellaVietata('C:\\Users', casa, w)).toBe(true)
+    expect(cartellaVietata('c:\\users\\', casa, w)).toBe(true)
+    expect(cartellaVietata('D:\\', casa, w)).toBe(true)
+    expect(cartellaVietata('C:\\', casa, w)).toBe(true)
   })
 
   it('se il primo salvataggio non riesce torna tutto come prima: mai un repository a metà', () => {
