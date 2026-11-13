@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.105.2',
+    righe: [
+      '**Git locale anche su un altro disco:** se un progetto sta su un disco diverso da quello della cartella utente, SierraDeck ora crea il git locale e gli specialisti lavorano insieme, non più uno alla volta.',
+    ],
+  },
+  {
     versione: '0.105.1',
     righe: [
       '**Salute più giusta:** se un PC ha una versione più vecchia, il messaggio non elenca più funzioni fisse. Se cambiano solo correzioni dice che aggiornarlo non è urgente; se cambiano funzioni dice quali novità mancano là.',
