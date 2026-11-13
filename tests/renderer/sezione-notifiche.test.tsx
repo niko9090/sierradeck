@@ -35,7 +35,7 @@ describe('la sezione «Notifiche» delle Impostazioni del PC (k-47)', () => {
     const html = renderToStaticMarkup(<SezioneNotifiche p={PREFERENZE_PREDEFINITE} cambia={() => undefined} />)
     // Le notifiche vere si leggono dal PC: finché non arrivano, solo «Leggo…».
     expect(html).toContain('Leggo le notifiche…')
-    expect(html).toContain('Avvisa con Windows se l’aggiornamento aspetta')
+    expect(html).toContain('Mostra la finestra degli aggiornamenti se l’attesa è lunga')
     expect(html).toContain('Mostra un fumetto anche per il salvataggio automatico sul Drive')
     expect(html.match(/type="checkbox"/g)?.length).toBe(2)
     expect(html.match(/aria-label="[^"]*"/g)?.length ?? 0).toBeGreaterThanOrEqual(2)
@@ -64,7 +64,9 @@ describe('la sezione «Notifiche» delle Impostazioni del PC (k-47)', () => {
     expect(normalizzaPreferenze({ avvisoWindowsAggiornamento: 'no' }).avvisoWindowsAggiornamento).toBe(true)
     expect(normalizzaPreferenze({ avvisoWindowsAggiornamento: false }).avvisoWindowsAggiornamento).toBe(false)
     const main = readFileSync('src/main/index.ts', 'utf8')
-    expect(main).toMatch(/if \(impostazioni\.preferenze\(\)\.avvisoWindowsAggiornamento\) \{[\s\S]{0,400}new Notification\(\{ title: 'SierraDeck aspetta per aggiornarsi'/)
+    expect(main).toMatch(/if \(impostazioni\.preferenze\(\)\.avvisoWindowsAggiornamento\) \{[\s\S]{0,400}mostraAttesaLunga\(\)/)
+    // 13/11: niente più notifica di Windows per l'aggiornamento, passa tutto dalla sua finestra.
+    expect(main).not.toContain("new Notification({ title: 'SierraDeck aspetta per aggiornarsi'")
   })
 
   it('il pannello la mostra dentro la sua sezione «Notifiche»', () => {

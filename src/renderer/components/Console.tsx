@@ -1,3 +1,4 @@
+import { aggiornamentoInCorso } from '@shared/finestra-novita'
 import { TendinaMenu } from './TendinaMenu'
 import { useEffect, useState } from 'react'
 import { useLayoutStore } from '../state/layout'
@@ -66,12 +67,9 @@ type Props = {
   /** I workspace che vivono su altri PC (13/11): stanno nella sezione «Altri PC», non nella fascia. */
   workspaceRemoti?: Readonly<Record<string, unknown>>
   /**
-   * Com'è messo l'aggiornamento del programma, adesso.
-   *
-   * Sta qui e non solo nella banda in fondo perché l'aggiornamento può
-   * partire **da un telefono**: chi torna alla scrivania trova il programma
-   * che sta facendo qualcosa e non ha modo di sapere cosa. Una spia accanto
-   * al numero di versione è il posto dove l’occhio va già a cercare.
+   * Com'è messo l'aggiornamento del programma, adesso. Dal 13/11 non ha più
+   * una spia sua nella fascia: tutto passa dalla finestra degli aggiornamenti.
+   * Qui decide solo dove porta il numero di versione e il suo pallino.
    */
   aggiornamento?: { fase: string; versione?: string; percento?: number; daTelefono?: boolean }
   /** I LED degli autopiloti: uno per autopilota, nell'ordine dell'elenco. */
@@ -524,36 +522,21 @@ export function Console({
         {/* La versione e il modo di cercare un aggiornamento quando si vuole:
             l'attesa automatica è ogni sei ore, e chi ha appena pubblicato non
             ha voglia di aspettarle. */}
-        {/* 13/11: apre la finestra degli aggiornamenti in basso a destra. Con una
-            notizia non guardata (pallino) o un aggiornamento in corso apre lo
-            stato; altrimenti le novità di questa versione. */}
+        {/* 13/11: apre la finestra degli aggiornamenti in basso a destra, l'unico
+            posto dell'aggiornamento (niente spia a parte). Con una notizia non
+            guardata (pallino) o un aggiornamento in corso apre lo stato;
+            altrimenti le novità di questa versione. */}
         <button
-          className={`versione${novitaNonLette ? ' versione--nonletto' : ''}`}
+          className={`versione${novitaNonLette ? ' versione--nonletto' : aggiornamentoInCorso(aggiornamento) ? ' versione--incorso' : ''}`}
           onClick={() => {
-            if (novitaNonLette || spiaAggiornamento(aggiornamento) !== undefined) apriStatoAggiornamento()
+            if (novitaNonLette || aggiornamentoInCorso(aggiornamento)) apriStatoAggiornamento()
             else onApriNovita()
           }}
-          title={novitaNonLette ? 'C’è una novità sull’aggiornamento: aprila' : 'Cosa è cambiato in questa versione'}
-          aria-label={novitaNonLette ? `Versione ${versione}: c’è una novità sull’aggiornamento` : `Versione ${versione}: cosa è cambiato`}
+          title={novitaNonLette ? 'C’è una novità sull’aggiornamento: aprila' : aggiornamentoInCorso(aggiornamento) ? 'Aggiornamento in corso: apri la finestra' : 'Cosa è cambiato in questa versione'}
+          aria-label={novitaNonLette ? `Versione ${versione}: c’è una novità sull’aggiornamento` : aggiornamentoInCorso(aggiornamento) ? `Versione ${versione}: aggiornamento in corso` : `Versione ${versione}: cosa è cambiato`}
         >
           v{versione}
         </button>
-        {/* Cosa sta facendo l’aggiornamento, in due parole. Assente quando
-            non c’è niente da dire: una spia che è sempre accesa non è una
-            spia, è decorazione. */}
-        {spiaAggiornamento(aggiornamento) !== undefined ? (
-          <button
-            className={`spia-agg spia-agg--tasto spia-agg--${aggiornamento?.fase ?? "fermo"}`}
-            onClick={apriStatoAggiornamento}
-            title={
-              aggiornamento?.daTelefono === true
-                ? 'Richiesto da un telefono accoppiato. Apre la finestra dell’aggiornamento'
-                : 'Apre la finestra dell’aggiornamento'
-            }
-          >
-            {spiaAggiornamento(aggiornamento)}
-          </button>
-        ) : null}
         <button
           className="tasto tasto--icona"
           onClick={() => { apriStatoAggiornamento(); void window.gestore.aggiornamenti.cerca() }}
@@ -569,30 +552,3 @@ export function Console({
 }
 
 
-/**
- * Cosa dice la spia, o niente.
- *
- * Le fasi tranquille — non sto facendo nulla, sei aggiornato — non hanno
- * bisogno di occupare spazio: la spia esiste per i momenti in cui **sta
- * succedendo qualcosa**, e se restasse accesa sempre smetteresti di vederla.
- */
-function spiaAggiornamento(
-  a?: { fase: string; versione?: string; percento?: number }
-): string | undefined {
-  switch (a?.fase) {
-    case 'cerco':
-      return 'cerco…'
-    case 'disponibile':
-      return `c'è la ${a.versione ?? 'nuova'}`
-    case 'scarico':
-      return `scarico ${a.percento ?? 0}%`
-    case 'pronto':
-      return 'pronta da installare'
-    case 'installo':
-      return 'installo…'
-    case 'errore':
-      return 'non riuscito'
-    default:
-      return undefined
-  }
-}

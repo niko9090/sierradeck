@@ -40,10 +40,10 @@ export type Preferenze = {
    */
   fumettiSincroniaAutomatica: boolean
   /**
-   * La notifica di Windows «SierraDeck aspetta per aggiornarsi» (k-47): compare
-   * quando un aggiornamento pronto aspetta da molto che le chat finiscano il
-   * turno. Spenta: l'attesa si vede lo stesso nella scheda Aggiornamenti e nel
-   * registro, ma Windows non mostra niente.
+   * L'aggiornamento che aspetta da molto che le chat finiscano il turno (k-47).
+   * Dal 13/11 non è più una notifica di Windows: accesa, la finestra degli
+   * aggiornamenti si mostra anche col programma nascosto. Spenta: si vede solo
+   * con il programma davanti. Il nome resta per le impostazioni già salvate.
    */
   avvisoWindowsAggiornamento: boolean
   /**

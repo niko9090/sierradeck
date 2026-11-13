@@ -4,10 +4,11 @@ import { join } from 'node:path'
 import { APP_NAME } from '@shared/version'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 import {
-  FILE_GRANDEZZA_NOVITA, GRANDEZZA_MINIMA, GRANDEZZA_PREDEFINITA, LETTURA_INIZIALE, grandezzaNeiLimiti, leggiGrandezzaSalvata,
-  leggiVista, posizioneInBassoADestra, segnaLetto, suStato,
+  FILE_GRANDEZZA_NOVITA, FILE_VERSIONE_VISTA, GRANDEZZA_MINIMA, GRANDEZZA_PREDEFINITA, LETTURA_INIZIALE, grandezzaNeiLimiti,
+  installataDaMostrare, leggiGrandezzaSalvata, leggiVersioneVista, leggiVista, posizioneInBassoADestra, segnaLetto, suStato,
   type Grandezza, type LetturaNovita, type StatoPerNovita, type VistaNovita
 } from '@shared/finestra-novita'
+import { FILE_TENTATIVO_INSTALLAZIONE, esitoTentativo, leggiTentativo } from '@shared/tentativo-installazione'
 import { finestreDiChat, segnaFinestraAccessoria } from './finestre-pannello'
 
 /**
@@ -20,6 +21,13 @@ import { finestreDiChat, segnaFinestraAccessoria } from './finestre-pannello'
  * - Si mostra da sola solo per una notizia **nuova** (`suStato`), senza
  *   prendere la tastiera (`showInactive`), e solo se il programma è davanti:
  *   nascosto nell'area di notifica, la notizia aspetta che torni.
+ * - È l'**unico** posto dell'aggiornamento (regola di Nicholas, 13/11): niente
+ *   strisce, spie, notifiche di Windows o finestre a parte. Al primo avvio dopo
+ *   un'installazione si apre su «Installata: ecco cosa cambia»
+ *   (`controllaInstallata`); l'attesa lunga delle chat la mostra anche col
+ *   programma nascosto (`mostraAttesaLunga`). Resta fuori solo la finestra di
+ *   PowerShell durante l'installazione (`finestra-aggiornamento.ts`), perché
+ *   in quel momento il programma è chiuso.
  * - La × la nasconde. Si richiama dalla voce in alto (il numero di versione),
  *   che ha un pallino finché c'è qualcosa di non letto.
  * - Non è una finestra di chat (`segnaFinestraAccessoria`): niente layout,
@@ -35,12 +43,19 @@ let win: BrowserWindow | undefined
 let preload = ''
 let vista: VistaNovita = { tipo: 'aggiornamento' }
 let lettura: LetturaNovita = LETTURA_INIZIALE
-/** Una notizia arrivata con il programma nascosto: si mostra quando torna davanti. */
-let inSospeso = false
+/**
+ * Una notizia arrivata con il programma nascosto (o prima che ci sia una
+ * finestra, come le novità al primo avvio dopo l'installazione): si mostra,
+ * su quella vista, quando il programma torna davanti.
+ */
+let sospesa: VistaNovita | undefined
 let uscendo = false
 /** La cartella dei dati di questo PC, per il file della grandezza. */
 let cartella = ''
 let grandezza: Grandezza | undefined
+/** La versione che gira e la cartella dei dati del programma, per il file delle novità viste. */
+let versioneAttuale = ''
+let cartellaVersione = ''
 
 function fileGrandezza(): string | undefined {
   return cartella !== '' ? join(cartella, FILE_GRANDEZZA_NOVITA) : undefined
@@ -102,6 +117,22 @@ function posiziona(): void {
   win.setBounds(posizioneInBassoADestra(schermo.workArea, grandezzaRicordata()))
 }
 
+/** L'icona del pacchetto (`build/icon.png`, nei `files` di electron-builder), se c'è. */
+function iconaFinestra(): { icon?: string } {
+  try {
+    const f = join(app.getAppPath(), 'build', 'icon.png')
+    return existsSync(f) ? { icon: f } : {}
+  } catch {
+    return {}
+  }
+}
+
+/** Le novità di questa versione sono state mostrate: al prossimo avvio non si riaprono da sole. */
+function ricordaVersioneVista(): void {
+  if (cartellaVersione === '' || versioneAttuale === '') return
+  scriviJsonAtomico(join(cartellaVersione, FILE_VERSIONE_VISTA), { versione: versioneAttuale }, 'versione delle novità viste')
+}
+
 function crea(): BrowserWindow {
   const w = new BrowserWindow({
     ...grandezzaRicordata(),
@@ -116,7 +147,9 @@ function crea(): BrowserWindow {
     fullscreenable: false,
     skipTaskbar: true,
     alwaysOnTop: true,
-    title: `${APP_NAME} · Aggiornamento`,
+    title: `${APP_NAME} · Aggiornamenti`,
+    // Il simbolo di SierraDeck anche fuori (Alt+Tab): lo stesso file dell'area di notifica, che sta nel pacchetto.
+    ...iconaFinestra(),
     backgroundColor: '#141517',
     webPreferences: { preload, contextIsolation: true, nodeIntegration: false, sandbox: false }
   })
@@ -153,8 +186,9 @@ export function apriFinestraNovita(v: VistaNovita = { tipo: 'aggiornamento' }, o
   w.webContents.send('finestra-novita:vista', vista)
   if (opzioni.attiva === true) {
     lettura = segnaLetto(lettura)
-    inSospeso = false
+    sospesa = undefined
   }
+  if (v.tipo === 'novita') ricordaVersioneVista()
   const mostra = (): void => {
     if (w.isDestroyed()) return
     if (opzioni.attiva === true) { w.show(); w.focus() } else w.showInactive()
@@ -167,7 +201,7 @@ export function apriFinestraNovita(v: VistaNovita = { tipo: 'aggiornamento' }, o
 /** La × della finestra: si nasconde, e conta come letta. */
 export function nascondiFinestraNovita(): void {
   lettura = segnaLetto(lettura)
-  inSospeso = false
+  sospesa = undefined
   if (win !== undefined && !win.isDestroyed()) win.hide()
   annunciaStato()
 }
@@ -178,9 +212,47 @@ export function suStatoAggiornamento(s: StatoPerNovita): void {
   lettura = r.lettura
   if (r.mostra) {
     if (principaleVisibile()) apriFinestraNovita({ tipo: 'aggiornamento' })
-    else inSospeso = true
+    else sospesa = { tipo: 'aggiornamento' }
   }
   annunciaStato()
+}
+
+/**
+ * L'aggiornamento aspetta da tanto le chat (prima: la notifica di Windows
+ * «SierraDeck aspetta per aggiornarsi»). La finestra si mostra anche col
+ * programma nascosto, senza prendere la tastiera.
+ */
+export function mostraAttesaLunga(): void {
+  apriFinestraNovita({ tipo: 'aggiornamento' })
+}
+
+/**
+ * Il primo avvio dopo un'installazione: le novità si mettono da parte e si
+ * mostrano appena il programma è davanti (pallino acceso intanto). Va chiamata
+ * prima che `creaAggiornamenti` tolga il segno dell'installazione.
+ */
+export function controllaInstallata(p: { cartellaDati: string; versione: string }): boolean {
+  cartellaVersione = p.cartellaDati
+  versioneAttuale = p.versione
+  const leggi = (nome: string): unknown => {
+    try {
+      const f = join(p.cartellaDati, nome)
+      return existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')) as unknown : undefined
+    } catch {
+      return undefined
+    }
+  }
+  const vista = leggiVersioneVista(leggi(FILE_VERSIONE_VISTA))
+  const tentativoRiuscito = esitoTentativo(leggiTentativo(leggi(FILE_TENTATIVO_INSTALLAZIONE)), p.versione).tipo === 'riuscito'
+  if (installataDaMostrare({ vista, attuale: p.versione, tentativoRiuscito })) {
+    sospesa = { tipo: 'novita' }
+    lettura = { ...lettura, nonLetto: true }
+    annunciaStato()
+    return true
+  }
+  // Niente da mostrare: si annota la versione, così la prossima installazione si riconosce.
+  if (vista !== p.versione) ricordaVersioneVista()
+  return false
 }
 
 /** Chiude davvero: all'uscita e quando l'ultima finestra di chat se ne va (non deve tenere vivo il programma). */
@@ -197,7 +269,7 @@ export function impostaFinestraNovita(p: { preload: string; cartellaDati?: strin
   // Una notizia arrivata col programma nascosto si mostra quando torna davanti.
   app.on('browser-window-focus', (_e, w) => {
     if (win !== undefined && w.id === win.id) return
-    if (inSospeso) { inSospeso = false; apriFinestraNovita({ tipo: 'aggiornamento' }) }
+    if (sospesa !== undefined) { const v = sospesa; sospesa = undefined; apriFinestraNovita(v) }
   })
   // Il programma cambia schermo, o lo schermo cambia: la finestra segue.
   const segui = (): void => { if (win !== undefined && !win.isDestroyed() && win.isVisible()) posiziona() }
@@ -214,6 +286,15 @@ export function impostaFinestraNovita(p: { preload: string; cartellaDati?: strin
     }
     w.on('moved', piuTardi)
     w.on('move', piuTardi)
+    // Una finestra di chat che compare senza prendere il fuoco (avvio): anche lei porta su la notizia in sospeso.
+    w.on('show', () => {
+      setTimeout(() => {
+        if (sospesa === undefined || w.isDestroyed() || !finestreDiChat().some((c) => c.id === w.id)) return
+        const v = sospesa
+        sospesa = undefined
+        apriFinestraNovita(v)
+      }, 500)
+    })
   })
   ipcMain.handle('finestra-novita:apri', (_e, v: unknown) => apriFinestraNovita(leggiVista(v), { attiva: true }))
   ipcMain.handle('finestra-novita:nascondi', () => nascondiFinestraNovita())

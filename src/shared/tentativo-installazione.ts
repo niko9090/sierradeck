@@ -21,6 +21,9 @@
  * **probabile**, come probabile.
  */
 
+/** Il file del segno, nella cartella dei dati. */
+export const FILE_TENTATIVO_INSTALLAZIONE = 'tentativo-installazione.json'
+
 export type Tentativo = {
   /** La versione che si voleva installare. */
   versione: string

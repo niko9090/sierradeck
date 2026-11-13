@@ -3,7 +3,7 @@ import { frenoDrive, MESSAGGIO_DRIVE_PIENO, RICONTROLLO_PIENO_MIN } from './cass
 import { nonRipartePerAltri } from '@shared/apertura-solo-utente'
 import { portaInVista, statoApertura } from '@shared/finestra-visibile'
 import { chiudiPannelliConLApp, finestreDiChat, finestreViveSenzaServizio, segnaFinestraDiServizio } from './finestre-pannello'
-import { chiudiFinestraNovita, finestraNovitaViva, impostaFinestraNovita, suStatoAggiornamento } from './finestra-novita'
+import { chiudiFinestraNovita, controllaInstallata, finestraNovitaViva, impostaFinestraNovita, mostraAttesaLunga, suStatoAggiornamento } from './finestra-novita'
 import { workspaceVisti } from './chat-vista'
 import { APP_ID, portePerLaProva } from './identita-app'
 import { scelteDiTerminale } from '@shared/scelte-terminale'
@@ -1299,6 +1299,14 @@ if (!app.requestSingleInstanceLock()) {
       // La cartella dei dati, portandosi dietro quella del nome precedente:
       // cambiare nome al programma non deve far sparire autopiloti e salvataggi.
       const dati = cartellaDati(app.getPath('appData'), APP_DATA_DIR_PRECEDENTE, APP_DATA_DIR_NAME)
+      // Il primo avvio dopo un'installazione (13/11): la finestra degli
+      // aggiornamenti si apre su «Installata: ecco cosa cambia» appena il
+      // programma è davanti. Prima di `creaAggiornamenti`, che toglie il segno.
+      try {
+        if (controllaInstallata({ cartellaDati: dati, versione: app.getVersion() })) console.info(`[aggiornamenti] primo avvio della ${app.getVersion()}: mostro le novità nella finestra degli aggiornamenti`)
+      } catch (err) {
+        console.error('[aggiornamenti] controllo del primo avvio dopo l installazione non riuscito:', err)
+      }
       // Il registro della sessione: prima riga = versione e ambiente, così un
       // log allegato dice subito «quale versione stava girando davvero».
       // Ogni errore anche nello storico degli errori (0.81.0), senza segreti né
@@ -6224,12 +6232,14 @@ if (!app.requestSingleInstanceLock()) {
               if (lungo && !avvisatoLungo) {
                 avvisatoLungo = true
                 registro.info(`[aggiornamenti] ${testo}`)
-                // k-47: si può spegnere da Impostazioni → Notifiche; l'attesa resta nel registro e nella scheda Aggiornamenti.
+                // 13/11: niente più notifica di Windows: tutto l'aggiornamento passa dalla
+                // sua finestra, che qui si mostra anche col programma nascosto. La scelta
+                // in Impostazioni → Notifiche (k-47) decide se mostrarla anche così.
                 if (impostazioni.preferenze().avvisoWindowsAggiornamento) {
-                  registro.info('[avviso] PC: notifica di Windows «SierraDeck aspetta per aggiornarsi», causa: aggiornamento pronto, aspetta che le chat siano quiete')
-                  try { new Notification({ title: 'SierraDeck aspetta per aggiornarsi', body: testo }).show() } catch { /* senza notifiche */ }
+                  registro.info('[avviso] PC: finestra degli aggiornamenti mostrata, causa: aggiornamento pronto, aspetta che le chat siano quiete')
+                  mostraAttesaLunga()
                 } else {
-                  registro.info('[avviso] PC: notifica di Windows «SierraDeck aspetta per aggiornarsi» non mostrata: spenta in Impostazioni → Notifiche')
+                  registro.info('[avviso] PC: finestra degli aggiornamenti non mostrata da sola per l attesa lunga: spenta in Impostazioni → Notifiche')
                 }
               }
             },

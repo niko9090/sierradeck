@@ -136,7 +136,17 @@ export function segnaLetto(l: LetturaNovita): LetturaNovita {
 }
 
 /** Quello che serve dello stato per la testa della finestra. */
-export type StatoPerTesta = { fase: string; versione?: string; percento?: number }
+export type StatoPerTesta = { fase: string; versione?: string; percento?: number; daTelefono?: boolean }
+
+/**
+ * C'è qualcosa in corso nell'aggiornamento (una versione in arrivo, pronta,
+ * in attesa delle chat, un errore)? Allora il numero di versione in alto apre
+ * lo stato nella finestra, e ha un pallino quieto. La ricerca automatica da
+ * sola non conta.
+ */
+export function aggiornamentoInCorso(a?: { fase: string }): boolean {
+  return a !== undefined && ['disponibile', 'scarico', 'pronto', 'attendo', 'installo', 'errore'].includes(a.fase)
+}
 
 /** Le fasi in cui c'è una versione nuova in arrivo o pronta. */
 export function conVersioneNuova(s: StatoPerTesta): boolean {
@@ -159,11 +169,44 @@ export function testaNovita(s: StatoPerTesta, installata: string, v: VistaNovita
     case 'pronto': titolo = nuova !== undefined ? `Nuova versione ${nuova} pronta` : 'Nuova versione pronta'; break
     case 'attendo': titolo = 'Installo appena le chat finiscono'; break
     case 'installo': titolo = `Sto installando la ${nuova ?? 'versione nuova'}`; break
-    case 'cerco': titolo = 'Cerco aggiornamenti…'; break
+    // Sulle novità appena installate la ricerca automatica dell'avvio non cambia la frase.
+    case 'cerco': titolo = v.tipo === 'novita' && s.daTelefono !== true ? 'Installata: ecco cosa cambia' : 'Cerco aggiornamenti…'; break
     case 'errore': titolo = 'Aggiornamento non riuscito'; break
     default: titolo = v.tipo === 'novita' ? 'Installata: ecco cosa cambia' : 'Sei aggiornato'
   }
   return { titolo, versioni }
+}
+
+/**
+ * **Il primo avvio dopo un'installazione** (13/11): la finestra si apre da
+ * sola su «Installata: ecco cosa cambia». Il file di questo PC
+ * (`FILE_VERSIONE_VISTA`) ricorda l'ultima versione di cui si sono mostrate le
+ * novità: se quella che gira è più nuova, è appena stata installata. Senza il
+ * file (primo avvio di questa regola) vale il segno dell'installazione fatta
+ * dal programma (`tentativo-installazione.json` riuscito). Una versione più
+ * vecchia (ritorno indietro) non apre niente.
+ */
+export const FILE_VERSIONE_VISTA = 'finestra-aggiornamenti-versione.json'
+
+/** `a` viene prima di `b` (numeri x.y.z; quello che non è un numero vale 0). */
+export function versionePrima(a: string, b: string): boolean {
+  const x = a.split('.').map((n) => Number.parseInt(n, 10) || 0)
+  const y = b.split('.').map((n) => Number.parseInt(n, 10) || 0)
+  for (let i = 0; i < 3; i += 1) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) < (y[i] ?? 0)
+  return false
+}
+
+/** La versione scritta nel file, o `undefined` se manca o non si capisce. */
+export function leggiVersioneVista(x: unknown): string | undefined {
+  if (typeof x !== 'object' || x === null) return undefined
+  const v = (x as { versione?: unknown }).versione
+  return typeof v === 'string' && /^\d+\.\d+\.\d+/.test(v) ? v : undefined
+}
+
+export function installataDaMostrare(p: { vista: string | undefined; attuale: string; tentativoRiuscito: boolean }): boolean {
+  if (p.attuale === '') return false
+  if (p.vista !== undefined) return versionePrima(p.vista, p.attuale)
+  return p.tentativoRiuscito
 }
 
 /** Legge una vista arrivata dall'IPC: tutto quello che non si riconosce torna allo stato dell'aggiornamento. */

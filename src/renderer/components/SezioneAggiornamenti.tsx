@@ -1,66 +1,27 @@
-import { useEffect, useState } from 'react'
-import type { StatoAggiornamento } from '../../main/aggiornamenti'
 import type { Preferenze } from '@shared/preferenze'
-import { tentativoDaRicordare } from '@shared/stato-sistema'
+import type { VistaNovita } from '@shared/finestra-novita'
 import { Aiuto } from './Aiuto'
 
+/** Apre la finestra degli aggiornamenti su quella vista, presa da chi ha premuto. */
+export function apriFinestraAggiornamenti(vista: VistaNovita = { tipo: 'aggiornamento' }): void {
+  void window.gestore.finestraNovita?.apri(vista).catch(() => undefined)
+}
+
 /**
- * «Aggiornamenti», in cima alle impostazioni (0.56.0). Nicholas (09/10):
- * «Nelle impostazioni l'aggiornamento lo puoi mettere in alto all'inizio?».
- * La versione installata, se ce n'è una nuova, le note, il tasto per
- * installarla (con la stessa finestra delle note del resto del programma),
- * com'è andato l'ultimo tentativo — anche quello non riuscito — e lo
- * scaricamento da solo.
+ * «Aggiornamenti», in cima alle impostazioni (0.56.0). Dal 13/11 tutto
+ * l'aggiornamento passa dalla sua finestra in basso a destra: qui solo la
+ * versione, i due tasti che la aprono (lo stato, le novità) e la scelta dello
+ * scaricamento da solo. Niente stato, tasti o «ultimo tentativo» doppi.
  */
 export function SezioneAggiornamenti({ p, cambia, versione }: { p: Preferenze; cambia: (x: Partial<Preferenze>) => void; versione: string }): React.JSX.Element {
-  const [s, setS] = useState<StatoAggiornamento | undefined>(undefined)
-  useEffect(() => {
-    void window.gestore.aggiornamenti.stato().then(setS).catch(() => undefined)
-    return window.gestore.aggiornamenti.suStato(setS)
-  }, [])
-  const fase = s?.fase ?? 'fermo'
-  const testo = fase === 'cerco' ? 'Sto guardando se c’è una versione nuova…'
-    : fase === 'aggiornato' ? `È all’ultima versione (${versione}).`
-    : fase === 'disponibile' ? `C’è la ${s?.versione ?? 'versione nuova'}: si può scaricare.`
-    : fase === 'scarico' ? `Scarico la ${s?.versione ?? 'versione nuova'}… ${s?.percento ?? 0}%`
-    : fase === 'pronto' ? `La ${s?.versione ?? 'versione nuova'} è pronta da installare.`
-    : fase === 'attendo' && s?.subito === true ? 'Salvo il lavoro delle chat e installo subito…'
-    : fase === 'attendo' && s?.attesaChat !== undefined && s.attesa === undefined ? `${s.attesaChat.charAt(0).toUpperCase()}${s.attesaChat.slice(1)}.`
-    : fase === 'attendo' ? `Installo appena ${s?.chatOccupate !== undefined && s.chatOccupate > 0 ? `${s.chatOccupate === 1 ? 'la chat finisce' : `le ${s.chatOccupate} chat finiscono`} il turno` : (s?.attesa ?? 'c’è quiete')}: niente si perde.`
-    : fase === 'installo' ? 'Sto installando: il programma si chiude e si riapre da solo.'
-    : fase === 'errore' ? `Qualcosa non è andato: ${s?.errore ?? 'motivo non detto'}.`
-    : 'Controlla da sé ogni dieci minuti e scarica la versione nuova; si installa solo con «Installa». «Cerca ora» lo fa subito.'
-  // 0.84.3: le fasi con il tempo (scarico, salvo le chat, installo, riparto), uguali su pagina e app.
-  const conFasi = s?.fasiTesto !== undefined && s.fasiTesto !== '' ? `${testo} ${s.fasiTesto}.` : testo
   return (
     <>
       <div className="impostazioni__riga">
         <span>Versione</span>
-        <span>SierraDeck {versione}</span>
-        <button className="tasto" onClick={() => window.dispatchEvent(new Event('sierradeck:apri-novita'))}>Novità di questa versione</button>
+        <span style={{ flex: 1 }}>SierraDeck {versione}</span>
+        <button className="tasto" onClick={() => apriFinestraAggiornamenti({ tipo: 'novita' })}>Novità di questa versione</button>
+        <button className="tasto tasto--primario" onClick={() => apriFinestraAggiornamenti()} title="Stato, scaricamento, «Installa e riavvia»: nella finestra in basso a destra">Aggiornamenti…</button>
       </div>
-      <div className="impostazioni__riga">
-        <span>Aggiornamento</span>
-        <span style={{ flex: 1 }}>{conFasi}</span>
-        {fase === 'disponibile' ? <button className="tasto" onClick={() => void window.gestore.aggiornamenti.scarica()}>Scarica</button> : null}
-        {fase === 'pronto' ? (
-          <button className="tasto tasto--primario" onClick={() => window.dispatchEvent(new CustomEvent('sierradeck:apri-installa', { detail: s?.versione ?? '' }))}>
-            Cosa cambia e installa
-          </button>
-        ) : null}
-        {fase === 'attendo' && s?.subito !== true ? (
-          <button className="tasto" title="Non aspetto la fine dei turni: salvo il lavoro delle chat sul loro ramo, le metto in pausa e installo adesso." onClick={() => void window.gestore.aggiornamenti.aggiornaAdesso()}>
-            Aggiorna adesso
-          </button>
-        ) : null}
-                {['fermo', 'aggiornato', 'errore', 'disponibile'].includes(fase) ? <button className="tasto" onClick={() => void window.gestore.aggiornamenti.cerca()}>Cerca ora</button> : null}
-      </div>
-      {((f) => f !== undefined ? (
-        <div className="impostazioni__nota" style={{ color: 'var(--ambra)' }}>
-          Ultimo tentativo: <b>{f.titolo}</b> {f.motivo}{' '}
-          {f.strade.length > 0 ? <>Cosa puoi fare: {f.strade.map((x, i) => <span key={i}>{i + 1}. {x} </span>)}</> : null}
-        </div>
-      ) : null)(tentativoDaRicordare(s))}
       <label className="impostazioni__riga impostazioni__riga--spunta">
         <input type="checkbox" checked={p.scaricaAggiornamentiAutomatico} onChange={(e) => cambia({ scaricaAggiornamentiAutomatico: e.target.checked })} />
         <span className="con-aiuto">Scarica gli aggiornamenti da solo
