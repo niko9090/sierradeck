@@ -202,6 +202,13 @@ declare global {
         }
         suCambiate: (cb: () => void) => () => void
       }
+      /** Gestione progetti (13/11): opzionale, i finti dei test e le versioni di prima non l'hanno. */
+      gestione?: {
+        apri: () => Promise<void>
+        vista: () => Promise<import('../shared/gestione-progetti').VistaGestione>
+        azione: (corpo: { azione: string; id?: string; ids?: string[]; tieni?: string; pc?: string; percorso?: string; nome?: string; ws?: string }) => Promise<{ ok: boolean; messaggio: string }>
+        suCambiata: (cb: () => void) => () => void
+      }
       /** «Sposta su questo PC» (0.88.0). */
       sposta: {
         avvia: (progetto: string) => Promise<import('../shared/sposta').VistaSposta | undefined>

@@ -517,6 +517,21 @@ contextBridge.exposeInMainWorld('gestore', {
     }
   },
   /**
+   * **Gestione progetti** (13/11): la finestra separata per decidere dove e di
+   * chi sono i progetti, unire i doppioni, rinominare, eliminare.
+   */
+  gestione: {
+    apri: (): Promise<void> => ipcRenderer.invoke('gestione:apri'),
+    vista: (): Promise<import('@shared/gestione-progetti').VistaGestione> => ipcRenderer.invoke('gestione:vista'),
+    azione: (corpo: { azione: string; id?: string; ids?: string[]; tieni?: string; pc?: string; percorso?: string; nome?: string; ws?: string }): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('gestione:azione', corpo),
+    suCambiata: (cb: () => void): (() => void) => {
+      const h = (): void => cb()
+      ipcRenderer.on('gestione:cambiata', h)
+      ipcRenderer.on('casa:cambiate', h)
+      return () => { ipcRenderer.removeListener('gestione:cambiata', h); ipcRenderer.removeListener('casa:cambiate', h) }
+    }
+  },
+  /**
    * «Sposta su questo PC» (0.88.0): l'unico modo in cui un progetto cambia PC.
    * Lo stato si rilegge; `casa.suCambiate` avvisa a ogni passo.
    */

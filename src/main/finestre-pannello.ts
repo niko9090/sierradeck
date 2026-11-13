@@ -53,9 +53,20 @@ export function segnaFinestraDiServizio(w: BrowserWindow): void {
   w.once('closed', () => diServizio.delete(id))
 }
 
-/** Le finestre di chat: tutte tranne le finestre pannello e quelle di servizio. */
+/**
+ * Le finestre **a parte** (Gestione progetti, 13/11): visibili, ma non di chat.
+ * Niente slot, layout, consegne o area di notifica: come le finestre pannello.
+ */
+const aParte = new Set<number>()
+export function segnaFinestraAParte(w: BrowserWindow): void {
+  const id = w.id
+  aParte.add(id)
+  w.once('closed', () => aParte.delete(id))
+}
+
+/** Le finestre di chat: tutte tranne le finestre pannello, quelle a parte e quelle di servizio. */
 export function finestreDiChat(): BrowserWindow[] {
-  return BrowserWindow.getAllWindows().filter((w) => !aperte.has(w.id) && !diServizio.has(w.id))
+  return BrowserWindow.getAllWindows().filter((w) => !aperte.has(w.id) && !diServizio.has(w.id) && !aParte.has(w.id))
 }
 
 /** Tutte le finestre vive (chat e pannelli), senza quelle di servizio: per gli eventi che il pannello separato deve ricevere. */

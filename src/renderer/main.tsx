@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
 import { ConfineErrori } from './components/ConfineErrori'
+import { GestioneProgetti } from './components/GestioneProgetti'
 import './console.css'
 import './studio.css'
 
@@ -35,8 +36,11 @@ for (const evento of ['dragover', 'drop']) {
 
 const el = document.getElementById('root')
 if (!el) throw new Error('Elemento #root non trovato')
+// La finestra «Gestione progetti» (13/11): la stessa pagina, ma solo la gestione.
+// Non disegna la vista principale: funziona anche se quella ha un problema.
+const gestione = new URLSearchParams(window.location.search).get('finestra') === 'gestione-progetti'
 createRoot(el).render(
   <ConfineErrori>
-    <App />
+    {gestione ? <GestioneProgetti /> : <App />}
   </ConfineErrori>
 )
