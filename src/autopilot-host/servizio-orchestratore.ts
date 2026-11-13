@@ -80,6 +80,7 @@ import type { ArchivioAttesa } from './attesa-store'
 import { creaCambi, type Cambi } from '@shared/spinta-specialisti'
 import { attesaDopoScadenza, UNIONE_MAX_MS } from './tempi-unione'
 import { togliCopiaUnita } from './autopulizia'
+import { causaDelMotivo, chiaveCompito, COMPITI_PER_PAUSA_PC, colpaDelPc, fraseCausa, motivoBreve, motivoDelRisultato, pauseAiuti, pcInPausa, serieGuasti, type CausaFallimento } from '@shared/aiuto-esito'
 
 /** 0.89.4: dopo quanto il lavoro fermo sveglia l'autopilota. 11/11: senza un tetto di spinte (`lavoro-fermo.ts`). */
 export const FERMO_DOPO_MS = 3 * 60_000
@@ -287,7 +288,7 @@ export type ServizioUnico = {
    */
   aiutoGiro: (aiutanti: Aiutante[]) => LavoroAffidato[]
   /** 0.103.0: com'è andato un lavoro affidato (spedito, cosa fa, finito con il suo ramo, non riuscito). */
-  aiutoAvanza: (id: string, p: { stato?: 'spedito' | 'finito' | 'fallito'; attivita?: string; riepilogo?: string; ramo?: string; motivo?: string }) => boolean
+  aiutoAvanza: (id: string, p: { stato?: 'spedito' | 'finito' | 'fallito'; attivita?: string; riepilogo?: string; ramo?: string; motivo?: string; causa?: CausaFallimento }) => boolean
   /** k-48: chi lavora adesso sui posti del PC e chi aspetta, in ordine. */
   attesa: () => VistaAttesa
   /** La spinta a evento: cambia a ogni specialista che parte, finisce o cambia posto in lista. */
@@ -642,6 +643,17 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
     nelDialogo(ws, { quando: x.adesso(), da: 'lui', testo: `Il progetto non aveva il controllo delle versioni: il programma l’ha creato solo su questo PC (nessun invio, fuori i segreti come .env, le librerie e i file grandi${e.grandi.length > 0 ? `: ${e.grandi.length} file grandi` : ''}). Da adesso gli specialisti lavorano in parallelo, ognuno nella sua copia.` })
     return conGit(cwd)
   }
+  /** 13/11: il ramo di adesso ha almeno un commit? Senza, `git bundle` non ha niente da spedire. Si riguarda ogni minuto. */
+  const commitVisto = new Map<string, { si: boolean; il: number }>()
+  const conCommit = (cwd: string): boolean => {
+    if (x.git === undefined) return true
+    const v = commitVisto.get(cwd)
+    if (v !== undefined && Date.now() - v.il < 60_000) return v.si
+    let si = true
+    try { si = x.git(['rev-parse', '--verify', '--quiet', 'HEAD^{commit}'], cwd).codice === 0 } catch { si = true }
+    commitVisto.set(cwd, { si, il: Date.now() })
+    return si
+  }
   const conGit = (cwd: string): boolean => {
     if (x.git === undefined) return true
     const v = gitVisto.get(cwd)
@@ -785,9 +797,16 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
     // 12/11: i posti liberi di QUESTO workspace (il suo tetto, dentro quelli del PC). Prima contavano solo
     // quelli del PC, e con un autopilota solo i PC «posti liberi» non ricevevano mai lavoro.
     const liberiWs = Math.max(0, tettoDelWs(ws, true) - alLavoroQuiNel(ws, idUso))
-    const scelto = scegliPosto(aiutanti.lista.map((h) => ({ ...h, liberi: h.liberi - inPartenza(h.pcId) })), Math.min(liberiPc(idUso), liberiWs))
-    if (scelto === undefined) return undefined
     const compito = compitoDallaDescrizione(r.descrizione)
+    // 13/11: un progetto senza nemmeno un commit non si impacchetta: di là non partirebbe niente. Resta qui.
+    if (!conCommit(a.cwd)) return undefined
+    // 13/11: fuori i PC in pausa per questo compito, per questo progetto o per tutti (vedi `aiuto-esito.ts`).
+    // Prima lo stesso compito tornava allo stesso Aiutante ogni mezzo minuto, fallendo ogni volta.
+    const pause = pauseAiuti(affidati(), oraMs())
+    const chiave = chiaveCompito({ ...(compito !== undefined ? { compito } : {}), descrizione: r.descrizione })
+    const candidati = aiutanti.lista.filter((h) => pcInPausa(pause, h.pcId, ws, chiave) === undefined)
+    const scelto = scegliPosto(candidati.map((h) => ({ ...h, liberi: h.liberi - inPartenza(h.pcId) })), Math.min(liberiPc(idUso), liberiWs))
+    if (scelto === undefined) return undefined
     const l: LavoroAffidato = {
       id: `r${randomUUID().replace(/-/gu, '').slice(0, 12)}`,
       workspace: ws,
@@ -2867,6 +2886,8 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
         const righe: RigaSpecialista[] = [{ tipo: 'compito', testo: `${s.descrizione}\n\n(affidato a ${s.pc}: lavora là, il ramo torna qui)`, quando: s.inizio }]
         if (l?.attivita !== undefined) righe.push({ tipo: 'strumento', testo: l.attivita })
         if (l?.riepilogo !== undefined && l.riepilogo !== '') righe.push({ tipo: 'esito', testo: l.riepilogo, ...(l.fine !== undefined ? { quando: l.fine } : {}), ...(l.stato === 'fallito' ? { errore: true as const } : {}) })
+        // 13/11: il perché intero (frase, tipo del result, pezzo del testo e dello stderr), dietro lo specialista.
+        if (l?.stato === 'fallito' && l.motivo !== undefined) righe.push({ tipo: 'esito', testo: `Non riuscito su ${l.pcNome}: ${l.motivo}`, ...(l.fine !== undefined ? { quando: l.fine } : {}), errore: true as const })
         return { id, trovata: true, righe }
       }
       const f = trovaTrascrizione(x.cartellaClaude ?? process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude'), u.cwd, { id: s.id, ...(s.agente !== undefined ? { agente: s.agente } : {}) })
@@ -2956,18 +2977,45 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       const l = affidati().find((v) => v.id === id)
       if (l === undefined || l.stato === 'finito' || l.stato === 'fallito') return false
       const chiuso = p.stato === 'finito' || p.stato === 'fallito'
+      const fallito = p.stato === 'fallito'
+      // 13/11: il perché resta nel lavoro (e quindi nel file, anche dopo un riavvio): ne seguono le pause.
+      // Un Aiutante di prima (1.0.1) manda solo «lo specialista ha chiuso con un errore», ma il testo del
+      // result della CLI arriva come riepilogo: il perché si legge da lì.
+      const nudo = p.motivo === undefined || p.motivo.trim() === fraseCausa('sconosciuta')
+      const dalRiepilogo = fallito && nudo && p.riepilogo !== undefined && p.riepilogo.trim() !== '' ? motivoDelRisultato({ testo: p.riepilogo }) : undefined
+      const motivo = fallito ? (dalRiepilogo?.motivo ?? p.motivo ?? fraseCausa('sconosciuta')).slice(0, 1000) : undefined
+      const causa: CausaFallimento | undefined = fallito ? (dalRiepilogo?.causa ?? p.causa ?? causaDelMotivo(motivo)) : undefined
       const nuovo: LavoroAffidato = {
         ...l,
         ...(p.stato !== undefined ? { stato: p.stato } : {}),
         ...(p.attivita !== undefined ? { attivita: p.attivita.slice(0, 200) } : {}),
+        // Nella vista la frase corta; il motivo intero sta nella conversazione dello specialista.
+        ...(motivo !== undefined ? { attivita: `non riuscito: ${motivoBreve(motivo)}`.slice(0, 200), motivo } : {}),
+        ...(causa !== undefined ? { causa } : {}),
         ...(p.riepilogo !== undefined ? { riepilogo: p.riepilogo.slice(0, 20_000) } : {}),
         ...(p.ramo !== undefined ? { ramo: p.ramo } : {}),
         ...(chiuso ? { fine: x.adesso() } : {})
       }
+      const seriePrima = serieGuasti(affidati(), l.pcId).compiti
       archivioAiuti.scrivi(affidati().map((v) => (v.id === id ? nuovo : v)))
       cambiSpecialisti.segna()
       if (chiuso) {
-        console.info(`[aiuto] ${l.workspace} — ${l.compito ?? l.id} da ${l.pcNome}: ${p.stato}${p.ramo !== undefined ? `, ramo ${p.ramo}` : ''}${p.motivo !== undefined ? ` (${p.motivo.slice(0, 160)})` : ''}`)
+        // 13/11: il motivo intero nel registro di questo PC (prima 160 caratteri di «ha chiuso con un errore»).
+        const riga = `[aiuto] ${l.workspace} — ${l.compito ?? l.id} da ${l.pcNome}: ${p.stato}${p.ramo !== undefined ? `, ramo ${p.ramo}` : ''}${motivo !== undefined ? ` — ${motivo}` : ''}`
+        if (fallito) console.error(riga)
+        else console.info(riga)
+        if (fallito) {
+          const pause = pauseAiuti(affidati(), oraMs()).filter((q) => q.tipo !== 'spedizione' && q.pcId === l.pcId)
+          const pausaPc = pause.find((q) => q.tipo === 'pc')
+          const pausaProgetto = pause.find((q) => q.tipo === 'progetto' && q.workspace === l.workspace)
+          if (pausaPc !== undefined) console.error(`[aiuto] ${l.pcNome} in pausa per tutti i progetti fino alle ${new Date(pausaPc.fino).toISOString()}: ${COMPITI_PER_PAUSA_PC} compiti diversi falliti di fila (${pausaPc.perche})`)
+          else if (pausaProgetto !== undefined) console.error(`[aiuto] ${l.pcNome} in pausa per ${l.workspace} fino alle ${new Date(pausaProgetto.fino).toISOString()}: lo stesso compito è fallito due volte là (${pausaProgetto.perche})`)
+          // Una notifica sola, quando la serie arriva a 3 (non a ogni fallimento dopo), con il perché.
+          if (causa !== undefined && colpaDelPc(causa) && seriePrima < COMPITI_PER_PAUSA_PC && serieGuasti(affidati(), l.pcId).compiti >= COMPITI_PER_PAUSA_PC) {
+            const a = unicoDi(l.workspace)
+            if (a !== undefined) void x.avvisa('avviso', a, `${l.pcNome} non riesce a fare i lavori affidati (${COMPITI_PER_PAUSA_PC} di fila): resta in pausa mezz’ora, i lavori li fa questo PC o un altro. Perché: ${motivoBreve(motivo ?? '')}`).catch(() => { /* resta la riga nel registro */ })
+          }
+        }
         suFlusso(l.workspace, [{ tipo: 'specialista-finito', specialista: specialistaAffidato(nuovo) }], orchestratore.stato(l.workspace))
         // Lo specialista di là non ha un Agent qui che torna all'autopilota: glielo dice il programma.
         evento(l.workspace, {
@@ -2976,7 +3024,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
           chat: l.id,
           testo: p.stato === 'finito'
             ? `${l.compito ?? 'il lavoro'} affidato a ${l.pcNome} è finito${p.ramo !== undefined ? ` (ramo ${p.ramo}, già qui: il programma lo prova e lo unisce da solo)` : ' senza commit'}. Riepilogo:\n${(p.riepilogo ?? '').slice(0, 4000)}`
-            : `${l.compito ?? 'il lavoro'} affidato a ${l.pcNome} non è riuscito: ${(p.motivo ?? 'motivo sconosciuto').slice(0, 300)}. Rilancialo (il programma sceglie di nuovo dove).${p.riepilogo !== undefined && p.riepilogo !== '' ? `\nRiepilogo:\n${p.riepilogo.slice(0, 2000)}` : ''}`
+            : `${l.compito ?? 'il lavoro'} affidato a ${l.pcNome} non è riuscito: ${(motivo ?? 'motivo sconosciuto').slice(0, 400)}. ${causa !== undefined && colpaDelPc(causa) ? `Non è colpa del compito: rilancialo uguale, il programma per un po’ non lo rimanda a ${l.pcNome} (lo fa qui o su un altro PC).` : 'Rilancialo (il programma sceglie di nuovo dove, e per un po’ non lo rimanda a quel PC).'}${p.riepilogo !== undefined && p.riepilogo !== '' ? `\nRiepilogo:\n${p.riepilogo.slice(0, 2000)}` : ''}`
         }, true)
       }
       return true

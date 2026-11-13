@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { creaLavoratoreAiuto, type LavoratoreAiuto } from './aiuto-lavoratore'
+import { causaValida } from '@shared/aiuto-esito'
 import { lavoroAffidatoValido, modoAiutoValido, programmaAiuto, TETTO_CORPO_PEZZO, type Aiutante, type LavoroAffidato } from '@shared/aiuto-rete'
 import { createHash } from 'node:crypto'
 import { dirname, join } from 'node:path'
@@ -1249,7 +1250,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             ...(typeof corpo?.attivita === 'string' ? { attivita: corpo.attivita } : {}),
             ...(typeof corpo?.riepilogo === 'string' ? { riepilogo: corpo.riepilogo } : {}),
             ...(typeof corpo?.ramo === 'string' ? { ramo: corpo.ramo } : {}),
-            ...(typeof corpo?.motivo === 'string' ? { motivo: corpo.motivo } : {})
+            ...(typeof corpo?.motivo === 'string' ? { motivo: corpo.motivo } : {}),
+            ...(causaValida(corpo?.causa) ? { causa: corpo.causa } : {})
           }
           rispondi(res, 200, { fatto: servizio().aiutoAvanza(id, p) })
           return

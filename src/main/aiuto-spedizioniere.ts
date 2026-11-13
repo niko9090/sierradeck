@@ -5,6 +5,7 @@ import {
   autoreValido, idLavoroValido, lavoroAffidatoValido, modoAiutoValido, programmaAiuto, PACCHETTO_MAX_BYTE, PEZZO_BYTE, quantiPezzi, ramoDiRitorno,
   SILENZIO_MAX_MS, type Aiutante, type LavoroAffidato, type VistaLavoroAiutato
 } from '@shared/aiuto-rete'
+import { causaDelMotivo, fraseCausa, type CausaFallimento } from '@shared/aiuto-esito'
 
 /**
  * **Lo spedizioniere** (0.103.0): il pezzo del programma che porta a un altro
@@ -54,6 +55,15 @@ function gitVero(args: string[], cwd: string): Promise<string> {
 }
 
 const testo = (e: unknown): string => (e instanceof Error ? e.message : String(e)).replace(/\s+/gu, ' ').slice(0, 300)
+
+/** 13/11: il progetto non si impacchetta qui (colpa del progetto, non del PC che aiuta: non va messo fuori). */
+class ProgettoNonSpedibile extends Error {}
+
+/** 13/11: il peso del pacchetto da leggere nel registro: «0 MB» per un progetto piccolo sembrava un pacchetto vuoto. */
+export function pesoInParole(byte: number): string {
+  if (byte < 1024 * 1024) return `${Math.max(1, Math.round(byte / 1024))} KB`
+  return `${Math.round(byte / 1048576)} MB`
+}
 
 export function creaSpedizioniere(d: DipendenzeSpedizioniere): { giro: () => Promise<void>; ferma: () => void; inMano: () => string[] } {
   const git = d.git ?? gitVero
@@ -105,13 +115,18 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): { giro: () => Pro
   }
 
   const spedisci = async (l: LavoroAffidato): Promise<void> => {
-    const ramoBase = (await git(['symbolic-ref', '--short', 'HEAD'], l.cwd)).trim()
-    const base = (await git(['rev-parse', ramoBase], l.cwd)).trim()
+    // 13/11: quello che si prepara qui (ramo, commit, pacchetto) se non riesce è un guaio del progetto,
+    // non del PC che aiuta: si dice così, e quel PC non va messo fuori.
+    const qui = async <T>(f: () => Promise<T>): Promise<T> => { try { return await f() } catch (err) { throw new ProgettoNonSpedibile(testo(err)) } }
+    const ramoBase = (await qui(() => git(['symbolic-ref', '--short', 'HEAD'], l.cwd))).trim()
+    const base = (await qui(() => git(['rev-parse', '--verify', `${ramoBase}^{commit}`], l.cwd))).trim()
     mkdirSync(d.cartella, { recursive: true })
     const file = join(d.cartella, `${l.id}.bundle`)
     try {
-      await git(['bundle', 'create', file, ramoBase], l.cwd)
+      await qui(() => git(['bundle', 'create', file, ramoBase], l.cwd))
       const byte = statSync(file).size
+      // Un pacchetto vuoto non apre niente di là (git di solito lo rifiuta già): meglio dirlo qui.
+      if (byte === 0) throw new ProgettoNonSpedibile(`il pacchetto del progetto è vuoto (${byte} byte)`)
       if (byte > PACCHETTO_MAX_BYTE) throw new Error(`il progetto pesa ${Math.round(byte / 1048576)} MB: troppo da spedire`)
       const totale = quantiPezzi(byte)
       const buf = Buffer.alloc(PEZZO_BYTE)
@@ -135,7 +150,7 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): { giro: () => Pro
         prompt: l.prompt, sistema: l.sistema, modello: l.modello, strumenti: l.strumenti, ruolo: l.ruolo, descrizione: l.descrizione,
         ...(autore !== undefined ? { autore } : {})
       })
-      log(`${l.id} (${l.compito ?? l.ruolo}): progetto spedito a ${l.pcNome} (${Math.round(byte / 1048576)} MB), parte lo specialista`)
+      log(`${l.id} (${l.compito ?? l.ruolo}): progetto spedito a ${l.pcNome} (${pesoInParole(byte)}), parte lo specialista`)
       await avanza(l.id, { stato: 'spedito', attivita: 'arrivato, prepara la copia' })
     } finally { try { rmSync(file, { force: true }) } catch { /* resta */ } }
   }
@@ -161,10 +176,14 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): { giro: () => Pro
   const segui = async (l: LavoroAffidato): Promise<void> => {
     if (l.stato === 'da-spedire') {
       try { await spedisci(l) } catch (err) {
-        fuori.set(l.pcId, adesso() + FUORI_PER_MS)
-        posti = { lista: [], il: -Infinity }
+        const delProgetto = err instanceof ProgettoNonSpedibile
+        if (!delProgetto) {
+          fuori.set(l.pcId, adesso() + FUORI_PER_MS)
+          posti = { lista: [], il: -Infinity }
+        }
+        const causa: CausaFallimento = delProgetto ? 'progetto' : 'pc'
         blocco(`${l.id}: non spedito a ${l.pcNome}: ${testo(err)}`)
-        await avanza(l.id, { stato: 'fallito', motivo: `non sono riuscito a spedirlo a ${l.pcNome}: ${testo(err)}` })
+        await avanza(l.id, { stato: 'fallito', causa, motivo: delProgetto ? `${fraseCausa('progetto')} — ${testo(err)}` : `non sono riuscito a spedirlo a ${l.pcNome}: ${testo(err)}` })
         await d.chiama(l.pcId, '/api/aiuto/chiudi', { lavoro: l.id }).catch(() => undefined)
         return
       }
@@ -182,7 +201,7 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): { giro: () => Pro
         if (sconosciuto || adesso() - silenzioDa > SILENZIO_MAX_MS) {
           fuori.set(l.pcId, adesso() + FUORI_PER_MS)
           blocco(`${l.id} (${l.compito ?? l.ruolo}): perso su ${l.pcNome}: ${sconosciuto ? 'non ha più il lavoro' : 'non risponde'}`)
-          await avanza(l.id, { stato: 'fallito', motivo: sconosciuto ? `${l.pcNome} non ha più questo lavoro (si è riavviato?)` : `${l.pcNome} non risponde da ${Math.round(SILENZIO_MAX_MS / 60_000)} minuti` })
+          await avanza(l.id, { stato: 'fallito', causa: 'pc', motivo: sconosciuto ? `${l.pcNome} non ha più questo lavoro (si è riavviato?)` : `${l.pcNome} non risponde da ${Math.round(SILENZIO_MAX_MS / 60_000)} minuti` })
           // 12/11: «chiudi» anche qui, come alla fine e dopo una spedizione non riuscita: se quel PC
           // torna, o lo tiene ancora, toglie copia, ramo e pacchetti invece di lasciarli lì.
           await d.chiama(l.pcId, '/api/aiuto/chiudi', { lavoro: l.id }).catch(() => undefined)
@@ -194,15 +213,18 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): { giro: () => Pro
         if (v.stato === 'finito' || v.stato === 'fallito' || v.stato === 'fermato') {
           let ramo: string | undefined
           let motivo = v.motivo
+          // 13/11: la causa che dice quel PC; un PC di prima non la manda, e allora si legge dal motivo.
+          let causa: CausaFallimento | undefined = v.stato === 'fermato' ? 'fermato' : v.stato === 'fallito' ? (v.causa ?? causaDelMotivo(v.motivo)) : undefined
           if ((v.byte ?? 0) > 0) {
-            try { ramo = await ritira(l, v.byte!) } catch (err) { motivo = `il ramo non è tornato da ${l.pcNome}: ${testo(err)}`; log(`${l.id}: ${motivo}`) }
+            try { ramo = await ritira(l, v.byte!) } catch (err) { motivo = `il ramo non è tornato da ${l.pcNome}: ${testo(err)}`; causa = 'pc'; log(`${l.id}: ${motivo}`) }
           }
           const riuscito = v.stato === 'finito' && ((v.byte ?? 0) === 0 || ramo !== undefined)
           await avanza(l.id, {
             stato: riuscito ? 'finito' : 'fallito',
             ...(v.riepilogo !== undefined ? { riepilogo: v.riepilogo } : {}),
             ...(ramo !== undefined ? { ramo } : {}),
-            ...(motivo !== undefined ? { motivo } : {})
+            ...(motivo !== undefined ? { motivo } : {}),
+            ...(!riuscito && causa !== undefined ? { causa } : {})
           })
           ;(riuscito ? log : blocco)(`${l.id} (${l.compito ?? l.ruolo}) da ${l.pcNome}: ${riuscito ? 'finito' : `non riuscito${motivo !== undefined ? `: ${motivo}` : ''}`}${ramo !== undefined ? `, ramo ${ramo} preso` : ''}`)
           await d.chiama(l.pcId, '/api/aiuto/chiudi', { lavoro: l.id }).catch(() => undefined)

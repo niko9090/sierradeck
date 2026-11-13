@@ -1,3 +1,5 @@
+import { causaValida, type CausaFallimento } from './aiuto-esito'
+
 /**
  * **I posti liberi degli altri PC** (0.103.0, tappa 3 del lavoro a distanza).
  *
@@ -168,6 +170,8 @@ export type VistaLavoroAiutato = {
   ramo?: string
   byte?: number
   commit?: number
+  /** 13/11: la causa riconosciuta di un lavoro non riuscito (manca nei PC di prima: si legge dal motivo). */
+  causa?: CausaFallimento
 }
 
 /** Un lavoro affidato, dal lato di chi chiede (lo tiene il servizio, sopravvive ai riavvii). */
@@ -192,6 +196,9 @@ export type LavoroAffidato = {
   riepilogo?: string
   /** Il ramo arrivato qui, se lo specialista ha fatto commit. */
   ramo?: string
+  /** 13/11: perché non è riuscito (frase + dettagli), e la causa riconosciuta: decidono le pause (`aiuto-esito.ts`). */
+  motivo?: string
+  causa?: CausaFallimento
 }
 
 export function lavoroAffidatoValido(x: unknown): LavoroAffidato | undefined {
@@ -219,7 +226,9 @@ export function lavoroAffidatoValido(x: unknown): LavoroAffidato | undefined {
     ...(t('fine') !== undefined ? { fine: t('fine')! } : {}),
     ...(t('attivita') !== undefined ? { attivita: t('attivita')! } : {}),
     ...(t('riepilogo') !== undefined ? { riepilogo: t('riepilogo')! } : {}),
-    ...(ramoValido(o.ramo) ? { ramo: o.ramo } : {})
+    ...(ramoValido(o.ramo) ? { ramo: o.ramo } : {}),
+    ...(t('motivo') !== undefined ? { motivo: t('motivo')!.slice(0, 1000) } : {}),
+    ...(causaValida(o.causa) ? { causa: o.causa } : {})
   }
 }
 

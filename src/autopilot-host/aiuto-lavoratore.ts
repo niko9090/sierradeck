@@ -6,6 +6,7 @@ import {
   commitValido, idLavoroValido, LAVORO_MAX_MS, modelloAiuto, nomeProgettoSicuro, PEZZO_BYTE, PACCHETTO_MAX_BYTE,
   quantiPezzi, ramoDiRitorno, ramoValido, STRUMENTI_AIUTO, autoreValido, type AutoreGit, strumentiAmmessi, VIETATI_AIUTO, type LavoroOspitato, type StatoAiuto, type VistaLavoroAiutato
 } from '@shared/aiuto-rete'
+import { causaDalTesto, fraseCausa, motivoDelRisultato, type CausaFallimento } from '@shared/aiuto-esito'
 import type { AvviaProcesso } from './processo-claude'
 import { cancellaSicuraAsincrona } from '@shared/cancella-sicura'
 import { CARTELLA_PROVE } from '@shared/disco-prove'
@@ -50,7 +51,7 @@ export type RichiestaAvvio = {
 }
 
 /** 12/11: come è finito un lavoro, per chi ospita il lavoratore (l'Aiutante guarda il limite del piano). */
-export type FineLavoro = { id: string; stato: StatoAiuto; testo: string; motivo?: string; perPc?: string; ruolo?: string }
+export type FineLavoro = { id: string; stato: StatoAiuto; testo: string; motivo?: string; causa?: CausaFallimento; perPc?: string; ruolo?: string }
 
 type Lavoro = VistaLavoroAiutato & {
   progetto: string
@@ -422,8 +423,8 @@ export function creaLavoratoreAiuto(x: {
     const env: Record<string, string> = {}
     for (const [k, v] of Object.entries(process.env)) if (typeof v === 'string' && !k.startsWith('SIERRADECK_HOOK')) env[k] = v
     const proc = x.avvia({ args, cwd: copia, env })
-    let finale: { testo: string; errore: boolean } | undefined
-    const scadenza = setTimeout(() => { if (finale === undefined) { cambia(l, { motivo: 'ha superato le 3 ore' }); proc.uccidi() } }, LAVORO_MAX_MS)
+    let finale: { testo: string; errore: boolean; tipo?: string } | undefined
+    const scadenza = setTimeout(() => { if (finale === undefined) { cambia(l, { motivo: 'ha superato le 3 ore', causa: 'compito' }); proc.uccidi() } }, LAVORO_MAX_MS)
     scadenza.unref?.()
     l.ferma = () => proc.uccidi()
     proc.suRiga((riga) => {
@@ -440,7 +441,7 @@ export function creaLavoratoreAiuto(x: {
           } else if (c.type === 'text' && typeof c.text === 'string' && c.text.trim() !== '') l.attivita = corto(c.text, 140)
         }
       } else if (o.type === 'result') {
-        finale = { testo: typeof o.result === 'string' ? o.result : '', errore: o.is_error === true || o.subtype !== 'success' }
+        finale = { testo: typeof o.result === 'string' ? o.result : '', errore: o.is_error === true || o.subtype !== 'success', ...(typeof o.subtype === 'string' ? { tipo: o.subtype } : {}) }
         proc.uccidi()
       }
     })
@@ -460,17 +461,24 @@ export function creaLavoratoreAiuto(x: {
       byte = statSync(out).size
     }
     const riuscito = finale !== undefined && !finale.errore
+    // 13/11: il perché vero (la frase della causa, il tipo del result, un pezzo del suo testo e dello
+    // stderr). Prima era solo «lo specialista ha chiuso con un errore», e nessuno capiva cosa fosse.
+    const perche = riuscito || l.motivo !== undefined ? undefined
+      : finale === undefined
+        ? { motivo: `lo specialista si è chiuso senza finire (${corto(uscita.e, 200) || `uscita ${String(uscita.codice)}`})`, causa: causaDalTesto(uscita.e) }
+        : motivoDelRisultato({ ...(finale.tipo !== undefined ? { tipo: finale.tipo } : {}), testo: finale.testo, stderr: uscita.e, codice: uscita.codice })
+    if (perche !== undefined && finale === undefined && perche.causa !== 'sconosciuta') perche.motivo = `${fraseCausa(perche.causa)} — ${perche.motivo}`
     cambia(l, {
       stato: riuscito ? 'finito' : 'fallito',
       riepilogo: finale?.testo ?? '',
       ramo,
       byte,
       commit,
-      ...(riuscito ? {} : { motivo: l.motivo ?? (finale === undefined ? `lo specialista si è chiuso senza finire (${corto(uscita.e, 200) || `uscita ${String(uscita.codice)}`})` : 'lo specialista ha chiuso con un errore') }),
+      ...(perche !== undefined ? perche : {}),
       attivita: riuscito ? `finito, ${commit} commit` : 'non riuscito'
     })
-    log(`${l.id} (${progetto}): ${l.stato}, ${commit} commit, ${byte} byte da ritirare`)
-    try { x.suFine?.({ id: l.id, stato: l.stato, testo: finale?.testo ?? '', ...(l.motivo !== undefined ? { motivo: l.motivo } : {}), ...(l.perPc !== undefined ? { perPc: l.perPc } : {}), ...(l.ruolo !== undefined ? { ruolo: l.ruolo } : {}) }) } catch { /* chi ascolta non ferma il lavoro */ }
+    log(`${l.id} (${progetto}): ${l.stato}, ${commit} commit, ${byte} byte da ritirare${l.stato === 'fallito' && l.motivo !== undefined ? ` — ${l.motivo}` : ''}`)
+    try { x.suFine?.({ id: l.id, stato: l.stato, testo: finale?.testo ?? '', ...(l.motivo !== undefined ? { motivo: l.motivo } : {}), ...(l.causa !== undefined ? { causa: l.causa } : {}), ...(l.perPc !== undefined ? { perPc: l.perPc } : {}), ...(l.ruolo !== undefined ? { ruolo: l.ruolo } : {}) }) } catch { /* chi ascolta non ferma il lavoro */ }
     // La copia non serve più: il ramo è nel pacchetto (o non c'è niente da rimandare).
     // 12/11: se Windows la tiene bloccata, la riprende il giro di pulizia ogni 10 minuti.
     const tolta = await inProgetto(progetto, () => togliCopia(copia, repo, join(base, 'copie')))
@@ -529,8 +537,13 @@ export function creaLavoratoreAiuto(x: {
       log(`${l.id}: parte ${r.ruolo} per ${r.progetto} — ${r.descrizione.slice(0, 120)}`)
       void lancia(l, r).catch(async (err: unknown) => {
         log(`${l.id}: non riuscito: ${String(err).slice(0, 300)}`)
-        if (l.stato !== 'fermato') cambia(l, { stato: 'fallito', motivo: corto(err instanceof Error ? err.message : String(err), 300), attivita: 'non riuscito' })
-        try { x.suFine?.({ id: l.id, stato: l.stato, testo: '', ...(l.motivo !== undefined ? { motivo: l.motivo } : {}), ...(l.perPc !== undefined ? { perPc: l.perPc } : {}), ...(l.ruolo !== undefined ? { ruolo: l.ruolo } : {}) }) } catch { /* chi ascolta non ferma niente */ }
+        if (l.stato !== 'fermato') {
+          // 13/11: anche qui la causa (git che non apre il pacchetto, npm, un programma che manca), con la sua frase.
+          const grezzo = corto(err instanceof Error ? err.message : String(err), 300)
+          const causa = causaDalTesto(grezzo)
+          cambia(l, { stato: 'fallito', motivo: causa === 'sconosciuta' ? grezzo : `${fraseCausa(causa)} — ${grezzo}`, causa, attivita: 'non riuscito' })
+        }
+        try { x.suFine?.({ id: l.id, stato: l.stato, testo: '', ...(l.motivo !== undefined ? { motivo: l.motivo } : {}), ...(l.causa !== undefined ? { causa: l.causa } : {}), ...(l.perPc !== undefined ? { perPc: l.perPc } : {}), ...(l.ruolo !== undefined ? { ruolo: l.ruolo } : {}) }) } catch { /* chi ascolta non ferma niente */ }
         await pulisciCopia(l).catch(() => undefined)
       })
       return { ok: true }
@@ -545,7 +558,8 @@ export function creaLavoratoreAiuto(x: {
         ...(l.motivo !== undefined ? { motivo: l.motivo } : {}),
         ...(l.ramo !== undefined ? { ramo: l.ramo } : {}),
         ...(l.byte !== undefined ? { byte: l.byte } : {}),
-        ...(l.commit !== undefined ? { commit: l.commit } : {})
+        ...(l.commit !== undefined ? { commit: l.commit } : {}),
+        ...(l.causa !== undefined ? { causa: l.causa } : {})
       }
     },
     ritira(p) {

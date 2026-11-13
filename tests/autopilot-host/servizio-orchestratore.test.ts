@@ -915,6 +915,52 @@ describe('i posti degli altri PC (0.103.0, Aiuta la rete)', () => {
     expect((await (await posta('/aiuto/avanza', { id: l.id, stato: 'finito' })).json())).toEqual({ fatto: false })
   })
 
+  it('13/11: un compito fallito su un Aiutante non ci torna subito; il perché si vede; 3 compiti di fila = una notifica sola', async () => {
+    zitto()
+    const avvisi: string[] = []
+    await avviaServizio([ap()], { unioneDaSola: false, avvisa: async (_t, _a, testo) => { avvisi.push(testo ?? '') } })
+    const v = migra()
+    processi[0]!.emetti({ type: 'result', result: 'Pronto.', total_cost_usd: 0.001, session_id: 'sess-1', usage: { input_tokens: 100 } })
+    const compiti = ['k-34', 'k-35', 'k-36', 'k-37'].map((id) => ({ id, richiesta: 'r-1', titolo: id, criterio: 'c', dopo: [], peso: 2 as const, stato: 'da-fare' as const, creato: '2026-10-30T08:00:00.000Z' }))
+    orch.scriviPiano('Lavoro', { versione: 1, compiti })
+    const aiutante = { pcId: 'pc-aiutante', nome: 'Aiutante', modo: 'dedicato', liberi: 2, programma: 'aiutante' }
+    let n = 0
+    const lancia = async (compito: string): Promise<string> => {
+      await posta('/aiuto/giro', { aiutanti: [aiutante] })
+      const r = (await (await posta(`/hook/pretool?ap=${v.autopilota!}`, { session_id: 's', cwd: process.cwd(), hook_event_name: 'PreToolUse', tool_use_id: `tu-e${n++}`, tool_name: 'Agent', tool_input: { subagent_type: 'sviluppatore', description: `${compito}: x`, prompt: 'Fai.' } })).json()) as { hookSpecificOutput?: { permissionDecisionReason?: string } }
+      return r.hookSpecificOutput?.permissionDecisionReason ?? ''
+    }
+    const fallisci = async (compito: string): Promise<string> => {
+      const l = ((await (await posta('/aiuto/giro', { aiutanti: [aiutante] })).json()) as { lavori: Array<{ id: string; compito?: string }> }).lavori.find((x) => x.compito === compito)!
+      // Un Aiutante di prima (1.0.1): il motivo nudo, senza causa; il testo del result solo nel riepilogo.
+      await posta('/aiuto/avanza', { id: l.id, stato: 'spedito' })
+      await posta('/aiuto/avanza', { id: l.id, stato: 'fallito', motivo: 'lo specialista ha chiuso con un errore', riepilogo: 'Invalid API key · Please run /login' })
+      return l.id
+    }
+
+    expect(await lancia('k-34')).toContain('affidato a Aiutante')
+    const id = await fallisci('k-34')
+    // Il perché si vede: la frase corta accanto allo specialista, il motivo intero nella sua conversazione.
+    const vv = await vista()
+    expect(vv.specialisti.find((s) => s.id === id)?.attivita ?? '').toContain('non riuscito: su quel PC Claude Code non ha l’accesso')
+    const conv = (await (await fetch(url(`/orchestratore/specialista?ws=Lavoro&id=${id}`))).json()) as { righe: { testo: string }[] }
+    expect(conv.righe.some((r) => r.testo.includes('Invalid API key'))).toBe(true)
+    // Lo stesso compito non torna all'Aiutante: parte qui.
+    expect(await lancia('k-34')).not.toContain('affidato')
+    // Altri compiti sì, finché la serie non arriva a 3.
+    expect(await lancia('k-35')).toContain('affidato a Aiutante')
+    await fallisci('k-35')
+    expect(await lancia('k-36')).toContain('affidato a Aiutante')
+    expect(avvisi).toEqual([])
+    await fallisci('k-36')
+    // Tre compiti diversi falliti di fila: l'Aiutante è in pausa per tutti, con una notifica sola.
+    await attendi(() => avvisi.length === 1)
+    expect(avvisi[0]).toContain('Aiutante')
+    expect(avvisi[0]).toContain('accesso')
+    expect(await lancia('k-37')).not.toContain('affidato')
+    expect(avvisi).toHaveLength(1)
+  })
+
   it('i ruoli che non viaggiano (rilascio, chi legge soltanto) restano qui anche con un PC libero', async () => {
     zitto()
     await avviaServizio([ap()], { unioneDaSola: false })
