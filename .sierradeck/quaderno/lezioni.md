@@ -340,6 +340,7 @@
 - `eErroreDiRete` in src/shared/errori-rete.ts è l'unico elenco degli errori di rete, condiviso da aggiornamenti e autopilota: aggiungere i codici lì. _(2026-11-10)_
 - «Aiuta la rete» rimanda lo stesso compito a un PC con l'accesso Claude scaduto («OAuth session expired»): fallisce in pochi secondi e al rilancio va di nuovo lì (13/11, DESKTOP-O2DITVE). _(2026-11-13)_
 - Se «Aiuta la rete» manda un compito a un PC che fallisce sempre, l'Agent lanciato con isolation: "worktree" resta su questo PC (13/11, k-152). _(2026-11-13)_
+- Correzione: isolation "worktree" NON tiene l'Agent su questo PC (k-154 è andato lo stesso a un Aiutante). Finché il servizio non ha la correzione di k-152, il PC scelto è a caso. _(2026-11-13)_
 
 ## cancello
 
