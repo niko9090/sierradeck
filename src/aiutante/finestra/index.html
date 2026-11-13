@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
   <meta charset="utf-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:" />
   <title>SierraDeck Aiutante</title>
   <style>
     body { font-family: 'Segoe UI', sans-serif; background: #1d1f23; color: #e6e6e6; margin: 0; padding: 16px; font-size: 14px; }
@@ -18,11 +18,39 @@
     .aiuto { background: #3a3d44; border-radius: 50%; width: 20px; height: 20px; padding: 0; font-size: 12px; }
     .spiega { display: none; background: #262930; border-left: 3px solid #2f6fd6; padding: 6px 8px; margin: 4px 0; font-size: 12px; color: #c8c8c8; }
     .spiega.aperta { display: block; }
+    .testa { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+    .testa img { width: 44px; height: 44px; }
+    .testa h1 { margin: 0; }
+    .claude { border-radius: 8px; padding: 12px; margin: 10px 0; border: 1px solid #444; background: #262930; }
+    .claude.verde { border-color: #2f7d45; background: #1f2a22; }
+    .claude.rosso { border-color: #b3423b; background: #3a1f1f; }
+    .claude.giallo { border-color: #8a7330; background: #2e2a1d; }
+    .claude .stato { font-size: 16px; font-weight: 600; }
+    .claude .tasti { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    button.grande { font-size: 15px; padding: 9px 16px; background: #c2453c; }
+    .agg { display: flex; gap: 8px; align-items: center; margin: 4px 0; }
+    .pallino { width: 9px; height: 9px; border-radius: 50%; background: #e5a50a; display: inline-block; }
   </style>
 </head>
 <body>
-  <h1>SierraDeck Aiutante</h1>
-  <div class="nota" id="versione"></div>
+  <div class="testa">
+    <img id="logo" alt="" />
+    <div>
+      <h1>SierraDeck Aiutante</h1>
+      <div class="nota" id="versione"></div>
+    </div>
+  </div>
+
+  <div class="claude" id="claude">
+    <div class="riga"><span class="stato" id="claude-stato">Controllo Claude…</span><button class="aiuto" data-spiega="sp-claude">?</button></div>
+    <div class="spiega" id="sp-claude">L’Aiutante prova Claude Code davvero, con lo stesso comando dei lavori: all’avvio, ogni mezz’ora, dopo un lavoro fallito per l’accesso e quando premi «Ricontrolla». Finché la prova non va, dice agli altri PC che non ha posti, così non gli mandano lavori che fallirebbero. «Collega Claude» apre un terminale con «claude auth login»: si apre il browser, entri con il tuo account Claude, poi chiudi il terminale e l’Aiutante ricontrolla da solo.</div>
+    <div class="nota" id="claude-dettaglio"></div>
+    <div class="tasti">
+      <button class="grande" id="collega-claude">Collega Claude</button>
+      <button class="leggero" id="ricontrolla-claude">Ricontrolla</button>
+    </div>
+    <div class="nota" id="ultimo-fallito"></div>
+  </div>
 
   <h2>Collegamento <button class="aiuto" data-spiega="sp-rete">?</button></h2>
   <div class="spiega" id="sp-rete">L’Aiutante entra nella rete come un PC con SierraDeck: lo stesso account Google Drive e la stessa passphrase della cassaforte. Da lì gli altri PC lo vedono e gli affidano gli specialisti quando ha posti liberi, prima di ogni altro PC.</div>
@@ -58,7 +86,7 @@
   <div class="riga"><label for="pc-sviluppo">PC di sviluppo (per gli errori)</label><select id="pc-sviluppo"></select></div>
 
   <h2>Aggiornamenti ed errori</h2>
-  <div id="aggiornamento" class="nota"></div>
+  <div class="agg"><span class="pallino" id="agg-pallino" style="display: none"></span><span id="aggiornamento" class="nota"></span><button class="leggero" id="apri-agg">Apri</button></div>
   <div class="riga"><button class="leggero" id="cerca">Cerca aggiornamenti</button><button class="leggero" id="manda-errori">Manda gli errori ora</button><button class="leggero" id="registro">Apri il registro</button></div>
   <div class="nota" id="esito-azioni"></div>
 

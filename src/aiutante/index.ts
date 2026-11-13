@@ -1,6 +1,9 @@
 import { app, BrowserWindow, ipcMain, Menu, nativeImage, safeStorage, shell, Tray } from 'electron'
-import { existsSync } from 'node:fs'
+import { spawn } from 'node:child_process'
+import { existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { linkAmmesso, type NoteAggiornamento } from '@shared/note-aggiornamento'
+import { tavolozza } from '@shared/preferenze'
 import { aggiungiRuntimeAlPath } from '@shared/runtime-noti'
 import { ambientePulito } from '@shared/ambiente-figli'
 import { radiceLavoroAiuto } from '@shared/disco-prove'
@@ -10,11 +13,16 @@ import { gitPerLeChat } from '../main/git-nel-path'
 import { creaMisuratore } from '../autopilot-host/misura-pc'
 import { avviaProcessoReale, claudeCmd } from '../autopilot-host/processo-claude'
 import versioneJson from './versione.json'
-import { avviaAggiornamenti } from './aggiornamento'
+import { avviaAggiornamenti, type StatoAggiornamento } from './aggiornamento'
+import {
+  bloccoDaClaude, comandoAccesso, CONTROLLO_CLAUDE_MS, controllaClaude, esitoDaLavoro, serveProvaPiena, testoStatoClaude, type EsitoClaude
+} from './controllo-claude'
+import { creaFinestraAggiornamenti } from './finestra-aggiornamenti'
+import { NOVITA_AIUTANTE_URL, noteAiutante } from './novita-aiutante'
 import { creaInvioErrori, registroConStorico } from './errori-aiutante'
 import { creaNucleo } from './nucleo'
 import { apriPreferenzeAiutante } from './preferenze-aiutante'
-import { blocchiRete, inScarico, requisitiPersi, valutaRequisiti, type StatoRete, type VoceRequisito } from './regole'
+import { blocchiRete, inScarico, perLaFinestra, requisitiPersi, rigaAggiornamento, tooltipIcona, valutaRequisiti, type StatoRete, type VoceRequisito } from './regole'
 import { misuraRequisiti } from './requisiti'
 import { colleghiRete, erroreConRisposta, nomeDi, type ReteAiutante } from './rete'
 
@@ -47,6 +55,15 @@ if (!app.requestSingleInstanceLock()) {
   avvia()
 }
 
+/**
+ * Il simbolo dell'Aiutante (1.0.3: prima la finestra mostrava quello di
+ * Electron). Nel pacchetto `build/` sta dentro app.asar (`files` in
+ * electron-builder-aiutante.yml): Electron legge i file dall'asar anche per
+ * icone e nativeImage. Su Windows l'.ico (più grandezze), altrove il .png.
+ */
+const ICONA_FINESTRA = join(app.getAppPath(), 'build', process.platform === 'win32' ? 'icon.ico' : 'icon.png')
+const ICONA_VASSOIO = join(app.getAppPath(), 'build', 'icon.png')
+
 function avvia(): void {
   let finestra: BrowserWindow | undefined
   let tray: Tray | undefined
@@ -54,7 +71,8 @@ function avvia(): void {
   const apriFinestra = (): void => {
     if (finestra !== undefined && !finestra.isDestroyed()) { finestra.show(); finestra.focus(); return }
     finestra = new BrowserWindow({
-      width: 560, height: 720, title: 'SierraDeck Aiutante', autoHideMenuBar: true, show: true,
+      width: 560, height: 760, title: 'SierraDeck Aiutante', autoHideMenuBar: true, show: true,
+      ...(existsSync(ICONA_FINESTRA) ? { icon: ICONA_FINESTRA } : {}),
       webPreferences: { preload: join(__dirname, '../preload/index.js'), contextIsolation: true, sandbox: false }
     })
     // Chiudere la finestra non spegne l'Aiutante: resta vicino all'orologio a lavorare per gli altri PC.
@@ -78,6 +96,9 @@ function avvia(): void {
     const cartellaAiuto = join(dati, 'aiuto')
     let requisiti: { pronto: boolean; voci: VoceRequisito[] } | undefined
     const reale = avviaProcessoReale(claudeCmd())
+    // 1.0.3: Claude Code provato davvero (non solo il file delle credenziali). Finché non è `ok`: 0 posti.
+    let claude: EsitoClaude = { stato: 'controllo' }
+    let claudeInControllo = false
     let aggiornamenti: ReturnType<typeof avviaAggiornamenti> | undefined
     const automatici = (): boolean => preferenze.leggi().base.scaricaAggiornamentiAutomatico
     const nucleo = creaNucleo({
@@ -88,6 +109,15 @@ function avvia(): void {
       misura,
       regolazione: () => { const b = preferenze.leggi().base; return { ...(b.postiChat !== undefined ? { postiChat: b.postiChat } : {}), ...(b.postiScelti !== undefined ? { postiScelti: b.postiScelti } : {}) } },
       pronto: () => requisiti?.pronto === true,
+      claudeBloccato: () => (claude.stato === 'ok' ? undefined : testoStatoClaude(claude.stato)),
+      suFallito: (f) => {
+        const e = esitoDaLavoro(f.causa, f.motivo, Date.now())
+        if (e === undefined) return
+        if (claude.stato === 'ok') registro.errore(`[claude] un lavoro non è riuscito per ${testoStatoClaude(e.stato).toLowerCase()}: niente lavori nuovi finché la prova di Claude non torna buona`)
+        claude = e
+        // Si riprova subito con la prova piena: se era un caso, i posti tornano; se no, resta rosso.
+        setTimeout(() => { void ricontrollaClaude(true) }, 5_000).unref?.()
+      },
       inScarico: () => inScarico({ fase: aggiornamenti?.stato().fase ?? 'niente', automatici: automatici() }),
       log: (r) => registro.info(r),
       errore: (r) => registro.errore(r)
@@ -103,6 +133,38 @@ function avvia(): void {
     }
     void controllaRequisiti()
     setInterval(() => { void controllaRequisiti() }, 10 * 60_000).unref?.()
+
+    // La prova di Claude: con lo stesso `claude` e lo stesso ambiente dei lavori, in una cartella sua.
+    const cartellaProva = join(dati, 'prova-claude')
+    const ricontrollaClaude = async (forzata: boolean): Promise<void> => {
+      if (claudeInControllo) return
+      claudeInControllo = true
+      try {
+        mkdirSync(cartellaProva, { recursive: true })
+        const prima = claude.stato === 'controllo' ? undefined : claude
+        const piena = serveProvaPiena({ prima, forzata, inCorso: nucleo.lavoratore.inCorso(), tetto: nucleo.posti().tetto })
+        const nuovo = await controllaClaude({
+          claude: claudeCmd(),
+          env: { ...ambientePulito(process.env), ...gitPerLeChat() },
+          cartella: cartellaProva,
+          prima,
+          piena,
+          adesso: Date.now
+        })
+        if (nuovo.stato !== 'ok' && nuovo.stato !== 'controllo' && (prima === undefined || prima.stato === 'ok' || prima.stato !== nuovo.stato)) {
+          registro.errore(`[claude] ${testoStatoClaude(nuovo.stato)} su questo Aiutante: niente lavori finché non si sistema dalla sua finestra («Collega Claude»)${nuovo.estratto !== undefined ? ` (${nuovo.estratto})` : ''}`)
+        }
+        if (nuovo.stato === 'ok' && prima !== undefined && prima.stato !== 'ok') registro.info('[claude] Claude di nuovo collegato: l\'Aiutante riprende i lavori')
+        if (nuovo.stato === 'ok' && prima === undefined) registro.info(`[claude] Claude collegato (${piena ? 'prova piena' : 'stato'})`)
+        claude = nuovo
+      } catch (err) {
+        registro.info(`[claude] controllo non riuscito: ${String(err)}`)
+      } finally {
+        claudeInControllo = false
+      }
+    }
+    void ricontrollaClaude(true)
+    setInterval(() => { void ricontrollaClaude(false) }, CONTROLLO_CLAUDE_MS).unref?.()
 
     rete = colleghiRete({
       dati,
@@ -125,7 +187,8 @@ function avvia(): void {
         servizio: (percorso, corpo) => nucleo.servizio(percorso, corpo),
         nomePc: (pcId) => (rete !== undefined ? nomeDi(rete.postino, pcId) : undefined),
         programma: 'aiutante'
-      }
+      },
+      blocco: () => bloccoDaClaude(claude)
     })
     const r = rete
 
@@ -159,12 +222,70 @@ function avvia(): void {
       statoRetePrima = adesso
     }, 60_000).unref?.()
 
+    // ── La finestra degli aggiornamenti (1.0.3): la stessa del programma completo ──
+    const finestraAgg = creaFinestraAggiornamenti({
+      dati,
+      preload: join(__dirname, '../preload/aggiornamenti.js'),
+      ...(existsSync(ICONA_FINESTRA) ? { icona: ICONA_FINESTRA } : {}),
+      renderer: () => (process.env.ELECTRON_RENDERER_URL !== undefined
+        ? { url: `${process.env.ELECTRON_RENDERER_URL}/aggiornamenti.html`, file: '' }
+        : { file: join(__dirname, '../renderer/aggiornamenti.html') })
+    })
+    const statoAgg = (): StatoAggiornamento => aggiornamenti?.stato() ?? { fase: 'niente' }
+    const rispostaAgg = (): unknown => ({
+      agg: perLaFinestra(statoAgg()),
+      versione: VERSIONE,
+      scaricaAuto: automatici(),
+      inCorso: nucleo.lavoratore.inCorso(),
+      tavolozza: tavolozza(preferenze.leggi().base)
+    })
+    let aggiornaIcona = (): void => {}
+    const suCambioAgg = (s: StatoAggiornamento): void => {
+      finestraAgg.suStato(perLaFinestra(s))
+      finestraAgg.manda('aiutante-agg:stato', rispostaAgg())
+      // La barra nella barra delle applicazioni: lo scarico, poi via; «installo» senza misura.
+      const barra = s.fase === 'scarico' ? Math.max(0, Math.min(1, (s.progresso?.percento ?? 0) / 100)) : s.fase === 'installo' ? 2 : -1
+      finestraAgg.progresso(barra)
+      if (finestra !== undefined && !finestra.isDestroyed()) finestra.setProgressBar(barra)
+      aggiornaIcona()
+    }
     aggiornamenti = avviaAggiornamenti({
       registro,
       automatici,
       inCorso: () => nucleo.lavoratore.inCorso(),
-      primaDiInstallare: () => { staUscendo = true; storico.scriviOra(); r.ferma() },
-      attivo: app.isPackaged && prova === undefined
+      primaDiInstallare: () => { staUscendo = true; storico.scriviOra(); finestraAgg.chiudi(); r.ferma() },
+      attivo: app.isPackaged && prova === undefined,
+      suCambio: suCambioAgg
+    })
+    // Aperta, la finestra rilegge ogni pochi secondi (i lavori in corso cambiano la frase di «pronta»).
+    setInterval(() => { if (finestraAgg.stato().aperta) finestraAgg.manda('aiutante-agg:stato', rispostaAgg()) }, 3000).unref?.()
+    let noteInCache: { per: string; note: NoteAggiornamento } | undefined
+    ipcMain.handle('aiutante-agg:stato', () => rispostaAgg())
+    ipcMain.handle('aiutante-agg:note', async () => {
+      const nuova = statoAgg().versione
+      if (nuova === undefined) return undefined
+      if (noteInCache?.per === nuova) return noteInCache.note
+      let sorgente: string | undefined
+      try {
+        const risposta = await fetch(NOVITA_AIUTANTE_URL, { signal: AbortSignal.timeout(8000) })
+        if (risposta.ok) sorgente = await risposta.text()
+      } catch { /* senza rete: l'avviso dice dove leggerle */ }
+      const note = noteAiutante({ sorgente, installata: VERSIONE, nuova })
+      if (sorgente !== undefined) noteInCache = { per: nuova, note }
+      return note
+    })
+    ipcMain.handle('aiutante-agg:installa', (_e, confermato: unknown) => {
+      const e = aggiornamenti?.installaAdesso(confermato === true) ?? { esito: 'no' as const, motivo: 'Aggiornamenti non attivi.' }
+      if (e.esito === 'installa') registro.info(`[aggiornamenti] «Installa adesso» premuto (${nucleo.lavoratore.inCorso()} lavori in corso)`)
+      return e
+    })
+    ipcMain.handle('aiutante-agg:scarica', () => { aggiornamenti?.scarica(); return true })
+    ipcMain.handle('aiutante-agg:cerca', () => { aggiornamenti?.cerca(); return true })
+    ipcMain.handle('aiutante-agg:nascondi', () => { finestraAgg.nascondi() })
+    ipcMain.handle('aiutante-agg:letto', () => { finestraAgg.letto() })
+    ipcMain.handle('aiutante-agg:apriPagina', (_e, url: unknown) => {
+      const ok = typeof url === 'string' ? linkAmmesso(url) : undefined
+      if (ok !== undefined) void shell.openExternal(ok)
     })
 
     // Partire all'accensione (di serie sì): è un PC dedicato agli altri.
@@ -189,7 +310,9 @@ function avvia(): void {
         limiteFino: nucleo.limiteFino(),
         lavori: nucleo.ospitati(),
         requisiti: requisiti?.voci ?? [],
-        aggiornamento: aggiornamenti?.stato(),
+        claude: { ...claude, testo: testoStatoClaude(claude.stato), inControllo: claudeInControllo },
+        ultimoFallito: nucleo.ultimoFallito(),
+        aggiornamento: { riga: rigaAggiornamento(statoAgg()), nonLetto: finestraAgg.stato().nonLetto, errore: statoAgg().errore },
         preferenze: {
           postiChat: p.base.postiChat ?? 0,
           postiScelti: p.base.postiScelti ?? null,
@@ -230,30 +353,55 @@ function avvia(): void {
       return e
     })
     ipcMain.handle('aiutante:mandaErrori', () => invio.giro(true))
-    ipcMain.handle('aiutante:cercaAggiornamenti', () => { aggiornamenti?.cerca(); return true })
+    ipcMain.handle('aiutante:cercaAggiornamenti', () => { aggiornamenti?.cerca(); finestraAgg.apri(true); return true })
+    ipcMain.handle('aiutante:apriAggiornamenti', () => { finestraAgg.apri(true); return true })
+    ipcMain.handle('aiutante:ricontrollaClaude', async () => { await ricontrollaClaude(true); return statoCompleto() })
+    // «Collega Claude»: una finestra di PowerShell visibile con `claude auth login`; chiusa, si ricontrolla da soli.
+    ipcMain.handle('aiutante:collegaClaude', () => {
+      try {
+        const c = comandoAccesso(claudeCmd())
+        const figlio = spawn(c.comando, c.args, { detached: true, stdio: 'ignore', windowsHide: false, env: ambientePulito(process.env), cwd: cartellaProva })
+        figlio.on('error', (err) => registro.info(`[claude] terminale per l'accesso non aperto: ${String(err)}`))
+        figlio.on('exit', () => { void ricontrollaClaude(true) })
+        registro.info('[claude] aperto il terminale per rifare l\'accesso a Claude')
+        return { ok: true }
+      } catch (err) {
+        return { ok: false, messaggio: err instanceof Error ? err.message : String(err) }
+      }
+    })
     ipcMain.handle('aiutante:apriRegistro', () => shell.openPath(registro.cartella()))
 
     // ── L'icona vicino all'orologio ──
-    const icona = join(app.getAppPath(), 'build', 'icon.png')
     try {
-      tray = new Tray(existsSync(icona) ? nativeImage.createFromPath(icona) : nativeImage.createEmpty())
+      tray = new Tray(existsSync(ICONA_VASSOIO) ? nativeImage.createFromPath(ICONA_VASSOIO) : nativeImage.createEmpty())
       tray.setToolTip('SierraDeck Aiutante')
       const menu = (): Menu => Menu.buildFromTemplate([
         { label: 'Apri SierraDeck Aiutante', click: () => apriFinestra() },
+        { label: finestraAgg.stato().nonLetto ? 'Aggiornamenti… (novità)' : 'Aggiornamenti…', click: () => finestraAgg.apri(true) },
         { label: preferenze.leggi().inPausa ? 'Riprendi i lavori' : 'Metti in pausa', click: () => { preferenze.cambia({ inPausa: !preferenze.leggi().inPausa }); tray?.setContextMenu(menu()) } },
         { type: 'separator' },
         { label: 'Esci', click: () => { staUscendo = true; r.ferma(); app.quit() } }
       ])
       tray.setContextMenu(menu())
       tray.on('click', () => apriFinestra())
-      setInterval(() => {
+      let nonLettoPrima = false
+      aggiornaIcona = (): void => {
         const p = nucleo.posti()
-        tray?.setToolTip(`SierraDeck Aiutante — ${nucleo.lavoratore.inCorso()} lavori, ${p.liberi} posti liberi`)
-      }, 15_000).unref?.()
+        const a = statoAgg()
+        tray?.setToolTip(tooltipIcona({
+          lavori: nucleo.lavoratore.inCorso(), liberi: p.liberi,
+          ...(claude.stato !== 'ok' && claude.stato !== 'controllo' ? { claude: testoStatoClaude(claude.stato) } : {}),
+          aggiornamento: { fase: a.fase, ...(a.versione !== undefined ? { versione: a.versione } : {}), ...(a.progresso !== undefined ? { percento: a.progresso.percento } : {}) }
+        }))
+        // Il menu cambia solo quando cambia il pallino.
+        const nonLetto = finestraAgg.stato().nonLetto
+        if (nonLetto !== nonLettoPrima) { nonLettoPrima = nonLetto; tray?.setContextMenu(menu()) }
+      }
+      setInterval(() => aggiornaIcona(), 15_000).unref?.()
     } catch (err) { registro.info(`[icona] non creata: ${String(err)}`) }
 
     // All'accensione parte nascosto; aperto a mano, mostra la finestra.
     if (!process.argv.includes('--nascosto')) apriFinestra()
-    app.on('before-quit', () => { staUscendo = true; aggiornamenti?.ferma(); r.ferma() })
+    app.on('before-quit', () => { staUscendo = true; aggiornamenti?.ferma(); finestraAgg.chiudi(); r.ferma() })
   })
 }

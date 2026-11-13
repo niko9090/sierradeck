@@ -85,6 +85,28 @@ function useNoteAggiornamento(agg: StatoAggiornamento): NoteAggiornamento | unde
   return dati !== undefined && dati.per === nuova ? dati.note : undefined
 }
 
+/**
+ * Di chi è la finestra (13/11): SierraDeck (di serie) o SierraDeck Aiutante,
+ * che usa la stessa finestra con il suo nome, il suo registro e i suoi testi.
+ */
+export type MarchioAggiornamenti = {
+  nome: string
+  /** Il simbolo in testa; di serie quello di SierraDeck. */
+  logo?: React.ReactNode
+  /** Il tasto che installa; di serie «Installa e riavvia». */
+  testoInstalla?: string
+  /** Il «?» accanto al tasto che installa. */
+  aiutoInstalla?: React.ReactNode
+  /** La frase sotto «pronta»; di serie «Si installa solo quando premi …». */
+  notaPronto?: string
+  /** Le novità scritte della versione installata e di quelle prima («Sei aggiornato»); di serie `novita.ts`. */
+  novita?: { versione: string; righe: string[] }[]
+  /** Dove si riapre, per il fumetto della ×. */
+  riapri?: string
+}
+
+const SIERRADECK: MarchioAggiornamenti = { nome: 'SierraDeck' }
+
 export type AzioniAggiornamenti = {
   chiudi: () => void
   installa: () => void
@@ -112,14 +134,16 @@ function Segno(): React.JSX.Element {
  * Tutta la finestra, senza chiamate: lo stato e le note arrivano da fuori, i
  * tasti chiamano `azioni`. Così si prova con `renderToStaticMarkup`.
  */
-export function VistaAggiornamenti({ agg, vista, versione, scaricaAuto, note, azioni }: {
+export function VistaAggiornamenti({ agg, vista, versione, scaricaAuto, note, azioni, marchio = SIERRADECK }: {
   agg: StatoAggiornamento
   vista: VistaNovita
   versione: string
   scaricaAuto: boolean
   note: NoteAggiornamento | undefined
   azioni: AzioniAggiornamenti
+  marchio?: MarchioAggiornamenti
 }): React.JSX.Element {
+  const testoInstalla = marchio.testoInstalla ?? 'Installa e riavvia'
   const [fallitoChiuso, setFallitoChiuso] = useState(false)
   const nuova = conVersioneNuova(agg) ? agg.versione ?? '' : ''
   const installata = versione !== '' ? versione : note?.installata ?? ''
@@ -130,14 +154,14 @@ export function VistaAggiornamenti({ agg, vista, versione, scaricaAuto, note, az
   // Il registro: con un aggiornamento la nuova e le saltate (dalle note), senza la installata e le prima (da novita.ts).
   const registro = useMemo<VersioneRegistro[] | undefined>(() => {
     if (nuova !== '') return note !== undefined ? registroAggiornamento(note.note, note.installata !== '' ? note.installata : installata, nuova) : undefined
-    return installata !== '' ? registroInstallata(NOVITA, installata, analizzaRiga) : []
-  }, [nuova, note, installata])
+    return installata !== '' ? registroInstallata(marchio.novita ?? NOVITA, installata, analizzaRiga) : []
+  }, [nuova, note, installata, marchio.novita])
   const dove = note?.dove ?? PAGINA_VERSIONI
   const avviso = nuova !== '' ? note?.avviso : undefined
 
   const pronto = agg.fase === 'pronto'
   const primario = pronto
-    ? <button className="tasto tasto--primario" autoFocus onClick={azioni.installa}>{fallito !== undefined ? 'Riprova a installare' : 'Installa e riavvia'}</button>
+    ? <button className="tasto tasto--primario" autoFocus onClick={azioni.installa}>{fallito !== undefined ? 'Riprova a installare' : testoInstalla}</button>
     : agg.fase === 'disponibile' && !scaricaAuto
       ? <button className="tasto tasto--primario" autoFocus onClick={azioni.scarica}>Scarica</button>
       : agg.fase === 'errore'
@@ -148,23 +172,24 @@ export function VistaAggiornamenti({ agg, vista, versione, scaricaAuto, note, az
   return (
     <div className="fnov">
       <header className="fnov__testa">
-        <Segno />
+        {marchio.logo ?? <Segno />}
         <div className="fnov__intesta">
-          <span className="fnov__app">SierraDeck{agg.daTelefono === true ? ' · chiesto dal telefono' : ''}</span>
+          <span className="fnov__app">{marchio.nome}{agg.daTelefono === true ? ' · chiesto dal telefono' : ''}</span>
           <h1 className="fnov__titolo" aria-live="polite">{titolo}</h1>
           {testa.versioni !== '' ? <span className="fnov__versioni">{testa.versioni}</span> : null}
         </div>
-        <button className="fnov__chiudi" onClick={azioni.chiudi} title="Chiudi (Esc). Si riapre dal numero di versione in alto" aria-label="Chiudi">×</button>
+        <button className="fnov__chiudi" onClick={azioni.chiudi} title={`Chiudi (Esc). ${marchio.riapri ?? 'Si riapre dal numero di versione in alto'}`} aria-label="Chiudi">×</button>
       </header>
 
-      <Stato agg={agg} scaricaAuto={scaricaAuto} fallito={fallito} onNascondiFallito={() => setFallitoChiuso(true)} azioni={azioni} />
+      <Stato agg={agg} scaricaAuto={scaricaAuto} fallito={fallito} onNascondiFallito={() => setFallitoChiuso(true)} azioni={azioni} marchio={marchio} />
 
       <Registro registro={registro} installata={installata} avviso={avviso} />
 
       <footer className="fnov__piede">
         <button className="fnov__link" onClick={() => azioni.apri(dove)} title="Tutte le versioni su GitHub, con le note e gli installer">Tutte le versioni ▸</button>
         <span className="fnov__tasti">
-          {pronto ? (
+          {pronto && marchio.aiutoInstalla !== undefined ? <Aiuto di={testoInstalla}>{marchio.aiutoInstalla}</Aiuto> : null}
+          {pronto && marchio.aiutoInstalla === undefined ? (
             <Aiuto di="Installa e riavvia">
               Aspetto che le chat finiscano quello che hanno in mano (e il lavoro con il Drive, se c’è), le avviso, chiudo
               SierraDeck, installo e riparto da solo; al ritorno chat e autopiloti riprendono da dove erano. «Più tardi»:
@@ -188,12 +213,13 @@ export function VistaAggiornamenti({ agg, vista, versione, scaricaAuto, note, az
 }
 
 /** Lo stato: una frase, la barra con le misure, e gli avvisi. Le frasi lunghe dietro il «?». */
-export function Stato({ agg, scaricaAuto, fallito, onNascondiFallito, azioni }: {
+export function Stato({ agg, scaricaAuto, fallito, onNascondiFallito, azioni, marchio = SIERRADECK }: {
   agg: StatoAggiornamento
   scaricaAuto: boolean
   fallito: StatoAggiornamento['tentativoFallito']
   onNascondiFallito: () => void
   azioni: AzioniAggiornamenti
+  marchio?: MarchioAggiornamenti
 }): React.JSX.Element {
   const v = agg.versione ?? 'versione nuova'
   const misure = agg.fase === 'scarico' ? testoScaricamento(agg) : ''
@@ -230,7 +256,7 @@ export function Stato({ agg, scaricaAuto, fallito, onNascondiFallito, azioni }: 
       {agg.fase === 'pronto' ? (
         <p>
           {agg.errore !== undefined ? <><b>{agg.errore}</b>{' '}</> : null}
-          Scaricata. Si installa solo quando premi «Installa e riavvia».
+          {marchio.notaPronto ?? 'Scaricata. Si installa solo quando premi «Installa e riavvia».'}
         </p>
       ) : null}
       {agg.fase === 'attendo' ? (
@@ -247,7 +273,7 @@ export function Stato({ agg, scaricaAuto, fallito, onNascondiFallito, azioni }: 
           </Aiuto>
         </p>
       ) : null}
-      {agg.fase === 'installo' ? <p>SierraDeck si chiude e riparte da solo con la {v}: non serve fare niente.</p> : null}
+      {agg.fase === 'installo' ? <p>{marchio.nome} si chiude e riparte da solo con la {v}: non serve fare niente.</p> : null}
       {(agg.fase === 'attendo' || agg.fase === 'installo') && agg.fasiTesto !== undefined && agg.fasiTesto !== '' ? <p className="fnov__piccolo">{agg.fasiTesto}.</p> : null}
     </section>
   )

@@ -92,15 +92,15 @@ describe('da dove si aggiorna e dove ascolta', () => {
 
 describe('cosa serve all’Aiutante', () => {
   const tutto: MisureRequisiti = {
-    claude: { ok: true, versione: '2.1.0 (Claude Code)' }, claudeAccesso: true,
+    claude: { ok: true, versione: '2.1.0 (Claude Code)' },
     git: { ok: true, versione: 'git version 2.50' }, node: { ok: true, versione: 'v24' }, npm: { ok: true, versione: '11' },
     discoLibero: DISCO_MINIMO_BYTE * 4
   }
   it('con tutto: pronto', () => {
     expect(valutaRequisiti(tutto).pronto).toBe(true)
   })
-  it('senza l’accesso a Claude, senza git o con il disco pieno: non pronto, e dice cosa', () => {
-    for (const m of [{ ...tutto, claudeAccesso: false }, { ...tutto, git: { ok: false as const, motivo: 'non installato' } }, { ...tutto, discoLibero: 1024 }]) {
+  it('senza Claude Code, senza git o con il disco pieno: non pronto, e dice cosa', () => {
+    for (const m of [{ ...tutto, claude: { ok: false as const, motivo: 'non installato' } }, { ...tutto, git: { ok: false as const, motivo: 'non installato' } }, { ...tutto, discoLibero: 1024 }]) {
       const v = valutaRequisiti(m)
       expect(v.pronto).toBe(false)
       expect(v.voci.filter((x) => !x.ok)).toHaveLength(1)
@@ -108,10 +108,10 @@ describe('cosa serve all’Aiutante', () => {
   })
   it('un requisito perso va nello storico una volta sola (al cambio, non a ogni controllo)', () => {
     const prima = valutaRequisiti(tutto).voci
-    const dopo = valutaRequisiti({ ...tutto, claudeAccesso: false }).voci
-    expect(requisitiPersi(prima, dopo).map((v) => v.chiave)).toEqual(['accesso'])
+    const dopo = valutaRequisiti({ ...tutto, git: { ok: false, motivo: 'non installato' } }).voci
+    expect(requisitiPersi(prima, dopo).map((v) => v.chiave)).toEqual(['git'])
     expect(requisitiPersi(dopo, dopo)).toEqual([])
-    expect(requisitiPersi(undefined, dopo).map((v) => v.chiave)).toEqual(['accesso'])
+    expect(requisitiPersi(undefined, dopo).map((v) => v.chiave)).toEqual(['git'])
   })
 })
 

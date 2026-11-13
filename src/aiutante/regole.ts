@@ -1,6 +1,7 @@
 import { LAVORO_MAX_MS } from '@shared/aiuto-rete'
 import { attesaLimiteMs, azzeramentoDalTesto, eLimiteDelPiano } from '@shared/limite-del-piano'
 import { postiDalPc, type MisuraPc, type RegolazionePosti } from '@shared/posti-chat'
+import type { StatoAggiornamento as StatoFinestraAggiornamenti } from '../main/aggiornamenti'
 
 /**
  * **SierraDeck Aiutante**: le regole, tutte pure (si provano senza Electron,
@@ -44,7 +45,7 @@ export const DISCO_MINIMO_BYTE = 5 * 1024 ** 3
 
 // ---------------------------------------------------------------- posti
 
-export type PerchePosti = 'pronto' | 'requisiti' | 'aggiornamento' | 'limite' | 'pieno'
+export type PerchePosti = 'pronto' | 'claude' | 'requisiti' | 'aggiornamento' | 'limite' | 'pieno'
 
 /**
  * Quanti posti l'Aiutante dà agli altri PC adesso. Il tetto lo calcola il PC
@@ -60,11 +61,14 @@ export function postiAiutante(p: {
   regolazione?: RegolazionePosti
   scelti?: number
   pronto: boolean
+  /** 13/11 (1.0.3): Claude Code non va davvero (accesso scaduto, limite, CLI mancante): il motivo. */
+  claudeBloccato?: string
   inScarico: boolean
   limiteFino?: number
   adesso: number
 }): { liberi: number; tetto: number; perche: PerchePosti } {
   const tetto = postiDalPc(p.misura, p.inCorso, p.regolazione ?? 0, p.scelti).posti
+  if (p.claudeBloccato !== undefined) return { liberi: 0, tetto, perche: 'claude' }
   if (!p.pronto) return { liberi: 0, tetto, perche: 'requisiti' }
   if (p.inScarico) return { liberi: 0, tetto, perche: 'aggiornamento' }
   if (p.limiteFino !== undefined && p.limiteFino > p.adesso) return { liberi: 0, tetto, perche: 'limite' }
@@ -87,7 +91,11 @@ export function limiteDaFine(f: { stato: string; testo: string; motivo?: string 
 
 // ---------------------------------------------------------------- aggiornamenti
 
-export type FaseAggiornamento = 'niente' | 'scarico' | 'pronto'
+/**
+ * `disponibile`: c'è una versione nuova ma gli aggiornamenti automatici sono
+ * spenti (non si scarica da sola); `installo`: si sta chiudendo per installare.
+ */
+export type FaseAggiornamento = 'niente' | 'disponibile' | 'scarico' | 'pronto' | 'installo'
 
 /**
  * Cosa fare con un aggiornamento. Scaricato (`pronto`): l'Aiutante smette di
@@ -104,7 +112,87 @@ export function decidiInstallazione(p: { fase: FaseAggiornamento; automatici: bo
 
 /** Con un aggiornamento pronto (e gli automatici accesi) l'Aiutante non prende lavori nuovi. */
 export function inScarico(p: { fase: FaseAggiornamento; automatici: boolean }): boolean {
+  // «Installa adesso» (1.0.3): da quel momento niente lavori nuovi, automatici o no.
+  if (p.fase === 'installo') return true
   return p.fase === 'pronto' && p.automatici
+}
+
+/**
+ * «Installa adesso» (13/11, 1.0.3), a mano dalla finestra: anche con lavori in
+ * corso, dopo una conferma (quei lavori li riprende un altro PC: chi li ha
+ * chiesti vede l'Aiutante sparire e li riaffida). Solo con il file già
+ * scaricato.
+ */
+export function installaAdesso(p: { fase: FaseAggiornamento; inCorso: number; confermato: boolean }): { esito: 'installa' } | { esito: 'conferma'; domanda: string } | { esito: 'no'; motivo: string } {
+  if (p.fase === 'installo') return { esito: 'no', motivo: 'Sto già installando.' }
+  if (p.fase !== 'pronto') return { esito: 'no', motivo: 'Nessun aggiornamento scaricato da installare.' }
+  if (p.inCorso > 0 && !p.confermato) {
+    return { esito: 'conferma', domanda: p.inCorso === 1 ? '1 lavoro in corso verrà ripreso da un altro PC. Installo adesso?' : `${p.inCorso} lavori in corso verranno ripresi da un altro PC. Installo adesso?` }
+  }
+  return { esito: 'installa' }
+}
+
+/** I numeri di electron-updater mentre scarica (`download-progress`). */
+export type ProgressoScarico = { percento: number; scaricati: number; totale: number; velocita: number }
+
+/**
+ * Lo stato dell'Aiutante nella forma che legge la finestra degli
+ * aggiornamenti del programma completo (`FinestraAggiornamenti.tsx`): la
+ * stessa finestra, con le stesse fasi. `aggiornato` dopo una ricerca senza
+ * niente di nuovo, `cerco` mentre cerca, `errore` con l'ultimo errore.
+ */
+export function perLaFinestra(s: {
+  fase: FaseAggiornamento
+  versione?: string
+  errore?: string
+  cercando?: boolean
+  ultimaRicerca?: number
+  progresso?: ProgressoScarico
+}): StatoFinestraAggiornamenti {
+  const v = s.versione !== undefined ? { versione: s.versione } : {}
+  switch (s.fase) {
+    case 'disponibile': return { fase: 'disponibile', ...v }
+    case 'scarico': {
+      const p = s.progresso
+      return {
+        fase: 'scarico', ...v,
+        percento: p !== undefined ? Math.max(0, Math.min(100, Math.floor(p.percento))) : 0,
+        ...(p !== undefined && p.totale > 0 ? { scaricati: p.scaricati, totale: p.totale } : {}),
+        ...(p !== undefined && p.velocita > 0 ? { velocita: p.velocita } : {})
+      }
+    }
+    case 'pronto': return { fase: 'pronto', ...v }
+    case 'installo': return { fase: 'installo', ...v }
+    default:
+      if (s.cercando === true) return { fase: 'cerco' }
+      if (s.errore !== undefined) return { fase: 'errore', errore: s.errore }
+      return { fase: s.ultimaRicerca !== undefined ? 'aggiornato' : 'fermo' }
+  }
+}
+
+/** La riga corta nella finestra principale dell'Aiutante (il resto è nella finestra degli aggiornamenti). */
+export function rigaAggiornamento(s: { fase: FaseAggiornamento; versione?: string; progresso?: ProgressoScarico; cercando?: boolean }): string | undefined {
+  const v = s.versione ?? 'nuova versione'
+  switch (s.fase) {
+    case 'disponibile': return `C’è la ${v}`
+    case 'scarico': return `Aggiornamento in corso: ${v}, ${Math.floor(s.progresso?.percento ?? 0)}%`
+    case 'pronto': return `La ${v} è pronta da installare`
+    case 'installo': return `Installo la ${v}…`
+    default: return s.cercando === true ? 'Cerco aggiornamenti…' : undefined
+  }
+}
+
+/** Il tooltip dell'icona vicino all'orologio, con l'aggiornamento se c'è. */
+export function tooltipIcona(p: { lavori: number; liberi: number; claude?: string; aggiornamento?: { fase: FaseAggiornamento; percento?: number; versione?: string } }): string {
+  const a = p.aggiornamento
+  const parti = ['SierraDeck Aiutante']
+  if (p.claude !== undefined) parti.push(p.claude)
+  else parti.push(`${p.lavori} lavori, ${p.liberi} posti liberi`)
+  if (a?.fase === 'scarico') parti.push(`scarico ${a.versione ?? ''} ${Math.floor(a.percento ?? 0)}%`.replace(/\s+/gu, ' '))
+  else if (a?.fase === 'pronto') parti.push(`${a.versione ?? 'aggiornamento'} pronta`)
+  else if (a?.fase === 'installo') parti.push('installo l’aggiornamento')
+  // Windows taglia il tooltip a 127 caratteri.
+  return parti.join(' — ').slice(0, 127)
 }
 
 // ---------------------------------------------------------------- requisiti
@@ -112,8 +200,6 @@ export function inScarico(p: { fase: FaseAggiornamento; automatici: boolean }): 
 export type MisureRequisiti = {
   /** `claude --version`, o il motivo per cui non risponde. */
   claude: { ok: true; versione: string } | { ok: false; motivo: string }
-  /** Le credenziali di Claude Code ci sono (file delle credenziali o chiave nell'ambiente). */
-  claudeAccesso: boolean
   git: { ok: true; versione: string } | { ok: false; motivo: string }
   node: { ok: true; versione: string } | { ok: false; motivo: string }
   npm: { ok: true; versione: string } | { ok: false; motivo: string }
@@ -121,7 +207,7 @@ export type MisureRequisiti = {
   discoLibero?: number
 }
 
-export type VoceRequisito = { chiave: 'claude' | 'accesso' | 'git' | 'node' | 'npm' | 'disco'; nome: string; ok: boolean; dettaglio: string }
+export type VoceRequisito = { chiave: 'claude' | 'git' | 'node' | 'npm' | 'disco'; nome: string; ok: boolean; dettaglio: string }
 
 const gb = (b: number): string => `${(b / 1024 ** 3).toFixed(1)} GB`
 
@@ -129,7 +215,6 @@ const gb = (b: number): string => `${(b / 1024 ** 3).toFixed(1)} GB`
 export function valutaRequisiti(m: MisureRequisiti): { pronto: boolean; voci: VoceRequisito[] } {
   const voci: VoceRequisito[] = [
     { chiave: 'claude', nome: 'Claude Code installato', ok: m.claude.ok, dettaglio: m.claude.ok ? m.claude.versione : m.claude.motivo },
-    { chiave: 'accesso', nome: 'Claude Code con l’accesso fatto', ok: m.claudeAccesso, dettaglio: m.claudeAccesso ? 'credenziali trovate' : 'apri un terminale e scrivi «claude», poi fai l’accesso' },
     { chiave: 'git', nome: 'Git', ok: m.git.ok, dettaglio: m.git.ok ? m.git.versione : m.git.motivo },
     { chiave: 'node', nome: 'Node.js', ok: m.node.ok, dettaglio: m.node.ok ? m.node.versione : m.node.motivo },
     { chiave: 'npm', nome: 'npm', ok: m.npm.ok, dettaglio: m.npm.ok ? m.npm.versione : m.npm.motivo },

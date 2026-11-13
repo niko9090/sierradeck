@@ -1,5 +1,6 @@
 import { resolve } from 'node:path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
+import react from '@vitejs/plugin-react'
 import { credenzialiGoogle } from './electron.vite.config'
 
 /**
@@ -37,15 +38,18 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     build: {
       outDir: 'out-aiutante/preload',
-      rollupOptions: { input: { index: resolve('src/aiutante/preload.ts') } }
+      // 1.0.3: un preload a parte per la finestra degli aggiornamenti (solo gli aggiornamenti).
+      rollupOptions: { input: { index: resolve('src/aiutante/preload.ts'), aggiornamenti: resolve('src/aiutante/preload-aggiornamenti.ts') } }
     }
   },
   renderer: {
     root: resolve('src/aiutante/finestra'),
+    // 1.0.3: la finestra degli aggiornamenti è quella del programma completo (React).
+    plugins: [react()],
     resolve: { alias: { '@shared': resolve('src/shared') } },
     build: {
       outDir: resolve('out-aiutante/renderer'),
-      rollupOptions: { input: resolve('src/aiutante/finestra/index.html') }
+      rollupOptions: { input: { index: resolve('src/aiutante/finestra/index.html'), aggiornamenti: resolve('src/aiutante/finestra/aggiornamenti.html') } }
     }
   }
 })

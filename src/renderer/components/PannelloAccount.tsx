@@ -13,7 +13,7 @@ type Props = { onChiudi?: () => void; incorporato?: boolean }
 import { descriviProgresso, type ProgressoSync } from '../progresso-sync'
 import { ModaleConferma } from './ModaleConferma'
 import { ModalePosta } from './ModalePosta'
-import { eAiutante, pcVivo, type BattitoPc } from '@shared/posta'
+import { bloccoDiAiutante, eAiutante, pcVivo, type BattitoPc } from '@shared/posta'
 import { versionePcInBreve } from '@shared/salute'
 import { useLayoutStore } from '../state/layout'
 
@@ -575,6 +575,7 @@ export function AltriComputer(): React.JSX.Element | null {
             const vivo = pcVivo(b, adesso) === true
             // 12/11: SierraDeck Aiutante: niente chat, cartelle o cassetta; la sua versione è di un altro programma.
             if (eAiutante(b)) {
+              const blocco = bloccoDiAiutante(b)
               return (
                 <li key={b.pcId} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <span style={{ flex: 1, minWidth: 0 }}>
@@ -582,6 +583,7 @@ export function AltriComputer(): React.JSX.Element | null {
                     <span className="account__nota" style={{ margin: 0 }}>
                       {' '}· Aiutante · {vivo ? 'acceso' : `spento, ultimo segno ${quando(b.battito)}`} · versione {b.versione}
                     </span>
+                    {vivo && blocco !== undefined ? <span className="account__nota" style={{ margin: 0, color: 'var(--rosso, #ff7b72)' }}> · Aiutante: {blocco} (niente lavori finché non si sistema dalla sua finestra)</span> : null}
                   </span>
                 </li>
               )

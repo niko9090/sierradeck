@@ -1,3 +1,5 @@
+import logo from '../../../build/icon.png'
+
 /**
  * La finestra dell'Aiutante (12/11): HTML semplice, senza React. Rilegge lo
  * stato ogni pochi secondi e manda i cambi al processo principale.
@@ -16,7 +18,9 @@ type Stato = {
   limiteFino?: number
   lavori: Lavoro[]
   requisiti: Voce[]
-  aggiornamento?: { fase: string; versione?: string; errore?: string; ultimaRicerca?: number }
+  aggiornamento: { riga?: string; nonLetto: boolean; errore?: string }
+  claude: { stato: string; testo: string; estratto?: string; il?: number; da?: string; inControllo: boolean }
+  ultimoFallito?: { il: number; perPc?: string; causa: string; motivo: string }
   preferenze: { postiChat: number; postiScelti: number | null; scaricaAggiornamentiAutomatico: boolean; avvioAlLogin: boolean; inPausa: boolean; portaClient: number; pcSviluppo: string | null }
 }
 type Api = {
@@ -27,6 +31,9 @@ type Api = {
   mandaErrori: () => Promise<{ ok: boolean; messaggio: string }>
   cercaAggiornamenti: () => Promise<unknown>
   apriRegistro: () => Promise<unknown>
+  ricontrollaClaude: () => Promise<Stato>
+  collegaClaude: () => Promise<{ ok: boolean; messaggio?: string }>
+  apriAggiornamenti: () => Promise<unknown>
 }
 
 const api = (window as unknown as { aiutante: Api }).aiutante
@@ -43,8 +50,11 @@ for (const b of document.querySelectorAll<HTMLButtonElement>('button.aiuto')) {
   b.addEventListener('click', () => { const id = b.dataset.spiega; if (id !== undefined) el(id).classList.toggle('aperta') })
 }
 
+el<HTMLImageElement>('logo').src = logo
+
 const PERCHE: Record<string, string> = {
   pronto: 'pronto per gli altri PC',
+  claude: 'Claude non va (vedi sopra)',
   pieno: 'tutti i posti occupati',
   requisiti: 'manca qualcosa (vedi «Cosa serve»)',
   aggiornamento: 'aspetta di installare un aggiornamento',
@@ -80,10 +90,23 @@ function mostra(s: Stato): void {
     ? [voce('Controllo in corso…', 'attesa')]
     : s.requisiti.map((v) => voce(`${v.ok ? '✓' : '✗'} ${v.nome}: ${v.dettaglio}`, v.ok ? 'ok' : 'no'))))
 
+  // Claude: verde se va, rosso con il tasto grande se no.
+  const c = s.claude
+  const ora = (ms: number): string => new Date(ms).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+  el('claude').className = `claude ${c.stato === 'ok' ? 'verde' : c.stato === 'controllo' ? 'giallo' : 'rosso'}`
+  testo('claude-stato', c.inControllo ? 'Controllo Claude…' : c.stato === 'ok' ? '✓ Claude collegato' : `✗ ${c.testo}`)
+  const quando = c.il !== undefined ? `prova delle ${ora(c.il)}${c.da === 'lavoro' ? ' (da un lavoro fallito)' : ''}` : ''
+  testo('claude-dettaglio', [c.stato === 'ok' || c.stato === 'controllo' ? '' : c.stato === 'limite' ? 'Si riprova da solo; intanto niente lavori.' : 'Niente lavori finché non lo sistemi.', quando, c.estratto ?? ''].filter((x) => x !== '').join(' · '))
+  const tasto = el<HTMLButtonElement>('collega-claude')
+  tasto.style.display = c.stato === 'accesso' || c.stato === 'altro' ? 'inline-block' : 'none'
+  tasto.textContent = c.da === 'lavoro' || c.estratto?.includes('expired') === true ? 'Rifai l’accesso' : 'Collega Claude'
+  el<HTMLButtonElement>('ricontrolla-claude').disabled = c.inControllo
+  const f = s.ultimoFallito
+  testo('ultimo-fallito', f !== undefined ? `Ultimo lavoro non riuscito (${ora(f.il)}${f.perPc !== undefined ? `, per ${f.perPc}` : ''}): ${f.motivo}` : '')
+
   const a = s.aggiornamento
-  testo('aggiornamento', a === undefined || a.fase === 'niente'
-    ? `Nessun aggiornamento in attesa${a?.errore !== undefined ? ` (ultimo errore: ${a.errore})` : ''}.`
-    : a.fase === 'scarico' ? `Scarico la ${a.versione ?? 'nuova versione'}…` : `La ${a.versione ?? 'nuova versione'} è pronta: si installa appena finiscono i lavori in corso.`)
+  testo('aggiornamento', a.riga ?? (a.errore !== undefined ? `Aggiornamenti: ultimo errore (${a.errore.slice(0, 120)})` : `Versione ${s.versione}`))
+  el('agg-pallino').style.display = a.nonLetto ? 'inline-block' : 'none'
 
   // I campi si riempiono una volta: rileggere lo stato non deve cancellare quello che stai scrivendo.
   if (primaVolta) {
@@ -131,7 +154,15 @@ el('sblocca').addEventListener('click', () => {
   const campo = el<HTMLInputElement>('passphrase')
   void api.sblocca(campo.value).then((e) => { campo.value = ''; testo('esito-rete', e.ok ? 'Cassaforte aperta: l’Aiutante è nella rete.' : (e.messaggio ?? 'Non aperta.')); void rileggi() })
 })
-el('cerca').addEventListener('click', () => { void api.cercaAggiornamenti().then(() => testo('esito-azioni', 'Cerco: se c’è una versione nuova si scarica da sola.')) })
+el('cerca').addEventListener('click', () => { void api.cercaAggiornamenti() })
+el('apri-agg').addEventListener('click', () => { void api.apriAggiornamenti() })
+el('ricontrolla-claude').addEventListener('click', () => {
+  testo('claude-stato', 'Controllo Claude…')
+  void api.ricontrollaClaude().then(mostra).catch(() => undefined)
+})
+el('collega-claude').addEventListener('click', () => {
+  void api.collegaClaude().then((e) => testo('claude-dettaglio', e.ok ? 'Si è aperto un terminale: fai l’accesso nel browser, poi chiudi il terminale.' : `Terminale non aperto: ${e.messaggio ?? ''}`))
+})
 el('manda-errori').addEventListener('click', () => { void api.mandaErrori().then((e) => testo('esito-azioni', e.messaggio)) })
 el('registro').addEventListener('click', () => { void api.apriRegistro() })
 

@@ -109,3 +109,31 @@ describe('le rotte del collegamento dell’Aiutante', () => {
     expect(() => NESSUN_DISPOSITIVO.apriAccoppiamento()).toThrow()
   })
 })
+
+describe('1.0.3: Claude che non va e l’ultimo lavoro non riuscito', () => {
+  it('con Claude bloccato: zero posti e il primo pezzo si rifiuta', async () => {
+    const lav = lavoratoreFinto(0)
+    const n = creaNucleo({
+      cartella: 'non-usata', avvia: () => { throw new Error('mai nei test') }, misura,
+      regolazione: () => ({ postiScelti: 3 }), pronto: () => true, inScarico: () => false,
+      claudeBloccato: () => 'Claude non collegato o accesso scaduto',
+      log: () => {}, errore: () => {}, lavoratore: lav
+    })
+    expect(n.posti()).toMatchObject({ liberi: 0, perche: 'claude' })
+    await expect(n.servizio('/aiuto/pezzo', { lavoro: 'x', n: 0, totale: 1, dati: '' })).rejects.toThrow(/posti/)
+    expect(lav.pezzi).toBe(0)
+  })
+  it('un lavoro fallito: il motivo corto e la causa restano per la finestra, e chi ascolta lo sa', () => {
+    const visti: string[] = []
+    const n = creaNucleo({
+      cartella: 'non-usata', avvia: () => { throw new Error('mai nei test') }, misura,
+      regolazione: () => ({}), pronto: () => true, inScarico: () => false,
+      suFallito: (f) => visti.push(f.causa),
+      log: () => {}, errore: () => {}, lavoratore: lavoratoreFinto(0), adesso: () => 1000
+    })
+    n.suFine({ id: 'a1', stato: 'fallito', testo: '', motivo: 'su quel PC Claude Code non ha l’accesso fatto (o è scaduto): là va aperto un terminale, scritto «claude» e rifatto l’accesso (tipo error)', causa: 'accesso', perPc: 'PC-A' })
+    expect(n.ultimoFallito()).toMatchObject({ id: 'a1', causa: 'accesso', perPc: 'PC-A', il: 1000 })
+    expect(n.ultimoFallito()?.motivo).not.toContain('(tipo error)')
+    expect(visti).toEqual(['accesso'])
+  })
+})

@@ -112,6 +112,19 @@ export type BattitoPc = {
    * leggono (e non lo scrivono): per loro è un PC qualunque senza chat.
    */
   aiutante?: boolean
+  /**
+   * 13/11 (Aiutante 1.0.3): perché quell'Aiutante adesso non prende lavori
+   * («Claude non collegato o accesso scaduto», «limite del piano»…). Assente
+   * se va. Gli altri PC lo mostrano accanto al nome; i posti sono già 0.
+   */
+  bloccoAiutante?: string
+}
+
+/** Il motivo per cui un Aiutante non lavora, dal battito: solo una stringa corta vale. */
+export function bloccoDiAiutante(b: { aiutante?: unknown; bloccoAiutante?: unknown } | null | undefined): string | undefined {
+  if (!eAiutante(b)) return undefined
+  const x = (b as { bloccoAiutante?: unknown }).bloccoAiutante
+  return typeof x === 'string' && x.trim() !== '' ? x.trim().slice(0, 120) : undefined
 }
 
 /** 12/11: il battito è di SierraDeck Aiutante? Solo `true` vale: un campo storto o assente è un PC normale. */
