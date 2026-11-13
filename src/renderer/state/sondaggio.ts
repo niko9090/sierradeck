@@ -91,9 +91,26 @@ export function creaSondaggio<T>(leggi: () => Promise<T>, ms: number, nascostaMs
   }
 }
 
+/** Un valore letto, con il sondaggio da cui viene. */
+export type LettoDa<T> = { da: Sondaggio<T>; v: T | undefined }
+
+/**
+ * Pura: il valore da mostrare per il sondaggio `s`. Quello tenuto viene da un
+ * altro sondaggio (si è cambiato workspace, o PC): non vale, si usa l'ultimo
+ * di `s` (o niente finché non arriva).
+ *
+ * 13/11 (Nicholas: «ho aperto una chat remota e nella parte a destra con gli
+ * agenti c'era quello giusto e anche uno di un altro workspace»): prima lo
+ * stato restava quello del workspace di prima finché il nuovo non rispondeva,
+ * e per sempre se il PC remoto dava errore.
+ */
+export function valoreDelSondaggio<T>(tenuto: LettoDa<T>, s: Sondaggio<T>): T | undefined {
+  return tenuto.da === s ? tenuto.v : s.ultimo()
+}
+
 /** Il valore di un sondaggio in un componente: `undefined` finché non arriva il primo. */
 export function useSondaggio<T>(s: Sondaggio<T>): T | undefined {
-  const [v, setV] = useState<T | undefined>(() => s.ultimo())
-  useEffect(() => s.ascolta(setV), [s])
-  return v
+  const [tenuto, setTenuto] = useState<LettoDa<T>>(() => ({ da: s, v: s.ultimo() }))
+  useEffect(() => s.ascolta((v) => setTenuto({ da: s, v })), [s])
+  return valoreDelSondaggio(tenuto, s)
 }
