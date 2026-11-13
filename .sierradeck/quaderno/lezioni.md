@@ -91,6 +91,7 @@
 - se una correzione entra in main dopo un bump già fatto da un'altra chat, non fare un bump nuovo: controllare `gh release list` e, se la versione non è pubblicata, farla uscire con quella. _(2026-11-13)_
 - Prima di unire/pubblicare, `git log main..origin/main` può non essere vuoto anche con main pulito: altre chat spingono quaderno e release su origin; fermarsi e chiedere. _(2026-11-13)_
 - Dopo un cherry-pick di una correzione nata con un'altra versione, cercare nel resto del repo (test, quaderno) il vecchio numero: va corretto anche lì, non solo in package.json e novita.ts. _(2026-11-13)_
+- `gh release create --target` vuole lo sha COMPLETO (o un ramo): con lo sha abbreviato dà «target_commitish invalid». Crea anche il tag sul remoto. _(2026-11-13)_
 
 ## git
 
