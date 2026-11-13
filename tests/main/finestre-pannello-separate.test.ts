@@ -18,7 +18,7 @@ describe('le finestre pannello sono separate dalle finestre di chat', () => {
     expect(ipc).not.toContain('BrowserWindow.getAllWindows()')
     expect(index).toContain('finestreDiChat()')
     // E nemmeno le finestre di servizio (0.40.0: il ponte WebRTC, nascosto).
-    expect(pannelli).toContain('BrowserWindow.getAllWindows().filter((w) => !aperte.has(w.id) && !diServizio.has(w.id))')
+    expect(pannelli).toContain('BrowserWindow.getAllWindows().filter((w) => !aperte.has(w.id) && !diServizio.has(w.id) && !accessorie.has(w.id))')
   })
   it('stesse difese delle altre finestre, e nessun aggancio da chat', () => {
     expect(pannelli).toMatch(/contextIsolation: true/)

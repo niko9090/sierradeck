@@ -127,6 +127,15 @@ export function Console({
 }: Props): React.JSX.Element {
   const MODELLI = useModelli()
   // Il PIN dei workspace (0.49.0): il tasto destro sul nome del workspace.
+  // La finestra degli aggiornamenti (13/11): il pallino sul numero di versione finché c'è una notizia non guardata.
+  const [novitaNonLette, setNovitaNonLette] = useState(false)
+  useEffect(() => {
+    const f = window.gestore.finestraNovita
+    if (f === undefined) return
+    void f.stato().then((s) => setNovitaNonLette(s.nonLetto)).catch(() => undefined)
+    return f.suStato((s) => setNovitaNonLette(s.nonLetto))
+  }, [])
+  const apriStatoAggiornamento = (): void => { void window.gestore.finestraNovita?.apri({ tipo: 'aggiornamento' }).catch(() => undefined) }
   const [menuPinWs, setMenuPinWs] = useState<{ nome: string; x: number; y: number } | undefined>(undefined)
   const [pinWs, setPinWs] = useState<{ attivo: boolean; workspace: string[] }>({ attivo: false, workspace: [] })
   useEffect(() => {
@@ -450,10 +459,17 @@ export function Console({
         {/* La versione e il modo di cercare un aggiornamento quando si vuole:
             l'attesa automatica è ogni sei ore, e chi ha appena pubblicato non
             ha voglia di aspettarle. */}
+        {/* 13/11: apre la finestra degli aggiornamenti in basso a destra. Con una
+            notizia non guardata (pallino) o un aggiornamento in corso apre lo
+            stato; altrimenti le novità di questa versione. */}
         <button
-          className="versione"
-          onClick={onApriNovita}
-          title="Cosa è cambiato in questa versione"
+          className={`versione${novitaNonLette ? ' versione--nonletto' : ''}`}
+          onClick={() => {
+            if (novitaNonLette || spiaAggiornamento(aggiornamento) !== undefined) apriStatoAggiornamento()
+            else onApriNovita()
+          }}
+          title={novitaNonLette ? 'C’è una novità sull’aggiornamento: aprila' : 'Cosa è cambiato in questa versione'}
+          aria-label={novitaNonLette ? `Versione ${versione}: c’è una novità sull’aggiornamento` : `Versione ${versione}: cosa è cambiato`}
         >
           v{versione}
         </button>
@@ -461,20 +477,21 @@ export function Console({
             non c’è niente da dire: una spia che è sempre accesa non è una
             spia, è decorazione. */}
         {spiaAggiornamento(aggiornamento) !== undefined ? (
-          <span
-            className={`spia-agg spia-agg--${aggiornamento?.fase ?? "fermo"}`}
+          <button
+            className={`spia-agg spia-agg--tasto spia-agg--${aggiornamento?.fase ?? "fermo"}`}
+            onClick={apriStatoAggiornamento}
             title={
               aggiornamento?.daTelefono === true
-                ? 'Richiesto da un telefono accoppiato'
-                : 'Aggiornamento del programma'
+                ? 'Richiesto da un telefono accoppiato. Apre la finestra dell’aggiornamento'
+                : 'Apre la finestra dell’aggiornamento'
             }
           >
             {spiaAggiornamento(aggiornamento)}
-          </span>
+          </button>
         ) : null}
         <button
           className="tasto tasto--icona"
-          onClick={() => void window.gestore.aggiornamenti.cerca()}
+          onClick={() => { apriStatoAggiornamento(); void window.gestore.aggiornamenti.cerca() }}
           title="Cerca ora un aggiornamento"
         >
           ⟳

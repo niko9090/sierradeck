@@ -3,6 +3,7 @@ import { frenoDrive, MESSAGGIO_DRIVE_PIENO, RICONTROLLO_PIENO_MIN } from './cass
 import { nonRipartePerAltri } from '@shared/apertura-solo-utente'
 import { portaInVista, statoApertura } from '@shared/finestra-visibile'
 import { chiudiPannelliConLApp, finestreDiChat, finestreViveSenzaServizio, segnaFinestraDiServizio } from './finestre-pannello'
+import { chiudiFinestraNovita, finestraNovitaViva, impostaFinestraNovita, suStatoAggiornamento } from './finestra-novita'
 import { workspaceVisti } from './chat-vista'
 import { APP_ID, portePerLaProva } from './identita-app'
 import { scelteDiTerminale } from '@shared/scelte-terminale'
@@ -136,7 +137,7 @@ import { avviaRitiro, consegnaDaIdTesto, doveConsegnare, leggiConsegne, finestra
 import type { Chat } from './client-rotte'
 import { accendiAvvisi, ipcAvvisi } from './avvisi-avvio'
 import { leggiEsitoAltroPc, type EsitoAltroPc } from './risposta-verificata'
-import { creaAggiornamenti, leggiAggiornamentoAppenaFatto, type EsitoQuiete } from './aggiornamenti'
+import { ascoltaAnnunci, creaAggiornamenti, leggiAggiornamentoAppenaFatto, type EsitoQuiete } from './aggiornamenti'
 import { attesaMassimaMs, descriviAttesaDrive, lavoroAutomatico, percheNonFinito } from './attesa-drive'
 import { claudeDaAggiornare, notaClaude } from './claude-versione'
 import { contatoreDrive, cpuRamDa } from './risorse'
@@ -1049,7 +1050,7 @@ export function apriNuovaFinestra(): void {
   // L'ultima finestra di chat se n'e' andata davvero: le finestre pannello
   // vanno con lei (0.38.0), e al riavvio si riaprono.
   win.on('closed', () => {
-    if (finestreDiChat().filter((w) => !w.isDestroyed()).length === 0) chiudiPannelliConLApp()
+    if (finestreDiChat().filter((w) => !w.isDestroyed()).length === 0) { chiudiPannelliConLApp(); chiudiFinestraNovita() }
   })
 
   collegaFinestra(win, ptyClient)
@@ -1272,6 +1273,9 @@ if (!app.requestSingleInstanceLock()) {
       // campi e nella chat dell'autopilota dipendevano dal menu predefinito di
       // Electron (vedi `menu-modifica.ts`). Resta nascosto: torna premendo Alt.
       Menu.setApplicationMenu(Menu.buildFromTemplate(vociMenuApplicazione()))
+      // La finestra degli aggiornamenti in basso a destra (13/11): prima di ogni
+      // finestra, perché segue gli spostamenti di quelle che nascono.
+      impostaFinestraNovita({ preload: join(__dirname, '../preload/index.js') })
       // Prima le risorse di processo — handler `ipcMain`, PTY host, SQLite — che
       // sono una sola per applicazione; poi la finestra, che vi si collega. Se
       // l'ordine si invertisse, la seconda finestra tenterebbe di registrare una
@@ -5887,7 +5891,8 @@ if (!app.requestSingleInstanceLock()) {
       // decide l'utente. Il secondo «sì» esiste perché installare chiude il
       // programma con le chat aperte dentro.
       aggiornamenti = creaAggiornamenti(
-        () => finestreDiChat(),
+        // Anche la finestra degli aggiornamenti in basso a destra (13/11) riceve lo stato.
+        () => [...finestreDiChat(), ...finestraNovitaViva()],
         dati,
         // L'installer sostituisce i file che questi processi tengono aperti:
         // vanno chiusi prima, o l'installazione si ferma a metà e l'icona
@@ -6026,6 +6031,9 @@ if (!app.requestSingleInstanceLock()) {
         registro.info(`[aggiornamenti] un altro PC ha una versione piu nuova (${altre.join(', ')}): cerco subito`)
         void a.cerca()
       }, 60_000).unref?.()
+      // Una notizia nuova dell'aggiornamento apre la finestra in basso a destra (13/11).
+      ascoltaAnnunci(suStatoAggiornamento)
+      suStatoAggiornamento(aggiornamenti.stato())
       ipcMain.handle('aggiornamenti:stato', () => aggiornamenti?.stato() ?? { fase: 'fermo' })
       ipcMain.handle('aggiornamenti:cerca', () => aggiornamenti?.cerca())
       ipcMain.handle('aggiornamenti:scarica', () => aggiornamenti?.scarica())

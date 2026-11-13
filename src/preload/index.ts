@@ -21,6 +21,7 @@ import type { StatoLavoro } from '../main/cassaforte/lavoro-in-corso'
 import type { Consumi } from '@shared/consumi'
 import type { Anteprima } from '../main/anteprima'
 import type { StatoAggiornamento } from '../main/aggiornamenti'
+import type { VistaNovita } from '@shared/finestra-novita'
 import type { SpawnRequest } from '../main/validation'
 
 // `env` non e' piu' esposto: GESTORE_CLAUDE_PATH serviva al renderer solo per
@@ -738,6 +739,24 @@ contextBridge.exposeInMainWorld('gestore', {
       const h = (_e: unknown, s: StatoAggiornamento): void => cb(s)
       ipcRenderer.on('aggiornamenti:stato', h)
       return () => ipcRenderer.off('aggiornamenti:stato', h)
+    }
+  },
+  /** La finestra degli aggiornamenti in basso a destra (13/11). */
+  finestraNovita: {
+    apri: (vista?: VistaNovita): Promise<void> => ipcRenderer.invoke('finestra-novita:apri', vista ?? { tipo: 'aggiornamento' }),
+    nascondi: (): Promise<void> => ipcRenderer.invoke('finestra-novita:nascondi'),
+    letto: (): Promise<void> => ipcRenderer.invoke('finestra-novita:letto'),
+    stato: (): Promise<{ aperta: boolean; nonLetto: boolean }> => ipcRenderer.invoke('finestra-novita:stato'),
+    vista: (): Promise<VistaNovita> => ipcRenderer.invoke('finestra-novita:vista'),
+    suStato: (cb: (s: { aperta: boolean; nonLetto: boolean }) => void): (() => void) => {
+      const h = (_e: unknown, s: { aperta: boolean; nonLetto: boolean }): void => cb(s)
+      ipcRenderer.on('finestra-novita:stato', h)
+      return () => ipcRenderer.off('finestra-novita:stato', h)
+    },
+    suVista: (cb: (v: VistaNovita) => void): (() => void) => {
+      const h = (_e: unknown, v: VistaNovita): void => cb(v)
+      ipcRenderer.on('finestra-novita:vista', h)
+      return () => ipcRenderer.off('finestra-novita:vista', h)
     }
   },
   /**

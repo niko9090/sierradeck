@@ -5162,3 +5162,22 @@ label.gc-voce { cursor: pointer; }
 .altri-pc__testa { display: flex; align-items: center; gap: 6px; color: var(--testo); }
 .pan-barra__pc { border-bottom: 0; border-radius: 4px; margin-left: 6px; }
 .remoto__barra--sola { display: flex; align-items: center; gap: 8px; }
+
+/* ── La finestra degli aggiornamenti in basso a destra (13/11): una finestra vera, senza cornice. ── */
+.finestra-novita, .finestra-novita body { background: var(--chassis); }
+.fnov { height: 100vh; display: flex; flex-direction: column; border: 1px solid var(--incisione); background: var(--chassis); color: var(--testo); font-size: 13px; overflow: hidden; }
+.fnov__testa { flex: none; display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 12px; border-bottom: 1px solid var(--incisione); -webkit-app-region: drag; user-select: none; }
+.fnov__titolo { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fnov__nontrascina, .fnov__testa button { -webkit-app-region: no-drag; }
+.fnov__corpo { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; user-select: text; }
+.fnov__corpo p { margin: 0; line-height: 1.5; }
+.fnov__note { flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; }
+.fnov__corpo--note { overflow: hidden; }
+.fnov__piccolo { font-size: 12px; color: var(--testo-quieto); }
+.fnov__tasti { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.fnov__piede { margin-top: auto; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding-top: 8px; border-top: 1px solid var(--incisione); }
+.fnov__blocco { display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 6px; background: var(--luce-tenue); }
+.fnov .barra-agg { display: block; width: 100%; }
+/* Il pallino sul numero di versione: c'è una notizia dell'aggiornamento non ancora guardata. */
+.versione--nonletto::after { content: ''; display: inline-block; width: 7px; height: 7px; margin-left: 5px; border-radius: 50%; background: var(--ambra); vertical-align: middle; }
+.spia-agg--tasto { cursor: pointer; font: inherit; }

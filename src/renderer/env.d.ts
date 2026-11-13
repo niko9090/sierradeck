@@ -15,6 +15,7 @@ import type { NoteAggiornamento } from '@shared/note-aggiornamento'
 import type { Consumi } from '@shared/consumi'
 import type { Anteprima } from '../main/anteprima'
 import type { StatoAggiornamento } from '../main/aggiornamenti'
+import type { VistaNovita } from '@shared/finestra-novita'
 import type { AzioneChat, ChatArchiviata, ChatInRecupero, EsitoAzioni, VistaSpazio } from '@shared/gestione-chat'
 
 type ElencoProgetti = {
@@ -277,6 +278,16 @@ declare global {
         aggiornaAdesso: () => Promise<void>
         note: () => Promise<NoteAggiornamento | undefined>
         suStato: (cb: (s: StatoAggiornamento) => void) => () => void
+      }
+      /** La finestra degli aggiornamenti in basso a destra (13/11): opzionale, i finti dei test non la hanno. */
+      finestraNovita?: {
+        apri: (vista?: VistaNovita) => Promise<void>
+        nascondi: () => Promise<void>
+        letto: () => Promise<void>
+        stato: () => Promise<{ aperta: boolean; nonLetto: boolean }>
+        vista: () => Promise<VistaNovita>
+        suStato: (cb: (s: { aperta: boolean; nonLetto: boolean }) => void) => () => void
+        suVista: (cb: (v: VistaNovita) => void) => () => void
       }
       /** La gestione delle chat (0.79.0): le stesse risposte di /api/chat/gestione/… */
       chatGestione: {
