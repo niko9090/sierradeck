@@ -170,3 +170,8 @@ Corretto nella 0.99.0 (commit 976913be: un 502, 503 o 504 senza statusCode è un
 
 ## Gruppi 1-2: LAPTOP-E60QM2D1, 0.101.0, rename di impostazioni.json con EPERM e «Error occurred in handler for 'preferenze:imposta'»
 Corretto nella versione 0.101.1. I due gruppi sono lo stesso evento: l'EPERM della rinomina (file tenuto da un antivirus o da un sync) e il lancio non catturato del gestore IPC per lo stesso salvataggio fallito. Cause: lo store diceva «valgono fino alla chiusura» ma non teneva niente in memoria e `preferenze()` rileggeva il disco, quindi la scelta spariva; dopo il fallimento non c'era nessun ritentativo; il renderer ignorava l'errore con `.catch` vuoti. Ora: il valore resta in memoria e si riscrive da solo (1 s, 5 s, 30 s, poi ogni 2 minuti, o finché arriva una scrittura nuova); il gestore non lancia e restituisce `{ preferenze, salvato }`; il renderer mostra «Preferenze non salvate sul disco: riprovo da solo». Test: tests/main/impostazioni-store.test.ts, preferenze-imposta.test.ts, tests/renderer/preferenze-non-salvate.test.tsx.
+
+# Errori arrivati (lotto 20261113091024)
+
+## Gruppo 1: «[blocco] visitafacile — git locale non creato, gli specialisti lavorano uno alla volta: è la radice di un disco o la cartella dell’utente: non è un progetto»
+Corretto nella versione 0.105.2. Causa: `cartellaVietata` (src/autopilot-host/git-locale.ts) usava `path.relative` fra la cartella utente e il progetto; su Windows, con dischi diversi, `path.relative` dà un percorso assoluto e non uno relativo, quindi il progetto veniva scambiato per «radice di un disco o cartella dell’utente» e il git locale non veniva creato. Correzione in main (887b0778), test in tests/autopilot-host/git-locale-12-11.test.ts.
