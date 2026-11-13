@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { invioManda, SUGGERIMENTO_INVIO } from '@shared/invio-manda'
 import { MISURE, larghezzaEffettiva, larghezzaTrascinata, limita, massimoColonna, passoFreccia, suggerimentoBarra } from '@shared/misure-pannelli'
 import { useLarghezzaFinestra } from '../larghezza-finestra'
 import { quanteAspettano, richiestaRisposta, type Conversazione } from '@shared/domande-conversazioni'
@@ -400,14 +401,14 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
                   value={testo}
                   placeholder={aperta.segnaposto}
                   onChange={(e) => setTesto(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); scrivi() } }}
+                  onKeyDown={(e) => { if (invioManda({ key: e.key, shiftKey: e.shiftKey, isComposing: e.nativeEvent.isComposing, keyCode: e.nativeEvent.keyCode })) { e.preventDefault(); scrivi() } }}
                 />
                 <div className="chatap__tasti">
                   <button className="tasto tasto--primario" onClick={scrivi} disabled={inCorso || testo.trim() === ''}>
                     {inCorso ? 'Mando…' : aperta.risposta.via === 'rispondi' ? 'Rispondi' : 'Manda'}
                   </button>
                   <TastoMicrofono campo={campoScrivi} />
-                  <Aiuto di="mandare">Ctrl+Invio manda. Quando il programma riceve la risposta, la domanda sparisce da qui e si passa alla prossima che ti aspetta.</Aiuto>
+                  <Aiuto di="mandare">{SUGGERIMENTO_INVIO}. Quando il programma riceve la risposta, la domanda sparisce da qui e si passa alla prossima che ti aspetta.</Aiuto>
                 </div>
                 {nota !== undefined ? <div className="avviso">{nota.startsWith('Presa') ? '✓' : '⚠'} {nota}</div> : null}
                 {pinPer !== undefined ? (

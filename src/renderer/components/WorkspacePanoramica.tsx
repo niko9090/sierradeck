@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { invioManda, SUGGERIMENTO_INVIO } from '@shared/invio-manda'
 import type { Autopilota } from '@shared/autopilota'
 import type { Dormiente } from '@shared/migrazione-elenco'
 import {
@@ -420,9 +421,10 @@ export function PrimoMessaggio({ workspace, cwd, onRicarica }: { workspace: stri
       ) : (
         <>
           <div className="progetti__quieto">Aspetta il tuo primo messaggio.</div>
-          <textarea ref={campo} className="campo" rows={4} value={primo} onChange={(e) => setPrimo(e.target.value)} placeholder="Scrivigli cosa fare: lo mette in coda e comincia" />
+          <textarea ref={campo} className="campo" rows={4} value={primo} onChange={(e) => setPrimo(e.target.value)} placeholder="Scrivigli cosa fare: lo mette in coda e comincia"
+            onKeyDown={(e) => { if (invioManda({ key: e.key, shiftKey: e.shiftKey, isComposing: e.nativeEvent.isComposing, keyCode: e.nativeEvent.keyCode })) { e.preventDefault(); manda() } }} />
           <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <button className="tasto" disabled={primo.trim() === ''} onClick={manda}>Manda</button>
+            <button className="tasto" disabled={primo.trim() === ''} onClick={manda} title={SUGGERIMENTO_INVIO}>Manda</button>
             <TastoMicrofono campo={campo} />
           </span>
         </>

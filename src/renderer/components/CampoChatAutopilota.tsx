@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, useState } from 'react'
+import { invioManda, SUGGERIMENTO_INVIO } from '@shared/invio-manda'
 import { Aiuto } from './Aiuto'
 import { testoErroreDialogo } from '../errore-dialogo'
 import { TastoMicrofono } from './TastoMicrofono'
@@ -72,7 +73,7 @@ function CampoChatAutopilotaVero({ autopilotaId, onCambiato, campoPronto, invia 
         aria-label="scrivi all autopilota"
         onChange={(e) => setMessaggio(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) manda()
+          if (invioManda({ key: e.key, shiftKey: e.shiftKey, isComposing: e.nativeEvent.isComposing, keyCode: e.nativeEvent.keyCode })) { e.preventDefault(); manda() }
         }}
       />
       <div className="chatap__tasti">
@@ -80,7 +81,7 @@ function CampoChatAutopilotaVero({ autopilotaId, onCambiato, campoPronto, invia 
           className="tasto tasto--primario"
           disabled={inCorso || messaggio.trim() === ''}
           onClick={manda}
-          title="Ctrl+Invio manda"
+          title={SUGGERIMENTO_INVIO}
         >
           {inCorso ? 'Mando…' : 'Manda'}
         </button>

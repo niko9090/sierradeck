@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { invioManda, SUGGERIMENTO_INVIO } from '@shared/invio-manda'
 import { TastoMicrofono } from './TastoMicrofono'
 import { useLayoutStore } from '../state/layout'
 import { toccoScelta, type ApriChatAltrove, type SceltaScheda, type SchedaDomanda } from '@shared/scheda-domanda'
@@ -126,9 +127,9 @@ export function SchedaDomandaVista({
           placeholder={s.segnaposto}
           aria-label="Scrivi tu"
           onChange={(e) => setTesto(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); manda() } }}
+          onKeyDown={(e) => { if (invioManda({ key: e.key, shiftKey: e.shiftKey, isComposing: e.nativeEvent.isComposing, keyCode: e.nativeEvent.keyCode })) { e.preventDefault(); manda() } }}
         />
-        <button className="tasto tasto--primario" disabled={inCorso || testo.trim() === ''} onClick={manda} title="Ctrl+Invio">
+        <button className="tasto tasto--primario" disabled={inCorso || testo.trim() === ''} onClick={manda} title={SUGGERIMENTO_INVIO}>
           {inCorso ? 'Mando…' : etichettaManda}
         </button>
         <TastoMicrofono campo={campo} />
