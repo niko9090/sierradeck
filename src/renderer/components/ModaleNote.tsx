@@ -27,7 +27,7 @@ function PezzoVisto({ p }: { p: Pezzo }): React.JSX.Element {
   return <>{dentro}</>
 }
 
-function Pezzi({ pezzi }: { pezzi: Pezzo[] }): React.JSX.Element {
+export function Pezzi({ pezzi }: { pezzi: Pezzo[] }): React.JSX.Element {
   return <>{pezzi.map((p, i) => <PezzoVisto key={i} p={p} />)}</>
 }
 
@@ -48,7 +48,7 @@ function BloccoVisto({ b }: { b: Blocco }): React.JSX.Element {
 }
 
 /** Una versione: l'intestazione e le sue note, per esteso. */
-function Versione({ n, etichetta }: { n: NotaResa; etichetta: string }): React.JSX.Element {
+export function Versione({ n, etichetta }: { n: NotaResa; etichetta: string }): React.JSX.Element {
   return (
     <section style={{ marginBottom: 14 }}>
       <div className="serigrafia" style={{ marginBottom: 6 }}>{etichetta}</div>

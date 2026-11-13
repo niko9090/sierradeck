@@ -44,9 +44,6 @@ import { tavolozza, type Preferenze } from '@shared/preferenze'
 import { avvisiConsumi, type AvvisoConsumi } from '@shared/polso-chat'
 import { ModaleAccesso } from './components/ModaleAccesso'
 import { ModalePreparazione } from './components/ModalePreparazione'
-import { ModaleNote } from './components/ModaleNote'
-import { novitaConLeUltime } from '@shared/novita'
-import { noteDaNovita, type NotaResa, type NoteAggiornamento } from '@shared/note-aggiornamento'
 import type { StatoPreparazione } from '../main/preparazione'
 import { BandaAvvisi } from './components/BandaAvvisi'
 import { BandaRiassetto } from './components/BandaRiassetto'
@@ -877,23 +874,12 @@ export function App(): React.JSX.Element {
     window.addEventListener('sierradeck:gestione-chat', apri)
     return () => window.removeEventListener('sierradeck:gestione-chat', apri)
   }, [])
-  // La finestra delle note (0.39.0): o le novità della versione installata,
-  // chieste dal menu, o cosa cambia con l'aggiornamento pronto, da «Installa».
-  // All'avvio non si apre più da sola.
-  const [finestraNote, setFinestraNote] = useState<
-    { tipo: 'novita'; versione: string; note: NotaResa[] } | { tipo: 'installa'; versione: string; dati?: NoteAggiornamento } | undefined
-  >(undefined)
-  // Le novità della versione installata, richieste apposta: dalla 0.39.0
-  // all'avvio non si aprono più da sole. Si chiedono dal numero di versione
-  // in alto o dalle Impostazioni (che mandano `sierradeck:apri-novita`).
+  // Le novità e «cosa cambia» (0.39.0) stanno dal 13/11 nella finestra degli
+  // aggiornamenti in basso a destra, fuori dalla faccia del programma. Si
+  // chiedono dal numero di versione in alto o dalle Impostazioni (che mandano
+  // `sierradeck:apri-novita`); all'avvio non si aprono da sole.
   const apriNovita = useCallback((): void => {
-    window.gestore.sistema
-      .versione()
-      .then((v) => {
-        const n = novitaConLeUltime(v)
-        setFinestraNote({ tipo: 'novita', versione: n.versione, note: noteDaNovita([n, ...(n.altre ?? [])]) })
-      })
-      .catch(() => undefined)
+    void window.gestore.finestraNovita?.apri({ tipo: 'novita' }).catch(() => undefined)
   }, [])
   useEffect(() => {
     const h = (): void => apriNovita()
@@ -901,11 +887,7 @@ export function App(): React.JSX.Element {
     return () => window.removeEventListener('sierradeck:apri-novita', h)
   }, [apriNovita])
   const apriInstalla = useCallback((versione: string): void => {
-    setFinestraNote({ tipo: 'installa', versione })
-    window.gestore.aggiornamenti
-      .note()
-      .then((dati) => setFinestraNote((f) => (f?.tipo === 'installa' ? { ...f, dati: dati ?? { versione, installata: '', note: [], fonte: 'nessuna', dove: 'https://github.com/niko9090/sierradeck/releases', avviso: 'Gli aggiornamenti non sono attivi qui: le note le trovi nella pagina delle versioni, https://github.com/niko9090/sierradeck/releases.' } } : f)))
-      .catch(() => setFinestraNote((f) => (f?.tipo === 'installa' ? { ...f, dati: { versione, installata: '', note: [], fonte: 'nessuna', dove: 'https://github.com/niko9090/sierradeck/releases', avviso: 'Non sono riuscito a leggere le note: le trovi scritte per esteso nella pagina delle versioni, https://github.com/niko9090/sierradeck/releases. Puoi installare lo stesso.' } } : f)))
+    void window.gestore.finestraNovita?.apri({ tipo: 'installa', versione }).catch(() => undefined)
   }, [])
   // «Cosa cambia e installa» dalle Impostazioni → Aggiornamenti (0.56.0): la stessa finestra delle note.
   useEffect(() => {
@@ -1191,8 +1173,6 @@ export function App(): React.JSX.Element {
   }, [])
   const [attesaVisibile, setAttesaVisibile] = useState(false)
   const [aggiornamento, setAggiornamento] = useState<StatoAggiornamento>({ fase: 'fermo' })
-  /** L'avviso dell'installazione non riuscita, chiuso per questa sessione (torna al prossimo avvio). */
-  const [fallitoChiuso, setFallitoChiuso] = useState(false)
   // Il lavoro con il Drive (fusione, ripristino, salvataggio): una striscia in
   // alto come per un aggiornamento. Continua anche a pannello chiuso, da qui
   // si annulla, e finito resta l'esito finche' non lo chiudi. Prima «Fondi
@@ -1266,31 +1246,14 @@ export function App(): React.JSX.Element {
     const t = setTimeout(() => setRiavvioFra((n) => (n === undefined ? undefined : n - 1)), 1000)
     return () => clearTimeout(t)
   }, [riavvioFra])
-  // Se gli aggiornamenti si scaricano da soli: quando sì, il tasto «Scarica»
-  // non serve — lo scaricamento è già partito — e sparisce. Si legge dalle
-  // preferenze e si tiene allineato ai cambi, come i colori.
-  const [scaricaAuto, setScaricaAuto] = useState(true)
-  useEffect(() => {
-    const leggi = (p: Preferenze): void => setScaricaAuto(p.scaricaAggiornamentiAutomatico)
-    window.gestore.preferenze.leggi().then(leggi).catch(() => undefined)
-    return window.gestore.preferenze.suCambio(leggi)
-  }, [])
 
-  // Lo stato dell'aggiornamento arriva dal Core: cercare si fa da soli,
-  // scaricare e installare li decide l'utente da questa banda.
+  // Lo stato dell'aggiornamento arriva dal Core: qui serve solo alla spia in
+  // alto; le frasi e i tasti stanno nella finestra in basso a destra (13/11).
   useEffect(() => {
     window.gestore.aggiornamenti.stato().then(setAggiornamento).catch(() => undefined)
     return window.gestore.aggiornamenti.suStato(setAggiornamento)
   }, [])
 
-  // «Già aggiornato» è una risposta, non uno stato: si legge e se ne va. Se
-  // restasse lì occuperebbe una riga di schermo per dire che non c'è niente da
-  // fare, e domani sarebbe ancora lì a dirlo.
-  useEffect(() => {
-    if (aggiornamento.fase !== 'aggiornato') return
-    const h = setTimeout(() => setAggiornamento({ fase: 'fermo' }), 5000)
-    return () => clearTimeout(h)
-  }, [aggiornamento.fase])
 
   // Solo le azioni, che non cambiano mai (0.81.0): abbonarsi a tutto lo store
   // ridisegnava l'intera finestra a ogni avanzamento dell'indice (7 volte al
@@ -1726,60 +1689,6 @@ export function App(): React.JSX.Element {
           di Nicholas): si aprono sempre nella colonna Domande a fianco delle
           chat, che si apre da sola per una domanda nuova (vedi sotto). */}
 
-      {/* La finestra delle note: dal menu («Novità») o da «Installa». */}
-      {finestraNote?.tipo === 'novita' ? (
-        <ModaleNote
-          titolo="Cosa c’è di nuovo"
-          sotto={`versione installata ${finestraNote.versione}${finestraNote.note.length > 1 ? `, con le ${finestraNote.note.length - 1} prima` : ''}`}
-          note={finestraNote.note}
-          etichetta={(n, i) => (i === 0 ? `Questa versione · ${n.versione}` : `Versione ${n.versione}`)}
-          tasti={<button className="tasto tasto--primario" autoFocus onClick={() => setFinestraNote(undefined)}>Ho capito</button>}
-          onChiudi={() => setFinestraNote(undefined)}
-        />
-      ) : null}
-      {finestraNote?.tipo === 'installa' ? (
-        <ModaleNote
-          titolo={`Cosa cambia con la ${finestraNote.versione}`}
-          sotto={finestraNote.dati === undefined
-            ? 'leggo le note…'
-            : finestraNote.dati.note.length > 1
-              ? `dalla ${finestraNote.dati.installata} che hai adesso: ${finestraNote.dati.note.length} versioni, la nuova e quelle che avevi saltato`
-              : finestraNote.dati.installata !== '' ? `adesso hai la ${finestraNote.dati.installata}` : undefined}
-          note={finestraNote.dati?.note}
-          etichetta={(n, i) => (i === 0 && n.versione === finestraNote.versione ? `La nuova · ${n.versione}` : `Saltata · ${n.versione}`)}
-          {...(() => {
-            // Un tentativo andato male si dice anche qui, prima di riprovare (0.39.2).
-            const f = aggiornamento.tentativoFallito
-            const avvisi = [
-              ...(f !== undefined ? [`**${f.titolo}** ${f.motivo} Se non va di nuovo, scaricala a mano da ${f.pagina}`] : []),
-              ...(finestraNote.dati?.avviso !== undefined ? [finestraNote.dati.avviso] : [])
-            ]
-            return avvisi.length > 0 ? { avviso: avvisi.join(' ') } : {}
-          })()}
-          spiegazione={
-            <>
-              <b>Installa e riavvia</b>: aspetto che le chat finiscano quello che hanno in mano (e il lavoro con il
-              Drive, se ce n’è), le avviso, chiudo SierraDeck, installo e riparto da solo; al ritorno chat e
-              autopiloti riprendono da dove erano. <b>Più tardi</b>: chiudo questa finestra e nella striscia in alto
-              resta «Installa»: si installa solo quando lo premi tu.
-            </>
-          }
-          tasti={
-            <>
-              <button className="tasto" onClick={() => setFinestraNote(undefined)}>Più tardi</button>
-              <button
-                className="tasto tasto--primario"
-                autoFocus
-                onClick={() => { setFinestraNote(undefined); void window.gestore.aggiornamenti.installa() }}
-              >
-                Installa e riavvia
-              </button>
-            </>
-          }
-          onChiudi={() => setFinestraNote(undefined)}
-        />
-      ) : null}
-
       {modale === 'sessioni' ? <ModaleSessioni onChiudi={() => setModale(undefined)} /> : null}
       {gestioneChat !== undefined ? <ModaleGestioneChat scheda={gestioneChat} onChiudi={() => setGestioneChat(undefined)} /> : null}
       <OspiteAzioniChat />
@@ -1814,107 +1723,8 @@ export function App(): React.JSX.Element {
         onSpecialisti={() => salvaSpecialistiLato({ aperto: !specialistiLato.aperto })}
       />
 
-      {/* L'aggiornamento sta sopra la banda degli avvisi: non è un guasto da
-          sistemare, è una cosa buona che aspetta un sì. */}
-      {aggiornamento.fase === 'aggiornato' ? (
-        <div className="avviso avviso--aggiornamento">
-          <span className="led led--lavoro" />
-          <span>SierraDeck è già aggiornato.</span>
-        </div>
-      ) : null}
-      {/* «Sto cercando» e «è andata male» prima non si vedevano: cadevano
-          fuori da questa condizione insieme a «non c’è niente», e chi aveva
-          appena premuto il tasto — qui o dal telefono — restava a guardare
-          uno schermo che non diceva nulla. */}
-      {/* 0.70.0: la ricerca automatica (ogni 10 minuti) non apre più la striscia: basta la spia «cerco…»
-          accanto alla versione. La striscia resta quando la ricerca l'ha chiesta il telefono. */}
-      {aggiornamento.fase === 'cerco' && aggiornamento.daTelefono === true ? (
-        <div className="avviso avviso--aggiornamento">
-          <span className="led led--attesa" />
-          <span>
-            Sto guardando se c’è una versione nuova…
-            {aggiornamento.daTelefono === true ? ' (chiesto dal telefono)' : ''}
-          </span>
-        </div>
-      ) : null}
-      {aggiornamento.fase === 'errore' ? (
-        <div className="avviso avviso--aggiornamento">
-          <span className="led led--fermo" />
-          <span>L’aggiornamento non è riuscito: {aggiornamento.errore ?? "motivo sconosciuto"}</span>
-          <span style={{ flex: 1 }} />
-          <button className="tasto" onClick={() => void window.gestore.aggiornamenti.cerca()}>
-            Riprova
-          </button>
-        </div>
-      ) : null}
-      {/* L'installazione e' l'unica fase che non finisce: dopo di lei il
-          programma si chiude. Va detta, o l'ultima cosa che si vede prima che
-          tutto sparisca e' un tasto premuto e nient'altro. */}
-      {aggiornamento.fase === 'installo' ? (
-        <div className="avviso avviso--aggiornamento">
-          <span className="led led--lavoro" />
-          <span>
-            Sto installando la {aggiornamento.versione ?? 'versione nuova'}. Il programma si chiude e
-            riparte da solo: non serve fare niente.
-          </span>
-        </div>
-      ) : null}
-
-      {/* Il lavoro con il Drive, le chat arrivate e il riavvio consigliato
-          stanno nei fumetti in fondo alla pagina, fuori dal flusso: qui sopra
-          non c'e' piu' niente che entri ed esca ogni cinque minuti. */}
-
-      {/* L'attesa della quiete. Prima non aveva nessuna striscia: si premeva
-          «Installa e riavvia» con una chat al lavoro e la striscia spariva per
-          dieci minuti — e se la quiete non arrivava si tornava a «pronto» come
-          se niente fosse, senza dire che non si era installato. */}
-      {aggiornamento.fase === 'attendo' ? (
-        <div className="avviso avviso--aggiornamento">
-          <span className="led led--attesa" />
-          {aggiornamento.attesaChat !== undefined && aggiornamento.attesa === undefined ? (
-            <span>
-              {aggiornamento.attesaChat.charAt(0).toUpperCase() + aggiornamento.attesaChat.slice(1)} — poi installo la {aggiornamento.versione ?? 'versione nuova'}.
-              Gli autopiloti finiscono il turno e si fermano (al massimo 5 minuti, poi salvo il loro lavoro e
-              installo); dopo il riavvio riprendono da soli.
-            </span>
-          ) : aggiornamento.attesa !== undefined ? (
-            <span>
-              Aspetto che finisca {aggiornamento.attesa}, poi installo la {aggiornamento.versione ?? 'versione nuova'}.
-              Un lavoro automatico (l’arrivo delle chat, il salvataggio dei cinque minuti) lo annullo io e si rifà
-              da solo al prossimo giro; uno che hai chiesto tu lo lascio finire. Se non si ferma in tempo, non
-              installo e te lo dico qui.
-            </span>
-          ) : (
-            <span>
-              Aspetto che {aggiornamento.chatOccupate === 1
-                ? 'una chat finisca quello che ha in mano'
-                : `${aggiornamento.chatOccupate ?? 0} chat finiscano quello che hanno in mano`}, poi installo
-              la {aggiornamento.versione ?? 'versione nuova'}. Una chat «lavora» se il suo terminale è acceso e
-              non sta aspettando te. Ho già scritto in ognuna di fermarsi a fine turno e ho messo in pausa gli
-              autopiloti. Al massimo 5 minuti: poi salvo il loro lavoro con un commit sul loro ramo e
-              installo lo stesso. Non chiudere le chat a mano: l’installazione parte da sola.
-            </span>
-          )}
-          {/* 0.84.3: le fasi con il tempo, la stessa riga di pagina e app. */}
-          {aggiornamento.fasiTesto !== undefined && aggiornamento.fasiTesto !== '' ? (
-            <span className="avviso__fasi">{aggiornamento.fasiTesto}.</span>
-          ) : null}
-          <span style={{ flex: 1 }} />
-          {/* 0.84.1: senza aspettare la fine dei turni. Il lavoro delle chat si
-              salva con un commit sul loro ramo e al ritorno riprendono da lì. */}
-          {aggiornamento.subito === true ? (
-            <span>Salvo il lavoro delle chat e installo subito…</span>
-          ) : (
-            <button
-              className="tasto"
-              title="Non aspetto che le chat finiscano il turno: salvo il loro lavoro sul loro ramo, le metto in pausa e installo adesso. Dopo il riavvio riprendono da sole."
-              onClick={() => void window.gestore.aggiornamenti.aggiornaAdesso()}
-            >
-              Aggiorna adesso
-            </button>
-          )}
-        </div>
-      ) : null}
+      {/* L'aggiornamento (strisce e note) sta dal 13/11 nella finestra in basso a
+          destra (`FinestraAggiornamenti`), non più qui. */}
 
       {driveScollegato !== undefined && (driveScollegato.chiave === undefined || driveScollegato.chiave !== driveChiuso) ? (
         <div className="avviso avviso--drive avviso--riga" role="status">
@@ -1943,89 +1753,6 @@ export function App(): React.JSX.Element {
               ×
             </button>
           ) : null}
-        </div>
-      ) : null}
-
-      {/* L'ultima installazione non e' riuscita (0.39.2): si dice prima di
-          tutto, con il perche' e le strade, invece di riproporre «Installa»
-          come se fosse la prima volta. */}
-      {aggiornamento.tentativoFallito !== undefined && !fallitoChiuso && aggiornamento.fase !== 'installo' && aggiornamento.fase !== 'attendo' ? (
-        <div className="avviso avviso--aggiornamento avviso--fallito" role="alert">
-          <span className="led led--attesa" />
-          <span className="avviso-fallito__testo">
-            <b>{aggiornamento.tentativoFallito.titolo}</b> {aggiornamento.tentativoFallito.motivo}
-            <span className="avviso-fallito__strade">
-              Cosa puoi fare: {aggiornamento.tentativoFallito.strade.map((x, i) => <span key={i}>{i + 1}. {x} </span>)}
-            </span>
-          </span>
-          <button
-            className="tasto"
-            onClick={() => void window.gestore.sistema.apriEsterno(aggiornamento.tentativoFallito!.pagina)}
-            title={aggiornamento.tentativoFallito.pagina}
-          >
-            Scarica a mano
-          </button>
-          {aggiornamento.fase === 'pronto' ? (
-            <button className="tasto tasto--primario" onClick={() => apriInstalla(aggiornamento.versione ?? '')}>Riprova</button>
-          ) : null}
-          <button className="tasto" onClick={() => setFallitoChiuso(true)} title="Nascondi fino al prossimo avvio">×</button>
-        </div>
-      ) : null}
-
-      {aggiornamento.fase === 'disponibile' || aggiornamento.fase === 'scarico' || aggiornamento.fase === 'pronto' ? (
-        <div className="avviso avviso--aggiornamento">
-          <span className="led led--lavoro" />
-          {/* Chi ha chiesto: da un telefono si preme «Scarica» e poi si torna
-              alla scrivania mezz’ora dopo. Senza dirlo, sullo schermo compare
-              un aggiornamento che nessuno lì ha chiesto. */}
-          {aggiornamento.daTelefono === true ? (
-            <span className="serigrafia" title="La richiesta è arrivata da un dispositivo accoppiato">dal telefono</span>
-          ) : null}
-          {aggiornamento.fase === 'disponibile' ? (
-            <>
-              <span>
-                C’è una versione nuova ({aggiornamento.versione}).
-                {scaricaAuto ? ' La sto scaricando…' : ''}
-              </span>
-              {!scaricaAuto ? (
-                <button className="tasto" onClick={() => void window.gestore.aggiornamenti.scarica()}>
-                  Scarica
-                </button>
-              ) : null}
-            </>
-          ) : aggiornamento.fase === 'scarico' ? (
-            <>
-              <span>Scarico la versione {aggiornamento.versione}… {aggiornamento.percento ?? 0}%</span>
-              {/* La barra, non solo il numero: un avanzamento si legge con
-                  la coda dell’occhio, una percentuale va letta. */}
-              <span className="barra-agg">
-                <span className="barra-agg__pieno" style={{ width: `${aggiornamento.percento ?? 0}%` }} />
-              </span>
-            </>
-          ) : (
-            <>
-              <span>
-                {/* Perche' non si e' installata l'ultima volta: senza questa riga
-                    il tasto tornava com'era e nessuno sapeva che non era
-                    successo niente. */}
-                {aggiornamento.errore !== undefined ? <><b>{aggiornamento.errore}</b>{' '}</> : null}
-                La versione {aggiornamento.versione} è pronta. «Installa» ti fa vedere prima cosa cambia;
-                da lì scegli se installarla adesso. Si installa solo quando lo premi tu.
-              </span>
-              {/* Dalla 0.39.0 nessuna installazione parte da qui: il tasto
-                  apre la finestra con le note, e lì c'è «Installa e riavvia». */}
-              <button
-                className="tasto tasto--primario"
-                onClick={() => apriInstalla(aggiornamento.versione ?? '')}
-              >
-                Installa
-              </button>
-            </>
-          )}
-          <span style={{ flex: 1 }} />
-          <button className="tasto" onClick={() => setAggiornamento({ fase: 'fermo' })} title="Più tardi">
-            ×
-          </button>
         </div>
       ) : null}
 

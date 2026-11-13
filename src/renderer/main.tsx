@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
+import { FinestraAggiornamenti } from './components/FinestraAggiornamenti'
 import { ConfineErrori } from './components/ConfineErrori'
 import './console.css'
 import './studio.css'
@@ -35,8 +36,11 @@ for (const evento of ['dragover', 'drop']) {
 
 const el = document.getElementById('root')
 if (!el) throw new Error('Elemento #root non trovato')
+// La finestra degli aggiornamenti in basso a destra (13/11) usa la stessa pagina con `?finestra=aggiornamenti`.
+const soloAggiornamenti = new URLSearchParams(window.location.search).get('finestra') === 'aggiornamenti'
+if (soloAggiornamenti) document.documentElement.classList.add('finestra-novita')
 createRoot(el).render(
   <ConfineErrori>
-    <App />
+    {soloAggiornamenti ? <FinestraAggiornamenti /> : <App />}
   </ConfineErrori>
 )

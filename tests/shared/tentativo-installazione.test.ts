@@ -91,8 +91,9 @@ describe('come e collegato', () => {
     // Lo stato lo porta sempre: la striscia del PC e il telefono lo leggono da li'.
     expect(agg).toContain('if (tentativoFallito !== undefined) nuovo = { ...nuovo, tentativoFallito }')
   })
-  it('la striscia del PC e la pagina del telefono lo mostrano', () => {
-    expect(src('renderer/App.tsx')).toContain('aggiornamento.tentativoFallito.titolo')
+  it('la finestra degli aggiornamenti del PC e la pagina del telefono lo mostrano', () => {
+    // 13/11: sul PC lo mostra la finestra degli aggiornamenti in basso a destra.
+    expect(src('renderer/components/FinestraAggiornamenti.tsx')).toContain('fallito.titolo')
     const pagina = src('main/client-pagina.ts')
     expect(pagina).toContain('function fallitoHtml(a)')
     expect(pagina).toContain("f.pagina.indexOf('https://github.com/') === 0")
