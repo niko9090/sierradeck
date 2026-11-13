@@ -5157,9 +5157,44 @@ label.gc-voce { cursor: pointer; }
 .remoto__tasti { display: flex; flex-wrap: wrap; gap: 4px; padding: 3px 6px; border-top: 1px solid var(--bordo); }
 
 /* «Altri PC» (13/11): la sezione dei workspace che vivono su altri PC, e il loro segno nella Panoramica. */
-.altri-pc { border-left: 1px solid var(--bordo); }
-.altri-pc__pc { display: inline-flex; align-items: center; gap: 5px; }
-.altri-pc__testa { display: flex; align-items: center; gap: 6px; color: var(--testo); }
+/* Rifatta il 13/11 («così è caotico»): un tasto solo nella fascia, e la tendina ordinata per PC. */
+.altri-pc__tasto { display: inline-flex; align-items: center; gap: 7px; max-width: 280px; }
+.altri-pc__titolo { color: var(--testo); }
+.altri-pc__accesi { display: inline-flex; align-items: center; gap: 4px; font-size: var(--t0); font-variant-numeric: tabular-nums; color: var(--testo); padding: 1px 7px; border-radius: 999px; background: var(--chassis); border: 1px solid var(--incisione); }
+.altri-pc__accesi .led { width: 6px; height: 6px; }
+.altri-pc__su { color: var(--testo-quieto); margin-left: -2px; }
+.altri-pc__davanti { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 600; color: var(--blu); }
+.altri-pc__attenzione { width: 7px; height: 7px; border-radius: 50%; background: var(--ambra); box-shadow: 0 0 4px color-mix(in srgb, var(--ambra) 70%, transparent); flex: none; }
+.altri-pc__giu { font-size: var(--t0); color: var(--testo-quieto); }
+.altri-pc__tendina { padding: var(--s2) var(--s2) var(--s1); gap: var(--s2); }
+.altri-pc__testa { display: flex; align-items: center; gap: 8px; padding: 2px var(--s1) 0; color: var(--testo); font-size: var(--t2); }
+.altri-pc__conta { font-size: var(--t0); color: var(--testo-quieto); margin-right: auto; font-variant-numeric: tabular-nums; }
+.altri-pc__avviso { font-size: var(--t1); color: var(--ambra); padding: 6px var(--s2); border-radius: var(--raggio); background: color-mix(in srgb, var(--ambra) 9%, transparent); }
+.altri-pc__cerca.campo--compatto { max-width: none; width: 100%; padding: 5px var(--s2); }
+.altri-pc__lista { gap: 2px; padding-right: 2px; scrollbar-width: thin; }
+.altri-pc__gruppo { position: sticky; top: 0; z-index: 1; background: var(--chassis); padding-top: 6px; box-shadow: 0 6px 6px -6px var(--ombra-media); }
+.altri-pc__pc { display: flex; flex-direction: column; border-radius: var(--raggio); border: 1px solid transparent; }
+.altri-pc__pc--su { background: var(--chassis-premuto); border-color: var(--incisione); }
+.altri-pc__riga { font: inherit; font-size: var(--t2); display: grid; grid-template-columns: 12px 8px minmax(0, 1fr) auto auto; align-items: center; gap: 8px; width: 100%; padding: 5px var(--s2); border: 1px solid transparent; border-radius: var(--raggio); background: transparent; color: var(--testo); text-align: left; cursor: pointer; }
+.altri-pc__riga:hover, .altri-pc__ws:hover:not(:disabled) { background: var(--luce-tenue); }
+.altri-pc__riga:focus-visible, .altri-pc__ws:focus-visible { outline: none; border-color: var(--accento); background: var(--luce-tenue); }
+.altri-pc__freccia { font-size: var(--t0); color: var(--testo-quieto); text-align: center; }
+.altri-pc__nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.altri-pc__pc--spento .altri-pc__nome { font-weight: 400; color: var(--testo-quieto); }
+.altri-pc__stato { font-size: var(--t0); color: var(--testo-quieto); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.altri-pc__quanti { min-width: 22px; text-align: center; font-size: var(--t0); color: var(--testo-quieto); padding: 0 6px; border-radius: 999px; background: var(--chassis); border: 1px solid var(--incisione); font-variant-numeric: tabular-nums; }
+.altri-pc__quanti b { color: var(--blu); font-weight: 600; }
+.altri-pc__dentro { display: flex; flex-direction: column; gap: 1px; padding: 0 var(--s1) var(--s1) 28px; }
+.altri-pc__ws { font: inherit; font-size: var(--t1); display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 4px var(--s2); border: 1px solid transparent; border-radius: var(--raggio); background: transparent; color: var(--testo); text-align: left; cursor: pointer; }
+.altri-pc__ws:disabled { cursor: default; }
+.altri-pc__ws-segno { font-size: 8px; color: var(--blu); }
+.altri-pc__ws-nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.altri-pc__ws-azione { font-size: var(--t0); color: var(--testo-quieto); white-space: nowrap; }
+.altri-pc__ws-azione--apri { color: var(--accento); opacity: 0; transition: opacity 100ms; }
+.altri-pc__ws:hover .altri-pc__ws-azione--apri, .altri-pc__ws:focus-visible .altri-pc__ws-azione--apri { opacity: 1; }
+.altri-pc__ws--davanti { background: color-mix(in srgb, var(--blu) 10%, transparent); }
+.altri-pc__ws--davanti .altri-pc__ws-azione { color: var(--blu); }
+.altri-pc__vuoto { padding: 6px var(--s2); font-size: var(--t1); color: var(--testo-quieto); }
 .pan-barra__pc { border-bottom: 0; border-radius: 4px; margin-left: 6px; }
 .remoto__barra--sola { display: flex; align-items: center; gap: 8px; }
 
@@ -5179,8 +5214,6 @@ label.gc-voce { cursor: pointer; }
 body.divisore-in-mano { cursor: col-resize; user-select: none; }
 /* La Panoramica con la colonna del bordo in mezzo (larga zero: il bordo ci sta sopra). */
 .pan2 { grid-template-columns: minmax(380px, 44%) 0 minmax(0, 1fr); }
-.altri-pc--misurata { flex: 0 0 auto; overflow-x: auto; scrollbar-width: none; }
-.altri-pc--misurata::-webkit-scrollbar { display: none; }
 
 /* ── La finestra degli aggiornamenti in basso a destra (13/11, rifatta): testa, stato, registro delle versioni, tasti. ── */
 .finestra-novita, .finestra-novita body { background: var(--chassis); }

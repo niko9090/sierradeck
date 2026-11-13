@@ -3104,11 +3104,16 @@ if (!app.requestSingleInstanceLock()) {
         const a = workspaceStore?.leggi()
         const remoti = remotiAdesso()
         const ora = Date.now()
+        // Gli Aiutanti fuori due volte (13/11): qui e in gruppiAltriPc, che li scarta da sé.
         const battiti = unBattitoPerNome(senzaAiutanti(postino.altrui()).filter((b) => b.pcId !== io.id), nomeDaMostrare)
         return gruppiAltriPc({
           nomiQui: (a?.workspace ?? []).map((w) => w.nome).filter((n) => remoti[n] === undefined),
           remoti,
-          pc: battiti.map((b) => ({ pcId: b.pcId, nome: nomeDaMostrare(b), vivo: battitoVivo(b.battito, ora), ...(b.workspace !== undefined ? { workspace: b.workspace } : {}) })),
+          pc: battiti.map((b) => ({
+            pcId: b.pcId, nome: nomeDaMostrare(b), vivo: battitoVivo(b.battito, ora), visto: b.battito, versione: b.versione,
+            ...(eAiutante(b) ? { aiutante: true } : {}),
+            ...(b.workspace !== undefined ? { workspace: b.workspace } : {})
+          })),
           attivo: a?.attivo ?? ''
         })
       })
