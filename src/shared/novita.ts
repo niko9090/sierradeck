@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.106.2',
+    righe: [
+      '**Finestra dell\'aggiornamento rifatta:** più grande e ridimensionabile, con barra di scaricamento (MB/s e tempo che manca) e le novità di ogni versione, anche di quelle saltate, sempre in vista.',
+      '**Aiutante che sbaglia:** se un lavoro su un Aiutante non riesce, compare il motivo vero in italiano; lo stesso lavoro non torna più a quel PC ogni 30 secondi, e un Aiutante che sbaglia di continuo va in pausa 30 minuti con un solo avviso.',
+      '**Aiutante 1.0.2** allegato.',
+    ],
+  },
+  {
     versione: '0.106.1',
     righe: [
       '**Si apre di nuovo:** la 0.106.0 si fermava all\'avvio con un errore e la finestra restava vuota. Corretto, con una prova automatica che controlla tutte le schermate.',

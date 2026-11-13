@@ -3,6 +3,8 @@ cima). Dal 13/11 l'Aiutante esce allegato alla release del programma
 completo (scripts/allega-aiutante.mjs, dentro npm run pubblica).
 Ogni riga fra apici singoli; dentro, un apice si scrive \'.
 
+versione: '1.0.2'
+  'Quando un lavoro non riesce, dice il motivo vero in italiano (accesso a Claude scaduto, limite del piano, modello non disponibile, git, npm…) invece di un errore generico.'
 versione: '1.0.1'
   'Si scarica e si aggiorna dalla release del programma completo: l\'installer è allegato a ogni nuova versione di SierraDeck, accanto a quello del programma.',
   'Legge solo il suo file degli aggiornamenti (aiutante.yml), mai quello del programma completo: i due non si pestano.',
