@@ -4,6 +4,7 @@ import type { VistaCoda } from '@shared/coda-richieste'
 import type { VistaAttesa, MossaAttesa } from '@shared/attesa-specialisti'
 import type { RigaSpecialista } from '@shared/piano-orchestratore'
 import type { EsitoAzione } from '@shared/autopilota-remoto'
+import { normalizzaCoda, normalizzaOrchestratore } from './normalizza-vista'
 
 /**
  * **Da dove arrivano i dati dell'autopilota di un workspace** (0.102.0).
@@ -40,8 +41,8 @@ export type SorgenteAutopilota = {
 
 export const SORGENTE_LOCALE: SorgenteAutopilota = {
   chiave: 'qui',
-  orchestratore: (ws) => window.gestore.autopilota.orchestratore(ws),
-  coda: (ws) => window.gestore.autopilota.coda(ws),
+  orchestratore: async (ws) => normalizzaOrchestratore(await window.gestore.autopilota.orchestratore(ws)),
+  coda: async (ws) => normalizzaCoda(await window.gestore.autopilota.coda(ws)),
   specialista: (ws, id) => window.gestore.autopilota.specialista(ws, id),
   attesa: () => window.gestore.autopilota.attesaSpecialisti(),
   priorita: (id, mossa) => window.gestore.autopilota.prioritaAttesa(id, mossa),
@@ -91,8 +92,8 @@ export function sorgenteRemota(pcId: string, pcNome: string): SorgenteAutopilota
   const s: SorgenteAutopilota = {
     remoto: { pcId, pcNome },
     chiave: `pc:${pcId}`,
-    orchestratore: async (ws) => (await avanzamento(pcId, ws)).orchestratore ?? undefined,
-    coda: async (ws) => (await avanzamento(pcId, ws)).coda ?? undefined,
+    orchestratore: async (ws) => normalizzaOrchestratore((await avanzamento(pcId, ws)).orchestratore),
+    coda: async (ws) => normalizzaCoda((await avanzamento(pcId, ws)).coda),
     specialista: (ws, id) => dato(azione(pcId, '/api/autopilota/specialista', { workspace: ws, id })),
     attesa: () => dato(azione(pcId, '/api/specialisti/attesa', {})),
     priorita: (id, mossa) => dato(azione(pcId, '/api/specialisti/attesa/priorita', { id, mossa })),

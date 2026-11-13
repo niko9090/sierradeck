@@ -180,3 +180,13 @@ Corretto nella versione 0.105.2. Causa: `cartellaVietata` (src/autopilot-host/gi
 
 ## Gruppo 1: «Error occurred in handler for 'autopilota:dialoga': il servizio autopilota ha rifiutato la richiesta: autopilota inesistente» (Z2-TECNICO, 0.105.1)
 Corretto nella versione 0.106.0. Causa: il 404 su un id di autopilota sconosciuto (workspace riunito o eliminato) veniva lanciato come errore e il messaggio andava perso; ora il client lo rimanda all'autopilota del workspace di prima (commit d526cd31, src/main/autopilot-client.ts, test in tests/main/autopilot-client.test.ts).
+
+# Errori arrivati (lotto 20261113145748)
+
+## Gruppo 1: «[renderer] errore di render — Error: Minified React error #310» (Z2-TECNICO, 0.106.0, 11 volte)
+Corretto nella versione 0.106.1. Causa: `useMisuraTrascinabile` chiamato in App dopo un `if (!pronto) return`, quindi alla prima schermata vera React contava più hook di prima (commit 0501f339). Verificato in k-153: la prova tests/renderer/regole-hook.test.ts legge ogni file di src/renderer con Babel e non trova nessun hook dopo un return anticipato; è verde.
+
+# Errori arrivati (controllo 20261113T150258)
+
+## Z2-TECNICO, 0.106.0: «[renderer] errore di render — TypeError: Cannot read properties of undefined (reading 'filter')»
+Corretto nella versione 0.106.2 (non ancora pubblicata). Il rapporto non ha lo stack: causa più probabile, una vista dell'autopilota arrivata dal servizio o da un altro PC di versione diversa senza la lista `specialisti` (o `richieste` della coda), su cui il disegno chiamava `.filter`. Ora la vista si normalizza quando arriva (src/renderer/normalizza-vista.ts, usata da SORGENTE_LOCALE e sorgenteRemota) e `specialistiInVista` ha un valore predefinito. Test: tests/renderer/normalizza-vista.test.ts. Se l'errore torna con uno stack diverso, riaprire.

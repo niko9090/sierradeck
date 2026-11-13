@@ -34,7 +34,7 @@ const alLavoro = (s: Specialista): boolean => s.stato === 'lavoro' || s.stato ==
 export function specialistiInVista(v: VistaOrchestratore | undefined, ora: number, workspace?: string): Specialista[] {
   if (v === undefined) return []
   if (workspace !== undefined && typeof v.workspace === 'string' && v.workspace.trim() !== workspace.trim()) return []
-  return v.specialisti.filter((s) => s.adottata !== true && (alLavoro(s) || (s.fine !== undefined && ora - Date.parse(s.fine) < RESTA_DOPO_MS)))
+  return (v.specialisti ?? []).filter((s) => s.adottata !== true && (alLavoro(s) || (s.fine !== undefined && ora - Date.parse(s.fine) < RESTA_DOPO_MS)))
 }
 
 function Riga({ r }: { r: RigaSpecialista }): React.JSX.Element {
