@@ -77,7 +77,7 @@ export function VoceAutopilota({ autopilota, workspace, battute, richiesta }: {
     const d = vista?.domandeAperte
     if (d !== undefined) {
       if (domandePrima.current !== undefined && d > domandePrima.current && !nuove.some((b) => b.tono === 'domanda')) {
-        voce.accoda({ id: `${chiave}:domande:${d}:${battute.length}`, testo: 'Ha una nuova domanda per te: la trovi nelle Domande.' })
+        voce.accoda({ id: `${chiave}:domande:${d}:${Math.floor(Date.now() / 60_000)}`, testo: 'Ha una nuova domanda per te: la trovi nelle Domande.' })
       }
       domandePrima.current = d
     }

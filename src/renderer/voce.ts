@@ -101,6 +101,7 @@ export type StatoVoce = { parla: boolean; ascolta: boolean; inFila: number; prob
 function creaVoce() {
   let s: FilaVoce = FILA_VUOTA
   let problema: string | undefined
+  const gia = new Set<string>()
   const abbonati = new Set<(v: StatoVoce) => void>()
   const avvisa = (): void => {
     const v: StatoVoce = { parla: s.parla !== undefined, ascolta: s.ascolta, inFila: s.fila.length, ...(problema !== undefined ? { problema } : {}) }
@@ -137,7 +138,14 @@ function creaVoce() {
   const ferma = (): void => { sintesi()?.cancel() }
   return {
     /** In fondo alla fila (le risposte nuove). */
-    accoda(f: Frase): void { s = accoda(s, f); avanti() },
+    accoda(f: Frase): void {
+      // La stessa chat può essere aperta in due posti (Panoramica e colonna): una frase si dice una volta.
+      if (gia.has(f.id)) return
+      gia.add(f.id)
+      if (gia.size > 500) gia.delete(gia.values().next().value as string)
+      s = accoda(s, f)
+      avanti()
+    },
     /** Subito (un riassunto chiesto da te): ferma quello che stava dicendo. */
     subito(id: string, testo: string): void {
       const prima = s.parla
