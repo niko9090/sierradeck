@@ -395,6 +395,7 @@
 
 - i lotti di errori arrivati stanno solo nella copia principale (`.sierradeck/errori-arrivati/lotto-*.md`), non nei worktree; vanno letti da lì senza modificarli. _(2026-11-11)_
 - `.sierradeck/quaderno/lezioni.md` risulta modificato nella cartella principale: lo scrive il programma e sporca main prima del rilascio. _(2026-11-13)_
+- il file del lotto in .sierradeck/errori-arrivati/ non è tracciato: si legge con Read dal percorso della cartella principale, non dal worktree. _(2026-11-13)_
 
 ## controllo-pc
 
