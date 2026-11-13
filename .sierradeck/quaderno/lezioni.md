@@ -114,6 +114,7 @@
 - Il modello dell'autopilota passa da 5 file (ipc, servizio, store, orchestratore, tipo); ora tutti usano `modelloAutopilotaAmmesso` di `shared/modelli`. _(2026-11-10)_
 - lo stato `fermo` era tolto: un guasto non di rete non aspetta più Nicholas, riprova da solo con attesa crescente (tetto 5 min). _(2026-11-11)_
 - il client non sa il workspace di un id sparito: lo ricorda lui (id→cwd/workspace) e riscrive via /orchestratore/messaggio, che riusa l'autopilota del workspace. _(2026-11-13)_
+- Mai criteri «la versione di package.json è già su GitHub»: dopo, il programma li rimisura su ogni ramo e respinge il bump successivo (13/11, 0.106.3 bloccata, sbloccata con pre-release vuota). _(2026-11-13)_
 
 ## controllo
 
@@ -248,6 +249,7 @@
 - PannelloDomande mostra String(e) grezzo invece di testoErroreDialogo: a Nicholas arriva il messaggio tecnico con «Error invoking remote method». _(2026-11-10)_
 - le chiamate preferenze.imposta hanno un .catch vuoto (App.tsx:979 e simili): un salvataggio fallito non si vede. _(2026-11-12)_
 - Un hook che cambia sorgente (workspace o PC) non deve tenere il valore di prima: `useSondaggio` lo legava al sondaggio vecchio, e `useAutopilotaRemoto` lasciava scrivere una lettura in viaggio del workspace precedente. Ogni lettura va legata al suo giro. _(2026-11-13)_
+- le guardie sui campi array dell'autopilota vanno messe anche nei chiamanti di `adessoDi` (es. DalVivoAutopilota): la riga «chat sola» li fa passare anche senza `chats`. _(2026-11-13)_
 
 ## fermate
 
@@ -343,6 +345,7 @@
 - Se «Aiuta la rete» manda un compito a un PC che fallisce sempre, l'Agent lanciato con isolation: "worktree" resta su questo PC (13/11, k-152). _(2026-11-13)_
 - Correzione: isolation "worktree" NON tiene l'Agent su questo PC (k-154 è andato lo stesso a un Aiutante). Finché il servizio non ha la correzione di k-152, il PC scelto è a caso. _(2026-11-13)_
 - la cartella E:\Users\nikof\... della cartella principale non è raggiungibile da tutti i PC: le voci del quaderno su lotti d'errore vanno scritte anche senza i file originali. _(2026-11-13)_
+- un autopilota letto da un altro PC con altra versione può non avere campi array: leggerli sempre con `Array.isArray(...)`. _(2026-11-13)_
 
 ## cancello
 
@@ -429,3 +432,5 @@
 ## rilascio
 
 - il tag v0.106.3 è su 43744ae9 (ramo worktree), non su main: dopo l'unione verificare che punti al commit giusto prima di caricare i file e rendere Latest. _(2026-11-13)_
+- Se la release esiste già pubblicata (anche pre-release), electron-builder non carica nulla: allega-aiutante dice «mancano …». Caricare a mano con gh release upload --clobber. _(2026-11-13)_
+- In dist/ gli installer hanno gli spazi («SierraDeck Setup X.exe»), ma latest.yml cita i trattini: copiare con i nomi «SierraDeck-Setup-X.exe» prima di caricare a mano. _(2026-11-13)_
