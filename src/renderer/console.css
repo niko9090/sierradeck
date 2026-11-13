@@ -5200,3 +5200,15 @@ body.divisore-in-mano { cursor: col-resize; user-select: none; }
 /* Il pallino sul numero di versione: c'è una notizia dell'aggiornamento non ancora guardata. */
 .versione--nonletto::after { content: ''; display: inline-block; width: 7px; height: 7px; margin-left: 5px; border-radius: 50%; background: var(--ambra); vertical-align: middle; }
 .spia-agg--tasto { cursor: pointer; font: inherit; }
+
+/* ── Riassunto e conversazione a voce nella chat dell'autopilota (13/11) ── */
+.chatap__testa { flex-wrap: wrap; gap: 4px; align-items: flex-start; }
+.voceap { display: flex; flex-direction: column; gap: 4px; flex: 1 1 auto; min-width: 0; }
+.voceap__tasti { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.voceap__regola { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px; padding: 4px 6px; border: 1px solid var(--incisione); border-radius: var(--raggio); }
+.voceap__nota { font-size: 12px; color: var(--ambra); }
+.voceap__riassunto { border: 1px solid var(--incisione); border-radius: var(--raggio); background: var(--luce-tenue); padding: 6px 8px; }
+.voceap__intesta { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.voceap__righe { margin: 4px 0 0; padding-left: 18px; font-size: 13px; overflow-wrap: anywhere; }
+.voceap__righe li { margin: 2px 0; }
+.chatap__dettato { font-size: 12px; color: var(--testo-quieto); }

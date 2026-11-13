@@ -11,7 +11,7 @@ const leggiStato = (): Promise<StatoDettatura> => (statoInCorso ??= window.gesto
  * e apre la dettatura di Windows. Il testo dettato compare nel campo mentre
  * parli; **non manda niente**: «Manda» lo premi tu.
  */
-export function TastoMicrofono({ campo }: { campo: RefObject<HTMLTextAreaElement | null> }): React.JSX.Element {
+export function TastoMicrofono({ campo, onApri }: { campo: RefObject<HTMLTextAreaElement | null>; /** 13/11: chi sta sopra sa che cominci a parlare (la voce tace). */ onApri?: () => void }): React.JSX.Element {
   const [stato, setStato] = useState<StatoDettatura | undefined>(undefined)
   const [nota, setNota] = useState<{ messaggio: string; comeAttivare?: string } | undefined>(undefined)
   useEffect(() => { let vivo = true; void leggiStato().then((s) => { if (vivo) setStato(s) }); return () => { vivo = false } }, [])
@@ -38,6 +38,7 @@ export function TastoMicrofono({ campo }: { campo: RefObject<HTMLTextAreaElement
             t.setSelectionRange(t.value.length, t.value.length)
           }
           setNota(undefined)
+          onApri?.()
           void window.gestore.dettatura.apri().then((e) => {
             if (!e.ok) setNota({ messaggio: e.messaggio ?? 'Dettatura non disponibile su questo PC.', ...(e.comeAttivare !== undefined ? { comeAttivare: e.comeAttivare } : {}) })
             // Il fuoco resta nel campo: è lì che Windows scrive.

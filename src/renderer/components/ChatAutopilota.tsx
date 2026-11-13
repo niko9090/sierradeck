@@ -10,6 +10,7 @@ import { separaConversazione } from '@shared/panoramica'
 import { CampoChatAutopilota } from './CampoChatAutopilota'
 import { useAutopilotaIntero } from '../state/autopilota-intero'
 import { useSorgente } from '../sorgente-autopilota'
+import { VoceAutopilota, type RichiestaRiassunto } from './VoceAutopilota'
 
 /**
  * La chat con l'autopilota del workspace (30/10: uno solo per workspace,
@@ -56,6 +57,8 @@ export function ChatAutopilota({
     return { battute, eventi }
   }, [autopilota, soloConversazione])
   const [eventiAperti, setEventiAperti] = useState(false)
+  // 13/11: «riassunto» detto nel campo con la conversazione a voce: lo scrive e lo legge.
+  const [richiesta, setRichiesta] = useState<RichiestaRiassunto | undefined>(undefined)
   const pensa = staPensando(autopilota)
   // Una sua domanda aperta non si risponde da qui: sta nella colonna Domande.
   const domanda = haDomandaAperta(autopilota)
@@ -72,6 +75,7 @@ export function ChatAutopilota({
     <section className={`chatap${campoPronto ? ' chatap--pronta' : ''}`} aria-label="Chat con l’autopilota">
       {/* k-54: gli specialisti di tutti i workspace in un menu, con percentuale, cosa fanno e la precedenza. */}
       <div className="chatap__testa">
+        <VoceAutopilota autopilota={autopilota} workspace={chiaveWorkspace(autopilota)} battute={battute} {...(richiesta !== undefined ? { richiesta } : {})} />
         <MenuSpecialisti riferimenti={[chiaveWorkspace(autopilota), autopilota.cwd, autopilota.workspace ?? '']} />
       </div>
       {/* 0.95.3: in testa solo barra, percentuale e cosa succede; il resto nella tendina ▾. */}
@@ -105,6 +109,7 @@ export function ChatAutopilota({
         autopilotaId={sorgente.remoto !== undefined ? `${sorgente.remoto.pcId}:${autopilota.id}` : autopilota.id}
         onCambiato={onCambiato}
         campoPronto={campoPronto}
+        suComando={(c) => { if (c === 'riassunto' || c === 'generale') setRichiesta((p) => ({ tipo: c === 'generale' ? 'generale' : 'da-ultimo', n: (p?.n ?? 0) + 1, leggi: true })) }}
         {...(sorgente.remoto !== undefined ? { invia: (testo: string) => sorgente.dialoga(autopilota.id, testo) } : {})}
       />
     </section>
