@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+﻿import { randomUUID } from 'node:crypto'
 import type { VoceRiparazione } from '@shared/autoriparazione'
 import type { DomandaRisolta } from '@shared/domande-telefono'
 import { leggiPostiChat, type PostiChat } from '@shared/posti-chat'
@@ -57,6 +57,10 @@ export type RicevutaDialogo = {
 /** Quello che legge Nicholas se il servizio non conferma un messaggio. */
 export const MESSAGGIO_SERVIZIO_OCCUPATO =
   'Il servizio dell’autopilota è occupato e non ha confermato il messaggio. Non risulta arrivato: aspetta qualche secondo e riscrivilo. Se compare due volte nella conversazione, il secondo è un doppione.'
+
+/** Quello che legge Nicholas se l'autopilota a cui scrive non esiste più e il programma non sa di quale workspace fosse. */
+export const MESSAGGIO_AUTOPILOTA_SPARITO =
+  'Questo autopilota non c’è più (il workspace è stato eliminato o riunito). Il messaggio non è partito: chiudi la scheda, riaprila dal workspace e riscrivilo.'
 
 export type ClientAutopilota = {
   /**
@@ -270,7 +274,7 @@ export function creaClientAutopilota(p: {
     const dati: unknown = testo === '' ? undefined : JSON.parse(testo)
     if (!risposta.ok) {
       const motivo = (dati as { errore?: string } | undefined)?.errore ?? `stato ${risposta.status}`
-      throw new Error(`il servizio autopilota ha rifiutato la richiesta: ${motivo}`)
+      throw Object.assign(new Error(`il servizio autopilota ha rifiutato la richiesta: ${motivo}`), { stato: risposta.status, motivo })
     }
     return dati
   }
@@ -309,10 +313,22 @@ export function creaClientAutopilota(p: {
     }
     return { dati: dati as T, etag: risposta.headers.get('etag'), stato: risposta.status }
   }
+  /**
+   * k-148: dove stava ogni autopilota visto (cartella e workspace), anche dopo
+   * che sparisce dall'elenco: serve a non perdere un messaggio scritto a un id
+   * che il servizio non conosce più.
+   */
+  const casaDegliId = new Map<string, { cwd: string; workspace?: string }>()
+  const ricordaCasa = (a: Autopilota): void => {
+    if (typeof a.id !== 'string' || typeof a.cwd !== 'string') return
+    casaDegliId.set(a.id, { cwd: a.cwd, ...(a.workspace !== undefined ? { workspace: a.workspace } : {}) })
+    if (casaDegliId.size > 500) casaDegliId.delete(casaDegliId.keys().next().value as string)
+  }
   const chiediElenco = async (): Promise<Autopilota[]> => {
     const tenuto = elencoTenuto?.etag != null ? { etag: elencoTenuto.etag, dati: elencoTenuto.dati } : undefined
     const r = await chiediConEtag<Autopilota[]>('/autopiloti?leggero=1', tenuto)
     elencoTenuto = Array.isArray(r.dati) ? { etag: r.etag, dati: r.dati, il: adesso() } : undefined
+    if (Array.isArray(r.dati)) for (const a of r.dati) ricordaCasa(a)
     return r.dati
   }
 
@@ -328,6 +344,7 @@ export function creaClientAutopilota(p: {
   const chiediDettaglio = async (id: string): Promise<Autopilota | undefined> => {
     try {
       const r = await chiediConEtag<Autopilota>(`/autopiloti/${encodeURIComponent(id)}`, dettagliTenuti.get(id), attesaDettaglioMs)
+      if (r.dati !== undefined) ricordaCasa(r.dati)
       if (r.etag !== null && r.dati !== undefined) dettagliTenuti.set(id, { etag: r.etag, dati: r.dati })
       else dettagliTenuti.delete(id)
       return r.dati
@@ -369,7 +386,18 @@ export function creaClientAutopilota(p: {
         try {
           return (await chiama(percorso, 'POST', corpo, attesaScrittura)) as RicevutaDialogo
         } catch (err) {
-          if ((err as { scaduto?: boolean }).scaduto !== true) throw err
+          const e = err as { scaduto?: boolean; stato?: number; motivo?: string }
+          if (e.stato === 404 && e.motivo === 'autopilota inesistente') {
+            // k-148: l'id non c'è più (workspace riunito, pulizia, servizio ripartito).
+            // Il messaggio non si perde: va al workspace di quell'autopilota, e il
+            // servizio usa quello che c'è già o ne fa nascere uno (mai un doppione).
+            const noto = casaDegliId.get(id)
+            dettagliTenuti.delete(id)
+            if (noto === undefined) throw new Error(MESSAGGIO_AUTOPILOTA_SPARITO)
+            const a = (await chiama('/orchestratore/messaggio', 'POST', { testo, cwd: noto.cwd, ...(noto.workspace !== undefined ? { workspace: noto.workspace } : {}) }, attesaScrittura)) as Autopilota
+            return { ricevuto: true, autopilota: a }
+          }
+          if (e.scaduto !== true) throw err
           ultimo = err
         }
       }
