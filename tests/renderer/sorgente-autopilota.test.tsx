@@ -34,7 +34,7 @@ describe('la sorgente di un altro PC', () => {
     const s = sorgenteRemota('pc-la', 'Portatile')
     const [o, c] = await Promise.all([s.orchestratore('SierraDeck'), s.coda('SierraDeck')])
     expect(o?.percento).toBe(40)
-    expect(c).toEqual({ richieste: [] })
+    expect(c).toEqual({ richieste: [], compattate: [] })
     expect(chiamate).toEqual([{ pc: 'pc-la', percorso: '/api/autopilota/avanzamento', corpo: { workspace: 'SierraDeck' } }])
   })
 
