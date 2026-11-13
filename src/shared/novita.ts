@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.106.3',
+    righe: [
+      '**Schermata che cadeva:** un errore («filter») faceva cadere una schermata, per esempio su Z2-TECNICO. Corretto.',
+      '**Aiutante con l\'accesso a Claude scaduto:** il PC viene tenuto fuori subito dai lavori, con il motivo vero e il nome del PC; gli errori uguali finiscono in un gruppo solo negli errori arrivati.',
+    ],
+  },
+  {
     versione: '0.106.2',
     righe: [
       '**Finestra dell\'aggiornamento rifatta:** più grande e ridimensionabile, con barra di scaricamento (MB/s e tempo che manca) e le novità di ogni versione, anche di quelle saltate, sempre in vista.',
