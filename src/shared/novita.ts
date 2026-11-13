@@ -44,6 +44,7 @@ export const NOVITA: Novita[] = [
     versione: '0.107.1',
     righe: [
       '**Panoramica che cadeva:** non cade più quando un autopilota arriva da un altro PC senza l\'elenco delle chat.',
+      '**Riavvio del servizio senza rumore:** se il servizio autopilota si sta riavviando, l\'elenco e il dettaglio restano com\'erano e si riprova dopo, senza errori nel registro.',
     ],
   },
   {

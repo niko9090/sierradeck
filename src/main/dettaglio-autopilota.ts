@@ -15,8 +15,18 @@ export type FonteElenco = {
   elencoNoto: () => Autopilota[] | undefined
 }
 
+/** Il client segna `spento` quando la connessione e' rifiutata o caduta (fetch failed, ECONNREFUSED, ECONNRESET): servizio fermo o in riavvio. */
+export function servizioSpento(err: unknown): boolean {
+  return (err as { spento?: boolean } | null)?.spento === true
+}
+
+/** Atteso, non un guasto: servizio lento (timeout) o spento/in riavvio. */
+export function servizioIndisponibile(err: unknown): boolean {
+  return (err as { scaduto?: boolean } | null)?.scaduto === true || servizioSpento(err)
+}
+
 /**
- * La risposta a `autopilota:elenca` (0.94.2).
+ * La risposta a `autopilota:elenca` (0.94.2; 0.107.1: anche servizio spento o in riavvio).
  *
  * Come per il dettaglio: il servizio occupato che non risponde in tempo e' un
  * caso atteso, non un guasto. Il timeout torna come l'ultimo elenco noto (o un
@@ -29,9 +39,10 @@ export async function rispondiElenco(client: FonteElenco, log?: (m: string) => v
     await client.assicuraServizio()
     return await client.elenca()
   } catch (err) {
-    if ((err as { scaduto?: boolean } | null)?.scaduto !== true) throw err
+    if (!servizioIndisponibile(err)) throw err
     const noto = client.elencoNoto()
-    log?.(`[autopilota] elenco: il servizio e' occupato e non ha risposto in tempo, ${noto !== undefined ? "resta l'ultimo elenco noto" : 'elenco vuoto per ora'}`)
+    const come = servizioSpento(err) ? "il servizio e' spento o si sta riavviando" : "il servizio e' occupato e non ha risposto in tempo"
+    log?.(`[autopilota] elenco: ${come}, ${noto !== undefined ? "resta l'ultimo elenco noto" : 'elenco vuoto per ora'}`)
     return noto ?? []
   }
 }
@@ -55,8 +66,9 @@ export async function rispondiDettaglio(
   try {
     a = await client.dettaglio(id)
   } catch (err) {
-    if ((err as { scaduto?: boolean } | null)?.scaduto !== true) throw err
-    log?.(`[autopilota] dettaglio di ${id}: il servizio e' occupato e non ha risposto in tempo, riprovo piu' tardi`)
+    if (!servizioIndisponibile(err)) throw err
+    const come = servizioSpento(err) ? "il servizio e' spento o si sta riavviando" : "il servizio e' occupato e non ha risposto in tempo"
+    log?.(`[autopilota] dettaglio di ${id}: ${come}, riprovo piu' tardi`)
     return { occupato: true }
   }
   const v = client.versioneDettaglio(id)

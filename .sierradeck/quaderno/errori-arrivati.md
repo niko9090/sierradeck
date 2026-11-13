@@ -220,3 +220,13 @@ Non è un difetto nuovo: stesso difetto della rete corretto da k-152, come il lo
 
 1 gruppo: Z2-TECNICO, 0.106.2, «[renderer] errore di render — TypeError: Cannot read properties of undefined (reading 'length') at adessoDi» (CorpoPanoramica).
 Corretto nella versione 0.107.1: un autopilota arrivato da un altro PC senza `chats` faceva cadere `adessoDi` (e il Punto dal vivo), ora vale come lista vuota. Test: tests/shared/adesso-senza-chats.test.ts.
+
+# Errori arrivati (lotto 20261113221708)
+
+1 gruppo: «[aiuto] lavoro r89860033c354 (sviluppatore) per PC-Fisso non riuscito» (DESKTOP-O2DITVE, Aiutante 1.0.2, 1 volta).
+Non è un difetto nuovo: il lavoro di k-158 era finito su DESKTOP-O2DITVE con l'accesso Claude scaduto («OAuth session expired»), difetto della rete già corretto nella 0.106.3 (il PC che l'aveva scelto aveva ancora la 0.106.1).
+
+# Errori arrivati (lotto 20261113223446)
+
+1 gruppo: «Error occurred in handler for 'autopilota:elenca': Error: il servizio autopilota non risponde sulla porta 47630: TypeError: fetch failed» (Leonardo, 0.107.0, 2 volte in 3 secondi, durante il riavvio del servizio dopo l'aggiornamento; stesso per il dettaglio).
+Corretto nella versione 0.107.1: servizio spento o in riavvio (fetch failed, ECONNREFUSED, ECONNRESET) trattato come il timeout: elenco e dettaglio restano l'ultimo noto, un avviso nel registro e si riprova al giro dopo. Test: tests/main/elenco-autopilota-0-94-2.test.ts.
