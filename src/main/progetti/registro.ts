@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto'
 import { scriviAtomico } from '@shared/scrittura-atomica'
 import { normalizzaPercorso, staDentro } from '@shared/percorsi'
 import { memoriaDiFile } from '../memoria-di-file'
+import { chiaveProgetto } from '@shared/progetti-identita'
 
 /**
  * I progetti, condivisi fra i PC (`sierradeck/progetti-drive.json` sul Drive).
@@ -146,17 +147,49 @@ export function progettoDiCartella(reg: RegistroProgetti, cwd: string): Progetto
 }
 
 /**
+ * Perché `aggiungiProgetto` non ha aggiunto una voce nuova (Gestione
+ * progetti, 13/11): `stesso` = c'era già, stessa cartella e proprietario;
+ * `aggiornato` = c'era già un progetto di questo PC con la stessa chiave e la
+ * cartella che non c'è più: prende la cartella nuova (niente id nuovo, niente
+ * anello dei doppioni); `altro-pc` = la stessa chiave è di un altro PC;
+ * `stessa-chiave` = questo PC ha già un progetto con quella chiave in un'altra
+ * cartella che c'è. Negli ultimi due casi non si scrive niente: lo decide
+ * Nicholas in Gestione progetti.
+ */
+export type MotivoGia = 'stesso' | 'aggiornato' | 'altro-pc' | 'stessa-chiave'
+
+/**
  * Mette una cartella di questo PC fra i progetti, con questo PC proprietario.
  * Se è già un progetto (stessa cartella, stesso proprietario) non cambia niente.
+ * Con `esiste` (13/11) guarda anche la chiave del nome (`chiaveProgetto`): mai
+ * un secondo progetto con la stessa chiave.
  */
 export function aggiungiProgetto(
   reg: RegistroProgetti,
-  p: { pcId: string; percorso: string; nome?: string; adesso: string; id?: string }
-): { registro: RegistroProgetti; progetto: ProgettoDrive } {
+  p: { pcId: string; percorso: string; nome?: string; adesso: string; id?: string; esiste?: (percorso: string) => boolean }
+): { registro: RegistroProgetti; progetto: ProgettoDrive; gia?: MotivoGia } {
   const gia = reg.progetti.find((x) => x.proprietario === p.pcId && x.percorso !== undefined && normalizzaPercorso(x.percorso) === normalizzaPercorso(p.percorso))
-  if (gia !== undefined) return { registro: reg, progetto: gia }
+  if (gia !== undefined) return { registro: reg, progetto: gia, gia: 'stesso' }
+  const nome = p.nome ?? nomeDaCartella(p.percorso)
+  const esiste = p.esiste
+  if (esiste !== undefined) {
+    const k = chiaveProgetto(nome)
+    const stessi = reg.progetti.filter((x) => chiaveProgetto(x.nome) === k)
+    const miei = stessi.filter((x) => x.proprietario === p.pcId)
+    const mioVivo = miei.find((x) => x.percorso !== undefined && esiste(x.percorso))
+    if (mioVivo !== undefined) return { registro: reg, progetto: mioVivo, gia: 'stessa-chiave' }
+    const mioSenza = miei[0]
+    if (mioSenza !== undefined) {
+      // La cartella di prima non c'è più: il progetto è lo stesso, cambia solo dove sta.
+      const { candidati: _c, ...senza } = mioSenza
+      const aggiornato: ProgettoDrive = { ...senza, percorso: p.percorso, proprietarioDal: p.adesso }
+      return { registro: { ...reg, progetti: reg.progetti.map((x) => (x.id === mioSenza.id ? aggiornato : x)) }, progetto: aggiornato, gia: 'aggiornato' }
+    }
+    const altrove = stessi.find((x) => x.proprietario !== undefined && x.proprietario !== p.pcId)
+    if (altrove !== undefined) return { registro: reg, progetto: altrove, gia: 'altro-pc' }
+  }
   const nuovo: ProgettoDrive = {
-    id: p.id ?? nuovoId(), nome: p.nome ?? nomeDaCartella(p.percorso), aggiuntoIl: p.adesso,
+    id: p.id ?? nuovoId(), nome, aggiuntoIl: p.adesso,
     proprietario: p.pcId, percorso: p.percorso, proprietarioDal: p.adesso
   }
   return { registro: { ...reg, progetti: [...reg.progetti, nuovo] }, progetto: nuovo }
@@ -243,14 +276,24 @@ export function fondiRegistri(a: RegistroProgetti, b: RegistroProgetti): Registr
  * tutti e due, e l'elenco tornava da 22 a 48 voci. Qui ogni PC sceglie **lo
  * stesso**, con una regola fissa (il più vecchio, poi l'id): l'altro va fra i
  * tolti, e la cartella nota passa a chi resta. Pura.
+ *
+ * Dal 13/11 (Gestione progetti) il nome si confronta con la regola unica,
+ * `chiaveProgetto`; e si uniscono da soli **solo** i doppioni sicuri: stesso
+ * proprietario e al più una cartella (o la stessa scritta in modi diversi).
+ * Due cartelle diverse dello stesso PC con la stessa chiave restano tutte e
+ * due: le mostra Gestione progetti, e sceglie Nicholas. Stesso proprietario e
+ * stessa cartella, anche con nomi diversi, è sempre lo stesso progetto.
  */
 export function unisciDoppioni(r: RegistroProgetti): RegistroProgetti {
-  const nome = (n: string): string => n.normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase()
   const gruppi = new Map<string, ProgettoDrive[]>()
   const senza: ProgettoDrive[] = []
+  // Stessa cartella dello stesso proprietario: il gruppo di chi l'ha vista per primo.
+  const perCartella = new Map<string, string>()
   for (const p of r.progetti) {
     if (p.proprietario === undefined) { senza.push(p); continue }
-    const k = `${p.proprietario}|${nome(p.nome)}`
+    const kc = p.percorso !== undefined ? `${p.proprietario}|c|${normalizzaPercorso(p.percorso)}` : undefined
+    const k = (kc !== undefined ? perCartella.get(kc) : undefined) ?? `${p.proprietario}|n|${chiaveProgetto(p.nome)}`
+    if (kc !== undefined && !perCartella.has(kc)) perCartella.set(kc, k)
     gruppi.set(k, [...(gruppi.get(k) ?? []), p])
   }
   const tolti: Record<string, string> = { ...(r.tolti ?? {}) }
@@ -259,6 +302,9 @@ export function unisciDoppioni(r: RegistroProgetti): RegistroProgetti {
   let uniti = 0
   for (const gruppo of gruppi.values()) {
     if (gruppo.length === 1) { progetti.push(gruppo[0] as ProgettoDrive); continue }
+    const cartelle = new Set(gruppo.filter((x) => x.percorso !== undefined).map((x) => normalizzaPercorso(x.percorso as string)))
+    // Due cartelle diverse: non è un doppione sicuro, decide Nicholas (Gestione progetti).
+    if (cartelle.size > 1) { progetti.push(...gruppo); continue }
     const ordinati = [...gruppo].sort((a, b) => (a.aggiuntoIl || '9').localeCompare(b.aggiuntoIl || '9') || a.id.localeCompare(b.id))
     const capo = ordinati[0] as ProgettoDrive
     // La cartella: quella del capo, o la più recente fra quelle scelte dagli altri.
@@ -274,6 +320,53 @@ export function unisciDoppioni(r: RegistroProgetti): RegistroProgetti {
   const ordine = new Map(r.progetti.map((p, i) => [p.id, i]))
   progetti.sort((a, b) => (ordine.get(a.id) ?? 0) - (ordine.get(b.id) ?? 0))
   return { versione: 1, progetti, tolti }
+}
+
+/* ------------------------------------------------------------------ */
+/* Le scelte di Gestione progetti (13/11), pure.                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * «Imposta proprietario»: il progetto diventa di `pcId`, con la cartella che
+ * quel PC ha già. Niente si sposta. `proprietarioDal` nuovo: fra due copie del
+ * registro vince questa, anche sui PC di una versione di prima.
+ */
+export function impostaProprietario(reg: RegistroProgetti, id: string, pcId: string, percorso: string, quando: string): RegistroProgetti {
+  return {
+    ...reg,
+    progetti: reg.progetti.map((x) => {
+      if (x.id !== id) return x
+      const { candidati: _c, ...senza } = x
+      return { ...senza, proprietario: pcId, percorso, proprietarioDal: quando }
+    })
+  }
+}
+
+/**
+ * Il progetto ha un nome nuovo (e la sua cartella, già rinominata sul
+ * proprietario). `proprietarioDal` si rinnova: è il segno «cambiato adesso»
+ * che fa vincere questa copia nell'unione con gli altri PC (anche vecchi).
+ */
+export function rinominaProgetto(reg: RegistroProgetti, id: string, nome: string, percorso: string | undefined, quando: string): RegistroProgetti {
+  return {
+    ...reg,
+    progetti: reg.progetti.map((x) => (x.id !== id ? x : { ...x, nome, ...(percorso !== undefined ? { percorso } : {}), proprietarioDal: quando }))
+  }
+}
+
+/**
+ * «Unisci doppioni»: resta `tieni`, gli altri vanno fra i tolti (i loro file
+ * sul Drive restano finché non li togli, le cartelle sui PC non si toccano).
+ * `tieni` si rinnova (`proprietarioDal`), così vince nell'unione.
+ */
+export function unisciProgetti(reg: RegistroProgetti, tieni: string, togli: readonly string[], quando: string): RegistroProgetti {
+  const via = new Set(togli.filter((x) => x !== tieni))
+  if (!reg.progetti.some((x) => x.id === tieni) || via.size === 0) return reg
+  return {
+    versione: 1,
+    progetti: reg.progetti.filter((x) => !via.has(x.id)).map((x) => (x.id === tieni ? { ...x, proprietarioDal: quando } : x)),
+    tolti: { ...(reg.tolti ?? {}), ...Object.fromEntries([...via].map((x) => [x, quando])) }
+  }
 }
 
 export type RegistroProgettiStore = {

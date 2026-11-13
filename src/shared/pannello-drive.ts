@@ -2,6 +2,7 @@ import type { VistaProgetto } from './progetti-vista'
 import { eSessioneInterna } from './workspace-riparazioni'
 import type { StatoSpazio } from './spazio-drive'
 import { dentroCartella, eNomeDiSistema, eSenzaNome } from './progetti-unificati'
+import { chiaveProgetto } from './progetti-identita'
 import type { VistaSposta } from './sposta'
 import { PC_SPENTO_DOPO_MS } from './posta'
 
@@ -245,7 +246,8 @@ function rigaProgetto(
   // Acceso: battito recente, o ha risposto da poco (col Drive pieno il battito si ferma ma il PC risponde).
   const acceso = qui || (battito !== undefined && p.adesso - Date.parse(battito) < ACCESO_ENTRO_MS) || (risposto !== undefined && p.adesso - Date.parse(risposto) < ACCESO_ENTRO_MS)
   const ultimo = chat.map((c) => c.ultimoUso ?? '').sort().pop()
-  const workspace = (p.workspaceQui ?? []).filter((w) => w.trim().toLowerCase() === g.nome.trim().toLowerCase())
+  // La regola unica di «stesso progetto» (13/11): la chiave del nome, come il registro e Gestione progetti.
+  const workspace = (p.workspaceQui ?? []).filter((w) => chiaveProgetto(w) === chiaveProgetto(g.nome))
   const riga: RigaProgetto = {
     id: g.id, ids: [g.id], nome: g.nome,
     ...(residente !== undefined ? { residente } : {}),

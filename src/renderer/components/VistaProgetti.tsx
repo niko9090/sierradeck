@@ -159,11 +159,17 @@ export function VistaProgetti({ onChiudi }: { onChiudi: () => void }): React.JSX
         <input ref={cerca} className="campo campo--mini progetti__cerca" placeholder="Cerca progetto, PC o cartella  ( / )" value={q} onChange={(e) => setQ(e.target.value)} />
         <span style={{ flex: 1 }} />
         {d?.spazio?.misura !== undefined ? <button className="tasto tasto--mini" title="Lo spazio sul Drive e le pulizie" onClick={() => { setFoglio('spazio'); setScelto(undefined) }}>Drive {byteLeggibili(d.spazio.misura.totale.byte)}</button> : null}
+        {window.gestore.gestione !== undefined ? (
+          <button className="tasto tasto--mini tasto--primario" title="Dove e di chi sono i progetti, doppioni, nomi, eliminazione: in una finestra a parte" onClick={() => { void window.gestore.gestione?.apri() }}>Gestione progetti</button>
+        ) : null}
         <button className="tasto tasto--mini" onClick={leggi} disabled={occupato}>Aggiorna</button>
         <span style={{ position: 'relative' }}>
           <button className="tasto tasto--mini" aria-expanded={menu} onClick={() => setMenu(!menu)}>Strumenti ▾</button>
           {menu ? (
             <TendinaMenu onChiudi={() => setMenu(false)}>
+              {window.gestore.gestione !== undefined ? (
+                <button className="progetti__voce" title="Proprietario, doppioni, nomi, copie rimaste, elimina: tutte le scelte in una finestra a parte." onClick={() => { setMenu(false); void window.gestore.gestione?.apri() }}>Gestione progetti</button>
+              ) : null}
               {([
                 ['chat', 'Tutte le chat', 'Ogni chat con il PC dove vive il suo progetto.'],
                 ['salvataggio', 'Salvataggio e arrivo', 'Salva ora, Ripristina, salvataggio automatico.'],

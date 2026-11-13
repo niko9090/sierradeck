@@ -2,6 +2,7 @@ import { createRoot } from 'react-dom/client'
 import { App } from './App'
 import { FinestraAggiornamenti } from './components/FinestraAggiornamenti'
 import { ConfineErrori } from './components/ConfineErrori'
+import { GestioneProgetti } from './components/GestioneProgetti'
 import './console.css'
 import './studio.css'
 
@@ -36,11 +37,13 @@ for (const evento of ['dragover', 'drop']) {
 
 const el = document.getElementById('root')
 if (!el) throw new Error('Elemento #root non trovato')
-// La finestra degli aggiornamenti in basso a destra (13/11) usa la stessa pagina con `?finestra=aggiornamenti`.
-const soloAggiornamenti = new URLSearchParams(window.location.search).get('finestra') === 'aggiornamenti'
-if (soloAggiornamenti) document.documentElement.classList.add('finestra-novita')
+// Finestre a parte con la stessa pagina (13/11): `?finestra=aggiornamenti` (in basso
+// a destra) e `?finestra=gestione-progetti` (non disegna la vista principale:
+// funziona anche se quella ha un problema).
+const finestra = new URLSearchParams(window.location.search).get('finestra')
+if (finestra === 'aggiornamenti') document.documentElement.classList.add('finestra-novita')
 createRoot(el).render(
   <ConfineErrori>
-    {soloAggiornamenti ? <FinestraAggiornamenti /> : <App />}
+    {finestra === 'aggiornamenti' ? <FinestraAggiornamenti /> : finestra === 'gestione-progetti' ? <GestioneProgetti /> : <App />}
   </ConfineErrori>
 )

@@ -55,8 +55,8 @@ export function segnaFinestraDiServizio(w: BrowserWindow): void {
 
 /**
  * Le finestre accessorie (13/11): visibili ma non di chat, come la finestra
- * degli aggiornamenti in basso a destra. Niente layout, slot, area di notifica,
- * consegne: chi conta le finestre di chat non le vede.
+ * degli aggiornamenti in basso a destra e la «Gestione progetti». Niente
+ * layout, slot, area di notifica, consegne: chi conta le finestre di chat non le vede.
  */
 const accessorie = new Set<number>()
 export function segnaFinestraAccessoria(w: BrowserWindow): void {
@@ -64,6 +64,8 @@ export function segnaFinestraAccessoria(w: BrowserWindow): void {
   accessorie.add(id)
   w.once('closed', () => accessorie.delete(id))
 }
+/** La «Gestione progetti» è una finestra accessoria come le altre. */
+export const segnaFinestraAParte = segnaFinestraAccessoria
 
 /** Le finestre di chat: tutte tranne le finestre pannello, quelle di servizio e le accessorie. */
 export function finestreDiChat(): BrowserWindow[] {
