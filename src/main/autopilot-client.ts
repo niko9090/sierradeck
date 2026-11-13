@@ -245,6 +245,20 @@ export function creaClientAutopilota(p: {
   let avvioInutile: number | undefined
   const base = `http://127.0.0.1:${p.porta}`
 
+  // Timeout = servizio lento (`scaduto`); connessione rifiutata o caduta =
+  // servizio spento o in riavvio (`spento`, 0.107.1). Entrambi attesi.
+  const erroreNonRisponde = (err: unknown): Error => {
+    const scaduto = err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')
+    const causa = (err as { cause?: { code?: string } } | null)?.cause?.code
+    const spento = !scaduto && (
+      (err instanceof Error && err.message === 'fetch failed') ||
+      causa === 'ECONNREFUSED' || causa === 'ECONNRESET' || causa === 'UND_ERR_SOCKET'
+    )
+    // Il messaggio nomina il servizio e la porta: il pannello lo mostra
+    // all'utente, e «fetch failed» non gli direbbe niente su cosa riavviare.
+    return Object.assign(new Error(`il servizio autopilota non risponde sulla porta ${p.porta}: ${String(err)}`), scaduto ? { scaduto: true } : spento ? { spento: true } : {})
+  }
+
   const chiama = async (
     percorso: string,
     metodo: string,
@@ -265,8 +279,7 @@ export function creaClientAutopilota(p: {
     } catch (err) {
       // Il messaggio nomina il servizio e la porta: il pannello lo mostra
       // all'utente, e «fetch failed» non gli direbbe niente su cosa riavviare.
-      const scaduto = err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')
-      throw Object.assign(new Error(`il servizio autopilota non risponde sulla porta ${p.porta}: ${String(err)}`), scaduto ? { scaduto: true } : {})
+      throw erroreNonRisponde(err)
     }
 
     const testo = await risposta.text()
@@ -301,8 +314,7 @@ export function creaClientAutopilota(p: {
         signal: AbortSignal.timeout(attesa)
       })
     } catch (err) {
-      const scaduto = err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')
-      throw Object.assign(new Error(`il servizio autopilota non risponde sulla porta ${p.porta}: ${String(err)}`), scaduto ? { scaduto: true } : {})
+      throw erroreNonRisponde(err)
     }
     if (risposta.status === 304 && tenuto !== undefined) return { dati: tenuto.dati, etag: tenuto.etag, stato: 304 }
     const testo = await risposta.text()
