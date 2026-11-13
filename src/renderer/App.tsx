@@ -1563,6 +1563,10 @@ export function App(): React.JSX.Element {
       .catch(() => setAlLogin(undefined))
   }, [aperto, alLogin])
 
+  // La larghezza della colonna dell'autopilota, scelta col mouse (13/11): solo su questo PC. Prima di TUTTI i «return» qui sotto (anche quello di «pronto»): è un hook, React #310 nella 0.106.0.
+  const misuraColonna = useMisuraTrascinabile('colonnaAutopilota')
+  const colonnaRef = useRef<HTMLElement | null>(null)
+
   // Finché le trascrizioni non sono state lette non c'è niente di sensato da
   // mostrare: l'elenco sarebbe vuoto, i consumi a zero e i salvataggi da
   // riprendere sconosciuti. Meglio una cosa sola fatta bene di una finestra a
@@ -1579,9 +1583,6 @@ export function App(): React.JSX.Element {
 
   // Prima di qualunque cosa: se c'e' una parola d'ordine, non si deve
   // vedere nemmeno per un istante quello che protegge.
-  // La larghezza della colonna dell'autopilota, scelta col mouse (13/11): solo su questo PC. Prima dei «return» qui sotto: è un hook.
-  const misuraColonna = useMisuraTrascinabile('colonnaAutopilota')
-  const colonnaRef = useRef<HTMLElement | null>(null)
   if (chiuso === undefined) return <div className="serratura" />
   if (chiuso) return <Serratura onAperto={() => setChiuso(false)} />
 

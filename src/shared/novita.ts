@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.106.1',
+    righe: [
+      '**Si apre di nuovo:** la 0.106.0 si fermava all\'avvio con un errore e la finestra restava vuota. Corretto, con una prova automatica che controlla tutte le schermate.',
+    ],
+  },
+  {
     versione: '0.106.0',
     righe: [
       '**«Altri PC»:** una sezione propria in alto, con i PC e i loro workspace. Un workspace remoto si apre sempre con il suo autopilota, come qui, e nelle chat non si scrive direttamente.',
