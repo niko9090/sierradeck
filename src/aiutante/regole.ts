@@ -16,9 +16,18 @@ import { postiDalPc, type MisuraPc, type RegolazionePosti } from '@shared/posti-
 /** La porta del collegamento fra i PC: diversa dal programma completo (47640), così stanno insieme sullo stesso PC. */
 export const PORTA_AIUTANTE = 47641
 
-/** Dove l'Aiutante cerca gli aggiornamenti: una pubblicazione FISSA, mai l'«ultima» del programma completo. */
-export const TAG_AIUTANTE = 'aiutante'
-export const FEED_AIUTANTE = `https://github.com/niko9090/sierradeck/releases/download/${TAG_AIUTANTE}/`
+/**
+ * Dove l'Aiutante cerca gli aggiornamenti (13/11, regola di Nicholas: «l'Aiutante
+ * deve SEMPRE essere allegato alla release del programma completo»): l'ultima
+ * pubblicazione del programma completo, la stessa da cui si aggiorna il
+ * programma, ma con un file suo, `aiutante.yml` (il canale `aiutante`). Il
+ * programma completo legge solo `latest.yml`, l'Aiutante solo `aiutante.yml`:
+ * nessuno dei due prende l'installer dell'altro. Prima del 13/11 stava sulla
+ * pubblicazione fissa «aiutante», che non si usa più.
+ */
+export const FEED_AIUTANTE = 'https://github.com/niko9090/sierradeck/releases/latest/download/'
+/** Il canale: electron-updater (provider generic) legge `${CANALE_AIUTANTE}.yml` su Windows. */
+export const CANALE_AIUTANTE = 'aiutante'
 
 /** Ogni quanto si cercano aggiornamenti (anche all'avvio). */
 export const CERCA_AGGIORNAMENTI_MS = 60 * 60_000

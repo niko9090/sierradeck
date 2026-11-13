@@ -6,7 +6,8 @@
 # possono stare installati tutti e due.
 #
 #   npm run pacchetto-aiutante     (solo l'installer, in dist-aiutante/)
-#   npm run pubblica-aiutante      (installer + latest.yml sulla pubblicazione fissa «aiutante»)
+#   npm run pubblica               (13/11: il programma completo E l'Aiutante, sulla stessa
+#                                   pubblicazione v<versione>: scripts/allega-aiutante.mjs)
 appId: it.ferrariconsulenze.sierradeck.aiutante
 productName: SierraDeck Aiutante
 copyright: Copyright © 2026 Ferrari Consulenze
@@ -53,7 +54,7 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: SierraDeck Aiutante
-  # Il nome del file: lo cercano pubblica-aiutante.mjs e latest.yml.
+  # Il nome del file: lo cercano allega-aiutante.mjs e aiutante.yml.
   artifactName: SierraDeck-Aiutante-Setup-${version}.${ext}
   # A riaprire l'Aiutante dopo un aggiornamento ci pensa electron-updater
   # (`quitAndInstall(true, true)`); alla prima installazione lo apre l'installer.
@@ -66,10 +67,16 @@ nsis:
   # La regola del firewall (solo rete locale) per l'Aiutante, con un nome suo.
   include: build/installer-aiutante.nsh
 
-# Dove l'Aiutante cerca gli aggiornamenti: la pubblicazione FISSA «aiutante»,
-# con il suo latest.yml. Mai l'«ultima» pubblicazione di GitHub: da quella si
-# aggiorna il programma completo. Lo stesso indirizzo è in src/aiutante/regole.ts
-# (FEED_AIUTANTE). Si pubblica con scripts/pubblica-aiutante.mjs, non da qui.
+# Dove l'Aiutante cerca gli aggiornamenti (13/11, regola di Nicholas: l'Aiutante
+# sta SEMPRE nella pubblicazione del programma completo): l'ultima pubblicazione,
+# ma con il canale «aiutante». Con il canale electron-builder scrive aiutante.yml
+# (non latest.yml, che resta del programma completo) ed electron-updater legge
+# aiutante.yml. Lo stesso indirizzo e lo stesso canale sono in src/aiutante/regole.ts
+# (FEED_AIUTANTE, CANALE_AIUTANTE). Si carica con scripts/allega-aiutante.mjs
+# (dentro `npm run pubblica`), non da qui.
 publish:
   - provider: generic
-    url: https://github.com/niko9090/sierradeck/releases/download/aiutante/
+    url: https://github.com/niko9090/sierradeck/releases/latest/download/
+    channel: aiutante
+    # Un pezzo per richiesta: a più pezzi insieme GitHub risponde «501 Unsupported client range».
+    useMultipleRangeRequest: false

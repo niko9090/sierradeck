@@ -83,6 +83,7 @@
 - vitest stampa «×» nei nomi di alcuni test (es. «(×2)»): cercare i fallimenti con «FAIL» o col riepilogo finale, non con «×» _(2026-11-13)_
 - `gh release view --json` non ha il campo isLatest: lo stato latest si legge da `gh release list` (colonna «Latest»). _(2026-11-13)_
 - `npm run pubblica` con una release in bozza già creata carica i file ma la lascia bozza: serve sempre `gh release edit --draft=false --latest`. _(2026-11-13)_
+- REGOLA di Nicholas: l'Aiutante esce SEMPRE allegato alla release del programma completo (`npm run pubblica` → `scripts/allega-aiutante.mjs`: installer, blockmap e `aiutante.yml` per ultimo; 7 file in tutto); mai più da solo sulla pubblicazione fissa «aiutante». _(2026-11-13)_
 - i file del lotto errori-arrivati non sono tracciati e non stanno nel worktree: per il titolo del gruppo leggerli con Read dalla cartella principale. _(2026-11-13)_
 
 ## git

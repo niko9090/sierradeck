@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   blocchiRete, decidiInstallazione, DISCO_MINIMO_BYTE, FEED_AIUTANTE, inScarico, limiteDaFine, PORTA_AIUTANTE, postiAiutante,
-  requisitiPersi, SCARICO_MAX_MS, TAG_AIUTANTE, valutaRequisiti, type MisureRequisiti
+  requisitiPersi, SCARICO_MAX_MS, CANALE_AIUTANTE, valutaRequisiti, type MisureRequisiti
 } from '../../src/aiutante/regole'
 import { LAVORO_MAX_MS } from '../../src/shared/aiuto-rete'
 import { PREFERENZE_PREDEFINITE } from '../../src/shared/preferenze'
@@ -78,10 +78,11 @@ describe('installare l’aggiornamento senza perdere lavoro', () => {
 })
 
 describe('da dove si aggiorna e dove ascolta', () => {
-  it('la pubblicazione FISSA «aiutante», mai l’ultima del programma completo', () => {
-    expect(TAG_AIUTANTE).toBe('aiutante')
-    expect(FEED_AIUTANTE).toBe('https://github.com/niko9090/sierradeck/releases/download/aiutante/')
-    expect(FEED_AIUTANTE).not.toMatch(/latest/u)
+  it('13/11: l’ultima release del programma completo, con il canale suo «aiutante» (aiutante.yml, mai latest.yml)', () => {
+    expect(FEED_AIUTANTE).toBe('https://github.com/niko9090/sierradeck/releases/latest/download/')
+    expect(FEED_AIUTANTE).not.toMatch(/download\/aiutante\//u)
+    expect(CANALE_AIUTANTE).toBe('aiutante')
+    expect(CANALE_AIUTANTE).not.toBe('latest')
   })
   it('una porta diversa dal programma completo, così stanno insieme sullo stesso PC', () => {
     expect(PORTA_AIUTANTE).toBe(47641)

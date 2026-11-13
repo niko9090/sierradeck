@@ -17,6 +17,14 @@ tag: ["release", "github", "gh", "apk", "procedura"]
 - Ordine giusto: `gh release create vX --draft` → `npm run pubblica` →
   `npm run allega-apk` (firma verificata) → `gh release edit vX --draft=false --latest`.
 - Le verifiche dopo l'aggiornamento si fanno quando Nicholas ha installato.
+- **13/11, regola di Nicholas: l'Aiutante sta SEMPRE nella release del programma completo.**
+  `npm run pubblica`, dopo `allega-json`, costruisce SierraDeck Aiutante e lo allega alla
+  stessa release (`scripts/allega-aiutante.mjs`): `SierraDeck-Aiutante-Setup-<av>.exe`, il suo
+  `.blockmap` e `aiutante.yml` per ultimo, più due righe nelle note. La release ha quindi
+  **7 file**: installer, blockmap, `latest.yml`, `app-android.json` e i 3 dell'Aiutante.
+  L'Aiutante si aggiorna da `releases/latest/download/aiutante.yml` (canale «aiutante»), il
+  programma completo da `latest.yml`: nessuno legge il file dell'altro. `npm run
+  pubblica-aiutante` e la pubblicazione fissa «aiutante» non si usano più.
 - **13/10 (0.71.0)**: `npm run pubblica` può fallire con «GitHub Personal Access Token is not set»: lanciarlo come `GH_TOKEN=$(gh auth token) npm run pubblica` (Git Bash). La bozza creata prima con `gh release create vX --draft` riceve exe, blockmap e latest.yml.
 - **15/10 (0.72.0)**: dal terminale di Claude Code `! gh auth login -h github.com` sembra «bloccato» ma aspetta il codice del device flow: il codice e l'indirizzo sono nel file di output del comando in sottofondo. Nicholas li inserisce su github.com/login/device e il login finisce da solo. Poi `gh auth setup-git`.
 - **15/10**: le note di app-android.json (`scripts/note-novita.mjs`) toglievano solo l'escape degli apici: una barra rovesciata scritta `\\` in novita.ts arrivava doppia nell'app. Corretto (tutti gli escape, test `tests/shared/note-novita.test.ts`).
