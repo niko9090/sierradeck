@@ -109,7 +109,7 @@ describe('le viste', () => {
     expect(testaNovita({ fase: 'disponibile', versione: '0.106.2' }, '0.106.0', agg).titolo).toBe('Nuova versione 0.106.2')
     expect(testaNovita({ fase: 'aggiornato' }, '0.106.1', agg)).toEqual({ titolo: 'Sei aggiornato', versioni: 'versione 0.106.1' })
     expect(testaNovita({ fase: 'fermo' }, '0.106.1', { tipo: 'novita' }).titolo).toBe('Installata: ecco cosa cambia')
-    expect(testaNovita({ fase: 'errore', errore: 'x' }, '0.106.1', agg)).toEqual({ titolo: 'Aggiornamento non riuscito', versioni: 'versione 0.106.1' })
+    expect(testaNovita({ fase: 'errore' }, '0.106.1', agg)).toEqual({ titolo: 'Aggiornamento non riuscito', versioni: 'versione 0.106.1' })
     // Una versione in uno stato tranquillo (la ricerca dopo «pronta») non fa dire «da → a».
     expect(testaNovita({ fase: 'cerco', versione: '0.106.2' }, '0.106.1', agg).versioni).toBe('versione 0.106.1')
   })
