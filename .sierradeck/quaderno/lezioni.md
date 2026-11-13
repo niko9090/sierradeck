@@ -85,6 +85,7 @@
 - `npm run pubblica` con una release in bozza già creata carica i file ma la lascia bozza: serve sempre `gh release edit --draft=false --latest`. _(2026-11-13)_
 - i file del lotto errori-arrivati non sono tracciati e non stanno nel worktree: per il titolo del gruppo leggerli con Read dalla cartella principale. _(2026-11-13)_
 - `npm run pubblica` con la bozza già creata e il tag pushato la lascia in bozza: serve sempre `gh release edit --draft=false --latest`. L'URL della bozza è «untagged-…» finché non si pubblica. _(2026-11-13)_
+- prima del bump: `git merge --ff-only main`, poi `gh release list`; la voce in `src/shared/novita.ts` va nello stesso commit del bump, sennò `novita.test.ts` fallisce. _(2026-11-13)_
 
 ## git
 
