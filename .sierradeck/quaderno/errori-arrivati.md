@@ -180,3 +180,13 @@ Corretto nella versione 0.105.2. Causa: `cartellaVietata` (src/autopilot-host/gi
 
 ## Gruppo 1: «Error occurred in handler for 'autopilota:dialoga': il servizio autopilota ha rifiutato la richiesta: autopilota inesistente» (Z2-TECNICO, 0.105.1)
 Corretto nella versione 0.106.0. Causa: il 404 su un id di autopilota sconosciuto (workspace riunito o eliminato) veniva lanciato come errore e il messaggio andava perso; ora il client lo rimanda all'autopilota del workspace di prima (commit d526cd31, src/main/autopilot-client.ts, test in tests/main/autopilot-client.test.ts).
+
+# Errori arrivati (lotto 20261113151348)
+
+12 gruppi, tutti «[aiuto] lavoro <id> (<ruolo>) per PC-Fisso non riuscito: lo specialista ha chiuso con un errore» (Aiutante 1.0.1, un gruppo per ogni id di lavoro).
+Corretto nella versione 0.106.2. Causa: l’accesso Claude dell’Aiutante era scaduto («Failed to authenticate: OAuth session expired…», non riconosciuto come accesso) e il programma riaffidava a quel PC lo stesso compito e altri. Ora: causa riconosciuta, motivo «accesso Claude scaduto su <PC>», PC fuori subito per un’ora o finché non riesce un lavoro (src/shared/aiuto-esito.ts), stesso compito non rilanciato sul PC dove è fallito, e la chiave di raggruppamento (normaMessaggio in src/main/errori-arrivati-lavoro.ts) non ha più l’id né il ruolo: un gruppo solo. Test: tests/main/aiuto-rete-fallimenti.test.ts.
+
+# Errori arrivati (lotto 20261113152148)
+
+5 gruppi, gli stessi «[aiuto] lavoro <id> per LAPTOP… non riuscito» (Aiutante 1.0.1).
+Corretto nella versione 0.106.2, con la stessa correzione del lotto 20261113151348 (PC non adatto dopo un accesso scaduto o un PC che non risponde, motivo vero, un gruppo solo). Test: tests/main/aiuto-rete-fallimenti.test.ts.

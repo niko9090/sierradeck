@@ -104,6 +104,8 @@ export type GruppoErrori = {
 /** Il messaggio senza quello che cambia ogni volta: numeri, id, percorsi dopo `‹tolto›`. */
 export function normaMessaggio(m: string): string {
   return m
+    // Un lavoro affidato: l'id (`r` + 12 cifre) e il ruolo non fanno un errore diverso: stessa causa, stesso gruppo.
+    .replace(/\blavoro r[0-9a-f]{12}(?: \([^)]*\))?/giu, 'lavoro ‹id›')
     .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '‹id›')
     .replace(/\b(?=[0-9a-f]*\d)[0-9a-f]{8,}\b/gi, '‹id›')
     .replace(/\d+/g, '#')
