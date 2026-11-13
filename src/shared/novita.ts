@@ -41,6 +41,19 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.106.0',
+    righe: [
+      '**«Altri PC»:** una sezione propria in alto, con i PC e i loro workspace. Un workspace remoto si apre sempre con il suo autopilota, come qui, e nelle chat non si scrive direttamente.',
+      '**Gestione progetti:** una finestra a parte (tasto in Progetti) con una riga per progetto vero e i doppioni raggruppati: proprietario, Sposta, Unisci, Rinomina, Togli dal Drive, Elimina ovunque (recupero di 30 giorni).',
+      '**Stesso nome:** workspace e cartella del progetto hanno sempre lo stesso nome; quelli diversi prendono il nome della cartella (si torna indietro dalla Gestione progetti).',
+      '**Riassunto e voce:** l\'autopilota fa il riassunto di cosa è successo dal tuo ultimo messaggio (o generale) e lo legge ad alta voce. Con «Parlato» il microfono resta acceso: si parla con «Sierra, …», Whisper lavora sul PC.',
+      '**Invio manda:** nella chat dell\'autopilota Invio manda il messaggio, Maiusc+Invio va a capo.',
+      '**A misura:** le sezioni si allargano col mouse, il tasto destro apre il menu delle azioni, le novità dell\'aggiornamento stanno in una finestrella in basso a destra.',
+      '**Specialisti giusti:** la colonna a destra non mostra più gli specialisti di un altro workspace.',
+      '**Aiutante allegato:** l\'installer di SierraDeck Aiutante è in ogni release del programma.',
+    ],
+  },
+  {
     versione: '0.105.2',
     righe: [
       '**Git locale anche su un altro disco:** se un progetto sta su un disco diverso da quello della cartella utente, SierraDeck ora crea il git locale e gli specialisti lavorano insieme, non più uno alla volta.',
