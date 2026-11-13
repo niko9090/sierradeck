@@ -49,7 +49,7 @@ export const NOVITA: Novita[] = [
       '**Riassunto e voce:** l\'autopilota fa il riassunto di cosa è successo dal tuo ultimo messaggio (o generale) e lo legge ad alta voce. Con «Parlato» il microfono resta acceso: si parla con «Sierra, …», Whisper lavora sul PC.',
       '**Invio manda:** nella chat dell\'autopilota Invio manda il messaggio, Maiusc+Invio va a capo.',
       '**A misura:** le sezioni si allargano col mouse, il tasto destro apre il menu delle azioni, le novità dell\'aggiornamento stanno in una finestrella in basso a destra.',
-      '**Specialisti giusti:** la colonna a destra non mostra più gli specialisti di un altro workspace.',
+      '**Specialisti giusti:** la colonna a destra non mostra più gli specialisti di un altro workspace. Un messaggio a un autopilota che il servizio non conosce più non si perde: va all\'autopilota del workspace di prima.',
       '**Aiutante allegato:** l\'installer di SierraDeck Aiutante è in ogni release del programma.',
     ],
   },
