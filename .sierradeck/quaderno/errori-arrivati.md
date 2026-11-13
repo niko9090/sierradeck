@@ -175,3 +175,8 @@ Corretto nella versione 0.101.1. I due gruppi sono lo stesso evento: l'EPERM del
 
 ## Gruppo 1: «[blocco] visitafacile — git locale non creato, gli specialisti lavorano uno alla volta: è la radice di un disco o la cartella dell’utente: non è un progetto»
 Corretto nella versione 0.105.2. Causa: `cartellaVietata` (src/autopilot-host/git-locale.ts) usava `path.relative` fra la cartella utente e il progetto; su Windows, con dischi diversi, `path.relative` dà un percorso assoluto e non uno relativo, quindi il progetto veniva scambiato per «radice di un disco o cartella dell’utente» e il git locale non veniva creato. Correzione in main (887b0778), test in tests/autopilot-host/git-locale-12-11.test.ts.
+
+# Errori arrivati (lotto 20261113131025)
+
+## Gruppo 1: «Error occurred in handler for 'autopilota:dialoga': il servizio autopilota ha rifiutato la richiesta: autopilota inesistente» (Z2-TECNICO, 0.105.1)
+Corretto nella versione 0.106.0. Causa: il 404 su un id di autopilota sconosciuto (workspace riunito o eliminato) veniva lanciato come errore e il messaggio andava perso; ora il client lo rimanda all'autopilota del workspace di prima (commit d526cd31, src/main/autopilot-client.ts, test in tests/main/autopilot-client.test.ts).
