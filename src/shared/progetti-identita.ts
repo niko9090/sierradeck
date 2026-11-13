@@ -349,14 +349,15 @@ export function pianoNomiWorkspace<P extends ProgettoIdentita>(p: {
 
 /** Le rinomine al contrario, per «Torna come prima»: solo dove il nome nuovo c'è ancora e quello vecchio è libero. */
 export function pianoTornaComePrima(rinominati: readonly { da: string; a: string }[], workspace: readonly string[]): { da: string; a: string }[] {
-  const ci = new Set(workspace.map((w) => w.toLowerCase()))
+  const nomi = [...workspace]
   const fuori: { da: string; a: string }[] = []
   for (const r of rinominati) {
-    if (!workspace.includes(r.a)) continue
-    if (ci.has(r.da.toLowerCase()) && r.da.toLowerCase() !== r.a.toLowerCase()) continue
+    const i = nomi.indexOf(r.a)
+    if (i === -1) continue
+    // Il nome di prima è già di un altro workspace (maiuscole comprese): resta com'è.
+    if (nomi.some((w, j) => j !== i && w.toLowerCase() === r.da.toLowerCase())) continue
     fuori.push({ da: r.a, a: r.da })
-    ci.delete(r.a.toLowerCase())
-    ci.add(r.da.toLowerCase())
+    nomi[i] = r.da
   }
   return fuori
 }

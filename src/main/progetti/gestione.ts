@@ -338,8 +338,13 @@ export function creaGestioneProgetti(d: DepsGestione): GestioneProgetti {
         if (q.proprietario === io.id) return rinominaQui(q.id, nome, { rinominaWs: true })
         const n = nomeComune(nome)
         if (!n.ok) return { ok: false, messaggio: n.motivo }
-        const no = controllaNomeNuovo(n.nome, { ids: [q.id], chiave: '' }, progetti(), d.workspace(), wsDi([q.id]))
+        const wsQui = wsDi([q.id])
+        const no = controllaNomeNuovo(n.nome, { ids: [q.id], chiave: '' }, progetti(), d.workspace(), wsQui)
         if (no !== undefined) return { ok: false, messaggio: no }
+        // I workspace di qui legati per id prima che il nome cambi: quando arriva il registro nuovo lo seguono.
+        let colQui = d.collegamenti.leggi()
+        for (const w of wsQui) if (colQui.collegati[w] === undefined) colQui = collega(colQui, w, { id: q.id, nome: nomeCartellaDi(q) })
+        if (colQui !== d.collegamenti.leggi()) d.collegamenti.scrivi(colQui)
         const r = await manda(q.proprietario, 'progetto-rinomina', { tipo: 'progetto-rinomina', progetto: q.id, nome: n.nome }, q, `Rinomina «${q.nome}» in «${n.nome}» (chiesto da ${io.nome})`)
         return r === undefined ? { ok: false, messaggio: 'Non riesco a scrivere nella posta: Drive o cassaforte non pronti.' } : { ok: true, messaggio: `Chiesto a ${r.pcNome}: rinomina la cartella in «${n.nome}» appena legge la posta. Il workspace di qui seguirà.` }
       }
@@ -539,7 +544,7 @@ export function creaGestioneProgetti(d: DepsGestione): GestioneProgetti {
       if (e.tipo !== 'collegato' && e.tipo !== 'nome') return undefined
       const cartella = nomeCartellaDi(e.progetto)
       let finale = nome
-      if (cartella !== nome && nomeComune(cartella).ok && !d.workspace().some((w) => w.toLowerCase() === cartella.toLowerCase())) {
+      if (cartella !== nome && nomeComune(cartella).ok && !d.workspace().some((w) => w !== nome && w.toLowerCase() === cartella.toLowerCase())) {
         try { d.rinominaWorkspace(nome, cartella); finale = cartella; d.log(`[gestione] workspace nuovo «${nome}» → «${cartella}»: il progetto c’era già con quel nome`) } catch (err) { d.log(`[gestione] workspace nuovo «${nome}» non rinominato: ${String(err)}`) }
       }
       d.collegamenti.scrivi(collega(rinominaInCollegamenti(d.collegamenti.leggi(), nome, finale), finale, { id: e.progetto.id, nome: cartella }))
