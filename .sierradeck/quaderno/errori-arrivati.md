@@ -230,3 +230,8 @@ Non è un difetto nuovo: il lavoro di k-158 era finito su DESKTOP-O2DITVE con l'
 
 1 gruppo: «Error occurred in handler for 'autopilota:elenca': Error: il servizio autopilota non risponde sulla porta 47630: TypeError: fetch failed» (Leonardo, 0.107.0, 2 volte in 3 secondi, durante il riavvio del servizio dopo l'aggiornamento; stesso per il dettaglio).
 Corretto nella versione 0.107.1: servizio spento o in riavvio (fetch failed, ECONNREFUSED, ECONNRESET) trattato come il timeout: elenco e dettaglio restano l'ultimo noto, un avviso nel registro e si riprova al giro dopo. Test: tests/main/elenco-autopilota-0-94-2.test.ts.
+
+# Errori arrivati (lotto 20261113230646)
+
+1 gruppo: «[claude] Claude non collegato o accesso scaduto su questo Aiutante…» (DESKTOP-O2DITVE, Aiutante 1.0.3, 1 volta, 2026-11-13T22:58Z).
+Non è un difetto: è il controllo preventivo dell'Aiutante 1.0.3 che segnala l'accesso a Claude mancante prima di prendere lavori (proprio quello che mancava nel lotto 20261113221708). Si risolve a mano: «Collega Claude» dalla finestra dell'Aiutante su DESKTOP-O2DITVE. Nessuna correzione, nessuna versione.
