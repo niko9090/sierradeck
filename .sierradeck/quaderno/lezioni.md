@@ -84,6 +84,7 @@
 - `gh release view --json` non ha il campo isLatest: lo stato latest si legge da `gh release list` (colonna «Latest»). _(2026-11-13)_
 - `npm run pubblica` con una release in bozza già creata carica i file ma la lascia bozza: serve sempre `gh release edit --draft=false --latest`. _(2026-11-13)_
 - i file del lotto errori-arrivati non sono tracciati e non stanno nel worktree: per il titolo del gruppo leggerli con Read dalla cartella principale. _(2026-11-13)_
+- `npm run pubblica` con la bozza già creata e il tag pushato la lascia in bozza: serve sempre `gh release edit --draft=false --latest`. L'URL della bozza è «untagged-…» finché non si pubblica. _(2026-11-13)_
 
 ## git
 
@@ -107,6 +108,7 @@
 - Un revisore lanciato con «k-N:» in testa alla descrizione si lega a quel compito e il programma unisce lui (niente) al posto dello sviluppatore: per le revisioni usare una descrizione senza id. _(2026-11-10)_
 - Il modello dell'autopilota passa da 5 file (ipc, servizio, store, orchestratore, tipo); ora tutti usano `modelloAutopilotaAmmesso` di `shared/modelli`. _(2026-11-10)_
 - lo stato `fermo` era tolto: un guasto non di rete non aspetta più Nicholas, riprova da solo con attesa crescente (tetto 5 min). _(2026-11-11)_
+- il client non sa il workspace di un id sparito: lo ricorda lui (id→cwd/workspace) e riscrive via /orchestratore/messaggio, che riusa l'autopilota del workspace. _(2026-11-13)_
 
 ## controllo
 
@@ -396,3 +398,7 @@
 ## windows
 
 - path.relative fra dischi diversi dà un percorso assoluto, non '..': dopo relative controllare sempre isAbsolute _(2026-11-13)_
+
+## errori
+
+- `chiama` ora porta stato e motivo nell'errore: riconoscere i 404 dal motivo, non dal testo del messaggio. _(2026-11-13)_
