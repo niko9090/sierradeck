@@ -5182,21 +5182,65 @@ body.divisore-in-mano { cursor: col-resize; user-select: none; }
 .altri-pc--misurata { flex: 0 0 auto; overflow-x: auto; scrollbar-width: none; }
 .altri-pc--misurata::-webkit-scrollbar { display: none; }
 
-/* ── La finestra degli aggiornamenti in basso a destra (13/11): una finestra vera, senza cornice. ── */
+/* ── La finestra degli aggiornamenti in basso a destra (13/11, rifatta): testa, stato, registro delle versioni, tasti. ── */
 .finestra-novita, .finestra-novita body { background: var(--chassis); }
-.fnov { height: 100vh; display: flex; flex-direction: column; border: 1px solid var(--incisione); background: var(--chassis); color: var(--testo); font-size: 13px; overflow: hidden; }
-.fnov__testa { flex: none; display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 12px; border-bottom: 1px solid var(--incisione); -webkit-app-region: drag; user-select: none; }
-.fnov__titolo { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fnov__nontrascina, .fnov__testa button { -webkit-app-region: no-drag; }
-.fnov__corpo { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; user-select: text; }
-.fnov__corpo p { margin: 0; line-height: 1.5; }
-.fnov__note { flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; }
-.fnov__corpo--note { overflow: hidden; }
-.fnov__piccolo { font-size: 12px; color: var(--testo-quieto); }
-.fnov__tasti { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.fnov__piede { margin-top: auto; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding-top: 8px; border-top: 1px solid var(--incisione); }
-.fnov__blocco { display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 6px; background: var(--luce-tenue); }
-.fnov .barra-agg { display: block; width: 100%; }
+.fnov { height: 100vh; display: flex; flex-direction: column; border: 1px solid var(--bordo, var(--incisione)); background: var(--chassis); color: var(--testo); font-size: 13px; overflow: hidden; box-sizing: border-box; }
+.fnov button:focus-visible, .fnov a:focus-visible { outline: 2px solid var(--accento); outline-offset: 2px; }
+.fnov__testa { flex: none; display: flex; align-items: center; gap: 12px; padding: 14px 10px 12px 16px; -webkit-app-region: drag; user-select: none; background: linear-gradient(to bottom, var(--chassis-alto), var(--chassis)); }
+.fnov__testa button { -webkit-app-region: no-drag; }
+.fnov__segno { flex: none; width: 40px; height: 40px; padding: 6px; border-radius: 10px; background: var(--fondo-cupo); box-sizing: border-box; }
+.fnov__intesta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.fnov__app { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--testo-quieto); }
+.fnov__titolo { margin: 0; font-size: 17px; font-weight: 600; line-height: 1.3; color: var(--testo); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fnov__versioni { font-size: 12px; color: var(--testo-quieto); font-variant-numeric: tabular-nums; }
+.fnov__chiudi { align-self: flex-start; flex: none; width: 30px; height: 30px; border: 0; border-radius: 6px; background: transparent; color: var(--testo-quieto); font-size: 20px; line-height: 1; cursor: pointer; }
+.fnov__chiudi:hover { background: var(--chassis-acceso); color: var(--testo); }
+
+.fnov__stato { flex: none; display: flex; flex-direction: column; gap: 8px; margin: 0 16px; padding: 10px 12px; border-radius: 8px; background: var(--fondo-cupo); border-left: 3px solid var(--testo-spento, var(--testo-quieto)); user-select: text; }
+.fnov__stato--lavoro { border-left-color: var(--accento); }
+.fnov__stato--pronto { border-left-color: var(--verde); }
+.fnov__stato--errore { border-left-color: var(--rosso); }
+.fnov__stato p { margin: 0; line-height: 1.5; }
+.fnov__barra { height: 8px; border-radius: 4px; background: var(--chassis-acceso); overflow: hidden; }
+.fnov__pieno { display: block; height: 100%; border-radius: 4px; background: var(--accento); transition: width 0.3s ease; }
+.fnov__misure { font-size: 12px; color: var(--testo-quieto); font-variant-numeric: tabular-nums; }
+.fnov__fallito { display: flex; flex-direction: column; gap: 6px; }
+.fnov__piccolo { font-size: 12px; color: var(--testo-quieto); margin: 0; }
+.fnov__tasti { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+
+.fnov__registro { flex: 1; min-height: 0; display: flex; flex-direction: column; margin-top: 14px; }
+.fnov__registro-testa { flex: none; display: flex; align-items: baseline; gap: 10px; padding: 0 16px 8px; }
+.fnov__sezione { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--testo-quieto); }
+.fnov__riassunto { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fnov__schede { flex: 1; min-height: 0; overflow-y: auto; padding: 0 16px 14px; display: flex; flex-direction: column; gap: 8px; user-select: text; scrollbar-gutter: stable; }
+.fnov__avviso { margin: 0; padding: 8px 10px; border-radius: 8px; background: color-mix(in srgb, var(--ambra) 12%, transparent); line-height: 1.5; }
+
+.fnov-ver { flex: none; border: 1px solid var(--bordo, var(--incisione)); border-radius: 8px; background: var(--chassis-alto); overflow: hidden; }
+.fnov-ver--nuova { border-color: color-mix(in srgb, var(--verde) 45%, var(--bordo, transparent)); }
+.fnov-ver__h { margin: 0; font: inherit; }
+.fnov-ver__testa { width: 100%; display: flex; align-items: center; gap: 8px; padding: 9px 12px; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.fnov-ver__testa:hover { background: var(--luce-tenue); }
+.fnov-ver__freccia { flex: none; width: 10px; color: var(--testo-quieto); font-size: 15px; line-height: 1; transition: transform 0.15s ease; }
+.fnov-ver--aperta .fnov-ver__freccia { transform: rotate(90deg); }
+.fnov-ver__numero { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.fnov-ver__tipo { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--accento) 18%, transparent); color: color-mix(in srgb, var(--accento) 75%, var(--testo)); }
+.fnov-ver__tipo--correzioni { background: color-mix(in srgb, var(--testo-quieto) 16%, transparent); color: var(--testo-quieto); }
+.fnov-ver__tipo--grande { background: color-mix(in srgb, var(--ambra) 20%, transparent); color: var(--ambra); }
+.fnov-ver__ruolo { font-size: 11px; color: var(--testo-quieto); }
+.fnov-ver__ruolo--nuova { color: var(--verde); font-weight: 600; }
+.fnov-ver__spazio { flex: 1; }
+.fnov-ver__conta, .fnov-ver__data { flex: none; font-size: 11px; color: var(--testo-quieto); font-variant-numeric: tabular-nums; }
+.fnov-ver__voci { list-style: none; margin: 0; padding: 2px 14px 12px 30px; display: flex; flex-direction: column; gap: 10px; }
+.fnov-ver__vuota { padding: 0 14px 12px 30px; }
+.fnov-voce { position: relative; display: flex; flex-direction: column; gap: 2px; line-height: 1.5; }
+.fnov-voce::before { content: ''; position: absolute; left: -12px; top: 8px; width: 5px; height: 5px; border-radius: 50%; background: var(--accento); }
+.fnov-voce__titolo { font-weight: 600; color: var(--testo); }
+.fnov-voce__testo { color: color-mix(in srgb, var(--testo) 82%, var(--testo-quieto)); overflow-wrap: anywhere; }
+
+.fnov__piede { flex: none; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 16px 12px; border-top: 1px solid var(--bordo, var(--incisione)); background: var(--chassis); }
+.fnov__link { border: 0; background: none; padding: 2px 0; color: var(--accento); font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.fnov__link:hover { text-decoration: underline; }
+@media (prefers-reduced-motion: reduce) { .fnov__pieno, .fnov-ver__freccia { transition: none; } }
 /* Il pallino sul numero di versione: c'è una notizia dell'aggiornamento non ancora guardata. */
 .versione--nonletto::after { content: ''; display: inline-block; width: 7px; height: 7px; margin-left: 5px; border-radius: 50%; background: var(--ambra); vertical-align: middle; }
 .spia-agg--tasto { cursor: pointer; font: inherit; }

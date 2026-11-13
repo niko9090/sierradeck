@@ -1,9 +1,12 @@
 import { app, BrowserWindow, ipcMain, screen } from 'electron'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { APP_NAME } from '@shared/version'
+import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 import {
-  GRANDEZZA_NOVITA, LETTURA_INIZIALE, leggiVista, posizioneInBassoADestra, segnaLetto, suStato,
-  type LetturaNovita, type StatoPerNovita, type VistaNovita
+  FILE_GRANDEZZA_NOVITA, GRANDEZZA_MINIMA, GRANDEZZA_PREDEFINITA, LETTURA_INIZIALE, grandezzaNeiLimiti, leggiGrandezzaSalvata,
+  leggiVista, posizioneInBassoADestra, segnaLetto, suStato,
+  type Grandezza, type LetturaNovita, type StatoPerNovita, type VistaNovita
 } from '@shared/finestra-novita'
 import { finestreDiChat, segnaFinestraAccessoria } from './finestre-pannello'
 
@@ -23,6 +26,9 @@ import { finestreDiChat, segnaFinestraAccessoria } from './finestre-pannello'
  *   slot, area di notifica. Si chiude con l'ultima finestra di chat e all'uscita.
  * - Non installa niente: i tasti sono gli stessi di prima, e «Installa e
  *   riavvia» parte solo dal clic di chi la usa.
+ * - Si allarga e si stringe dal bordo (13/11): la grandezza scelta si ricorda
+ *   in un file di questo PC (`finestra-aggiornamenti.json`), non nelle
+ *   impostazioni che vanno al telefono. Si apre sempre nell'angolo.
  */
 
 let win: BrowserWindow | undefined
@@ -32,6 +38,32 @@ let lettura: LetturaNovita = LETTURA_INIZIALE
 /** Una notizia arrivata con il programma nascosto: si mostra quando torna davanti. */
 let inSospeso = false
 let uscendo = false
+/** La cartella dei dati di questo PC, per il file della grandezza. */
+let cartella = ''
+let grandezza: Grandezza | undefined
+
+function fileGrandezza(): string | undefined {
+  return cartella !== '' ? join(cartella, FILE_GRANDEZZA_NOVITA) : undefined
+}
+
+/** La grandezza ricordata (una lettura per avvio), o la predefinita. */
+function grandezzaRicordata(): Grandezza {
+  if (grandezza !== undefined) return grandezza
+  const f = fileGrandezza()
+  try {
+    grandezza = f !== undefined && existsSync(f) ? leggiGrandezzaSalvata(JSON.parse(readFileSync(f, 'utf8')) as unknown) : GRANDEZZA_PREDEFINITA
+  } catch {
+    grandezza = GRANDEZZA_PREDEFINITA
+  }
+  return grandezza
+}
+
+/** Chi la usa l'ha allargata o stretta: si ricorda. */
+function ricordaGrandezza(g: Grandezza): void {
+  grandezza = grandezzaNeiLimiti(g)
+  const f = fileGrandezza()
+  if (f !== undefined) scriviJsonAtomico(f, grandezza, 'grandezza della finestra degli aggiornamenti')
+}
 
 export type StatoFinestraNovita = { aperta: boolean; nonLetto: boolean }
 
@@ -67,15 +99,18 @@ function posiziona(): void {
   if (win === undefined || win.isDestroyed()) return
   const p = principale()
   const schermo = p !== undefined ? screen.getDisplayMatching(p.getBounds()) : screen.getPrimaryDisplay()
-  win.setBounds(posizioneInBassoADestra(schermo.workArea, GRANDEZZA_NOVITA[vista.tipo]))
+  win.setBounds(posizioneInBassoADestra(schermo.workArea, grandezzaRicordata()))
 }
 
 function crea(): BrowserWindow {
   const w = new BrowserWindow({
-    ...GRANDEZZA_NOVITA[vista.tipo],
+    ...grandezzaRicordata(),
+    minWidth: GRANDEZZA_MINIMA.width,
+    minHeight: GRANDEZZA_MINIMA.height,
     show: false,
     frame: false,
-    resizable: false,
+    // Senza cornice, ma con i bordi da tirare: la grandezza la sceglie chi la usa.
+    resizable: true,
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
@@ -90,6 +125,8 @@ function crea(): BrowserWindow {
   w.on('focus', () => { lettura = segnaLetto(lettura); annunciaStato() })
   w.on('show', annunciaStato)
   w.on('hide', annunciaStato)
+  // 'resized' arriva solo quando la si tira col mouse, non per i nostri setBounds.
+  w.on('resized', () => { if (!w.isDestroyed()) { const [width = 0, height = 0] = w.getSize(); ricordaGrandezza({ width, height }) } })
   w.on('closed', () => { if (win === w) win = undefined; annunciaStato() })
   // La × del sistema (Alt+F4) la nasconde come la nostra, salvo all'uscita.
   w.on('close', (e) => {
@@ -153,8 +190,9 @@ export function chiudiFinestraNovita(): void {
   win = undefined
 }
 
-export function impostaFinestraNovita(p: { preload: string }): void {
+export function impostaFinestraNovita(p: { preload: string; cartellaDati?: string }): void {
   preload = p.preload
+  cartella = p.cartellaDati ?? app.getPath('userData')
   app.on('before-quit', () => { uscendo = true; chiudiFinestraNovita() })
   // Una notizia arrivata col programma nascosto si mostra quando torna davanti.
   app.on('browser-window-focus', (_e, w) => {

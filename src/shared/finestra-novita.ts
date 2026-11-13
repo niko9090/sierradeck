@@ -21,11 +21,38 @@ export type VistaNovita =
   | { tipo: 'novita' }
   | { tipo: 'installa'; versione: string }
 
-/** Le grandezze: piccola per lo stato, più alta per leggere le note. */
-export const GRANDEZZA_NOVITA: Record<VistaNovita['tipo'], Grandezza> = {
-  aggiornamento: { width: 400, height: 300 },
-  novita: { width: 460, height: 560 },
-  installa: { width: 460, height: 600 }
+/**
+ * La grandezza della finestra (13/11, rifatta): una sola per tutte le viste,
+ * abbastanza grande da leggere il registro delle versioni senza scorrere
+ * subito. Chi la usa la può allargare o stringere dal bordo, e la grandezza
+ * scelta si ricorda **solo su questo PC** (un file accanto ai dati, mai nelle
+ * impostazioni che vanno anche al telefono).
+ */
+export const GRANDEZZA_PREDEFINITA: Grandezza = { width: 520, height: 640 }
+export const GRANDEZZA_MINIMA: Grandezza = { width: 420, height: 400 }
+export const GRANDEZZA_MASSIMA: Grandezza = { width: 1600, height: 1400 }
+
+/** Il nome del file, nella cartella dei dati di questo PC. */
+export const FILE_GRANDEZZA_NOVITA = 'finestra-aggiornamenti.json'
+
+/** Tiene una grandezza fra la minima e la massima, in pixel interi. */
+export function grandezzaNeiLimiti(g: Grandezza): Grandezza {
+  const tieni = (v: number, min: number, max: number): number => Math.max(min, Math.min(max, Math.round(v)))
+  return {
+    width: tieni(g.width, GRANDEZZA_MINIMA.width, GRANDEZZA_MASSIMA.width),
+    height: tieni(g.height, GRANDEZZA_MINIMA.height, GRANDEZZA_MASSIMA.height)
+  }
+}
+
+/** La grandezza salvata, letta dal file: quello che non si capisce torna alla predefinita. */
+export function leggiGrandezzaSalvata(x: unknown): Grandezza {
+  if (typeof x === 'object' && x !== null) {
+    const { width, height } = x as { width?: unknown; height?: unknown }
+    if (typeof width === 'number' && typeof height === 'number' && Number.isFinite(width) && Number.isFinite(height)) {
+      return grandezzaNeiLimiti({ width, height })
+    }
+  }
+  return GRANDEZZA_PREDEFINITA
 }
 
 /**
@@ -108,11 +135,35 @@ export function segnaLetto(l: LetturaNovita): LetturaNovita {
   return l.nonLetto ? { ...l, nonLetto: false } : l
 }
 
-/** Il titolo della testa della finestra, per vista. */
-export function titoloNovita(v: VistaNovita): string {
-  if (v.tipo === 'novita') return 'Cosa c’è di nuovo'
-  if (v.tipo === 'installa') return `Cosa cambia con la ${v.versione}`
-  return 'Aggiornamento'
+/** Quello che serve dello stato per la testa della finestra. */
+export type StatoPerTesta = { fase: string; versione?: string; percento?: number }
+
+/** Le fasi in cui c'è una versione nuova in arrivo o pronta. */
+export function conVersioneNuova(s: StatoPerTesta): boolean {
+  return s.versione !== undefined && s.versione !== '' && ['disponibile', 'scarico', 'pronto', 'attendo', 'installo'].includes(s.fase)
+}
+
+/**
+ * La testa della finestra: la frase dello stato, grande, e sotto le versioni
+ * («da 0.106.0 → a 0.106.2», o «versione 0.106.1»).
+ */
+export function testaNovita(s: StatoPerTesta, installata: string, v: VistaNovita): { titolo: string; versioni: string } {
+  const nuova = conVersioneNuova(s) ? s.versione : undefined
+  const versioni = nuova !== undefined
+    ? (installata !== '' ? `da ${installata} → a ${nuova}` : `versione ${nuova}`)
+    : (installata !== '' ? `versione ${installata}` : '')
+  let titolo: string
+  switch (s.fase) {
+    case 'disponibile': titolo = nuova !== undefined ? `Nuova versione ${nuova}` : 'Nuova versione'; break
+    case 'scarico': titolo = `Sto scaricando… ${s.percento ?? 0}%`; break
+    case 'pronto': titolo = nuova !== undefined ? `Nuova versione ${nuova} pronta` : 'Nuova versione pronta'; break
+    case 'attendo': titolo = 'Installo appena le chat finiscono'; break
+    case 'installo': titolo = `Sto installando la ${nuova ?? 'versione nuova'}`; break
+    case 'cerco': titolo = 'Cerco aggiornamenti…'; break
+    case 'errore': titolo = 'Aggiornamento non riuscito'; break
+    default: titolo = v.tipo === 'novita' ? 'Installata: ecco cosa cambia' : 'Sei aggiornato'
+  }
+  return { titolo, versioni }
 }
 
 /** Legge una vista arrivata dall'IPC: tutto quello che non si riconosce torna allo stato dell'aggiornamento. */
