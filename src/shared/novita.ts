@@ -41,6 +41,16 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.107.0',
+    righe: [
+      '**Aggiornamento tutto in una finestra:** scaricamento, versione pronta, installazione, errori e «ecco cosa cambia» dopo l\'installazione passano solo dalla finestra in basso a destra; niente più strisce o avvisi sparsi. Si apre dal numero di versione in alto.',
+      '**Altri PC in ordine:** in alto un tasto solo, «Altri PC», con un elenco ordinato (accesi prima, versione, workspace, ricerca); gli Aiutanti non compaiono più lì.',
+      '**Aiutante 1.0.3:** controlla davvero l\'accesso a Claude; se non va non prende lavori e mostra «Rifai l\'accesso». Il suo aggiornamento si vede nella stessa finestra, con barra. Logo SierraDeck sulla finestra.',
+      '**Schermata che cadeva:** un errore («filter») faceva cadere una schermata. Corretto.',
+      '**Aiutante con l\'accesso scaduto:** viene tenuto fuori subito dai lavori, con il motivo vero e il nome del PC; gli errori uguali finiscono in un gruppo solo negli errori arrivati.',
+    ],
+  },
+  {
     versione: '0.106.2',
     righe: [
       '**Finestra dell\'aggiornamento rifatta:** più grande e ridimensionabile, con barra di scaricamento (MB/s e tempo che manca) e le novità di ogni versione, anche di quelle saltate, sempre in vista.',
