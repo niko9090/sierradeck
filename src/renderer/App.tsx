@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { IndicatoreParlato } from './components/Parlato'
 import { ascoltaSegnali, faseDiSessione, lavoraConSegnali, partitaConSegnali, prontaConSegnali } from './segnali-vivi'
 import { indicatoreChat } from '@shared/segnali-chat'
 import { caricaSenzaRiquadriMorti } from '@shared/riquadri-morti'
@@ -2093,6 +2094,8 @@ export function App(): React.JSX.Element {
         ) : null}
         <FumettoPreferenzeNonSalvate />
       </Fumetti>
+      {/* «Parlato» (13/11): il microfono aperto si vede sempre, col tasto per fermare. */}
+      <IndicatoreParlato />
     </div>
   )
 }

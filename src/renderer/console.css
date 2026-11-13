@@ -5212,3 +5212,28 @@ body.divisore-in-mano { cursor: col-resize; user-select: none; }
 .voceap__righe { margin: 4px 0 0; padding-left: 18px; font-size: 13px; overflow-wrap: anywhere; }
 .voceap__righe li { margin: 2px 0; }
 .chatap__dettato { font-size: 12px; color: var(--testo-quieto); }
+
+/* ── «Parlato»: microfono aperto con la parola di sveglia (13/11) ── */
+.parlato { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.parlato__modi { display: inline-flex; align-items: center; gap: 0; }
+.parlato__modi > .tasto:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.parlato__modi > .tasto:nth-child(2) { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -1px; }
+.parlato__stato { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; min-width: 0; }
+.parlato__ultima { color: var(--testo-quieto); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.parlato__punto { width: 9px; height: 9px; border-radius: 50%; background: var(--verde); flex: none; }
+.parlato__stato--sente .parlato__punto, .parlato__stato--sveglia .parlato__punto { background: var(--blu); animation: parlato-batte 0.9s ease-in-out infinite; }
+.parlato__stato--trascrive .parlato__punto, .parlato__stato--manda .parlato__punto { background: var(--ambra); animation: parlato-batte 0.9s ease-in-out infinite; }
+.parlato__stato--tace .parlato__punto, .parlato__stato--avvio .parlato__punto { background: var(--testo-quieto); }
+.parlato__stato--errore .parlato__punto { background: var(--rosso); }
+@keyframes parlato-batte { 50% { transform: scale(1.5); opacity: 0.6; } }
+@media (prefers-reduced-motion: reduce) { .parlato__punto { animation: none !important; } }
+.parlato__consenso { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; padding: 4px 6px; border: 1px solid var(--ambra); border-radius: var(--raggio); width: 100%; }
+.parlato__consenso progress { width: 140px; }
+.parlato__scelte { display: inline-flex; gap: 10px; flex-wrap: wrap; }
+.parlato__impostazioni { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.parlato__parola { width: 110px; padding: 2px 6px; font-size: 12px; }
+.parlato__parola[aria-invalid='true'] { border-color: var(--rosso); }
+.parlato-segno { position: fixed; left: 12px; bottom: 12px; z-index: 900; display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 12px; background: var(--fondo-cupo); border: 1px solid var(--blu); border-radius: 10px; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5); max-width: min(460px, calc(100vw - 24px)); }
+.parlato-segno__testo { display: flex; flex-direction: column; font-size: 12px; min-width: 0; }
+.parlato-segno__fase { color: var(--testo-quieto); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.parlato-segno__ferma { font-size: 14px; padding: 6px 14px; }

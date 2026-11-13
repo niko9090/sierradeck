@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { accoda, aPezzi, fineAscolto, finita, FILA_VUOTA, inizioAscolto, prossima, ripeti, subito, zitto, type FilaVoce, type Frase } from '@shared/voce-autopilota'
+import { PAROLA_SVEGLIA_PREDEFINITA, parolaSvegliaValida } from '@shared/parlato'
 
 /**
  * **La voce di SierraDeck** (13/11): legge i riassunti e, con la
@@ -18,12 +19,16 @@ export type ImpostazioniVoce = {
   velocita: number
   /** Il nome della voce scelta; assente: la prima italiana. */
   voce?: string
-  /** Con la conversazione accesa, quello che detti parte da solo dopo una pausa. */
-  invioDaSolo: boolean
+  /**
+   * La parola di sveglia di «Parlato» (13/11): solo le frasi che cominciano
+   * così vanno all'autopilota. «Manda da solo» della dettatura non c'è più:
+   * in Normale niente parte da solo (Nicholas, 13/11).
+   */
+  parolaSveglia: string
 }
 
 const CHIAVE = 'sierradeck.voce'
-const PREDEFINITE: ImpostazioniVoce = { conversazione: false, velocita: 1, invioDaSolo: true }
+const PREDEFINITE: ImpostazioniVoce = { conversazione: false, velocita: 1, parolaSveglia: PAROLA_SVEGLIA_PREDEFINITA }
 export const VELOCITA_MIN = 0.7
 export const VELOCITA_MAX = 1.6
 
@@ -34,7 +39,7 @@ function leggiImpostazioni(): ImpostazioniVoce {
     return {
       conversazione: x.conversazione === true,
       velocita: v,
-      invioDaSolo: x.invioDaSolo !== false,
+      parolaSveglia: typeof x.parolaSveglia === 'string' && parolaSvegliaValida(x.parolaSveglia) ? x.parolaSveglia.trim() : PAROLA_SVEGLIA_PREDEFINITA,
       ...(typeof x.voce === 'string' && x.voce !== '' ? { voce: x.voce } : {})
     }
   } catch {
