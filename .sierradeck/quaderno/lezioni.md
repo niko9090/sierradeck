@@ -396,3 +396,8 @@
 ## windows
 
 - path.relative fra dischi diversi dà un percorso assoluto, non '..': dopo relative controllare sempre isAbsolute _(2026-11-13)_
+
+## voce
+
+- whisper.cpp 1.9.2 su questo PC (i7-3770, niente AVX2, CPU al 100%): 15-37 s per una frase di 3 s col modello small q5_1; «Sierra» la scrive giusta, «fammi» a volte «famiglia». Le misure vanno rifatte a PC scarico. _(2026-11-13)_
+- Il `tar` di Git Bash non apre gli zip: serve `%SystemRoot%\System32\tar.exe` (bsdtar), che accetta anche i nomi con `*` per estrarre solo alcuni file. _(2026-11-13)_

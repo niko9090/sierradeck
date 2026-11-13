@@ -108,6 +108,16 @@ declare global {
         stato: () => Promise<import('@shared/dettatura').StatoDettatura>
         apri: () => Promise<{ ok: boolean; messaggio?: string; comeAttivare?: string }>
       }
+      /** «Parlato» (13/11): facoltativo, i finti dei test e le app vecchie non l'hanno. */
+      voceLocale?: {
+        stato: () => Promise<import('@shared/modello-voce').StatoModello>
+        scarica: (modello: import('@shared/modello-voce').IdModello) => Promise<import('@shared/modello-voce').StatoModello>
+        annulla: () => Promise<void>
+        rimuovi: () => Promise<import('@shared/modello-voce').StatoModello>
+        trascrivi: (pcm: Uint8Array, parola: string) => Promise<{ ok: true; testo: string; ms: number } | { ok: false; messaggio: string }>
+        suCambio: (cb: (s: import('@shared/modello-voce').StatoModello) => void) => () => void
+        suFinestraNascosta: (cb: () => void) => () => void
+      }
       migrazione: {
         stato: () => Promise<import('@shared/migrazione-elenco').StatoMigrazione | null>
         torna: () => Promise<{ ok: boolean; messaggio: string }>

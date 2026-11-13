@@ -2,7 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Autopilota } from '@shared/autopilota'
 import type { Battuta } from '@shared/chat-autopilota'
 import { riassunto, type Riassunto, type TipoRiassunto } from '@shared/riassunto-autopilota'
-import { battuteDaDire, chiaveBattuta, fraseDiBattuta } from '@shared/voce-autopilota'
+import { battuteDaDire, chiaveBattuta, fraseDiBattuta, type ComandoVocale } from '@shared/voce-autopilota'
+import { regoleModo } from '@shared/parlato'
+import { useAscolto } from '../ascolto'
+import { ImpostazioniParlato, InterruttoreParlato } from './Parlato'
 import { useSondaggio } from '../state/sondaggio'
 import { useSorgente } from '../sorgente-autopilota'
 import { sondaggioOrchestratore } from './TestaOrchestratore'
@@ -16,19 +19,22 @@ export type RichiestaRiassunto = { tipo: TipoRiassunto; n: number; leggi: boolea
 
 const AIUTO_RIASSUNTO = 'Il riassunto lo scrive il programma con quello che sa già (lavori partiti, finiti e uniti, cosa non è andato, richieste fatte, versioni uscite, le sue risposte e le domande che ti aspettano): è immediato e non costa niente. «Dal tuo ultimo messaggio» guarda solo da quando gli hai scritto l’ultima volta; «Generale» dà il punto sul workspace. Se vuoi il suo parere con parole sue, chiediglielo nella chat: costa un turno. «Ascolta» lo legge con la voce italiana di Windows.'
 
-const AIUTO_VOCE = 'Con la conversazione a voce accesa SierraDeck legge ad alta voce, in breve, le risposte e le domande NUOVE dell’autopilota (non la storia vecchia, non il codice). Per rispondere premi 🎤 e parla: mentre parli la voce tace. Quando smetti di parlare per qualche secondo il testo parte da solo (puoi annullare, o spegnere «Manda da solo»). Parole che fanno qualcosa qui senza mandare niente: «riassunto», «riassunto generale», «ripeti», «basta». La voce è quella di Windows, sul PC: niente audio esce dal PC. Se manca la voce italiana: ' + COME_AGGIUNGERE_VOCE
+const AIUTO_VOCE = 'Con «A voce» acceso SierraDeck legge ad alta voce, in breve, le risposte e le domande NUOVE dell’autopilota (non la storia vecchia, non il codice). In Normale rispondi con 🎤: il testo va nel campo e lo mandi tu con «Manda», niente parte da solo. In Parlato il microfono resta aperto e la lettura è sempre accesa. Parole che fanno qualcosa qui senza mandare niente: «riassunto», «riassunto generale», «ripeti», «basta». La voce è quella di Windows, sul PC: niente audio esce dal PC. Se manca la voce italiana: ' + COME_AGGIUNGERE_VOCE
 
 /**
  * **Riassunto e conversazione a voce** nella testa della chat
  * dell'autopilota (13/11). I dati arrivano dalla sorgente: vale uguale per
  * l'autopilota di un altro PC.
  */
-export function VoceAutopilota({ autopilota, workspace, battute, richiesta }: {
+export function VoceAutopilota({ autopilota, workspace, battute, richiesta, invia, suComando }: {
   autopilota: Autopilota
   workspace: string
   /** Le battute della chat, per dire le nuove con la conversazione a voce. */
   battute: readonly Battuta[]
   richiesta?: RichiestaRiassunto
+  /** Parlato (13/11): come si manda quello che dici (la sorgente: vale anche per un altro PC). */
+  invia: (testo: string) => Promise<unknown>
+  suComando: (c: ComandoVocale) => void
 }): React.JSX.Element {
   const sorgente = useSorgente()
   const imp = useImpostazioniVoce()
@@ -39,6 +45,11 @@ export function VoceAutopilota({ autopilota, workspace, battute, richiesta }: {
   const [regola, setRegola] = useState(false)
   const [voci, setVoci] = useState<SpeechSynthesisVoice[] | undefined>(undefined)
   const chiave = `${sorgente.chiave}|${autopilota.id}`
+  // Parlato in questa chat: le risposte nuove si leggono anche senza «A voce».
+  const ascoltoOra = useAscolto()
+  const parlatoQui = ascoltoOra.fase !== 'spento' && ascoltoOra.bersaglio?.chiave === chiave
+  const leggi = imp.conversazione || regoleModo(parlatoQui ? 'parlato' : 'normale').leggeRisposte
+  const nome = autopilota.nome.trim() !== '' ? autopilota.nome : 'Autopilota'
 
   const fai = (tipo: TipoRiassunto, leggi: boolean): void => {
     setLeggo(true)
@@ -62,7 +73,7 @@ export function VoceAutopilota({ autopilota, workspace, battute, richiesta }: {
   const viste = useRef<Set<string> | undefined>(undefined)
   const domandePrima = useRef<number | undefined>(undefined)
   useEffect(() => {
-    if (!imp.conversazione) { viste.current = undefined; domandePrima.current = undefined; return }
+    if (!leggi) { viste.current = undefined; domandePrima.current = undefined; return }
     if (viste.current === undefined) {
       viste.current = new Set(battute.map(chiaveBattuta))
       domandePrima.current = vista?.domandeAperte
@@ -81,7 +92,7 @@ export function VoceAutopilota({ autopilota, workspace, battute, richiesta }: {
       }
       domandePrima.current = d
     }
-  }, [imp.conversazione, battute, vista?.domandeAperte, chiave])
+  }, [leggi, battute, vista?.domandeAperte, chiave])
 
   useEffect(() => {
     if (!regola || voci !== undefined) return
@@ -93,11 +104,13 @@ export function VoceAutopilota({ autopilota, workspace, battute, richiesta }: {
       <div className="voceap__tasti">
         <button className="tasto tasto--mini" disabled={leggo} onClick={() => fai('da-ultimo', false)} title="Cosa è successo dal tuo ultimo messaggio">Riassunto</button>
         <button
-          className={`tasto tasto--mini${imp.conversazione ? ' tasto--primario' : ''}`}
-          aria-pressed={imp.conversazione}
+          className={`tasto tasto--mini${leggi ? ' tasto--primario' : ''}`}
+          aria-pressed={leggi}
+          disabled={parlatoQui}
           onClick={() => cambiaVoce({ conversazione: !imp.conversazione })}
-          title="Legge ad alta voce le sue risposte nuove; rispondi con 🎤"
-        >{imp.conversazione ? '🔊 A voce' : '🔇 A voce'}</button>
+          title={parlatoQui ? 'In Parlato legge sempre' : 'Legge ad alta voce le sue risposte nuove'}
+        >{leggi ? '🔊 A voce' : '🔇 A voce'}</button>
+        <InterruttoreParlato bersaglio={{ chiave, nome, invia, comando: suComando }} />
         <button className="tasto tasto--mini" aria-expanded={regola} onClick={() => setRegola((x) => !x)} title="Velocità e voce">▾</button>
         {stato.parla ? <button className="tasto tasto--mini" onClick={() => voce.zitto()} title="Smetti di leggere">■ Ferma</button> : null}
       </div>
@@ -122,10 +135,7 @@ export function VoceAutopilota({ autopilota, workspace, battute, richiesta }: {
               </select>
             </label>
           )}
-          <label>
-            <input type="checkbox" checked={imp.invioDaSolo} onChange={(e) => cambiaVoce({ invioDaSolo: e.target.checked })} />
-            {' '}Manda da solo quello che detti
-          </label>
+          <ImpostazioniParlato />
           <button className="tasto tasto--mini" onClick={() => voce.subito(`prova:${Date.now()}`, 'Ciao, sono la voce di SierraDeck.')}>Prova</button>
           <Aiuto di="la conversazione a voce">{AIUTO_VOCE}</Aiuto>
         </div>

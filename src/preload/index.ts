@@ -268,6 +268,25 @@ contextBridge.exposeInMainWorld('gestore', {
     stato: (): Promise<import('../shared/dettatura').StatoDettatura> => ipcRenderer.invoke('dettatura:stato'),
     apri: (): Promise<{ ok: boolean; messaggio?: string; comeAttivare?: string }> => ipcRenderer.invoke('dettatura:apri')
   },
+  /** «Parlato» (13/11): Whisper sul PC, scaricato col consenso; la finestra manda le frasi e riceve il testo. */
+  voceLocale: {
+    stato: (): Promise<import('../shared/modello-voce').StatoModello> => ipcRenderer.invoke('voce-locale:stato'),
+    scarica: (modello: import('../shared/modello-voce').IdModello): Promise<import('../shared/modello-voce').StatoModello> => ipcRenderer.invoke('voce-locale:scarica', modello),
+    annulla: (): Promise<void> => ipcRenderer.invoke('voce-locale:annulla'),
+    rimuovi: (): Promise<import('../shared/modello-voce').StatoModello> => ipcRenderer.invoke('voce-locale:rimuovi'),
+    trascrivi: (pcm: Uint8Array, parola: string): Promise<{ ok: true; testo: string; ms: number } | { ok: false; messaggio: string }> => ipcRenderer.invoke('voce-locale:trascrivi', pcm, parola),
+    suCambio: (cb: (s: import('../shared/modello-voce').StatoModello) => void): (() => void) => {
+      const h = (_e: unknown, s: import('../shared/modello-voce').StatoModello): void => cb(s)
+      ipcRenderer.on('voce-locale:cambiato', h)
+      return () => { ipcRenderer.off('voce-locale:cambiato', h) }
+    },
+    /** La finestra è andata nell'area di notifica (la X): «Parlato» si spegne. */
+    suFinestraNascosta: (cb: () => void): (() => void) => {
+      const h = (): void => cb()
+      ipcRenderer.on('finestra:nascosta', h)
+      return () => { ipcRenderer.off('finestra:nascosta', h) }
+    }
+  },
   /** La trasformazione dei workspace (0.74.1): lo stato, «Torna come prima», «Rifai». */
   migrazione: {
     stato: (): Promise<import('../shared/migrazione-elenco').StatoMigrazione | null> => ipcRenderer.invoke('migrazione:stato'),

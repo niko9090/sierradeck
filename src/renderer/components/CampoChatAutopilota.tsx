@@ -5,6 +5,7 @@ import { testoErroreDialogo } from '../errore-dialogo'
 import { TastoMicrofono } from './TastoMicrofono'
 import { comandoVocale, type ComandoVocale } from '@shared/voce-autopilota'
 import { useImpostazioniVoce, voce } from '../voce'
+import { ascolto } from '../ascolto'
 
 type Props = {
   autopilotaId: string
@@ -18,9 +19,11 @@ type Props = {
   suComando?: (c: ComandoVocale) => void
 }
 
-/** Con la conversazione a voce, dopo quanta quiete nella dettatura il testo parte da solo. */
-export const QUIETE_INVIO_MS = 4000
-/** Senza invio da solo, dopo quanta quiete si considera finito il tuo parlare (la voce riprende). */
+/**
+ * Dopo quanta quiete nella dettatura si considera finito il tuo parlare (la
+ * voce riprende). Il testo dettato NON parte mai da solo (Nicholas, 13/11:
+ * in Normale si manda con «Manda»; a mani libere c'è Parlato).
+ */
 const QUIETE_ASCOLTO_MS = 30_000
 
 /**
@@ -46,8 +49,10 @@ function CampoChatAutopilotaVero({ autopilotaId, onCambiato, campoPronto, invia,
   // 13/11: la conversazione a voce. `dettando`: hai premuto 🎤 e non hai ancora mandato.
   const imp = useImpostazioniVoce()
   const [dettando, setDettando] = useState<{ prima: string } | undefined>(undefined)
-  const [conto, setConto] = useState<number | undefined>(undefined)
-  const finisciDettato = (): void => { setDettando(undefined); setConto(undefined); voce.fineAscolto() }
+  const finisciDettato = (): void => { setDettando(undefined); voce.fineAscolto(); ascolto.dettatura(false) }
+
+  // Il campo che si chiude con la dettatura aperta non deve lasciare Parlato sordo.
+  useEffect(() => () => { ascolto.dettatura(false) }, [])
 
   useEffect(() => {
     if (!campoPronto) return
@@ -85,24 +90,13 @@ function CampoChatAutopilotaVero({ autopilotaId, onCambiato, campoPronto, invia,
     esegui(() => (inviaRef.current !== undefined ? inviaRef.current(testo) : window.gestore.autopilota.dialoga(autopilotaId, testo)))
   }
 
-  // Dettando: dopo qualche secondo di quiete il testo parte da solo (con la conversazione a voce e
-  // «Manda da solo»), altrimenti dopo una quiete lunga la voce riprende a parlare.
-  const mandaRef = useRef(manda)
-  mandaRef.current = manda
+  // Dettando: dopo una quiete lunga si considera finito il tuo parlare e la voce riprende.
+  // Niente parte da solo: «Manda» lo premi tu (`regoleModo(...).dettatoParteDaSolo` è sempre falso).
   useEffect(() => {
     if (dettando === undefined) return
-    const cambiato = messaggio.trim() !== '' && messaggio !== dettando.prima
-    const daSolo = imp.conversazione && imp.invioDaSolo && cambiato
-    if (!daSolo) {
-      setConto(undefined)
-      const t = setTimeout(finisciDettato, QUIETE_ASCOLTO_MS)
-      return () => clearTimeout(t)
-    }
-    setConto(Math.round(QUIETE_INVIO_MS / 1000))
-    const giro = setInterval(() => setConto((c) => (c !== undefined && c > 1 ? c - 1 : c)), 1000)
-    const t = setTimeout(() => mandaRef.current(), QUIETE_INVIO_MS)
-    return () => { clearTimeout(t); clearInterval(giro) }
-  }, [messaggio, dettando, imp.conversazione, imp.invioDaSolo])
+    const t = setTimeout(finisciDettato, QUIETE_ASCOLTO_MS)
+    return () => clearTimeout(t)
+  }, [messaggio, dettando])
 
   return (
     <div className="chatap__scrivi">
@@ -130,15 +124,9 @@ function CampoChatAutopilotaVero({ autopilotaId, onCambiato, campoPronto, invia,
         >
           {inCorso ? 'Mando…' : 'Manda'}
         </button>
-        <TastoMicrofono campo={campo} onApri={() => { voce.inizioAscolto(); setDettando({ prima: messaggio }) }} />
+        <TastoMicrofono campo={campo} onApri={() => { voce.inizioAscolto(); ascolto.dettatura(true); setDettando({ prima: messaggio }) }} />
         <Aiuto di="come parlare all’autopilota">Qui parli con l’autopilota del workspace, non con le chat che lavorano. Ogni cosa che gli chiedi va nella sua coda: la unisce alle richieste sulla stessa cosa, fa il piano e lancia gli specialisti. Ti risponde con parole sue, di solito entro qualche minuto. Le sue domande non stanno qui: stanno nella colonna Domande, e dopo la risposta domanda e risposta compaiono in questa chat.</Aiuto>
       </div>
-      {conto !== undefined ? (
-        <div className="chatap__dettato" role="status">
-          Mando fra {conto} s…{' '}
-          <button className="tasto tasto--mini" onClick={() => finisciDettato()}>Annulla</button>
-        </div>
-      ) : null}
       {errore !== undefined ? <div className="avviso">⚠ {errore}</div> : null}
     </div>
   )

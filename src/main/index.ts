@@ -17,7 +17,7 @@ import { hookSegnali, leggiSegnale, SEGNALI_PER_CHAT, statoChat, statoDaSegnali,
 import { contestoSopraDomanda, domandaInFondo, domandaPerBattito } from '@shared/domande-telefono'
 import { stradaBreve, type InfoStrada } from '@shared/strada-pc'
 import { creaRaggruppatore } from '@shared/spinta-specialisti'
-import { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeImage, safeStorage, screen, shell, webContents } from 'electron'
+import { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeImage, net, safeStorage, screen, shell, webContents } from 'electron'
 import { vociMenuApplicazione, vociMenuContestuale } from './menu-modifica'
 import { registraMenuContestuale } from './menu-contestuale'
 import { basename, dirname, join, resolve, sep } from 'node:path'
@@ -235,6 +235,9 @@ import { dormienteVivo } from '@shared/migrazione-adozione'
 import { creaAutoriparazione } from './autoriparazione'
 import { riassuntoRiparazione } from '@shared/autoriparazione'
 import { apriDettatura, statoDettatura } from './dettatura'
+import { creaVoceLocale, PCM_MAX_BYTE } from './voce-locale'
+import { eIdModello } from '@shared/modello-voce'
+import { parolaSvegliaValida, PAROLA_SVEGLIA_PREDEFINITA } from '@shared/parlato'
 
 /**
  * Chi è questo PC (0.52.4): l'identità, con il nome scelto, letta anche dal
@@ -1055,6 +1058,8 @@ export function apriNuovaFinestra(): void {
   // ce n'è una nascosta, «Apri» se non ce n'è più nessuna — e quelle parole
   // vanno riscritte quando lo stato cambia, non solo quando l'icona nasce.
   win.on('hide', aggiornaMenuArea)
+  // «Parlato» si spegne quando la finestra va nell'area di notifica: nessuno vedrebbe più il microfono aperto.
+  win.on('hide', () => { if (!win.webContents.isDestroyed()) win.webContents.send('finestra:nascosta') })
   win.on('show', aggiornaMenuArea)
   win.on('closed', aggiornaMenuArea)
   // L'ultima finestra di chat se n'e' andata davvero: le finestre pannello
@@ -1647,6 +1652,22 @@ if (!app.requestSingleInstanceLock()) {
       // La dashboard dell'autopilota (0.79.0): gli ultimi segnali delle sue chat, per il riassunto.
       ipcMain.handle('segnali:di', (_e, sessioni: unknown) => Object.fromEntries((Array.isArray(sessioni) ? sessioni : [])
         .filter((x): x is string => typeof x === 'string').slice(0, 50).map((x) => [x, segnaliPerSessione.get(x) ?? []])))
+      // «Parlato» (13/11): Whisper sul PC. Lo scaricamento parte solo dal tasto del consenso nella finestra.
+      const voceLocale = creaVoceLocale({
+        cartella: join(dati, 'voce-locale'),
+        dati,
+        scarica: (url, init) => net.fetch(url, init),
+        log: (riga) => registro.info(riga),
+        avvisa: (s) => { for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('voce-locale:cambiato', s) }
+      })
+      ipcMain.handle('voce-locale:stato', () => voceLocale.stato())
+      ipcMain.handle('voce-locale:scarica', (_e, modello: unknown) => voceLocale.scarica(eIdModello(modello) ? modello : 'preciso'))
+      ipcMain.handle('voce-locale:annulla', () => { voceLocale.annulla() })
+      ipcMain.handle('voce-locale:rimuovi', () => voceLocale.rimuovi())
+      ipcMain.handle('voce-locale:trascrivi', (_e, pcm: unknown, parola: unknown) => {
+        if (!(pcm instanceof Uint8Array) || pcm.byteLength > PCM_MAX_BYTE) return { ok: false, messaggio: 'audio non valido' }
+        return voceLocale.trascrivi(pcm, { parola: typeof parola === 'string' && parolaSvegliaValida(parola) ? parola.trim() : PAROLA_SVEGLIA_PREDEFINITA })
+      })
       ipcMain.handle('dettatura:apri', (e) => {
         // La finestra del tasto davanti a tutto: Windows apre la dettatura sulla finestra davanti.
         BrowserWindow.fromWebContents(e.sender)?.focus()
