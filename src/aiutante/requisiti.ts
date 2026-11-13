@@ -1,14 +1,14 @@
 import { execFile } from 'node:child_process'
-import { existsSync, mkdirSync, statfsSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { mkdirSync, statfsSync } from 'node:fs'
 import type { MisureRequisiti } from './regole'
 
 /**
  * **Cosa serve all'Aiutante per lavorare** (12/11), misurato su questo PC:
- * Claude Code (installato e con l'accesso fatto), git, Node.js e npm, e spazio
- * sul disco. Senza uno di questi un lavoro arriverebbe e fallirebbe a metà:
- * meglio dire 0 posti e scriverlo (nella finestra e nello storico degli errori).
+ * Claude Code installato, git, Node.js e npm, e spazio sul disco. Senza uno
+ * di questi un lavoro arriverebbe e fallirebbe a metà: meglio dire 0 posti
+ * e scriverlo (nella finestra e nello storico degli errori). Che Claude
+ * funzioni davvero (accesso fatto e non scaduto) lo prova `controllo-claude.ts`
+ * (1.0.3): prima si guardava solo il file delle credenziali.
  */
 
 type Versione = { ok: true; versione: string } | { ok: false; motivo: string }
@@ -20,18 +20,6 @@ function versioneDi(comando: string, args: string[], shell = false): Promise<Ver
       else ok({ ok: true, versione: String(out).trim().split(/\r?\n/u)[0]?.slice(0, 80) ?? '' })
     })
   })
-}
-
-/**
- * L'accesso a Claude Code: le credenziali che la CLI scrive dopo il login
- * (`.credentials.json` nella sua cartella), o una chiave nell'ambiente. Non è
- * una prova piena (un accesso scaduto si vede solo al primo lavoro), ma
- * distingue il caso più comune: un PC su cui nessuno ha mai fatto l'accesso.
- */
-export function accessoClaude(env: NodeJS.ProcessEnv = process.env, esiste: (p: string) => boolean = existsSync): boolean {
-  if ((env.ANTHROPIC_API_KEY ?? '').trim() !== '' || (env.CLAUDE_CODE_OAUTH_TOKEN ?? '').trim() !== '') return true
-  const cartella = env.CLAUDE_CONFIG_DIR !== undefined && env.CLAUDE_CONFIG_DIR.trim() !== '' ? env.CLAUDE_CONFIG_DIR : join(homedir(), '.claude')
-  return esiste(join(cartella, '.credentials.json'))
 }
 
 /** Lo spazio libero dove l'Aiutante lavora (la cartella si crea se manca). */
@@ -52,5 +40,5 @@ export async function misuraRequisiti(p: { claude: string; cartellaLavoro: strin
     versioneDi('npm', ['--version'], true)
   ])
   const disco = discoLibero(p.cartellaLavoro)
-  return { claude, claudeAccesso: accessoClaude(), git, node, npm, ...(disco !== undefined ? { discoLibero: disco } : {}) }
+  return { claude, git, node, npm, ...(disco !== undefined ? { discoLibero: disco } : {}) }
 }

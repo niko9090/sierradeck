@@ -88,6 +88,8 @@ export function colleghiRete(d: {
   porta: () => number
   oltreLaRete: () => boolean
   aiuto: FonteAiuto
+  /** 1.0.3: perché adesso non prende lavori (Claude non collegato…), nel battito. */
+  blocco?: () => string | undefined
 }): ReteAiutante {
   const { dati, registro } = d
   mkdirSync(dati, { recursive: true })
@@ -126,6 +128,7 @@ export function colleghiRete(d: {
     rete: () => ({ indirizzi: indirizziDaAnnunciare(undefined, principale), porta: d.porta() }),
     client: () => statoClient,
     aiutante: () => true,
+    ...(d.blocco !== undefined ? { bloccoAiutante: d.blocco } : {}),
     // Nessuna cartella qui: una voce per una chat fallisce e lo dice a chi l'ha mandata.
     cartellaEsiste: () => false,
     comando: async (c) => ({ ok: false, esito: c.tipo === 'errori' ? 'questo è SierraDeck Aiutante: gli errori vanno al PC di sviluppo' : 'questo è SierraDeck Aiutante: non apre chat né progetti' }),

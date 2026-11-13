@@ -11,5 +11,9 @@ contextBridge.exposeInMainWorld('aiutante', {
   sblocca: (passphrase: string): Promise<unknown> => ipcRenderer.invoke('aiutante:sblocca', passphrase),
   mandaErrori: (): Promise<unknown> => ipcRenderer.invoke('aiutante:mandaErrori'),
   cercaAggiornamenti: (): Promise<unknown> => ipcRenderer.invoke('aiutante:cercaAggiornamenti'),
-  apriRegistro: (): Promise<unknown> => ipcRenderer.invoke('aiutante:apriRegistro')
+  apriRegistro: (): Promise<unknown> => ipcRenderer.invoke('aiutante:apriRegistro'),
+  // 1.0.3: Claude provato davvero e rifatto dalla finestra; la finestra degli aggiornamenti.
+  ricontrollaClaude: (): Promise<unknown> => ipcRenderer.invoke('aiutante:ricontrollaClaude'),
+  collegaClaude: (): Promise<unknown> => ipcRenderer.invoke('aiutante:collegaClaude'),
+  apriAggiornamenti: (): Promise<unknown> => ipcRenderer.invoke('aiutante:apriAggiornamenti')
 })

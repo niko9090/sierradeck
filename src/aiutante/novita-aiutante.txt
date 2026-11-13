@@ -3,6 +3,11 @@ cima). Dal 13/11 l'Aiutante esce allegato alla release del programma
 completo (scripts/allega-aiutante.mjs, dentro npm run pubblica).
 Ogni riga fra apici singoli; dentro, un apice si scrive \'.
 
+versione: '1.0.3'
+  'Controlla che Claude funzioni davvero (non solo che il file dell\'accesso ci sia): se l\'accesso è scaduto lo dice in rosso e non prende lavori, così gli altri PC non glieli mandano.',
+  'Il tasto «Collega Claude» apre un terminale per rifare l\'accesso; «Ricontrolla» rifà la prova. Nella finestra anche il motivo dell\'ultimo lavoro non riuscito.',
+  'Gli aggiornamenti passano dalla stessa finestra del programma completo: barra con MB/s e tempo che manca, novità delle versioni, «Installa adesso».',
+  'Il simbolo di SierraDeck Aiutante sulla finestra, sulla barra delle applicazioni e nell\'area di notifica.'
 versione: '1.0.2'
   'Quando un lavoro non riesce, dice il motivo vero in italiano (accesso a Claude scaduto, limite del piano, modello non disponibile, git, npm…) invece di un errore generico.'
 versione: '1.0.1'

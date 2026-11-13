@@ -126,3 +126,41 @@ describe('fuori dalla faccia del programma', () => {
     expect(readFileSync('src/renderer/main.tsx', 'utf8')).toContain("finestra === 'aggiornamenti' ? <FinestraAggiornamenti />")
   })
 })
+
+describe('la stessa finestra per SierraDeck Aiutante (13/11, 1.0.3)', () => {
+  const marchio = {
+    nome: 'SierraDeck Aiutante',
+    logo: <img className="fnov__segno" src="logo.png" alt="" />,
+    testoInstalla: 'Installa adesso',
+    aiutoInstalla: <>Chiudo l’Aiutante, installo e riparto.</>,
+    riapri: 'Si riapre dalla finestra dell’Aiutante',
+    notaPronto: 'Scaricata. Si installa da sola appena finiscono i lavori (2 in corso).',
+    novita: [{ versione: '1.0.2', righe: ['Riga dell’Aiutante.'] }, { versione: '1.0.1', righe: ['Prima.'] }]
+  }
+  const h = (agg: StatoAggiornamento, n?: NoteAggiornamento): string => renderToStaticMarkup(
+    <VistaAggiornamenti agg={agg} vista={{ tipo: 'aggiornamento' }} versione="1.0.2" scaricaAuto note={n} azioni={azioni} marchio={marchio} />
+  )
+  it('nome, simbolo e tasto suoi; barra con le misure come nel programma completo', () => {
+    const scarico = h({ fase: 'scarico', versione: '1.0.3', percento: 42, scaricati: 30 * 1024 ** 2, totale: 72 * 1024 ** 2, velocita: 2 * 1024 ** 2 })
+    expect(scarico).toContain('>SierraDeck Aiutante<')
+    expect(scarico).toContain('src="logo.png"')
+    expect(scarico).toContain('da 1.0.2 → a 1.0.3')
+    expect(scarico).toContain('aria-valuenow="42"')
+    expect(scarico).toContain('2,0 MB/s')
+    const pronto = h({ fase: 'pronto', versione: '1.0.3' }, { versione: '1.0.3', installata: '1.0.2', fonte: 'github', dove: 'https://github.com/esempio/esempio/releases', note: [] })
+    expect(pronto).toContain('>Installa adesso<')
+    expect(pronto).not.toContain('Installa e riavvia')
+    expect(pronto).toContain('appena finiscono i lavori (2 in corso)')
+    expect(pronto).toContain('>Più tardi<')
+    expect(pronto).toContain('Si riapre dalla finestra dell’Aiutante')
+    expect(pronto).not.toContain('numero di versione in alto')
+  })
+  it('«Sei aggiornato»: il registro delle novità dell’Aiutante, non di SierraDeck', () => {
+    const quieto = h({ fase: 'aggiornato' })
+    expect(quieto).toContain('Riga dell’Aiutante.')
+    expect(quieto).toContain('1.0.2')
+  })
+  it('di serie resta SierraDeck', () => {
+    expect(vista({ fase: 'pronto', versione: '1.1.1' }, { note })).toContain('>SierraDeck<')
+  })
+})

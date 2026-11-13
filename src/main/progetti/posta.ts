@@ -182,6 +182,8 @@ export function creaPostino(deps: {
   sviluppo?: () => string | undefined
   /** 12/11: questo è SierraDeck Aiutante: il battito lo dice (`aiutante: true`). */
   aiutante?: () => boolean
+  /** 13/11 (Aiutante 1.0.3): perché l'Aiutante non prende lavori, se non li prende. */
+  bloccoAiutante?: () => string | undefined
   cartellaEsiste: (cwd: string) => boolean
   /**
    * Esegue un comando arrivato per posta (0.88.0, «Sposta su questo PC»):
@@ -349,7 +351,8 @@ export function creaPostino(deps: {
       ...(() => { const c = deps.client?.(); return c === undefined ? {} : { client: c } })(),
       ...(() => { const r = deps.risorse?.(); return r === undefined ? {} : { risorse: r } })(),
       ...(() => { const dal = deps.sviluppo?.(); return dal === undefined ? {} : { sviluppo: true as const, sviluppoDal: dal } })(),
-      ...(deps.aiutante?.() === true ? { aiutante: true } : {})
+      ...(deps.aiutante?.() === true ? { aiutante: true } : {}),
+      ...(() => { const b = deps.aiutante?.() === true ? deps.bloccoAiutante?.() : undefined; return b !== undefined ? { bloccoAiutante: b } : {} })()
     }
   }
 

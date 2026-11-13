@@ -34,8 +34,9 @@ extraMetadata:
 files:
   - out-aiutante/**/*
   - package.json
-  # L'icona dell'area di notifica, a runtime.
+  # Le icone a runtime: area di notifica (png) e finestre (ico su Windows, 1.0.3).
   - build/icon.png
+  - build/icon.ico
   # Niente node_modules (12/11): electron-updater è già dentro
   # out-aiutante/main/index.js, il resto sono moduli di Node e di Electron.
   - '!node_modules/**'

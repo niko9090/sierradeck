@@ -2,6 +2,7 @@ import { creaLavoratoreAiuto, type FineLavoro, type LavoratoreAiuto } from '../a
 import type { AvviaProcesso } from '../autopilot-host/processo-claude'
 import type { MisuraPc, RegolazionePosti } from '@shared/posti-chat'
 import type { LavoroOspitato } from '@shared/aiuto-rete'
+import { causaDelMotivo, motivoBreve, type CausaFallimento } from '@shared/aiuto-esito'
 import { limiteDaFine, postiAiutante, type PerchePosti } from './regole'
 
 /**
@@ -26,7 +27,11 @@ export type Nucleo = {
   ospitati: () => LavoroOspitato[]
   /** Come è finito un lavoro (lo chiama il lavoratore; esposto per le prove). */
   suFine: (f: FineLavoro) => void
+  /** 1.0.3: l'ultimo lavoro non riuscito, con il motivo corto e la causa (per la finestra). */
+  ultimoFallito: () => UltimoFallito | undefined
 }
+
+export type UltimoFallito = { il: number; id: string; perPc?: string; causa: CausaFallimento; motivo: string }
 
 export function creaNucleo(x: {
   /** `<dati dell'Aiutante>/aiuto`. */
@@ -37,6 +42,10 @@ export function creaNucleo(x: {
   misura: () => MisuraPc
   regolazione: () => { postiChat?: RegolazionePosti; postiScelti?: number }
   pronto: () => boolean
+  /** 1.0.3: Claude non va davvero (il motivo): 0 posti. */
+  claudeBloccato?: () => string | undefined
+  /** 1.0.3: un lavoro è fallito (per ricontrollare subito Claude se la causa è l'accesso o il piano). */
+  suFallito?: (f: UltimoFallito) => void
   inScarico: () => boolean
   adesso?: () => number
   log: (r: string) => void
@@ -47,7 +56,13 @@ export function creaNucleo(x: {
 }): Nucleo {
   const adesso = x.adesso ?? Date.now
   let limite: number | undefined
+  let ultimo: UltimoFallito | undefined
   const suFine = (f: FineLavoro): void => {
+    if (f.stato === 'fallito') {
+      const causa = f.causa ?? causaDelMotivo(f.motivo ?? f.testo)
+      ultimo = { il: adesso(), id: f.id, ...(f.perPc !== undefined ? { perPc: f.perPc } : {}), causa, motivo: motivoBreve(f.motivo ?? f.testo ?? 'motivo non detto') }
+      try { x.suFallito?.(ultimo) } catch { /* solo un avviso */ }
+    }
     const fino = limiteDaFine(f, adesso())
     if (fino !== undefined) {
       const nuovo = limite === undefined || limite <= adesso()
@@ -73,6 +88,7 @@ export function creaNucleo(x: {
       ...(r.postiChat !== undefined ? { regolazione: r.postiChat } : {}),
       ...(r.postiScelti !== undefined ? { scelti: r.postiScelti } : {}),
       pronto: x.pronto(),
+      ...(() => { const b = x.claudeBloccato?.(); return b !== undefined ? { claudeBloccato: b } : {} })(),
       inScarico: x.inScarico(),
       ...(limite !== undefined ? { limiteFino: limite } : {}),
       adesso: adesso()
@@ -109,5 +125,5 @@ export function creaNucleo(x: {
       default: return no('rotta sconosciuta')
     }
   }
-  return { lavoratore, servizio, posti, limiteFino: () => (limite !== undefined && limite > adesso() ? limite : undefined), ospitati: () => lavoratore.ospitati(), suFine }
+  return { lavoratore, servizio, posti, limiteFino: () => (limite !== undefined && limite > adesso() ? limite : undefined), ospitati: () => lavoratore.ospitati(), suFine, ultimoFallito: () => ultimo }
 }
