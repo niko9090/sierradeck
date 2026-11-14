@@ -71,6 +71,8 @@
 - I tasti dell'app vanno creati con `coloriTastoPieno/Testo/Bordo()` di `Tema.kt`, altrimenti da spenti i colori di Material non rispettano il contrasto. _(2026-11-14)_
 - Il rifiuto "BUILD FAILED" senza `<failure>` nei test non lascia log: il demone Gradle mostra solo EOF. Con `daemon=false` il worker dei test è un JVM a parte, ora con heap fisso. _(2026-11-14)_
 - `testDebugUnitTest --rerun` da zero costa circa 6 minuti con la compilazione: tenerne conto nei timeout del cancello. _(2026-11-14)_
+- Se il cancello taglia l'errore Gradle, il blocco «What went wrong» completo sta in C:\Users\nikof\.gradle\daemon\8.11.1\daemon-*.out.log: cercarlo lì prima di provare a riprodurre. _(2026-11-14)_
+- Su Windows due gradle sulla stessa android/app/build si pestano (output.bin aperto, lookups.tab): fallisce quello che arriva dopo. Il fallimento non lascia <failure> né hs_err. _(2026-11-14)_
 
 ## release
 
@@ -487,3 +489,7 @@
 
 - un PC con versione vecchia può mandare `causa` 'sconosciuta' con il testo giusto nel motivo: la causa dichiarata va usata solo se riconosciuta, altrimenti si rilegge il testo. _(2026-11-14)_
 - la pausa per accesso scaduto è calcolata dal file dei lavori affidati, quindi vale anche dopo un riavvio; se un PC viene riprovato dopo pochi minuti, controllare la causa salvata nel lavoro. _(2026-11-14)_
+
+## gradle
+
+- Il «What went wrong» che il cancello taglia sta in C:\Users\nikof\.gradle\daemon\8.11.1\daemon-*.out.log. I log mostrano se due build erano sovrapposte (currentDir e orari). _(2026-11-14)_
