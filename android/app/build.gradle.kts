@@ -59,7 +59,15 @@ android {
     // Le foto delle schermate girano nei test JVM: servono le risorse Android.
     testOptions {
         unitTests.isIncludeAndroidResources = true
-        unitTests.all { it.systemProperty("roborazzi.test.record", "true") }
+        unitTests.all {
+            it.systemProperty("roborazzi.test.record", "true")
+            // Robolectric+Roborazzi sotto carico: un solo processo di test, heap esplicito,
+            // processo nuovo ogni tanto per non accumulare memoria fra le foto.
+            it.maxParallelForks = 1
+            it.maxHeapSize = "2048m"
+            it.jvmArgs("-XX:MaxMetaspaceSize=768m")
+            it.forkEvery = 100
+        }
     }
 
     buildTypes {
