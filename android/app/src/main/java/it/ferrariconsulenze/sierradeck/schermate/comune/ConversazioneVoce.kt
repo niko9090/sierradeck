@@ -49,6 +49,10 @@ import it.ferrariconsulenze.sierradeck.nucleo.Giro
 import it.ferrariconsulenze.sierradeck.nucleo.StatoGiro
 import it.ferrariconsulenze.sierradeck.nucleo.TestoDaLeggere
 import it.ferrariconsulenze.sierradeck.schermate.tema.Banco
+import it.ferrariconsulenze.sierradeck.schermate.tema.coloriTastoBordo
+import it.ferrariconsulenze.sierradeck.schermate.tema.coloriTastoPieno
+import it.ferrariconsulenze.sierradeck.schermate.tema.coloriTastoTesto
+import it.ferrariconsulenze.sierradeck.schermate.tema.sopra
 import java.util.Locale
 
 /**
@@ -228,16 +232,16 @@ fun RigaConversazione(stato: StatoGiro, disponibile: Boolean, nega: Boolean, onA
         }
         if (acceso) Button(
             onClick = applicaSpegni, modifier = Modifier.heightIn(min = 48.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Banco.accento)
+            colors = coloriTastoPieno().copy(containerColor = Banco.accento, contentColor = sopra(Banco.accento))
         ) { Text("🔊 A voce · ferma", fontSize = 14.sp) }
-        else OutlinedButton(onClick = onAccendi, modifier = Modifier.heightIn(min = 48.dp)) { Text("🔇 A voce", color = Banco.testo, fontSize = 14.sp) }
+        else OutlinedButton(onClick = onAccendi, modifier = Modifier.heightIn(min = 48.dp), colors = coloriTastoBordo()) { Text("🔇 A voce", color = Banco.testo, fontSize = 14.sp) }
         val riga = when {
             nega -> "Serve il permesso del microfono."
             stato.fase == FaseGiro.SPENTO -> "Legge le risposte e ti ascolta."
             else -> Giro.frase(stato)
         }
         Text(riga, color = if (nega || stato.fase == FaseGiro.ERRORE) Banco.ambra else Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
-        if (acceso && stato.fase == FaseGiro.ASPETTO) TextButton(onClick = onParla) { Text("🎤", fontSize = 16.sp) }
+        if (acceso && stato.fase == FaseGiro.ASPETTO) TextButton(onClick = onParla, colors = coloriTastoTesto()) { Text("🎤", fontSize = 16.sp) }
         Aiuto(Giro.SPIEGA + "\n\n" + Giro.MOTIVO_PERMESSO + " Se l'hai negato, lo dai da Impostazioni di Android, App, SierraDeck, Autorizzazioni.", di = "la conversazione a voce")
     }
 }
