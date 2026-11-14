@@ -60,6 +60,8 @@
 - Il popup di DropdownMenu non compare nelle foto Roborazzi: si fotografano le DropdownMenuItem in linea. I colori spenti del Material (38%) fanno 2,3-3:1: usare i coloriVoceMenu e coloriTasto* in Tema… _(2026-11-14)_
 - In android/ non c'è gradlew: i test si lanciano con `gradle -p android testDebugUnitTest --rerun` (Gradle 8.11.1 di sistema in E:\Programs\Gradle). _(2026-11-14)_
 - Le foto Robolectric non hanno il riconoscimento vocale: per fotografare una barra in tutti gli stati serve un composable senza stato, come RigaConversazione. _(2026-11-14)_
+- un ramo che "non compila sopra main" può essere solo un'esecuzione sporca: rifare `git merge main` e il comando gradle in una copia pulita prima di cercare errori. _(2026-11-14)_
+- i colori dei tasti si prendono da Tema.kt (coloriTastoPieno/Testo/Bordo, sopra()): è lì che stanno i colori da spenti con contrasto 4.5:1. _(2026-11-14)_
 
 ## release
 
@@ -360,6 +362,7 @@
 - Correzione: isolation "worktree" NON tiene l'Agent su questo PC (k-154 è andato lo stesso a un Aiutante). Finché il servizio non ha la correzione di k-152, il PC scelto è a caso. _(2026-11-13)_
 - la cartella E:\Users\nikof\... della cartella principale non è raggiungibile da tutti i PC: le voci del quaderno su lotti d'errore vanno scritte anche senza i file originali. _(2026-11-13)_
 - un autopilota letto da un altro PC con altra versione può non avere campi array: leggerli sempre con `Array.isArray(...)`. _(2026-11-13)_
+- pauseAiuti (src/shared/aiuto-esito.ts) esclude un PC dopo un solo fallimento per accesso; il fallimento in sé è il segnale per l'utente, non un difetto. _(2026-11-14)_
 
 ## cancello
 
