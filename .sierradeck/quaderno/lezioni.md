@@ -58,6 +58,8 @@
 - `Apertura.aggiornamento` (striscia app nuova) veniva impostata solo dal tocco sulla notifica: con notifiche spente l'avviso non compariva mai. Ora lo imposta una ricerca all'apertura. _(2026-11-14)_
 - Nel worktree manca android/gradlew.bat: si usa /e/Programs/Gradle/gradle-8.11.1/bin/gradle -p android ... --offline (ci vogliono 2-4 minuti). _(2026-11-14)_
 - Il popup di DropdownMenu non compare nelle foto Roborazzi: si fotografano le DropdownMenuItem in linea. I colori spenti del Material (38%) fanno 2,3-3:1: usare i coloriVoceMenu e coloriTasto* in Tema… _(2026-11-14)_
+- In android/ non c'è gradlew: i test si lanciano con `gradle -p android testDebugUnitTest --rerun` (Gradle 8.11.1 di sistema in E:\Programs\Gradle). _(2026-11-14)_
+- Le foto Robolectric non hanno il riconoscimento vocale: per fotografare una barra in tutti gli stati serve un composable senza stato, come RigaConversazione. _(2026-11-14)_
 
 ## release
 
@@ -180,6 +182,7 @@
 
 - `git tag --list vX` esce sempre con 0 anche senza tag: come criterio dà verde falso (k-184 0.97.1 segnata fatta senza release). Usare `git rev-parse vX` o `gh release view vX`. _(2026-11-08)_
 - `ePesante` taglia su `|` e `;` anche dentro gli apici: toglierli con `senzaApici`, salvo dopo `-c`/`-Command`/`/c`, dove stanno i comandi veri. _(2026-11-08)_
+- I criteri del piano girano in bash (criterio.sh): niente backslash nei percorsi. Per l'app Android: `/e/Programs/Gradle/gradle-8.11.1/bin/gradle -p android testDebugUnitTest --rerun --offline`. _(2026-11-14)_
 
 ## processo
 
@@ -437,6 +440,7 @@
 
 - whisper.cpp 1.9.2 su questo PC (i7-3770, niente AVX2, CPU al 100%): 15-37 s per una frase di 3 s col modello small q5_1; «Sierra» la scrive giusta, «fammi» a volte «famiglia». Le misure vanno rifatte a PC scarico. _(2026-11-13)_
 - Il `tar` di Git Bash non apre gli zip: serve `%SystemRoot%\System32\tar.exe` (bsdtar), che accetta anche i nomi con `*` per estrarre solo alcuni file. _(2026-11-13)_
+- La conversazione a voce era solo sul PC (voce-autopilota.ts, parlato.ts, speechSynthesis): nell'app c'era solo la dettatura. Nell'app gli id delle frasi vengono dal contenuto, non dall'indice. _(2026-11-14)_
 
 ## permessi
 
