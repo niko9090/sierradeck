@@ -93,6 +93,9 @@
 - Prima di unire/pubblicare, `git log main..origin/main` può non essere vuoto anche con main pulito: altre chat spingono quaderno e release su origin; fermarsi e chiedere. _(2026-11-13)_
 - Dopo un cherry-pick di una correzione nata con un'altra versione, cercare nel resto del repo (test, quaderno) il vecchio numero: va corretto anche lì, non solo in package.json e novita.ts. _(2026-11-13)_
 - `gh release create --target` vuole lo sha COMPLETO (o un ramo): con lo sha abbreviato dà «target_commitish invalid». Crea anche il tag sul remoto. _(2026-11-13)_
+- Con la release già creata `npm run pubblica` non carica exe, blockmap e latest.yml e `allega-aiutante.mjs` si ferma («mancano…»): caricarli a mano con `--clobber`, poi rilanciare `node scripts/allega… _(2026-11-13)_
+- `allega-aiutante.mjs` può caricare l'Aiutante anche se la release non è ancora Latest (avvisa solo «ultima: vX»): va bene, poi `gh release edit --prerelease=false --draft=false --latest`. _(2026-11-13)_
+- 0.107.1: la pre-release vuota fatta per sbloccare l'unione mette il tag sul commit del ramo, non sul main finale; tag lasciato lì (spostarlo è vietato), build da main: va bene. _(2026-11-13)_
 
 ## git
 
@@ -400,6 +403,7 @@
 ## controllo-pc
 
 - un errore 504 (risponde ma lento) non è «non risponde»: ora si riprova una volta e se resta lento non è criticità. _(2026-11-11)_
+- «PC A non raggiunge B» con B che risponde agli altri: guardare rete/Tailscale/firewall di A prima del codice; la Salute dice già «attenzione» e non «guasto». _(2026-11-14)_
 
 ## preferenze
 
