@@ -140,6 +140,8 @@ export const PAUSA_PROGETTO_MS = 30 * 60_000
 export const PAUSA_PC_MS = 30 * 60_000
 /** Accesso Claude scaduto su quel PC: subito fuori per tutti, senza aspettare altri fallimenti (finché non riesce un lavoro, o per un'ora). */
 export const PAUSA_ACCESSO_MS = 60 * 60_000
+/** Accesso scaduto: la pausa cresce a ogni nuovo fallimento di fila (1 h, 2 h, 6 h), mai un nuovo tentativo ogni poco. */
+export const PAUSE_ACCESSO_MS: readonly number[] = [PAUSA_ACCESSO_MS, 2 * 60 * 60_000, 6 * 60 * 60_000]
 /** PC che non risponde o ha perso il lavoro: fuori subito per un quarto d'ora. */
 export const PAUSA_IRRAGGIUNGIBILE_MS = 15 * 60_000
 export const FALLITI_PER_PAUSA_PROGETTO = 2
@@ -159,7 +161,17 @@ export function chiaveCompito(l: { compito?: string; descrizione: string }): str
 type Chiuso = LavoroAffidato & { fine: string }
 
 /** La causa di un lavoro chiuso male: quella scritta, o letta dal motivo. */
-const causaDi = (l: LavoroAffidato): CausaFallimento => (l.causa !== undefined ? l.causa : causaDelMotivo(l.motivo))
+// 14/11: una causa «sconosciuta» mandata da un PC di prima (0.106.x non riconosceva «OAuth session expired»)
+// non vale più del testo del motivo: si rilegge da lì, così l'accesso scaduto mette in pausa anche quel PC.
+const causaDi = (l: LavoroAffidato): CausaFallimento => (l.causa !== undefined && l.causa !== 'sconosciuta' ? l.causa : causaDelMotivo(l.motivo))
+
+/** La causa di un fallimento appena arrivato: quella dichiarata dal PC solo se riconosciuta, altrimenti il testo (motivo, poi riepilogo). */
+export function causaDelFallimento(dichiarata: CausaFallimento | undefined, motivo: string | undefined, riepilogo?: string): CausaFallimento {
+  if (dichiarata !== undefined && dichiarata !== 'sconosciuta') return dichiarata
+  const dalMotivo = causaDelMotivo(motivo)
+  if (dalMotivo !== 'sconosciuta') return dalMotivo
+  return riepilogo !== undefined && riepilogo.trim() !== '' ? causaDalTesto(riepilogo) : 'sconosciuta'
+}
 
 /**
  * Quanti compiti diversi sono falliti di fila su quel PC per colpa sua (un
@@ -213,7 +225,11 @@ export function pauseAiuti(lavori: readonly LavoroAffidato[], adesso: number): P
     if (ultimo === undefined || ultimo.stato !== 'fallito') continue
     const causa = causaDi(ultimo)
     if (causa !== 'accesso' && causa !== 'pc') continue
-    const fino = Date.parse(ultimo.fine) + (causa === 'accesso' ? PAUSA_ACCESSO_MS : PAUSA_IRRAGGIUNGIBILE_MS)
+    // Quanti fallimenti per accesso di fila (dall'ultimo lavoro riuscito): decide quanto è lunga la pausa.
+    let diFila = 0
+    for (let i = chiusi.length - 1; i >= 0 && chiusi[i]!.stato === 'fallito'; i--) if (causaDi(chiusi[i]!) === 'accesso') diFila++
+    const attesaAccesso = PAUSE_ACCESSO_MS[Math.min(Math.max(diFila, 1), PAUSE_ACCESSO_MS.length) - 1]!
+    const fino = Date.parse(ultimo.fine) + (causa === 'accesso' ? attesaAccesso : PAUSA_IRRAGGIUNGIBILE_MS)
     if (fino > adesso) pause.push({ tipo: 'pc', pcId, fino, perche: ultimo.motivo !== undefined ? motivoBreve(ultimo.motivo) : fraseCausa(causa) })
   }
   // Per PC.

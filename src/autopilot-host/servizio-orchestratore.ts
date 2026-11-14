@@ -80,7 +80,7 @@ import type { ArchivioAttesa } from './attesa-store'
 import { creaCambi, type Cambi } from '@shared/spinta-specialisti'
 import { attesaDopoScadenza, UNIONE_MAX_MS } from './tempi-unione'
 import { togliCopiaUnita } from './autopulizia'
-import { causaDelMotivo, chiaveCompito, COMPITI_PER_PAUSA_PC, colpaDelPc, fraseCausa, motivoBreve, motivoDelRisultato, motivoSuPc, pauseAiuti, pcInPausa, serieGuasti, type CausaFallimento } from '@shared/aiuto-esito'
+import { causaDelFallimento, causaDelMotivo, chiaveCompito, COMPITI_PER_PAUSA_PC, colpaDelPc, fraseCausa, motivoBreve, motivoDelRisultato, motivoSuPc, pauseAiuti, pcInPausa, serieGuasti, type CausaFallimento } from '@shared/aiuto-esito'
 
 /** 0.89.4: dopo quanto il lavoro fermo sveglia l'autopilota. 11/11: senza un tetto di spinte (`lavoro-fermo.ts`). */
 export const FERMO_DOPO_MS = 3 * 60_000
@@ -2984,7 +2984,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       const nudo = p.motivo === undefined || p.motivo.trim() === fraseCausa('sconosciuta')
       const dalRiepilogo = fallito && nudo && p.riepilogo !== undefined && p.riepilogo.trim() !== '' ? motivoDelRisultato({ testo: p.riepilogo }) : undefined
       const motivo = fallito ? (dalRiepilogo?.motivo ?? p.motivo ?? fraseCausa('sconosciuta')).slice(0, 1000) : undefined
-      const causa: CausaFallimento | undefined = fallito ? (dalRiepilogo?.causa ?? p.causa ?? causaDelMotivo(motivo)) : undefined
+      const causa: CausaFallimento | undefined = fallito ? (dalRiepilogo?.causa ?? causaDelFallimento(p.causa, motivo, p.riepilogo)) : undefined
       const nuovo: LavoroAffidato = {
         ...l,
         ...(p.stato !== undefined ? { stato: p.stato } : {}),
