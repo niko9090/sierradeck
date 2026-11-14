@@ -481,6 +481,7 @@
 - Il vecchio criterio `gh release view v<versione>` cade sul ramo del bump finché non c'è una release: una bozza lo soddisfa senza toccare gli aggiornamenti. _(2026-11-14)_
 - Una bozza creata senza tag ha URL «untagged-…»: il tag va poi creato e spinto sul commit della versione prima di pubblicarla. _(2026-11-14)_
 - Prima di pubblicare controllare `.git/MERGE_HEAD` e i file preparati: il cancello può avere un'unione a metà in main, e il pacchetto va costruito solo su main pulito. _(2026-11-14)_
+- Il controllo di unione fa `gh release view <tag>` e fallisce senza release: una bozza vuota basta. Il tag resta da creare prima della pubblicazione vera. _(2026-11-14)_
 
 ## build
 
