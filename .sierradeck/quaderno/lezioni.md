@@ -464,3 +464,8 @@
 ## build
 
 - Gradle di sistema in /e/Programs/Gradle/gradle-8.11.1 funziona nelle copie: su albero pulito servono ~3 min, con cache ~1 min; il tail di "BUILD FAILED" da solo non basta, serve --stacktrace. _(2026-11-14)_
+
+## aiuto-rete
+
+- un PC con versione vecchia può mandare `causa` 'sconosciuta' con il testo giusto nel motivo: la causa dichiarata va usata solo se riconosciuta, altrimenti si rilegge il testo. _(2026-11-14)_
+- la pausa per accesso scaduto è calcolata dal file dei lavori affidati, quindi vale anche dopo un riavvio; se un PC viene riprovato dopo pochi minuti, controllare la causa salvata nel lavoro. _(2026-11-14)_
