@@ -60,6 +60,8 @@
 - Il popup di DropdownMenu non compare nelle foto Roborazzi: si fotografano le DropdownMenuItem in linea. I colori spenti del Material (38%) fanno 2,3-3:1: usare i coloriVoceMenu e coloriTasto* in Tema… _(2026-11-14)_
 - In android/ non c'è gradlew: i test si lanciano con `gradle -p android testDebugUnitTest --rerun` (Gradle 8.11.1 di sistema in E:\Programs\Gradle). _(2026-11-14)_
 - Le foto Robolectric non hanno il riconoscimento vocale: per fotografare una barra in tutti gli stati serve un composable senza stato, come RigaConversazione. _(2026-11-14)_
+- un ramo che "non compila sopra main" può essere solo un'esecuzione sporca: rifare `git merge main` e il comando gradle in una copia pulita prima di cercare errori. _(2026-11-14)_
+- i colori dei tasti si prendono da Tema.kt (coloriTastoPieno/Testo/Bordo, sopra()): è lì che stanno i colori da spenti con contrasto 4.5:1. _(2026-11-14)_
 
 ## release
 
