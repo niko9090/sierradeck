@@ -69,6 +69,8 @@
 - Il cancello fonde i criteri `cd android && gradle …` in `testDebugUnitTest assembleDebug --no-daemon`; `gradle -p android …` resta separato. Le foto Roborazzi sono in modalità record, non confronto. _(2026-11-14)_
 - Le note dell'app stanno in `android/novita-app.txt` (una voce per versione), e `pubblica-app` si ferma se manca la voce della versione nuova. _(2026-11-14)_
 - I tasti dell'app vanno creati con `coloriTastoPieno/Testo/Bordo()` di `Tema.kt`, altrimenti da spenti i colori di Material non rispettano il contrasto. _(2026-11-14)_
+- Il rifiuto "BUILD FAILED" senza `<failure>` nei test non lascia log: il demone Gradle mostra solo EOF. Con `daemon=false` il worker dei test è un JVM a parte, ora con heap fisso. _(2026-11-14)_
+- `testDebugUnitTest --rerun` da zero costa circa 6 minuti con la compilazione: tenerne conto nei timeout del cancello. _(2026-11-14)_
 
 ## release
 
@@ -471,6 +473,7 @@
 - Il circolo «criterio rimisura gh release view v<versione>» su un'alzata di versione si risolve solo unendo fuori dal cancello e pubblicando subito dopo. _(2026-11-14)_
 - Il vecchio criterio `gh release view v<versione>` cade sul ramo del bump finché non c'è una release: una bozza lo soddisfa senza toccare gli aggiornamenti. _(2026-11-14)_
 - Una bozza creata senza tag ha URL «untagged-…»: il tag va poi creato e spinto sul commit della versione prima di pubblicarla. _(2026-11-14)_
+- Prima di pubblicare controllare `.git/MERGE_HEAD` e i file preparati: il cancello può avere un'unione a metà in main, e il pacchetto va costruito solo su main pulito. _(2026-11-14)_
 
 ## build
 
