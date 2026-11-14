@@ -227,6 +227,10 @@ open class FotoSchermateTest {
         CorpoDialogoApp("2.101.0", FaseApp.ANDROID, 100, null)
     }
 
+    @Test fun aggiornaAppErroreSpiegato() = foto("aggiorna-app-errore", dialogo = true) {
+        CorpoDialogoApp("3.1.0", FaseApp.ERRORE, 0, it.ferrariconsulenze.sierradeck.sottofondo.Scaricamento.SERVE_PERMESSO)
+    }
+
     @Test fun altroElenco() = foto("altro") { ElencoAltro {} }
 
     @Test fun altroAiuto() = foto("altro-aiuto") {
