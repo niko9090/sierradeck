@@ -467,6 +467,8 @@
 - La release fissa dell'app si trova col tag `app-android`, non col nome: `gh release view "App Android"` dice «not found». Prima di alzare la versione guardare `gh release view app-android`. _(2026-11-14)_
 - Il controllo del programma rifiuta `git merge` anche con compito esplicito dell'autopilota: l'unione va fatta dall'autopilota stesso, lo specialista del rilascio parte da main già unito. _(2026-11-14)_
 - Il circolo «criterio rimisura gh release view v<versione>» su un'alzata di versione si risolve solo unendo fuori dal cancello e pubblicando subito dopo. _(2026-11-14)_
+- Il vecchio criterio `gh release view v<versione>` cade sul ramo del bump finché non c'è una release: una bozza lo soddisfa senza toccare gli aggiornamenti. _(2026-11-14)_
+- Una bozza creata senza tag ha URL «untagged-…»: il tag va poi creato e spinto sul commit della versione prima di pubblicarla. _(2026-11-14)_
 
 ## build
 
