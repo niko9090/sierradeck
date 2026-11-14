@@ -34,6 +34,7 @@
 - tests/shared/novita.test.ts limita ogni voce delle novità a 8 righe: per aggiungere una correzione a una voce piena bisogna unire due righe. _(2026-11-13)_
 - per simulare il servizio spento basta aprire e chiudere un server http su porta 0 e usare quella porta: `fetch failed` vero, senza mock _(2026-11-13)_
 - testDebugUnitTest Android ha test legati ai tempi (CentralinoTest <500ms, AscoltoAvvisiTest sleep 1,1 s): sotto carico del PC possono fallire a intermittenza. Riportare il nome del test, non solo "BU… _(2026-11-14)_
+- Centralino accetta un orologio iniettato: nelle prove usarlo fermo invece di misurare ms veri (<500 dentro un'attesa di 1 s salta col PC carico). _(2026-11-14)_
 
 ## worktree
 
@@ -464,6 +465,7 @@
 ## build
 
 - Gradle di sistema in /e/Programs/Gradle/gradle-8.11.1 funziona nelle copie: su albero pulito servono ~3 min, con cache ~1 min; il tail di "BUILD FAILED" da solo non basta, serve --stacktrace. _(2026-11-14)_
+- Il gate Android (testDebugUnitTest assembleDebug) sul worktree a freddo dura circa 8 minuti; due gradle sulla stessa copia si bloccano sul lock. _(2026-11-14)_
 
 ## aiuto-rete
 
