@@ -54,6 +54,8 @@
 - targetSdk 35 = edge-to-edge forzato su Android 15: ogni schermata fuori da Scaffold ha bisogno di safeDrawingPadding, e la topBar dello Scaffold non scavalca la barra di stato da sola. _(2026-11-12)_
 - Le foto Roborazzi hanno varianti (stretto 360 dp, scala 1.3, veste chiara) nelle sottoclassi di FotoSchermateTest: i difetti veri (testo spezzato, "?" fuori dal cerchio) escono solo lì. _(2026-11-12)_
 - Banco può essere chiaro (veste del PC): colori fissi della tabella attività vanno passati da leggibile(), il bordo dei tasti da bordoTasto() (3:1), mai usare incisione per i bordi. _(2026-11-12)_
+- `android/gradlew.bat` manca nelle copie di lavoro: si compila con `gradle -p android ...` (Gradle 8.11.1 in E:\Programs\Gradle). _(2026-11-14)_
+- `Apertura.aggiornamento` (striscia app nuova) veniva impostata solo dal tocco sulla notifica: con notifiche spente l'avviso non compariva mai. Ora lo imposta una ricerca all'apertura. _(2026-11-14)_
 
 ## release
 
