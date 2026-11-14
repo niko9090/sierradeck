@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.107.3',
+    righe: [
+      '**Un PC che non risponde:** se un PC della rete è acceso ma non risponde, ora resta un solo avviso invece di tre errori; il lavoro riparte altrove.',
+      '**Testi senza caratteri rovinati:** il testo degli errori e delle richieste non ha più simboli strani al posto delle lettere accentate e dei segni speciali.',
+    ],
+  },
+  {
     versione: '0.107.2',
     righe: [
       '**Rete:** un PC con l\'accesso a Claude scaduto non riceve più lavori, anche se ha una versione vecchia; si riprova dopo 1, 2 e poi 6 ore.',

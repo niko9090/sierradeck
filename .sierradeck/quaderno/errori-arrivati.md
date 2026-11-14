@@ -252,3 +252,10 @@ A mano su Z2-TECNICO (ha ancora la 0.106.2): rifare l'accesso a Claude e install
 È un difetto, nostro: Z2-TECNICO ha ancora l'Aiutante/programma 0.106.2, che non riconosceva quel testo come «accesso» e mandava `causa: 'sconosciuta'` insieme al motivo col testo vero. In `aiutoAvanza` (servizio-orchestratore.ts) e in `causaDi` (aiuto-esito.ts) una causa dichiarata, anche «sconosciuta», vinceva sul testo: il fallimento non era «accesso», quindi nessuna pausa del PC (solo quella dello stesso compito, 10 min). La prova: il registro di DESKTOP scrive «lo specialista ha chiuso con un errore (tipo success; …)» e non «accesso Claude scaduto su Z2-TECNICO».
 Corretto nella versione 0.107.2: una causa «sconosciuta» dichiarata dal PC non vale più del testo (nuova `causaDelFallimento`: motivo, poi riepilogo; anche per i lavori già nel file); in più la pausa per accesso scaduto cresce a ogni fallimento di fila (1 h, 2 h, 6 h) e un lavoro riuscito la azzera. Test in tests/main/aiuto-rete-fallimenti.test.ts. Versione NON alzata in package.json, niente pubblicazione.
 A mano su Z2-TECNICO va rifatto l'accesso a Claude (e aggiornato alla 0.107.x).
+
+# Errori arrivati (lotto 20261114213810)
+
+3 gruppi dallo stesso evento (DESKTOP-G24D499, 0.107.0, 21:30:30Z): «Aiuta la rete» non riesce a spedire k-17 a LAPTOP-E60QM2D1, che il Drive dice acceso ma che non risponde sulla porta 47640.
+Il PC irraggiungibile non è un difetto del programma: è rete, Tailscale o firewall del portatile. La pausa e il lavoro rifatto altrove sono il comportamento giusto.
+Difetti veri, corretti nella versione 0.107.3: le tre righe erano errori invece di avvisi (gruppi 1, 2 e 3: livelloRigaAiuto e `avviso` nello spedizioniere, test in tests/main/aiuto-rete-fallimenti.test.ts) e il carattere › era rovinato nel gruppo 2 (lettura a pezzi senza decoder: StringDecoder in src/shared/corpo-richiesta.ts e verifiche.ts, test in tests/shared/corpo-richiesta.test.ts).
+A mano: controllare Tailscale e il firewall su LAPTOP-E60QM2D1 (porta 47640).
