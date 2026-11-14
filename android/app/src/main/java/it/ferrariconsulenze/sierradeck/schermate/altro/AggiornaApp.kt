@@ -107,9 +107,10 @@ fun CorpoDialogoApp(nome: String, fase: FaseApp, percento: Int, errore: String?,
                         LinearProgressIndicator(progress = { percento / 100f }, color = Banco.accento, trackColor = Banco.incisione, modifier = Modifier.fillMaxWidth().height(6.dp))
                     }
                     FaseApp.ANDROID -> Text("Conferma nella schermata di Android.", color = Banco.testoQuieto, modifier = Modifier.padding(top = 8.dp))
-                    FaseApp.ERRORE -> Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Non sono riuscito a scaricarla.", color = Banco.rosso, modifier = Modifier.weight(1f))
-                        errore?.let { Aiuto(it, di = "l’errore") }
+                    // Il motivo si legge subito (prima stava dietro un «?» e non si capiva cosa fare).
+                    FaseApp.ERRORE -> Column(Modifier.padding(top = 8.dp)) {
+                        Text("Non sono riuscito ad aggiornare.", color = Banco.rosso)
+                        errore?.let { Text(it.replaceFirstChar { c -> c.uppercase() } + ".", color = Banco.testoQuieto, modifier = Modifier.padding(top = 4.dp)) }
                     }
                     FaseApp.SCEGLI -> {}
                 }
