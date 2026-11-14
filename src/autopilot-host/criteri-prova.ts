@@ -34,6 +34,21 @@ function senzaCompresi(percorsi: string[]): string[] {
 /** Un file che nessun criterio misura: note, quaderno, documenti. */
 const soloNote = (f: string): boolean => f.startsWith('.sierradeck/') || f.startsWith('docs/') || f.startsWith('note/') || /\.md$/i.test(f)
 
+/**
+ * Un criterio che misura una pubblicazione o lo stato del remoto, non il codice:
+ * sul principale passa (versione già pubblicata), su un ramo che alza la versione
+ * cade sempre. Fuori dalla prova prima/dopo; resta il criterio del compito stesso.
+ */
+export function misuraIlRemoto(comando: string): boolean {
+  if (/\bgh\s+release\b/i.test(comando)) return true
+  if (/\bgh\s+api\b[^\n]*\breleases?\b/i.test(comando)) return true
+  if (/\bgit\s+(?:ls-remote|push)\b/i.test(comando)) return true
+  if (/\bnpm\s+(?:view|show|info)\b/i.test(comando)) return true
+  // Legge la versione di package.json per chiederla a GitHub o al remoto.
+  if (/package\.json/i.test(comando) && /\bversion\b/i.test(comando) && /\bgh\b|\bls-remote\b|\bgit\s+fetch\b|github\.com/i.test(comando)) return true
+  return false
+}
+
 export function criteriPerLaProva(criteri: Criterio[], cambiati?: readonly string[]): Criterio[] {
   const file = cambiati?.map((f) => f.replace(/\\/g, '/'))
   const toccaAndroid = file === undefined || file.some((f) => f.startsWith('android/'))
@@ -47,6 +62,7 @@ export function criteriPerLaProva(criteri: Criterio[], cambiati?: readonly strin
   for (const c of criteri) {
     const comando = c.comando?.trim()
     if (comando === undefined || comando === '') { fuori.push(c); continue }
+    if (misuraIlRemoto(comando)) continue
     const v = percorsiVitest(comando)
     if (v !== undefined) {
       quantiVitest += 1
