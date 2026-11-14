@@ -1,5 +1,6 @@
 import { copyFileSync, existsSync, lstatSync, rmdirSync, symlinkSync, unlinkSync } from 'node:fs'
 import { join, resolve, sep } from 'node:path'
+import { estrattoFallimento } from './estratto-fallimento'
 import type { EsitoVerifica } from './verifiche'
 
 /**
@@ -162,7 +163,11 @@ export function peggioratiDelRamo(
  */
 export function motivoProveRotte(descrizioni: string[], rossi: Pick<EsitoVerifica, 'descrizione' | 'uscita'>[]): string {
   const voci = descrizioni.slice(0, 3).map((d) => {
-    const coda = (rossi.find((r) => r.descrizione === d)?.uscita ?? '').split(/\r?\n/u).map((r) => r.trim()).filter((r) => r !== '').slice(-6).join(' | ').slice(-400)
+    const uscita = rossi.find((r) => r.descrizione === d)?.uscita ?? ''
+    const utili = estrattoFallimento(uscita)
+    const coda = utili.length > 0
+      ? utili.join(' | ').slice(0, 400)
+      : uscita.split(/\r?\n/u).map((r) => r.trim()).filter((r) => r !== '').slice(-6).join(' | ').slice(-400)
     return coda !== '' ? `${d} — ${coda}` : d
   })
   return `il ramo rompe prove che sul principale passano: ${voci.join('; ')}${descrizioni.length > 3 ? `; e altre ${descrizioni.length - 3}` : ''}`

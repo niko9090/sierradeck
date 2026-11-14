@@ -76,7 +76,8 @@ describe('il motivo di un ramo che rompe le prove', () => {
   it('dice che sul principale passano, e porta le ultime sei righe dell’uscita', () => {
     const uscita = ['RUN v4', 'riga 1', 'riga 2', '', ' FAIL  tests/a.test.ts > somma', 'AssertionError: expected 1 to be 2', ' Test Files  1 failed | 80 passed', '      Tests  1 failed | 900 passed', '   Duration  12s'].join('\r\n')
     const m = motivoProveRotte([ALTRI], [rosso(ALTRI, uscita), rosso(TS, 'altro')])
-    expect(m).toBe(`il ramo rompe prove che sul principale passano: ${ALTRI} — riga 2 | FAIL  tests/a.test.ts > somma | AssertionError: expected 1 to be 2 | Test Files  1 failed | 80 passed | Tests  1 failed | 900 passed | Duration  12s`)
+    // 14/11: vitest → prima le righe FAIL e l'errore (estratto-fallimento), non la coda.
+    expect(m).toBe(`il ramo rompe prove che sul principale passano: ${ALTRI} — FAIL tests/a.test.ts > somma | AssertionError: expected 1 to be 2`)
     expect(m).not.toContain('riga 1')
     expect(m).not.toContain('anche nella cartella principale')
   })
