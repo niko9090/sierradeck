@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { causaDalTesto, motivoDelRisultato, motivoSuPc, pauseAiuti, pcInPausa, PAUSA_ACCESSO_MS, PAUSA_IRRAGGIUNGIBILE_MS } from '../../src/shared/aiuto-esito'
+import { causaDalTesto, causaDelFallimento, motivoDelRisultato, motivoSuPc, pauseAiuti, pcInPausa, PAUSA_ACCESSO_MS, PAUSA_IRRAGGIUNGIBILE_MS } from '../../src/shared/aiuto-esito'
 import type { LavoroAffidato } from '../../src/shared/aiuto-rete'
 import { chiaveErrore, raggruppa, type ArrivoLetto } from '../../src/main/errori-arrivati-lavoro'
 
@@ -48,6 +48,35 @@ describe('accesso scaduto: il PC esce subito', () => {
   it('un compito fallito per colpa sua (prove rosse) non toglie il PC agli altri', () => {
     const pause = pauseAiuti([lavoro({ causa: 'compito' })], T0 + 60_000)
     expect(pcInPausa(pause, 'pc-finto', 'altro-progetto', 'k-999')).toBeUndefined()
+  })
+
+  it('un PC di prima che manda causa «sconosciuta» ma col testo dell’accesso scaduto è in pausa lo stesso (k-138)', () => {
+    const motivo = `lo specialista ha chiuso con un errore (tipo success; «${testo}»)`
+    const l = lavoro({ causa: 'sconosciuta', motivo })
+    // 22 minuti dopo (come alle 14:23 dopo le 14:01) il PC non riceve lavoro, per nessun compito né progetto.
+    const pause = pauseAiuti([l], T0 + 22 * 60_000)
+    expect(pcInPausa(pause, 'pc-finto', 'altro-progetto', 'k-999')).toBeDefined()
+    expect(causaDelFallimento('sconosciuta', motivo)).toBe('accesso')
+    expect(causaDelFallimento(undefined, 'lo specialista ha chiuso con un errore', testo)).toBe('accesso')
+    expect(causaDelFallimento('limite', motivo)).toBe('limite')
+  })
+
+  it('a ogni fallimento di accesso di fila l’attesa cresce: 1 h, 2 h, 6 h', () => {
+    const h = 60 * 60_000
+    const uno = lavoro({ causa: 'accesso' })
+    const due = lavoro({ causa: 'accesso', fineMs: T0 + h + 60_000 })
+    const tre = lavoro({ causa: 'accesso', fineMs: T0 + 4 * h })
+    const inPausa = (l: LavoroAffidato[], t: number): boolean => pcInPausa(pauseAiuti(l, t), 'pc-finto', 'progetto-a', 'k-999') !== undefined
+    expect(inPausa([uno], T0 + h - 1)).toBe(true)
+    expect(inPausa([uno], T0 + h + 1)).toBe(false)
+    expect(inPausa([uno, due], due.fine === undefined ? 0 : Date.parse(due.fine) + 2 * h - 1)).toBe(true)
+    expect(inPausa([uno, due], Date.parse(due.fine!) + 2 * h + 1)).toBe(false)
+    expect(inPausa([uno, due, tre], Date.parse(tre.fine!) + 6 * h - 1)).toBe(true)
+    expect(inPausa([uno, due, tre], Date.parse(tre.fine!) + 6 * h + 1)).toBe(false)
+    // Un lavoro riuscito riporta tutto a come prima.
+    const ok = lavoro({ stato: 'finito', fineMs: T0 + 5 * h, motivo: undefined })
+    const quarto = lavoro({ causa: 'accesso', fineMs: T0 + 6 * h })
+    expect(inPausa([uno, due, tre, ok, quarto], T0 + 6 * h + h + 1)).toBe(false)
   })
 
   it('il motivo dice «accesso Claude scaduto su <PC>»', () => {
