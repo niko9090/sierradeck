@@ -99,7 +99,7 @@ fun CoperturaPinApp(api: Api, chatId: String, titolo: String, onAperta: () -> Un
             modifier = Modifier.width(180.dp)
         )
         Spacer(Modifier.height(8.dp))
-        Button(enabled = PinChat.pinValido(pin) && !provo, onClick = {
+        Button(enabled = PinChat.pinValido(pin) && !provo, colors = it.ferrariconsulenze.sierradeck.schermate.tema.coloriTastoPieno(), onClick = {
             provo = true
             scope.launch {
                 try {

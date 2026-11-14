@@ -221,6 +221,7 @@ fun AltriComputer(api: Api) {
                             Spacer(Modifier.height(8.dp))
                             Button(
                                 enabled = postaTesto.isNotBlank() && postaCwd.isNotBlank(),
+                                colors = it.ferrariconsulenze.sierradeck.schermate.tema.coloriTastoPieno(),
                                 shape = MaterialTheme.shapes.small,
                                 onClick = {
                                     val t = postaTesto.trim(); val c = postaCwd.trim()

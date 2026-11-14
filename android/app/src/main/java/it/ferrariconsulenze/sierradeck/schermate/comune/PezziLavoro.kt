@@ -179,7 +179,8 @@ fun CasellaScrivi(casella: String, segnaposto: String, onManda: (String) -> Bool
         )
         IconButton(
             onClick = { val t = testo.trim(); if (t.isNotEmpty() && onManda(t)) { if (coda == null) locale = "" } },
-            enabled = testo.isNotBlank()
+            enabled = testo.isNotBlank(),
+            colors = androidx.compose.material3.IconButtonDefaults.iconButtonColors(disabledContentColor = it.ferrariconsulenze.sierradeck.schermate.tema.Banco.testoQuieto)
         ) { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Manda") }
     }
 }

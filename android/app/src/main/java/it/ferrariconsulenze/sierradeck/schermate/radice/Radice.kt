@@ -376,7 +376,7 @@ private fun Ingresso(vm: RadiceViewModel, scansionaQr: ((String) -> Unit, (Strin
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth()
         )
         errore?.let { Text(it, color = Banco.rosso, style = MaterialTheme.typography.bodyMedium) }
-        Button(onClick = ::collega, enabled = !inCorso, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
+        Button(onClick = ::collega, enabled = !inCorso, colors = it.ferrariconsulenze.sierradeck.schermate.tema.coloriTastoPieno(), modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
             Text(if (inCorso) "Mi collego…" else "Collega")
         }
         if (elenco.isNotEmpty()) {

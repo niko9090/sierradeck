@@ -214,7 +214,7 @@ fun SchermoMandaA(api: Api, stato: Stato?, uris: List<Uri>, fissa: DestinazioneF
         Column(Modifier.fillMaxSize().background(Banco.fondo).padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(if (fissa != null) "Manda a «${fissa.titolo}»" else "Manda a…", color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.weight(1f))
-                TextButton(enabled = !mandando, onClick = onChiudi) { Text(if (file.isNotEmpty() && file.all { it.ok }) "Fatto" else "Chiudi") }
+                TextButton(enabled = !mandando, colors = it.ferrariconsulenze.sierradeck.schermate.tema.coloriTastoTesto(), onClick = onChiudi) { Text(if (file.isNotEmpty() && file.all { it.ok }) "Fatto" else "Chiudi") }
             }
             RigaConAiuto("Finisce nella cartella del progetto di quella chat.", "Il file finisce nella cartella del progetto di quella chat (o dell'autopilota), in .sierradeck/allegati/ con la data di oggi, fuori da git: SierraDeck non lo apre e non lo esegue. La chat riceve una riga corta che glielo dice; l'autopilota lo trova nel suo dialogo. Fino a 100 MB per file; i programmi (.exe, .bat…) no. Tieni l'app aperta finché non vedi «Arrivato»: se la rete cade riparte da dove era.")
             Spacer(Modifier.height(8.dp))
@@ -245,7 +245,7 @@ fun SchermoMandaA(api: Api, stato: Stato?, uris: List<Uri>, fissa: DestinazioneF
                         visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                         modifier = Modifier.width(140.dp)
                     )
-                    Button(enabled = PinChat.pinValido(pin) && !mandando, onClick = {
+                    Button(enabled = PinChat.pinValido(pin) && !mandando, colors = it.ferrariconsulenze.sierradeck.schermate.tema.coloriTastoPieno(), onClick = {
                         scope.launch {
                             try { apiPer(d).sbloccaPin(d.id, pin); pin = ""; manda(d) } catch (e: Exception) { notaPin = PinChat.messaggio(e); pin = "" }
                         }
@@ -256,7 +256,7 @@ fun SchermoMandaA(api: Api, stato: Stato?, uris: List<Uri>, fissa: DestinazioneF
             Spacer(Modifier.height(8.dp))
             if (fissa != null) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(enabled = !mandando && file.isNotEmpty() && !file.all { it.ok }, onClick = { manda(fissa) }) {
+                    Button(enabled = !mandando && file.isNotEmpty() && !file.all { it.ok }, colors = it.ferrariconsulenze.sierradeck.schermate.tema.coloriTastoPieno(), onClick = { manda(fissa) }) {
                         Text(if (mandando) "Mando…" else if (file.any { it.esito != null && !it.ok }) "Riprova" else "Manda")
                     }
                 }
