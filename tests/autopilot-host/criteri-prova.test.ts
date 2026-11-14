@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { criteriPerLaProva } from '../../src/autopilot-host/criteri-prova'
+import { criteriPerLaProva, misuraIlRemoto } from '../../src/autopilot-host/criteri-prova'
 import { ePesante } from '../../src/autopilot-host/criteri-veloci'
 import type { Criterio } from '../../src/shared/autopilota'
 
@@ -38,6 +38,28 @@ describe('i criteri dell’unione di prova', () => {
   it('un vitest con opzioni resta com’è; uno senza percorsi vale per tutti', () => {
     const r = criteriPerLaProva([c('npx vitest run tests/main'), c('npx vitest run --reporter=dot tests/x.test.ts'), c('npx vitest run')])
     expect(r.map((x) => x.comando)).toEqual(['npx vitest run', 'npx vitest run --reporter=dot tests/x.test.ts'])
+  })
+})
+
+describe('la prova prima/dopo non misura il remoto', () => {
+  const gh = `node -e "const v=require('./package.json').version;require('child_process').execSync('gh release view v'+v,{stdio:'ignore'})"`
+  it('esclude pubblicazioni e stato del remoto, tiene i criteri normali', () => {
+    const r = criteriPerLaProva([
+      c(gh),
+      c('git ls-remote --tags origin v0.107.2 | grep -q v0.107.2'),
+      c('gh release view v0.107.1'),
+      c('gh api repos/o/r/releases/latest'),
+      c('git push origin main'),
+      c('npm view sierradeck version'),
+      c('npx tsc --noEmit'),
+      c('git tag --list v0.95.*')
+    ])
+    expect(r.map((x) => x.comando)).toEqual(['npx tsc --noEmit', 'git tag --list v0.95.*'])
+  })
+  it('misuraIlRemoto non scambia codice per remoto', () => {
+    expect(misuraIlRemoto(gh)).toBe(true)
+    expect(misuraIlRemoto('node -e "console.log(require(\'./package.json\').version)"')).toBe(false)
+    expect(misuraIlRemoto('npx vitest run tests/main')).toBe(false)
   })
 })
 
