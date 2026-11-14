@@ -126,6 +126,7 @@
 - «Il progetto NON è un repository git» nello stato può voler dire .git/config rovinato (tutto zeri, 11/11): ogni git fallisce. Si ripara con un config minimo (origin+main), copia del rotto, poi fsck. _(2026-11-12)_
 - il programma può negare in blocco i comandi che scrivono dentro `.git/` (config incluso), anche con decisione già presa: serve il sì di Nicholas registrato. _(2026-11-12)_
 - 12/11: v0.101.1 uscita da clone (a2df43ce). Il .git del principale (config, refs/heads/main e refs/remotes/origin/main a zeri) è stato riparato il 12/11 col sì di Nicholas: config ricostruito, main da `logs/refs/heads/main`, `reset --mixed a2df43ce`, fsck pulito; le copie rotte sono in `.git/*.rovinato*`. Resta da togliere SierraDeck-rilascio-0101 (decide Nicholas). _(2026-11-12)_
+- Prima di una pubblicazione manuale controllare MERGE_HEAD e i file in stage nella cartella principale: il programma può avere un'unione a metà che blocca il rilascio per minuti. _(2026-11-14)_
 
 ## autopilota
 
