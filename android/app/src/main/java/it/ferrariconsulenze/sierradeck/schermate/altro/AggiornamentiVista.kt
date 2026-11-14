@@ -68,6 +68,22 @@ import it.ferrariconsulenze.sierradeck.sottofondo.Aggiornamenti
 import it.ferrariconsulenze.sierradeck.sottofondo.Installazione
 import it.ferrariconsulenze.sierradeck.sottofondo.Scaricamento
 
+/**
+ * Perché «Cerca ora» sul computer non è andata. Prima ogni errore diceva
+ * «questo computer non sa ancora cercare»: anche un computer spento o la chiave
+ * scaduta, e chi leggeva andava ad aggiornare un PC che non c'entrava.
+ */
+object MotiviAggiornamentoPc {
+    fun cerca(e: Exception): String = when {
+        e is Api.Errore && (e.codice == 404 || e.codice == 405) ->
+            "Questo computer non sa ancora cercare a comando: aggiornalo dal suo schermo."
+        e is Api.Errore && e.daRiaccoppiare ->
+            "Il computer non riconosce più questo telefono: scollegalo e accoppialo di nuovo."
+        e is Api.Errore -> "Il computer ha risposto con un errore (${e.codice}). Riprova fra poco."
+        else -> "Non raggiungo il computer: è acceso e sulla stessa rete (o collegato da fuori)? Riprova quando torna in linea."
+    }
+}
+
 @Composable
 internal fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
     val scope = rememberCoroutineScope()
@@ -129,7 +145,7 @@ internal fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
                 cercatoAlle = oraDiAdesso()
                 null
             } catch (e: Exception) {
-                "Questo computer non sa ancora cercare a comando: aggiornalo dal suo schermo."
+                MotiviAggiornamentoPc.cerca(e)
             }
             // Un attimo di «Cerco…» anche quando la risposta è immediata: sotto
             // il mezzo secondo il tasto cambia e torna prima che l'occhio se ne

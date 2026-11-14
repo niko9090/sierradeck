@@ -153,7 +153,7 @@ fun Scollega(onScollega: suspend (Boolean) -> String?) {
     val ambito = rememberCoroutineScope()
     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedButton(onClick = { chiedi = true }, enabled = !lavora, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
+            OutlinedButton(onClick = { chiedi = true }, enabled = !lavora, colors = it.ferrariconsulenze.sierradeck.schermate.tema.coloriTastoBordo(), modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
                 Text("Scollega questo telefono", color = Banco.rosso)
             }
             Aiuto("Il computer toglie questo telefono dal suo elenco e il telefono lo dimentica. Per tornare a usarlo serve un accoppiamento nuovo (il QR).", di = "Scollega")

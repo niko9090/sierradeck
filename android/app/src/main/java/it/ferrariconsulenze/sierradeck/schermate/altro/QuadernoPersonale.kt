@@ -161,7 +161,7 @@ fun SezioneQuadernoPersonale(api: Api) {
     OutlinedTextField(value = valore, onValueChange = { valore = it.take(2000) }, label = { Text("Valore") }, modifier = Modifier.fillMaxWidth())
     OutlinedTextField(value = nota, onValueChange = { nota = it.take(300) }, label = { Text("Nota facoltativa: a cosa serve") }, singleLine = true, modifier = Modifier.fillMaxWidth())
     Row {
-        OutlinedButton(enabled = nome.isNotBlank() && valore.isNotBlank(), onClick = {
+        OutlinedButton(enabled = nome.isNotBlank() && valore.isNotBlank(), colors = it.ferrariconsulenze.sierradeck.schermate.tema.coloriTastoBordo(), onClick = {
             val n = nome.trim()
             scope.launch {
                 val r = tenta(if (idBozza == null) "aggiungere «$n»" else "salvare «$n»") { api.salvaVocePersonale(idBozza, nome, valore, nota) }

@@ -37,6 +37,48 @@ object Scaricamento {
     fun completo(previsto: Long, presi: Long): Boolean = previsto <= 0L || presi == previsto
 
     /**
+     * Cosa dire quando il server non risponde 200: parole semplici e cosa fare,
+     * non «il server ha risposto 404» (che non dice a chi lo legge dove guardare).
+     */
+    fun motivoRisposta(codice: Int): String = when {
+        codice == 404 -> "il file dell’app non c’è più su GitHub. Riprova fra qualche minuto; se resta così, l’app nuova non è ancora pubblicata per intero"
+        codice == 403 || codice == 429 -> "GitHub sta rifiutando troppe richieste da questa rete. Riprova fra qualche minuto, o passa dal WiFi"
+        codice in 500..599 -> "GitHub ha un problema in questo momento. Riprova fra qualche minuto"
+        else -> "GitHub ha risposto $codice. Riprova fra qualche minuto"
+    }
+
+    /** Un errore di rete in italiano semplice, con la cosa da fare. */
+    fun motivoEccezione(e: Throwable): String = when (e) {
+        is java.net.UnknownHostException -> "il telefono non raggiunge GitHub: controlla la connessione (WiFi o dati) e riprova"
+        is java.net.SocketTimeoutException -> "la connessione è troppo lenta o si è interrotta: riprova con una rete migliore"
+        is java.io.IOException -> "la connessione si è interrotta durante lo scaricamento: riprova" + (e.message?.takeIf { it.isNotBlank() }?.let { " ($it)" } ?: "")
+        else -> "non sono riuscito a scaricarla" + (e.message?.takeIf { it.isNotBlank() }?.let { ": $it" } ?: "") + ". Riprova"
+    }
+
+    /** Detto quando Android non lascia ancora installare da SierraDeck. */
+    const val SERVE_PERMESSO =
+        "Android non ti ha ancora permesso di installare app da SierraDeck. Ho aperto le impostazioni: attiva «Consenti da questa fonte», torna qui e premi Riprova"
+
+    /**
+     * Android 8+ vuole il permesso «installa app sconosciute» per ogni app che
+     * installa. Senza, l'installazione non parte e non c'è errore da nessuna parte.
+     */
+    fun puoInstallare(contesto: Context): Boolean =
+        android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O || contesto.packageManager.canRequestPackageInstalls()
+
+    /** Apre la schermata di Android dove si dà il permesso a SierraDeck. */
+    private fun apriPermesso(contesto: Context): Boolean = try {
+        contesto.startActivity(
+            Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, android.net.Uri.parse("package:${contesto.packageName}"))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+        true
+    } catch (e: Exception) {
+        Log.e("SierraDeck", "impostazioni non aperte", e)
+        false
+    }
+
+    /**
      * Scarica l'APK e apre l'installazione.
      *
      * `avanzamento` viene chiamato con la percentuale mentre scarica, e
@@ -58,6 +100,12 @@ object Scaricamento {
             guasto("l'aggiornamento non viene da dove deve")
             return
         }
+        // Il permesso prima di scaricare: inutile portare 4 MB se poi Android non installa.
+        if (!puoInstallare(contesto)) {
+            apriPermesso(contesto)
+            guasto(SERVE_PERMESSO)
+            return
+        }
         thread(start = true) {
             var totalePrevisto = -1L
             var scaricati = 0L
@@ -72,7 +120,7 @@ object Scaricamento {
                 }
                 try {
                     if (connessione.responseCode != 200) {
-                        guasto("il server ha risposto ${connessione.responseCode}")
+                        guasto(motivoRisposta(connessione.responseCode))
                         return@thread
                     }
                     totalePrevisto = connessione.contentLength.toLong()
@@ -96,20 +144,20 @@ object Scaricamento {
                 }
 
                 if (!completo(totalePrevisto, scaricati)) {
-                    guasto("il file e' arrivato a meta': riprova")
+                    guasto("il file è arrivato a metà: la connessione è caduta. Riprova")
                     return@thread
                 }
                 if (destinazione.length() < 1_000_000) {
                     // Un APK di SierraDeck sta sopra il megabyte: quello che è
                     // arrivato non è un'app, ed è meglio dirlo che aprire una
                     // schermata di installazione su un file rotto.
-                    guasto("il file scaricato è troppo piccolo per essere l’app")
+                    guasto("il file scaricato è troppo piccolo per essere l’app (GitHub ha mandato una pagina al posto del file). Riprova fra qualche minuto")
                     return@thread
                 }
-                if (installa(contesto, destinazione)) pronto() else guasto("Android non ha aperto l’installazione")
+                if (installa(contesto, destinazione)) pronto() else guasto("Android non ha aperto l’installazione. Riprova; se continua, scarica l’APK dalla pagina «App Android» di GitHub dal browser del telefono")
             } catch (e: Exception) {
                 Log.e("SierraDeck", "aggiornamento non scaricato", e)
-                guasto(e.message ?: "non sono riuscito a scaricarlo")
+                guasto(motivoEccezione(e))
             }
         }
     }

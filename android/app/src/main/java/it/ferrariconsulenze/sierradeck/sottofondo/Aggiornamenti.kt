@@ -146,6 +146,15 @@ object Aggiornamenti {
         }
     }
 
+    /**
+     * La striscia «C'è l'app nuova» all'apertura: solo se la ricerca ha trovato
+     * qualcosa e un'altra striscia (da notifica) non c'è già. Prima la striscia
+     * compariva solo toccando la notifica: con le notifiche spente l'app nuova
+     * non si vedeva mai, nonostante la scritta «ti avvisa in alto».
+     */
+    fun perLaStriscia(esito: Esito, giaSu: Pair<String, String>?): Pair<String, String>? =
+        if (giaSu == null && esito is Esito.Trovata) esito.nome to esito.apk else giaSu
+
     private suspend fun dalComputer(api: Api?, ragioni: MutableList<String>): Pubblicata? {
         if (api == null) return null
         return try {

@@ -236,7 +236,7 @@ private fun Intestazione(t: TestaWorkspace, chats: List<ChatDelWorkspace>, onApr
                 IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Altro") }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     if (onQuaderno != null) DropdownMenuItem(text = { Text("Quaderno") }, onClick = { menu = false; onQuaderno() })
-                    if (chats.isEmpty()) DropdownMenuItem(text = { Text("Nessuna chat in questo workspace") }, onClick = { menu = false }, enabled = false)
+                    if (chats.isEmpty()) DropdownMenuItem(text = { Text("Nessuna chat in questo workspace") }, onClick = { menu = false }, enabled = false, colors = it.ferrariconsulenze.sierradeck.schermate.tema.coloriVoceMenu())
                     for (c in chats) DropdownMenuItem(text = { Text(c.titolo, maxLines = 1, overflow = TextOverflow.Ellipsis) }, onClick = { menu = false; onApriChat(c.id) })
                 }
             }

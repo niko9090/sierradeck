@@ -149,6 +149,13 @@ private fun Collegata(vm: RadiceViewModel, pc: PcNoto, onEsci: () -> Unit) {
         PcCorrente.versione = pc.versione.ifBlank { null }
     }
     LaunchedEffect(api) { try { ErroriApp.mandaCoda(contesto, api) } catch (_: Exception) { } }
+    // L'app nuova si cerca a ogni apertura e compare la striscia in alto (anche con le notifiche spente).
+    LaunchedEffect(api) {
+        try {
+            val esito = it.ferrariconsulenze.sierradeck.sottofondo.Aggiornamenti.cerca(it.ferrariconsulenze.sierradeck.BuildConfig.VERSION_NAME, api)
+            Apertura.aggiornamento = it.ferrariconsulenze.sierradeck.sottofondo.Aggiornamenti.perLaStriscia(esito, Apertura.aggiornamento)
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { }
+    }
 
     BackHandler(enabled = true) { if (!vm.indietro()) onEsci() }
     // Le notifiche e le schermate di prima chiedono ancora un posto con `Apertura`.
@@ -369,7 +376,7 @@ private fun Ingresso(vm: RadiceViewModel, scansionaQr: ((String) -> Unit, (Strin
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth()
         )
         errore?.let { Text(it, color = Banco.rosso, style = MaterialTheme.typography.bodyMedium) }
-        Button(onClick = ::collega, enabled = !inCorso, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
+        Button(onClick = ::collega, enabled = !inCorso, colors = it.ferrariconsulenze.sierradeck.schermate.tema.coloriTastoPieno(), modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
             Text(if (inCorso) "Mi collego…" else "Collega")
         }
         if (elenco.isNotEmpty()) {
