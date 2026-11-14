@@ -36,6 +36,7 @@
 - testDebugUnitTest Android ha test legati ai tempi (CentralinoTest <500ms, AscoltoAvvisiTest sleep 1,1 s): sotto carico del PC possono fallire a intermittenza. Riportare il nome del test, non solo "BU… _(2026-11-14)_
 - Centralino accetta un orologio iniettato: nelle prove usarlo fermo invece di misurare ms veri (<500 dentro un'attesa di 1 s salta col PC carico). _(2026-11-14)_
 - `tsc` ha noUncheckedIndexedAccess: negli indici di array serve `?? ''`, altrimenti il typecheck del criterio fallisce. _(2026-11-14)_
+- criteriPerLaProva è usata anche da servizio-orchestratore.ts per un solo comando: se scarta il comando si ricade sull'originale, non sul vuoto _(2026-11-14)_
 
 ## worktree
 
@@ -382,6 +383,7 @@
 - il controllo «gh release view v<versione>» sul ramo del cambio versione si sblocca con una pre-release vuota non Latest, senza toccare gli aggiornamenti automatici. _(2026-11-13)_
 - L'esito di rifiuto Gradle nel piano è tagliato e perde il nome del test fallito: salvare le righe FAILED per diagnosticare. _(2026-11-14)_
 - `motivoProveRotte` in `src/autopilot-host/ambiente-copia.ts` compone l'esito del ramo respinto; il suo test vecchio vive in `tests/autopilot-host`, non in `tests/main`. _(2026-11-14)_
+- la prova prima/dopo dell'unione deve misurare solo il codice: i criteri su release o remoto passano sul principale e cadono sul ramo che alza la versione _(2026-11-14)_
 
 ## consenso
 
