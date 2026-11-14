@@ -469,6 +469,9 @@
 
 - Gradle di sistema in /e/Programs/Gradle/gradle-8.11.1 funziona nelle copie: su albero pulito servono ~3 min, con cache ~1 min; il tail di "BUILD FAILED" da solo non basta, serve --stacktrace. _(2026-11-14)_
 - Il gate Android (testDebugUnitTest assembleDebug) sul worktree a freddo dura circa 8 minuti; due gradle sulla stessa copia si bloccano sul lock. _(2026-11-14)_
+- Nel cancello «N actionable tasks: 1 executed» con N=28 è il comando solo `testDebugUnitTest --rerun` (con `assembleDebug` sono 45): il task caduto è un test, non assembleDebug. _(2026-11-14)_
+- Il cancello deve stampare nel riepilogo le righe FAILED e «Execution failed for task»: la sola coda «BUILD FAILED» non basta per capire quale test cade. _(2026-11-14)_
+- Rifiuto del cancello con «28 tasks: 1 executed» = solo testDebugUnitTest --rerun (con assembleDebug sono 45): cade un test a intermittenza, non la build. _(2026-11-14)_
 
 ## aiuto-rete
 
