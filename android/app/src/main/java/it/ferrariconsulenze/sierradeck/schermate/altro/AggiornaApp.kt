@@ -37,6 +37,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import it.ferrariconsulenze.sierradeck.BuildConfig
 import it.ferrariconsulenze.sierradeck.schermate.comune.Aiuto
 import it.ferrariconsulenze.sierradeck.schermate.tema.Banco
+import it.ferrariconsulenze.sierradeck.schermate.tema.coloriTastoPieno
+import it.ferrariconsulenze.sierradeck.schermate.tema.coloriTastoTesto
 import it.ferrariconsulenze.sierradeck.sottofondo.Scaricamento
 
 /**
@@ -117,11 +119,11 @@ fun CorpoDialogoApp(nome: String, fase: FaseApp, percento: Int, errore: String?,
             }
         },
         confirmButton = {
-            Button(enabled = fase != FaseApp.SCARICO, onClick = onAggiorna) {
+            Button(enabled = fase != FaseApp.SCARICO, colors = coloriTastoPieno(), onClick = onAggiorna) {
                 Text(when (fase) { FaseApp.SCARICO -> "Scarico…"; FaseApp.ERRORE, FaseApp.ANDROID -> "Riprova"; FaseApp.SCEGLI -> "Aggiorna" })
             }
         },
-        dismissButton = { TextButton(enabled = fase != FaseApp.SCARICO, onClick = onPiuTardi) { Text("Più tardi") } }
+        dismissButton = { TextButton(enabled = fase != FaseApp.SCARICO, colors = coloriTastoTesto(), onClick = onPiuTardi) { Text("Più tardi") } }
     )
 }
 

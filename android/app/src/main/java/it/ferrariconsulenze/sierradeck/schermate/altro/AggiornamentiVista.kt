@@ -64,6 +64,7 @@ import it.ferrariconsulenze.sierradeck.nucleo.Aggiornamento
 import it.ferrariconsulenze.sierradeck.rete.Api
 import it.ferrariconsulenze.sierradeck.schermate.comune.Tessera
 import it.ferrariconsulenze.sierradeck.schermate.tema.Banco
+import it.ferrariconsulenze.sierradeck.schermate.tema.coloriTastoBordo
 import it.ferrariconsulenze.sierradeck.sottofondo.Aggiornamenti
 import it.ferrariconsulenze.sierradeck.sottofondo.Installazione
 import it.ferrariconsulenze.sierradeck.sottofondo.Scaricamento
@@ -200,6 +201,7 @@ internal fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
             ) { Text("Installa") }
             else -> OutlinedButton(
                 enabled = !cercando,
+                colors = coloriTastoBordo(),
                 shape = MaterialTheme.shapes.small,
                 onClick = { cerca() }
             ) { Text(if (cercando) "Cerco…" else "Cerca ora") }
@@ -266,6 +268,7 @@ internal fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             OutlinedButton(
                 enabled = !cercando,
+                colors = coloriTastoBordo(),
                 shape = MaterialTheme.shapes.small,
                 onClick = { cerca() }
             ) { Text(if (cercando) "Cerco…" else "Cerca se ce n’è una più nuova") }
@@ -297,6 +300,7 @@ internal fun AggiornamentoApp(api: Api) {
     ) {
         OutlinedButton(
             enabled = !cercando,
+            colors = coloriTastoBordo(),
             shape = MaterialTheme.shapes.small,
             onClick = {
                 cercando = true
