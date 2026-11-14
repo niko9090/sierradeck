@@ -57,7 +57,8 @@ export function avviaProcessoReale(claudeCmd: string, uccidi: (pids: number[]) =
     }
     const figlio = spawn(claudeCmd, args, { cwd, env, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
     createInterface({ input: figlio.stdout }).on('line', (r) => { for (const f of righe) f(r) })
-    figlio.stderr.on('data', (b: Buffer) => { stderr = (stderr + b.toString('utf8')).slice(-4000) })
+    figlio.stderr.setEncoding('utf8')
+    figlio.stderr.on('data', (b: string) => { stderr = (stderr + b).slice(-4000) })
     figlio.on('error', (err) => esci(1, `${stderr}\n${err.message}`))
     figlio.on('close', (codice) => esci(codice, stderr))
     figlio.stdin.on('error', () => { /* lo dice l'uscita */ })

@@ -119,7 +119,8 @@ function npmCi(cartella: string, extra: string[]): Promise<void> {
   return new Promise((ok, no) => {
     const figlio = spawn('npm', ['ci', '--no-audit', '--no-fund', ...extra], { cwd: cartella, shell: true, windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] })
     let errOut = ''
-    figlio.stderr.on('data', (b: Buffer) => { errOut = (errOut + b.toString('utf8')).slice(-2000) })
+    figlio.stderr.setEncoding('utf8')
+    figlio.stderr.on('data', (b: string) => { errOut = (errOut + b).slice(-2000) })
     const timer = setTimeout(() => { figlio.kill() }, 25 * 60_000)
     figlio.on('error', (e) => { clearTimeout(timer); no(e) })
     figlio.on('close', (c) => { clearTimeout(timer); if (c === 0) ok(); else no(new Error(`npm ci uscito con ${String(c)}: ${corto(errOut, 300)}`)) })

@@ -1,4 +1,5 @@
 import type { IncomingMessage } from 'node:http'
+import { StringDecoder } from 'node:string_decoder'
 
 /**
  * Leggere il corpo JSON di una richiesta, senza restare appesi.
@@ -34,6 +35,7 @@ export function leggiCorpoJson(
 ): Promise<unknown> {
   return new Promise((risolvi) => {
     let dati = ''
+    const decoder = new StringDecoder('utf8')
     let finito = false
     /** Una sola risposta, qualunque delle quattro strade arrivi per prima. */
     const chiudi = (valore: unknown): void => {
@@ -44,7 +46,9 @@ export function leggiCorpoJson(
 
     req.on('data', (c: Buffer | string) => {
       if (finito) return
-      dati += c
+      // Un pezzo può finire a metà di un carattere multibyte: `dati += buffer`
+      // lo convertirebbe pezzo per pezzo (U+FFFD). Il decoder tiene i byte in sospeso.
+      dati += typeof c === 'string' ? c : decoder.write(c)
       if (dati.length > tetto) {
         // Prima si risponde, poi si chiude la porta: al contrario, la chiusura
         // poteva togliere di mezzo l'evento che avrebbe risolto la promessa.
@@ -54,6 +58,7 @@ export function leggiCorpoJson(
       }
     })
     req.on('end', () => {
+      dati += decoder.end()
       if (dati === '') { chiudi(undefined); return }
       try {
         chiudi(JSON.parse(dati))
