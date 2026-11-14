@@ -35,6 +35,8 @@ export type DipendenzeSpedizioniere = {
   log?: (r: string) => void
   /** 12/11: i blocchi vanno nello storico degli errori, che parte da solo verso il PC di sviluppo. */
   errore?: (r: string) => void
+  /** 14/11: un PC che non risponde è un caso atteso di rete: avviso nel registro, non errore (non va negli «Errori arrivati»). */
+  avviso?: (r: string) => void
   adesso?: () => number
   dorme?: (ms: number) => Promise<void>
 }
@@ -69,6 +71,7 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): { giro: () => Pro
   const git = d.git ?? gitVero
   const log = d.log ?? ((r: string) => console.info(`[aiuto] ${r}`))
   const blocco = d.errore ?? ((r: string) => console.error(`[aiuto] ${r}`))
+  const avviso = d.avviso ?? ((r: string) => console.warn(`[aiuto] ${r}`))
   const adesso = d.adesso ?? Date.now
   const dorme = d.dorme ?? ((ms: number) => new Promise<void>((ok) => { const t = setTimeout(ok, ms); t.unref?.() }))
   const inMano = new Set<string>()
@@ -182,7 +185,8 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): { giro: () => Pro
           posti = { lista: [], il: -Infinity }
         }
         const causa: CausaFallimento = delProgetto ? 'progetto' : 'pc'
-        blocco(`${l.id}: non spedito a ${l.pcNome}: ${testo(err)}`)
+        // Solo il progetto non spedibile è un difetto; un PC che non risponde è rete.
+        ;(delProgetto ? blocco : avviso)(`${l.id}: non spedito a ${l.pcNome}: ${testo(err)}`)
         await avanza(l.id, { stato: 'fallito', causa, motivo: delProgetto ? `${fraseCausa('progetto')} — ${testo(err)}` : `non sono riuscito a spedirlo a ${l.pcNome}: ${testo(err)}` })
         await d.chiama(l.pcId, '/api/aiuto/chiudi', { lavoro: l.id }).catch(() => undefined)
         return
@@ -200,7 +204,7 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): { giro: () => Pro
         silenzioDa ??= adesso()
         if (sconosciuto || adesso() - silenzioDa > SILENZIO_MAX_MS) {
           fuori.set(l.pcId, adesso() + FUORI_PER_MS)
-          blocco(`${l.id} (${l.compito ?? l.ruolo}): perso su ${l.pcNome}: ${sconosciuto ? 'non ha più il lavoro' : 'non risponde'}`)
+          avviso(`${l.id} (${l.compito ?? l.ruolo}): perso su ${l.pcNome}: ${sconosciuto ? 'non ha più il lavoro' : 'non risponde'}`)
           await avanza(l.id, { stato: 'fallito', causa: 'pc', motivo: sconosciuto ? `${l.pcNome} non ha più questo lavoro (si è riavviato?)` : `${l.pcNome} non risponde da ${Math.round(SILENZIO_MAX_MS / 60_000)} minuti` })
           // 12/11: «chiudi» anche qui, come alla fine e dopo una spedizione non riuscita: se quel PC
           // torna, o lo tiene ancora, toglie copia, ramo e pacchetti invece di lasciarli lì.
