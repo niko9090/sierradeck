@@ -56,6 +56,15 @@ export function colpaDelPc(c: CausaFallimento): boolean {
 }
 
 /**
+ * 14/11: un PC che non risponde è un caso atteso di rete (il lavoro si rifà altrove): la riga
+ * nel registro è un avviso, non un errore che finisce negli «Errori arrivati». Tutto il resto
+ * (accesso scaduto, specialista fallito, causa sconosciuta) resta errore.
+ */
+export function livelloRigaAiuto(causa: CausaFallimento | undefined): 'avviso' | 'errore' {
+  return causa === 'pc' ? 'avviso' : 'errore'
+}
+
+/**
  * La causa, dal testo (result, stderr, messaggio di un errore). L'ordine conta:
  * l'accesso e il limite prima di tutto, perché il loro testo può nominare anche altro.
  */

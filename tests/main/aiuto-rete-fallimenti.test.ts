@@ -1,4 +1,10 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, afterAll } from 'vitest'
+import { execFileSync } from 'node:child_process'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { creaSpedizioniere } from '../../src/main/aiuto-spedizioniere'
+import { livelloRigaAiuto } from '../../src/shared/aiuto-esito'
 import { causaDalTesto, causaDelFallimento, motivoDelRisultato, motivoSuPc, pauseAiuti, pcInPausa, PAUSA_ACCESSO_MS, PAUSA_IRRAGGIUNGIBILE_MS } from '../../src/shared/aiuto-esito'
 import type { LavoroAffidato } from '../../src/shared/aiuto-rete'
 import { chiaveErrore, raggruppa, type ArrivoLetto } from '../../src/main/errori-arrivati-lavoro'
@@ -86,6 +92,67 @@ describe('accesso scaduto: il PC esce subito', () => {
     expect(m).toContain('Failed to authenticate')
     expect(motivoSuPc('altro', 'compito', 'PC-Finto')).toBe('altro')
   })
+})
+
+describe('PC che non risponde: avviso, non errore', () => {
+  const radice = mkdtempSync(join(tmpdir(), 'aiuto-fuori-'))
+  afterAll(() => { try { rmSync(radice, { recursive: true, force: true }) } catch { /* Windows tiene i file un attimo */ } })
+
+  it('solo la causa «pc» scende a livello avviso', () => {
+    expect(livelloRigaAiuto('pc')).toBe('avviso')
+    for (const c of ['accesso', 'compito', 'progetto', 'sconosciuta', 'limite'] as const) expect(livelloRigaAiuto(c)).toBe('errore')
+    expect(livelloRigaAiuto(undefined)).toBe('errore')
+  })
+
+  it('la pausa del PC irraggiungibile resta applicata, quella per accesso scaduto pure', () => {
+    const pc = lavoro({ causa: 'pc', motivo: 'non sono riuscito a spedirlo a PC-Finto: acceso ma non risponde' })
+    expect(pcInPausa(pauseAiuti([pc], T0 + 60_000), 'pc-finto', 'altro-progetto', 'k-1')).toBeDefined()
+    const accesso = lavoro({ causa: 'accesso' })
+    expect(pcInPausa(pauseAiuti([accesso], T0 + 60_000), 'pc-finto', 'altro-progetto', 'k-1')).toBeDefined()
+  })
+
+  const spedisciA = async (nome: string, guasto: string | undefined): Promise<{ avvisi: string[]; errori: string[]; esiti: Record<string, unknown>[] }> => {
+    const qui = join(radice, nome)
+    execFileSync('git', ['init', '-b', 'main', qui])
+    writeFileSync(join(qui, 'leggimi.txt'), 'ciao\n')
+    execFileSync('git', ['-c', 'user.name=Prova', '-c', 'user.email=prova@example.invalid', 'add', '.'], { cwd: qui })
+    execFileSync('git', ['-c', 'user.name=Prova', '-c', 'user.email=prova@example.invalid', 'commit', '-m', 'inizio'], { cwd: qui })
+    const l: LavoroAffidato = {
+      id: 'r0000000000f1', workspace: 'progetto-a', cwd: qui, pcId: 'pc-la', pcNome: 'PC-Finto', ruolo: 'sviluppatore',
+      descrizione: 'k-1: x', compito: 'k-1', prompt: 'x', sistema: '', modello: 'sonnet', strumenti: [], stato: 'da-spedire', inizio: new Date().toISOString()
+    }
+    const esiti: Record<string, unknown>[] = []
+    const avvisi: string[] = []
+    const errori: string[] = []
+    const sp = creaSpedizioniere({
+      altri: () => [{ pcId: 'pc-la', nome: 'PC-Finto' }],
+      chiama: async (_pc, percorso) => {
+        if (percorso === '/api/aiuto/posti') return { modo: 'dedicato', liberi: 2, tetto: 2 }
+        if (guasto !== undefined && (percorso === '/api/aiuto/pezzo' || percorso === '/api/aiuto/avvia')) throw new Error(guasto)
+        return {}
+      },
+      servizio: async (percorso, corpo) => {
+        if (percorso === '/aiuto/giro') return { lavori: l.stato === 'da-spedire' ? [l] : [] }
+        if (percorso === '/aiuto/avanza') { esiti.push(corpo!); if (corpo!.stato !== undefined) l.stato = corpo!.stato as LavoroAffidato['stato']; return { fatto: true } }
+        throw new Error(`rotta inattesa ${percorso}`)
+      },
+      cartella: join(radice, `sped-${nome}`), log: () => undefined,
+      errore: (r) => errori.push(r), avviso: (r) => avvisi.push(r), dorme: async () => undefined
+    })
+    try {
+      await sp.giro()
+      const fine = Date.now() + 30_000
+      while (l.stato === 'da-spedire' && Date.now() < fine) await new Promise((ok) => setTimeout(ok, 30))
+    } finally { sp.ferma() }
+    return { avvisi, errori, esiti }
+  }
+
+  it('spedizione a un PC che non risponde: nessun errore, solo avviso, il lavoro fallisce con causa «pc»', async () => {
+    const r = await spedisciA('fuori', 'acceso ma non risponde sulla porta 1')
+    expect(r.errori).toEqual([])
+    expect(r.avvisi.some((a) => a.includes('non spedito a PC-Finto'))).toBe(true)
+    expect(r.esiti.at(-1)).toMatchObject({ stato: 'fallito', causa: 'pc' })
+  }, 60_000)
 })
 
 describe('errori arrivati: lo stesso fallimento con id diversi è un gruppo solo', () => {
