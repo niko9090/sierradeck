@@ -132,6 +132,7 @@
 - il programma può negare in blocco i comandi che scrivono dentro `.git/` (config incluso), anche con decisione già presa: serve il sì di Nicholas registrato. _(2026-11-12)_
 - 12/11: v0.101.1 uscita da clone (a2df43ce). Il .git del principale (config, refs/heads/main e refs/remotes/origin/main a zeri) è stato riparato il 12/11 col sì di Nicholas: config ricostruito, main da `logs/refs/heads/main`, `reset --mixed a2df43ce`, fsck pulito; le copie rotte sono in `.git/*.rovinato*`. Resta da togliere SierraDeck-rilascio-0101 (decide Nicholas). _(2026-11-12)_
 - Prima di una pubblicazione manuale controllare MERGE_HEAD e i file in stage nella cartella principale: il programma può avere un'unione a metà che blocca il rilascio per minuti. _(2026-11-14)_
+- Il `lezioni.md` modificato dal programma sporca la cartella, ma non ha fermato `pubblica-app`. _(2026-11-14)_
 
 ## autopilota
 
@@ -419,6 +420,7 @@
 ## pubblica
 
 - `npm run pubblica` da una copia: serve `google-oauth.json` (ignorato da git) e una `node_modules` vera, non una junction. Con la release già creata non carica nulla: caricare a mano. _(2026-11-11)_
+- Con bozza già creata, collegata al tag con `gh release edit --tag` e note, `npm run pubblica` ha caricato tutti e 7 i file (Aiutante compreso); poi `--draft=false --latest`. _(2026-11-14)_
 
 ## quaderno
 
@@ -493,3 +495,19 @@
 ## gradle
 
 - Il «What went wrong» che il cancello taglia sta in C:\Users\nikof\.gradle\daemon\8.11.1\daemon-*.out.log. I log mostrano se due build erano sovrapposte (currentDir e orari). _(2026-11-14)_
+
+## unione
+
+- Un MERGE_HEAD in main è durato circa 5 minuti e poi è sparito senza cambiare HEAD. Più sleep di fila nello stesso comando vengono bloccati, quindi un `sleep 20` per chiamata. _(2026-11-14)_
+
+## pubblica-app
+
+- `npm run pubblica-app` copia anche `app-android.json` su v0.107.2 (la Latest) senza cambiarne i file né la Latest. _(2026-11-14)_
+
+## log
+
+- consoleNelRegistro: console.warn va come info (fuori dallo storico errori), console.error come ERRORE; per casi attesi di rete usare warn. _(2026-11-14)_
+
+## aiuto
+
+- creaSpedizioniere ha ora `avviso` oltre a `errore`: solo ProgettoNonSpedibile e i fallimenti dichiarati dal PC restano errori. _(2026-11-14)_
