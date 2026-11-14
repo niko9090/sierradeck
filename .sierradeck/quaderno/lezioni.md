@@ -63,6 +63,7 @@
 - Le foto Robolectric non hanno il riconoscimento vocale: per fotografare una barra in tutti gli stati serve un composable senza stato, come RigaConversazione. _(2026-11-14)_
 - un ramo che "non compila sopra main" può essere solo un'esecuzione sporca: rifare `git merge main` e il comando gradle in una copia pulita prima di cercare errori. _(2026-11-14)_
 - i colori dei tasti si prendono da Tema.kt (coloriTastoPieno/Testo/Bordo, sopra()): è lì che stanno i colori da spenti con contrasto 4.5:1. _(2026-11-14)_
+- Il cancello fonde i criteri `cd android && gradle …` in `testDebugUnitTest assembleDebug --no-daemon`; `gradle -p android …` resta separato. Le foto Roborazzi sono in modalità record, non confronto. _(2026-11-14)_
 
 ## release
 
@@ -373,6 +374,7 @@
 - un ramo già unito e cancellato non si misura: serve un ramo nuovo aggiornato a main (già scritto nel quaderno). _(2026-11-10)_
 - Il cancello salva le note `.sierradeck/` prima di unire solo se il diff è fatto di sole aggiunte (numstat, zero righe tolte); righe cambiate o tolte restano di Nicholas. _(2026-11-10)_
 - il controllo «gh release view v<versione>» sul ramo del cambio versione si sblocca con una pre-release vuota non Latest, senza toccare gli aggiornamenti automatici. _(2026-11-13)_
+- L'esito di rifiuto Gradle nel piano è tagliato e perde il nome del test fallito: salvare le righe FAILED per diagnosticare. _(2026-11-14)_
 
 ## consenso
 
