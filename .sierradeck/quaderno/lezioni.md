@@ -64,6 +64,8 @@
 - un ramo che "non compila sopra main" può essere solo un'esecuzione sporca: rifare `git merge main` e il comando gradle in una copia pulita prima di cercare errori. _(2026-11-14)_
 - i colori dei tasti si prendono da Tema.kt (coloriTastoPieno/Testo/Bordo, sopra()): è lì che stanno i colori da spenti con contrasto 4.5:1. _(2026-11-14)_
 - Il cancello fonde i criteri `cd android && gradle …` in `testDebugUnitTest assembleDebug --no-daemon`; `gradle -p android …` resta separato. Le foto Roborazzi sono in modalità record, non confronto. _(2026-11-14)_
+- Le note dell'app stanno in `android/novita-app.txt` (una voce per versione), e `pubblica-app` si ferma se manca la voce della versione nuova. _(2026-11-14)_
+- I tasti dell'app vanno creati con `coloriTastoPieno/Testo/Bordo()` di `Tema.kt`, altrimenti da spenti i colori di Material non rispettano il contrasto. _(2026-11-14)_
 
 ## release
 
@@ -457,6 +459,7 @@
 - il tag v0.106.3 è su 43744ae9 (ramo worktree), non su main: dopo l'unione verificare che punti al commit giusto prima di caricare i file e rendere Latest. _(2026-11-13)_
 - Se la release esiste già pubblicata (anche pre-release), electron-builder non carica nulla: allega-aiutante dice «mancano …». Caricare a mano con gh release upload --clobber. _(2026-11-13)_
 - In dist/ gli installer hanno gli spazi («SierraDeck Setup X.exe»), ma latest.yml cita i trattini: copiare con i nomi «SierraDeck-Setup-X.exe» prima di caricare a mano. _(2026-11-13)_
+- La release fissa dell'app si trova col tag `app-android`, non col nome: `gh release view "App Android"` dice «not found». Prima di alzare la versione guardare `gh release view app-android`. _(2026-11-14)_
 
 ## build
 
