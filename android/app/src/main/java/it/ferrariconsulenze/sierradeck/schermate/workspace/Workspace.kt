@@ -67,6 +67,8 @@ import it.ferrariconsulenze.sierradeck.nucleo.SchedaPiena
 import it.ferrariconsulenze.sierradeck.nucleo.TipoErrore
 import it.ferrariconsulenze.sierradeck.schermate.comune.Aiuto
 import it.ferrariconsulenze.sierradeck.schermate.comune.BarraAvanzamento
+import it.ferrariconsulenze.sierradeck.nucleo.NovitaDaLeggere
+import it.ferrariconsulenze.sierradeck.schermate.comune.BarraConversazione
 import it.ferrariconsulenze.sierradeck.schermate.comune.CasellaScrivi
 import it.ferrariconsulenze.sierradeck.schermate.comune.InviiInCoda
 import it.ferrariconsulenze.sierradeck.schermate.comune.TastoScelta
@@ -167,14 +169,15 @@ fun CorpoWorkspace(
             if (linguetta == 0) LinguettaChat(righe, caricata, risposte, onRispondi, casella = "ap:$id")
             else LinguettaChiLavora(chi, richieste, fonte, onGuarda = { guarda = it })
         }
-        if (linguetta == 0) CasellaScrivi(
-            casella = "ap:$id", segnaposto = "Scrivi all’autopilota…",
-            onManda = { t ->
-                val corpo = buildJsonObject { put("autopilota", id); put("testo", t) }.toString()
-                mettiInCoda(pc, "/api/autopilota/dialogo", corpo, "ap:$id", t)
-            },
-            modifier = Modifier.imePadding()
-        )
+        val manda = { t: String ->
+            val corpo = buildJsonObject { put("autopilota", id); put("testo", t) }.toString()
+            mettiInCoda(pc, "/api/autopilota/dialogo", corpo, "ap:$id", t)
+        }
+        if (linguetta == 0) {
+            val novita = remember(righe) { NovitaDaLeggere.dalleRighe(righe) }
+            BarraConversazione(novita, manda)
+            CasellaScrivi(casella = "ap:$id", segnaposto = "Scrivi all’autopilota…", onManda = manda, modifier = Modifier.imePadding())
+        }
     }
     guarda?.let { g -> if (fonte != null) Specialista(g, fonte) { guarda = null } }
     if (quaderno && fonte != null) Quaderno(testa.nome, fonte) { quaderno = false }
