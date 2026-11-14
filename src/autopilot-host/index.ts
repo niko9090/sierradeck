@@ -129,6 +129,7 @@ export function inAscolto(porta: number): Promise<boolean> {
       { host: '127.0.0.1', port: porta, path: '/salute', timeout: ATTESA_SALUTE_MS },
       (res) => {
         let dati = ''
+        res.setEncoding('utf8')
         res.on('data', (c) => { dati += c })
         res.on('end', () => {
           try {

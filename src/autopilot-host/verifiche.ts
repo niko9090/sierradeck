@@ -1,6 +1,7 @@
 import { execFile, spawn } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { delimiter, dirname, join } from 'node:path'
+import { StringDecoder } from 'node:string_decoder'
 import type { Criterio } from '@shared/autopilota'
 import { cancellaSicura } from '@shared/cancella-sicura'
 import { radiceCriteri } from '@shared/disco-prove'
@@ -447,17 +448,21 @@ export function esecutoreReale(predefinitoMs: number = TIMEOUT_PREDEFINITO_MS, r
       let testa = ''
       let coda = ''
       let saltato = false
-      const raccogli = (pezzo: Buffer): void => {
+      // Un decoder per flusso: un carattere multibyte spezzato fra due pezzi
+      // resta intero (altrimenti diventa U+FFFD).
+      const decoderOut = new StringDecoder('utf8')
+      const decoderErr = new StringDecoder('utf8')
+      const raccogli = (decoder: StringDecoder) => (pezzo: Buffer): void => {
         // Si legge sempre tutto (una pipe che nessuno svuota blocca chi ci
         // scrive dentro), ma in memoria resta solo quanto serve.
-        const t = pezzo.toString()
+        const t = decoder.write(pezzo)
         if (testa.length < USCITA_MAX) { testa += t; return }
         coda += t
         if (coda.length > USCITA_MAX * 4) { coda = coda.slice(coda.length - USCITA_MAX * 4); saltato = true }
       }
       const uscitaRaccolta = (): string => `${testa}${saltato ? '\n[…]\n' : ''}${coda}`
-      figlio.stdout.on('data', raccogli)
-      figlio.stderr.on('data', raccogli)
+      figlio.stdout.on('data', raccogli(decoderOut))
+      figlio.stderr.on('data', raccogli(decoderErr))
 
       let risposto = false
       let interrotto = false

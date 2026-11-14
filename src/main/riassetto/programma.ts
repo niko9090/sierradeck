@@ -62,6 +62,7 @@ function postaRiassetto(porta: number, corpo: unknown): Promise<unknown> {
       headers: { 'Content-Type': 'application/json', 'Content-Length': dati.length }
     }, (res) => {
       let testo = ''
+      res.setEncoding('utf8')
       res.on('data', (c) => { testo += c })
       res.on('end', () => {
         if ((res.statusCode ?? 500) >= 400) { rifiuta(new Error(`HTTP ${res.statusCode ?? '?'}: ${testo.slice(0, 120)}`)); return }

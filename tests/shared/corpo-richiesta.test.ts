@@ -30,6 +30,21 @@ describe('il corpo arriva tutto', () => {
     expect(await p).toEqual({ a: 1 })
   })
 
+  it('un carattere multibyte spezzato fra due pezzi arriva intero (niente U+FFFD)', async () => {
+    const req = finta()
+    const p = leggiCorpoJson(req)
+    const bytes = Buffer.from('{"t":"(‹ip› (Tailscale), ‹ip› (rete locale))"}', 'utf8')
+    // Taglio nel mezzo del secondo «›» (3 byte: E2 80 BA).
+    const chiusa = Buffer.from('›')
+    const taglio = bytes.indexOf(chiusa, bytes.indexOf(chiusa) + 1) + 1
+    req.emit('data', bytes.subarray(0, taglio))
+    req.emit('data', bytes.subarray(taglio))
+    req.emit('end')
+    const letto = (await p) as { t: string }
+    expect(letto.t).toBe('(‹ip› (Tailscale), ‹ip› (rete locale))')
+    expect(letto.t).not.toContain('�')
+  })
+
   it('un corpo vuoto e undefined, non un errore', async () => {
     const req = finta()
     const p = leggiCorpoJson(req)

@@ -794,6 +794,7 @@ function postaAlServizio(percorso: string, corpo: unknown): Promise<unknown> {
       },
       (res) => {
         let risposta = ''
+        res.setEncoding('utf8')
         res.on('data', (c) => { risposta += c })
         res.on('end', () => {
           try {
@@ -817,6 +818,7 @@ function chiediAlServizio(percorso: string): Promise<unknown> {
       { host: '127.0.0.1', port: portaAutopiloti, path: percorso, timeout: 4000 },
       (res) => {
         let dati = ''
+        res.setEncoding('utf8')
         res.on('data', (c) => { dati += c })
         res.on('end', () => {
           try {
