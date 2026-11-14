@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -38,6 +39,9 @@ import it.ferrariconsulenze.sierradeck.nucleo.Scelte
 import it.ferrariconsulenze.sierradeck.nucleo.Storia
 import it.ferrariconsulenze.sierradeck.nucleo.senzaMezziCaratteri
 import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.nucleo.FraseLetta
+import it.ferrariconsulenze.sierradeck.nucleo.NovitaDelTerminale
+import it.ferrariconsulenze.sierradeck.schermate.comune.BarraConversazione
 import it.ferrariconsulenze.sierradeck.schermate.comune.CasellaScrivi
 import it.ferrariconsulenze.sierradeck.schermate.comune.InviiInCoda
 import it.ferrariconsulenze.sierradeck.schermate.comune.TastoAzioniChat
@@ -114,6 +118,16 @@ fun SchermataDettaglioChat(
             if (inFondo) elenco.scrollToItem(elenco.layoutInfo.totalItemsCount.coerceAtLeast(1) - 1)
         }
     }
+    // Le righe nuove del terminale, dette quando la chat si è fermata per 3 secondi (la conversazione a voce).
+    val frasiLette = remember(id) { mutableStateListOf<FraseLetta>() }
+    var marcatore by remember(id) { mutableStateOf<Int?>(null) }
+    LaunchedEffect(id, righe.ultima) {
+        val m = marcatore
+        if (m == null) { if (righe.righe.isNotEmpty()) marcatore = righe.ultima; return@LaunchedEffect }
+        delay(3_000)
+        NovitaDelTerminale.frase(righe.righe, m)?.let { frasiLette.add(it) }
+        marcatore = righe.ultima
+    }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().background(Banco.chassis), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onIndietro) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Indietro") }
@@ -152,10 +166,8 @@ fun SchermataDettaglioChat(
                 }
             }
         }
-        CasellaScrivi(
-            casella = "chat:$id", segnaposto = "Scrivi alla chat…",
-            onManda = { t -> mettiInCoda(pc, "/api/scrivi", buildJsonObject { put("chat", id); put("testo", t) }.toString(), "chat:$id", t) },
-            modifier = Modifier.imePadding()
-        )
+        val manda = { t: String -> mettiInCoda(pc, "/api/scrivi", buildJsonObject { put("chat", id); put("testo", t) }.toString(), "chat:$id", t) }
+        BarraConversazione(frasiLette.toList(), manda)
+        CasellaScrivi(casella = "chat:$id", segnaposto = "Scrivi alla chat…", onManda = manda, modifier = Modifier.imePadding())
     }
 }
