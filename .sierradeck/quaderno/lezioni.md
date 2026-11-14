@@ -56,6 +56,8 @@
 - Banco può essere chiaro (veste del PC): colori fissi della tabella attività vanno passati da leggibile(), il bordo dei tasti da bordoTasto() (3:1), mai usare incisione per i bordi. _(2026-11-12)_
 - `android/gradlew.bat` manca nelle copie di lavoro: si compila con `gradle -p android ...` (Gradle 8.11.1 in E:\Programs\Gradle). _(2026-11-14)_
 - `Apertura.aggiornamento` (striscia app nuova) veniva impostata solo dal tocco sulla notifica: con notifiche spente l'avviso non compariva mai. Ora lo imposta una ricerca all'apertura. _(2026-11-14)_
+- Nel worktree manca android/gradlew.bat: si usa /e/Programs/Gradle/gradle-8.11.1/bin/gradle -p android ... --offline (ci vogliono 2-4 minuti). _(2026-11-14)_
+- Il popup di DropdownMenu non compare nelle foto Roborazzi: si fotografano le DropdownMenuItem in linea. I colori spenti del Material (38%) fanno 2,3-3:1: usare i coloriVoceMenu e coloriTasto* in Tema… _(2026-11-14)_
 
 ## release
 
