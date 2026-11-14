@@ -45,8 +45,8 @@ android {
         // programmi che si aggiornano quando hanno qualcosa di nuovo da dare, e
         // legarli vorrebbe dire pubblicare un APK identico ogni volta che
         // cambia una riga di SierraDeck. Qui si alza quando cambia *questa* app.
-        versionCode = 158
-        versionName = "3.0.3"
+        versionCode = 159
+        versionName = "3.1.0"
     }
 
     // Serve `BuildConfig.VERSION_NAME`: l'app deve sapere quale versione è per
@@ -59,7 +59,15 @@ android {
     // Le foto delle schermate girano nei test JVM: servono le risorse Android.
     testOptions {
         unitTests.isIncludeAndroidResources = true
-        unitTests.all { it.systemProperty("roborazzi.test.record", "true") }
+        unitTests.all {
+            it.systemProperty("roborazzi.test.record", "true")
+            // Robolectric+Roborazzi sotto carico: un solo processo di test, heap esplicito,
+            // processo nuovo ogni tanto per non accumulare memoria fra le foto.
+            it.maxParallelForks = 1
+            it.maxHeapSize = "2048m"
+            it.jvmArgs("-XX:MaxMetaspaceSize=768m")
+            it.forkEvery = 100
+        }
     }
 
     buildTypes {
