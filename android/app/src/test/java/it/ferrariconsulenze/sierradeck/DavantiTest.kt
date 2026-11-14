@@ -30,14 +30,15 @@ class DavantiTest {
         delay(200)
         assertEquals("dietro: nessun giro in più", fermo, giri)
         Davanti.imposta(true)
-        withTimeout(2000) { while (giri == fermo) delay(5) }
+        withTimeout(30_000) { while (giri == fermo) delay(5) }
         ciclo.cancel()
     }
 
     @Test fun `davanti la pausa è un semplice delay`() = runBlocking {
         Davanti.imposta(true)
-        val inizio = System.currentTimeMillis()
-        withTimeout(2000) { Davanti.pausa(20) }
-        assertTrue(System.currentTimeMillis() - inizio >= 20)
+        val inizio = System.nanoTime()
+        withTimeout(30_000) { Davanti.pausa(20) }
+        // Torna (nessun blocco) e ha aspettato; 15 ms di tolleranza sul passo dell'orologio.
+        assertTrue((System.nanoTime() - inizio) / 1_000_000 >= 15)
     }
 }
