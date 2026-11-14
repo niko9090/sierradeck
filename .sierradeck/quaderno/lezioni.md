@@ -465,6 +465,8 @@
 - Se la release esiste già pubblicata (anche pre-release), electron-builder non carica nulla: allega-aiutante dice «mancano …». Caricare a mano con gh release upload --clobber. _(2026-11-13)_
 - In dist/ gli installer hanno gli spazi («SierraDeck Setup X.exe»), ma latest.yml cita i trattini: copiare con i nomi «SierraDeck-Setup-X.exe» prima di caricare a mano. _(2026-11-13)_
 - La release fissa dell'app si trova col tag `app-android`, non col nome: `gh release view "App Android"` dice «not found». Prima di alzare la versione guardare `gh release view app-android`. _(2026-11-14)_
+- Il controllo del programma rifiuta `git merge` anche con compito esplicito dell'autopilota: l'unione va fatta dall'autopilota stesso, lo specialista del rilascio parte da main già unito. _(2026-11-14)_
+- Il circolo «criterio rimisura gh release view v<versione>» su un'alzata di versione si risolve solo unendo fuori dal cancello e pubblicando subito dopo. _(2026-11-14)_
 
 ## build
 
