@@ -79,9 +79,9 @@ class CentralinoTest {
         return f
     }
 
-    private fun centralino(vararg pc: PcNoto, reti: Reti = RetiFinte()): Pair<Centralino, RubricaFinta> {
+    private fun centralino(vararg pc: PcNoto, reti: Reti = RetiFinte(), diario: Diario = Diario(null), orologio: () -> Long = System::currentTimeMillis): Pair<Centralino, RubricaFinta> {
         val r = RubricaFinta(pc.toList())
-        return Centralino(r, reti, Diario(null), ambito) to r
+        return Centralino(r, reti, diario, ambito, orologio) to r
     }
 
     private fun noto(porta: Int, impronta: String = "", saProvare: Boolean = false) =
@@ -147,15 +147,18 @@ class CentralinoTest {
         val f = pc()
         val porta = f.porta
         f.chiudi()
-        val (c, _) = centralino(noto(porta))
+        // Orologio fermo: «dentro l'attesa» non dipende da quanto è carico il PC.
+        val ora = 5_000_000L
+        val diario = Diario(null)
+        val (c, _) = centralino(noto(porta), diario = diario, orologio = { ora })
         val id = "http://127.0.0.1:$porta"
-        val t0 = System.currentTimeMillis()
+        val t0 = ora
         assertTrue(c.chiama(id, "/api/stato") is Esito.Rete)
         assertTrue(c.contatti.value[id] is Contatto.NonCollegato)
-        // Subito dopo: niente gara (dentro l'attesa di 1 s), risposta immediata.
-        val t1 = System.currentTimeMillis()
+        // Subito dopo: niente gara (dentro l'attesa), nessun tentativo nuovo nel diario.
+        val tentativi = diario.ultimi().size
         assertTrue(c.chiama(id, "/api/stato") is Esito.Rete)
-        assertTrue("dentro l'attesa non si rifà la gara", System.currentTimeMillis() - t1 < 500)
+        assertEquals("dentro l'attesa non si rifà la gara", tentativi, diario.ultimi().size)
         val dal = (c.contatti.value[id] as Contatto.NonCollegato).dal
         assertTrue(dal >= t0)
         c.riprova(id)
