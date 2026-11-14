@@ -37,6 +37,7 @@
 - Centralino accetta un orologio iniettato: nelle prove usarlo fermo invece di misurare ms veri (<500 dentro un'attesa di 1 s salta col PC carico). _(2026-11-14)_
 - `tsc` ha noUncheckedIndexedAccess: negli indici di array serve `?? ''`, altrimenti il typecheck del criterio fallisce. _(2026-11-14)_
 - criteriPerLaProva è usata anche da servizio-orchestratore.ts per un solo comando: se scarta il comando si ricade sull'originale, non sul vuoto _(2026-11-14)_
+- per riprodurre un multibyte spezzato basta tagliare il Buffer a metà dei 3 byte di › ed emettere due 'data' su una richiesta finta. _(2026-11-14)_
 
 ## worktree
 
@@ -320,6 +321,7 @@
 - riprendiLavori({servizioAppenaPartito}) gira anche all'avvio del PC e dopo un crash, non solo dopo un aggiornamento: quello che fa lì va pensato come avvio normale _(2026-11-09)_
 - «rispondi» a una domanda usa ancora l'attesa di 3 s (autopilot-client.ts:411-415): la 0.95.5 ha alzato a 30 s solo il dialogo. Ogni POST che scrive deve passare attesaScrittura. _(2026-11-10)_
 - Dalla 0.101.0 telefono, pagina e Telegram leggono lo stesso registro degli avvisi (`src/main/avvisi.ts`, `/api/eventi`): una regola su quando avvisare va lì, non nelle schermate; `avvisi=0` vuol dire «da capo» e l’attesa deve svegliarsi per ogni avviso nato dopo. _(2026-11-11)_
+- `dati += buffer` e `buffer.toString()` per pezzo spezzano i caratteri multibyte (U+FFFD): usare StringDecoder o setEncoding('utf8') su ogni lettura a pezzi. _(2026-11-14)_
 
 ## registro
 
