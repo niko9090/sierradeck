@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.107.2',
+    righe: [
+      '**Rete:** un PC con l\'accesso a Claude scaduto non riceve più lavori, anche se ha una versione vecchia; si riprova dopo 1, 2 e poi 6 ore.',
+    ],
+  },
+  {
     versione: '0.107.1',
     righe: [
       '**Panoramica che cadeva:** non cade più quando un autopilota arriva da un altro PC senza l\'elenco delle chat.',
