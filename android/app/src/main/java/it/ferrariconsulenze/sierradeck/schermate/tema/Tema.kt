@@ -181,6 +181,30 @@ internal fun leggibile(c: Color): Color =
 internal fun bordoTasto(): Color =
     Color(Contrasto.almeno(Banco.incisione.argb(), listOf(Banco.fondo.argb(), Banco.chassis.argb(), Banco.chassisAlto.argb()), Banco.testoQuieto.argb(), 3.0))
 
+/**
+ * Le voci spente (menu e tasti). Il Material le disegna al 38 % del testo: sul
+ * pannello fa 2,3-3:1 e non si legge. Qui sono il grigio quieto del banco,
+ * già portato a 4,5:1 sul pannello; il tasto pieno spento ha il solco per fondo.
+ */
+internal fun spentoSuTasto(): Color =
+    Color(Contrasto.almenoAA(Banco.testoQuieto.argb(), Banco.incisione.argb(), Banco.testo.argb()))
+
+@Composable
+internal fun coloriVoceMenu() = androidx.compose.material3.MenuDefaults.itemColors(
+    disabledTextColor = Banco.testoQuieto, disabledLeadingIconColor = Banco.testoQuieto, disabledTrailingIconColor = Banco.testoQuieto
+)
+
+@Composable
+internal fun coloriTastoPieno() = androidx.compose.material3.ButtonDefaults.buttonColors(
+    disabledContainerColor = Banco.incisione, disabledContentColor = spentoSuTasto()
+)
+
+@Composable
+internal fun coloriTastoTesto() = androidx.compose.material3.ButtonDefaults.textButtonColors(disabledContentColor = Banco.testoQuieto)
+
+@Composable
+internal fun coloriTastoBordo() = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(disabledContentColor = Banco.testoQuieto)
+
 /** Il banco è chiaro (veste chiara del PC): serve lo schema chiaro e le icone di sistema scure. */
 internal fun bancoChiaro(): Boolean = Contrasto.luminanza(Banco.fondo.argb()) > 0.4
 

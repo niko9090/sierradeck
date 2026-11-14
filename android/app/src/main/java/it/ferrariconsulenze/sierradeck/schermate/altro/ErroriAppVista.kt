@@ -70,12 +70,12 @@ fun SezioneErroriApp(api: Api) {
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = leggi) { Text("Aggiorna") }
-                TextButton(enabled = s.voci.isNotEmpty(), onClick = {
+                TextButton(enabled = s.voci.isNotEmpty(), colors = it.ferrariconsulenze.sierradeck.schermate.tema.coloriTastoTesto(), onClick = {
                     val cm = contesto.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                     cm.setPrimaryClip(android.content.ClipData.newPlainText("SierraDeck", s.testo))
                     nota = "Copiato: incollalo nella chat che deve correggerli."
                 }) { Text("Copia") }
-                TextButton(enabled = !mando && s.voci.isNotEmpty() && s.pcSviluppo != null, onClick = {
+                TextButton(enabled = !mando && s.voci.isNotEmpty() && s.pcSviluppo != null, colors = it.ferrariconsulenze.sierradeck.schermate.tema.coloriTastoTesto(), onClick = {
                     mando = true
                     scope.launch {
                         nota = try { api.mandaErrori().messaggio } catch (e: Exception) { "Non mandati: ${e.message ?: "il computer non ha risposto"}" }
