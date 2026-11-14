@@ -35,6 +35,7 @@
 - per simulare il servizio spento basta aprire e chiudere un server http su porta 0 e usare quella porta: `fetch failed` vero, senza mock _(2026-11-13)_
 - testDebugUnitTest Android ha test legati ai tempi (CentralinoTest <500ms, AscoltoAvvisiTest sleep 1,1 s): sotto carico del PC possono fallire a intermittenza. Riportare il nome del test, non solo "BU… _(2026-11-14)_
 - Centralino accetta un orologio iniettato: nelle prove usarlo fermo invece di misurare ms veri (<500 dentro un'attesa di 1 s salta col PC carico). _(2026-11-14)_
+- `tsc` ha noUncheckedIndexedAccess: negli indici di array serve `?? ''`, altrimenti il typecheck del criterio fallisce. _(2026-11-14)_
 
 ## worktree
 
@@ -109,6 +110,7 @@
 - Con la release già creata `npm run pubblica` non carica exe, blockmap e latest.yml e `allega-aiutante.mjs` si ferma («mancano…»): caricarli a mano con `--clobber`, poi rilanciare `node scripts/allega… _(2026-11-13)_
 - `allega-aiutante.mjs` può caricare l'Aiutante anche se la release non è ancora Latest (avvisa solo «ultima: vX»): va bene, poi `gh release edit --prerelease=false --draft=false --latest`. _(2026-11-13)_
 - 0.107.1: la pre-release vuota fatta per sbloccare l'unione mette il tag sul commit del ramo, non sul main finale; tag lasciato lì (spostarlo è vietato), build da main: va bene. _(2026-11-13)_
+- `package-lock.json` resta a 0.107.0 mentre `package.json` è già a 0.107.x: i bump non lo aggiornano; la versione si ripete solo in `package.json` e `src/shared/novita.ts`. _(2026-11-14)_
 
 ## git
 
@@ -378,6 +380,7 @@
 - Il cancello salva le note `.sierradeck/` prima di unire solo se il diff è fatto di sole aggiunte (numstat, zero righe tolte); righe cambiate o tolte restano di Nicholas. _(2026-11-10)_
 - il controllo «gh release view v<versione>» sul ramo del cambio versione si sblocca con una pre-release vuota non Latest, senza toccare gli aggiornamenti automatici. _(2026-11-13)_
 - L'esito di rifiuto Gradle nel piano è tagliato e perde il nome del test fallito: salvare le righe FAILED per diagnosticare. _(2026-11-14)_
+- `motivoProveRotte` in `src/autopilot-host/ambiente-copia.ts` compone l'esito del ramo respinto; il suo test vecchio vive in `tests/autopilot-host`, non in `tests/main`. _(2026-11-14)_
 
 ## consenso
 
