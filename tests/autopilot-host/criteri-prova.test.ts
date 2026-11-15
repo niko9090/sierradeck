@@ -1,9 +1,31 @@
 import { describe, expect, it } from 'vitest'
-import { criteriPerLaProva, misuraIlRemoto } from '../../src/autopilot-host/criteri-prova'
+import { criteriPerLaProva, fissaLaVersione, misuraIlRemoto } from '../../src/autopilot-host/criteri-prova'
 import { ePesante } from '../../src/autopilot-host/criteri-veloci'
 import type { Criterio } from '../../src/shared/autopilota'
 
 const c = (comando: string, descrizione = comando): Criterio => ({ descrizione, comando, soddisfatto: true })
+
+describe('la versione fissa nei criteri', () => {
+  const fissa = `node -e "if(require('./package.json').version!=='0.107.3')process.exit(1)"`
+  const almeno = `node -e "if(require('./package.json').version<'0.107.3')process.exit(1)"`
+  const almenoGte = `node -e "const [a,b]=require('./package.json').version.split('.');if(!(+b>=107))process.exit(1)"`
+
+  it('il confronto con un valore fisso è escluso, anche con solo quel criterio', () => {
+    expect(fissaLaVersione(fissa)).toBe(true)
+    expect(criteriPerLaProva([c(fissa), c('npx tsc --noEmit')]).map((x) => x.comando)).toEqual(['npx tsc --noEmit'])
+    expect(criteriPerLaProva([c(fissa)])[0]?.comando).toBeUndefined()
+  })
+  it('versionName di gradle e gli altri operatori di uguaglianza sono esclusi', () => {
+    expect(fissaLaVersione(`node -e "if(versionName==='2.1.0'&&require('fs').readFileSync('android/app/build.gradle.kts'))process.exit(1)"`)).toBe(true)
+    expect(fissaLaVersione(`node -e "if(require('./package.json').version=='1.2.3')process.exit(1)"`)).toBe(true)
+    expect(fissaLaVersione(`node -e "if('1.2.3'===require('./package.json').version)process.exit(1)"`)).toBe(true)
+  })
+  it('«almeno questa versione» e i criteri normali restano', () => {
+    expect(fissaLaVersione(almeno)).toBe(false)
+    expect(fissaLaVersione(almenoGte)).toBe(false)
+    expect(criteriPerLaProva([c(almeno), c('git tag --list v0.95.*')]).map((x) => x.comando)).toEqual([almeno, 'git tag --list v0.95.*'])
+  })
+})
 
 // 0.96.1 (Nicholas, 07/11: «si ferma a caso»): ogni unione rimisurava una trentina di criteri, due volte.
 describe('i criteri dell’unione di prova', () => {
