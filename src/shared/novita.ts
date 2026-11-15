@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.107.4',
+    righe: [
+      '**PC acceso ma non raggiungibile:** un PC che lascia segni recenti sul Drive ma non si raggiunge ora risulta «acceso secondo il Drive, ma non si raggiunge», con l\'invito a controllare Tailscale.',
+    ],
+  },
+  {
     versione: '0.107.3',
     righe: [
       '**Un PC che non risponde:** se un PC della rete è acceso ma non risponde, ora resta un solo avviso invece di tre errori; il lavoro riparte altrove.',
