@@ -117,6 +117,7 @@
 - `allega-aiutante.mjs` può caricare l'Aiutante anche se la release non è ancora Latest (avvisa solo «ultima: vX»): va bene, poi `gh release edit --prerelease=false --draft=false --latest`. _(2026-11-13)_
 - 0.107.1: la pre-release vuota fatta per sbloccare l'unione mette il tag sul commit del ramo, non sul main finale; tag lasciato lì (spostarlo è vietato), build da main: va bene. _(2026-11-13)_
 - `package-lock.json` resta a 0.107.0 mentre `package.json` è già a 0.107.x: i bump non lo aggiornano; la versione si ripete solo in `package.json` e `src/shared/novita.ts`. _(2026-11-14)_
+- `noteDi` in `scripts/note-novita.mjs` restituisce un array di righe, non una stringa: per le note della release unirle con "- " e scrivere in UTF-8. _(2026-11-14)_
 
 ## git
 
@@ -232,6 +233,7 @@
 - `IngressiSalute.io` può mancare nei test e in alcuni punti di `index.ts`: per il nome di «questo PC» serve un ripiego («Questo PC»). _(2026-11-09)_
 - «Quanto lavora SierraDeck»: il tono dipende solo dai consumi di questo PC; i dati degli altri PC arrivano dal battito sul Drive e, se vecchio (PC_SPENTO_DOPO_MS), non vanno mostrati come attuali. _(2026-11-10)_
 - Le voci create da `risorse` di un altro PC (consumi, `gpu:`) vanno filtrate col battito recente in `componiSalute`; ogni nuova voce per PC ha lo stesso rischio di dato vecchio. _(2026-11-10)_
+- «non so se è acceso» valeva anche con battito fresco; ora «acceso secondo il Drive, ma non si raggiunge». Le righe unite del controllo (controllo-pc.ts `generica`) vanno aggiornate con ogni nuova dic… _(2026-11-15)_
 
 ## dipendenze
 
@@ -294,6 +296,7 @@
 
 - heredoc Python con `\n` dentro stringhe di test: finiscono come a-capo veri e rompono il file; usare `.join('\n')` e fare le modifiche con Edit. _(2026-11-08)_
 - Nei comandi Bash i backtick dentro i commenti di un `node -e` vengono eseguiti dalla shell e mangiano il testo: usare Edit per i file con backtick. _(2026-11-12)_
+- In Git Bash `/tmp/...` passato a `node` diventa `E:\tmp\...` e non esiste: usare `mktemp -d` con `cygpath -w`. _(2026-11-14)_
 
 ## ramo
 
@@ -379,6 +382,7 @@
 - la cartella E:\Users\nikof\... della cartella principale non è raggiungibile da tutti i PC: le voci del quaderno su lotti d'errore vanno scritte anche senza i file originali. _(2026-11-13)_
 - un autopilota letto da un altro PC con altra versione può non avere campi array: leggerli sempre con `Array.isArray(...)`. _(2026-11-13)_
 - pauseAiuti (src/shared/aiuto-esito.ts) esclude un PC dopo un solo fallimento per accesso; il fallimento in sé è il segnale per l'utente, non un difetto. _(2026-11-14)_
+- Se un PC è raggiunto da tutti ma non raggiunge nessuno (anche la posta fa `fetch failed`), la causa è la sua rete in uscita o Tailscale, non gli indirizzi pubblicati. _(2026-11-15)_
 
 ## cancello
 
