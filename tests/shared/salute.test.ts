@@ -174,6 +174,13 @@ describe('un PC che risponde non è «nessuna strada» (05/11)', () => {
   it('muto: resta «nessuna strada»', () => {
     expect(pcConStato('non-so').spiegazione).toContain('non risponde a nessuna strada')
   })
+  it('muto con battito fresco: acceso secondo il Drive ma non si raggiunge, mai «non so se è acceso»', () => {
+    const v = pcConStato('non-so')
+    expect(v.titolo).toContain('acceso secondo il Drive, ma non si raggiunge')
+    expect(v.titolo).not.toContain('non so se è acceso')
+    expect(v.cosaFare).toContain('Tailscale')
+    expect(v.cosaFare).not.toContain('Accendi')
+  })
 })
 
 describe('«Quanto lavora SierraDeck» e i battiti vecchi', () => {

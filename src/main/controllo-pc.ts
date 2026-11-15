@@ -115,7 +115,7 @@ export function criticitaDi(saluti: readonly SaluteDiPc[], autopiloti: readonly 
 function unisci(c: readonly Voce[]): Criticita[] {
   const per = new Map<string, { riga: Criticita; pcs: string[]; locale?: Voce }>()
   // La diagnosi generica «non so se è acceso» cede a quella che viene dal bussare (chiave, rifiutato, altro).
-  const generica = (cosa: string): boolean => cosa.includes('non so se è acceso')
+  const generica = (cosa: string): boolean => cosa.includes('non so se è acceso') || cosa.includes('acceso secondo il Drive, ma non si raggiunge')
   for (const x of c) {
     const k = x.chiave ?? x.cosa
     const g = per.get(k)

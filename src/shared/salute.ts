@@ -284,12 +284,14 @@ export function componiSalute(i: IngressiSalute): Salute {
     const strada = p.strada !== undefined ? `si raggiunge via ${p.strada}` : raggiungibile ? 'risponde' : rispostaDiversa ?? 'non risponde a nessuna strada'
     voci.push({
       chiave: `pc:${p.pcId}`, gruppo: 'pc', tono,
-      titolo: `${p.nome} · ${raggiungibile ? 'acceso' : p.stato === 'chiave' || p.stato === 'rifiutato' ? 'risponde ma non entra' : p.stato === 'altro' ? 'non lo trovo a quell’indirizzo' : 'non so se è acceso'} · ${p.versione}`,
+      titolo: `${p.nome} · ${raggiungibile ? 'acceso' : p.stato === 'chiave' || p.stato === 'rifiutato' ? 'risponde ma non entra' : p.stato === 'altro' ? 'non lo trovo a quell’indirizzo' : vecchio ? 'non so se è acceso' : 'acceso secondo il Drive, ma non si raggiunge'} · ${p.versione}`,
       spiegazione: `Ultimo battito sul Drive: ${eta}.${battitoFermoPerDrivePieno ? ' Il battito non si aggiorna perché il Drive è pieno (un account solo per tutti i PC): il PC risponde, ma la versione del battito può essere vecchia.' : ''} Adesso ${strada}. ${indietro ? `Ha la ${p.versione}, ${nomeQui} ha la ${i.versione}: ${stessoMinor(p.versione, i.versione) ? 'solo correzioni: aggiornarlo non è urgente.' : `là mancano le novità della ${i.versione}.`}` : attendibile ? 'Ha la stessa versione di questo PC, o più nuova.' : 'Se sia aggiornato non si sa finché non risponde.'}${origineVersione !== '' ? ` ${origineVersione}` : ''}`,
       ...(rispostaDiversa !== undefined
         ? { cosaFare: p.stato === 'chiave' ? `Su ${p.nome} apri la cassaforte (Account → Cassaforte) con la stessa passphrase di qui.` : p.stato === 'rifiutato' ? `Su ${p.nome}, in Impostazioni → Client, accetta anche da fuori la rete locale, oppure usate la stessa rete o Tailscale.` : `Controlla che ${p.nome} sia acceso, sulla stessa rete o con Tailscale: l’indirizzo che avevo ora è di un altro.` }
         : raggiungibile
         ? (indietro ? { cosaFare: `Aggiorna ${p.nome}: «Installa là» qui sotto lo fa da questo PC (ti mostra prima cosa cambia, poi ${p.nome} aspetta che le sue chat finiscano il turno e si riavvia da solo). Oppure dal suo schermo «Installa».` } : {})
+        : !vecchio
+        ? { cosaFare: `Il Drive dice che ${p.nome} è acceso (battito di ${eta}), ma da qui non si raggiunge: controlla che Tailscale sia attivo su ${nomeQui} e su ${p.nome} (e che ${nomeQui} abbia la stessa rete o Tailscale con lui), poi «Riprova adesso». Il collegamento diretto via Internet parte da solo (serve il Drive).` }
         : { cosaFare: `Accendi ${p.nome} con SierraDeck aperto e il Drive collegato. Se è acceso: stessa rete o Tailscale acceso su tutti e due; altrimenti il collegamento diretto via Internet parte da solo (serve il Drive).` }),
       azioni: raggiungibile
         ? (indietro ? [{ id: 'installa-la', testo: `Installa là la ${i.versione}`, pc: p.pcId, versione: i.versione }] : [])
