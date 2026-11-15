@@ -38,6 +38,7 @@
 - `tsc` ha noUncheckedIndexedAccess: negli indici di array serve `?? ''`, altrimenti il typecheck del criterio fallisce. _(2026-11-14)_
 - criteriPerLaProva è usata anche da servizio-orchestratore.ts per un solo comando: se scarta il comando si ricade sull'originale, non sul vuoto _(2026-11-14)_
 - per riprodurre un multibyte spezzato basta tagliare il Buffer a metà dei 3 byte di › ed emettere due 'data' su una richiesta finta. _(2026-11-14)_
+- vitest tests/main tests/shared nel worktree dura qualche minuto (470 file): lanciarlo una volta sola, l'output è enorme, leggere solo la riga «Test Files» con grep -a. _(2026-11-15)_
 
 ## worktree
 
@@ -486,6 +487,7 @@
 - Una bozza creata senza tag ha URL «untagged-…»: il tag va poi creato e spinto sul commit della versione prima di pubblicarla. _(2026-11-14)_
 - Prima di pubblicare controllare `.git/MERGE_HEAD` e i file preparati: il cancello può avere un'unione a metà in main, e il pacchetto va costruito solo su main pulito. _(2026-11-14)_
 - Il controllo di unione fa `gh release view <tag>` e fallisce senza release: una bozza vuota basta. Il tag resta da creare prima della pubblicazione vera. _(2026-11-14)_
+- `gh release create --draft` senza tag crea un URL "untagged-…": il tag va creato e mandato sul remoto prima della pubblicazione vera. _(2026-11-15)_
 
 ## build
 
