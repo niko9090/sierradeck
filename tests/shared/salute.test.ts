@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { componiSalute, erroriDalLog, quantoFa, type IngressiSalute } from '@shared/salute'
+import { componiSalute, erroriDalLog, parolaPcSenzaRisposta, quantoFa, type IngressiSalute } from '@shared/salute'
 
 /**
  * 0.44.0, «Salute del sistema». Le righe del registro sono vere (registro
@@ -143,6 +143,13 @@ describe('le voci del pannello', () => {
     expect(quantoFa(undefined, ADESSO)).toBe('mai')
     expect(quantoFa('2026-10-02T14:59:30.000Z', ADESSO)).toBe('adesso')
     expect(quantoFa('2026-09-30T15:00:00.000Z', ADESSO)).toBe('2 giorni fa')
+  })
+  it('PC senza risposta: battito fresco = acceso secondo il Drive; vecchio o assente = non so', () => {
+    const minuti = (m: number): string => new Date(ADESSO - m * 60_000).toISOString()
+    expect(parolaPcSenzaRisposta(minuti(10), ADESSO)).toBe('acceso secondo il Drive, ma non si raggiunge')
+    expect(parolaPcSenzaRisposta(minuti(34), ADESSO)).toBe('acceso secondo il Drive, ma non si raggiunge')
+    expect(parolaPcSenzaRisposta(minuti(36), ADESSO)).toBe('non so se è acceso')
+    expect(parolaPcSenzaRisposta(undefined, ADESSO)).toBe('non so se è acceso')
   })
   it('0.89.0: «installazione non riuscita» di una sessione di prima dell’avvio non conta; dopo sì', () => {
     const righe = [

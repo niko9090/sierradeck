@@ -97,6 +97,15 @@ export type IngressiSalute = {
 }
 
 /** «3 ore fa», «2 giorni fa», «adesso». */
+/**
+ * Un PC che non risponde adesso a nessuna strada: se il battito sul Drive è fresco
+ * (sotto PC_SPENTO_DOPO_MS) è acceso ma non si raggiunge; se è vecchio, non si sa.
+ */
+export function parolaPcSenzaRisposta(battito: string | undefined, adesso: number): string {
+  const t = Date.parse(battito ?? '')
+  return !Number.isNaN(t) && adesso - t < PC_SPENTO_DOPO_MS ? 'acceso secondo il Drive, ma non si raggiunge' : 'non so se è acceso'
+}
+
 export function quantoFa(iso: string | undefined, adesso: number): string {
   if (iso === undefined) return 'mai'
   const t = Date.parse(iso)

@@ -3,6 +3,7 @@ import { useNomePc } from '../state/nomi-pc'
 import { SchermoRemoto } from './SchermoRemoto'
 import { BARRA_TASTI, tastoDaEvento, type TastoRemoto } from '@shared/tasti-remoti'
 import { pcVivo } from '@shared/posta'
+import { parolaPcSenzaRisposta } from '@shared/salute'
 import {
   trovaChatRemota, storiaRemotaSicura, descriviIndirizzo, descriviSilenzio, RILEGGI_REMOTO_OGNI_MS, RIGHE_REMOTE,
   type ChatRemota, type ChatSuPc, type PcRemoto, type StoriaRemota
@@ -438,11 +439,11 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
         <span className="remoto__stato">
           {pc === undefined
             ? 'leggo il Drive…'
-            : vivo || via !== undefined
+            : via !== undefined || pc.stato?.stato === 'acceso'
               ? `acceso${via !== undefined ? '' : pc.buono !== undefined ? ` · risponde su ${descriviIndirizzo(pc.buono)}` : ''}`
               : pc.stato !== undefined
                 ? pc.stato.titolo
-                : `non so se è acceso · ultimo segno sul Drive ${quando(pc.battito)}`}
+                : `${parolaPcSenzaRisposta(pc.battito, Date.now())} · ultimo segno sul Drive ${quando(pc.battito)}`}
           {fase.tipo === 'viva' && fase.chat.aspetta === true ? <span className="remoto__aspetta"> · aspetta te</span> : null}
         </span>
         {/* La strada usata, sempre in vista (0.40.0). */}
