@@ -49,6 +49,25 @@ export function misuraIlRemoto(comando: string): boolean {
   return false
 }
 
+/**
+ * Un criterio che confronta la versione di package.json (o versionName/versionCode
+ * di build.gradle.kts) con un valore fisso: sul principale passa, su ogni ramo che
+ * alza la versione cade. Fuori dalla prova prima/dopo. Un «almeno questa versione»
+ * (<, >=) resta.
+ */
+export function fissaLaVersione(comando: string): boolean {
+  const leggePackage = /package\.json/i.test(comando)
+  const leggeGradle = /build\.gradle/i.test(comando)
+  if (!leggePackage && !leggeGradle) return false
+  const nome = [leggePackage ? 'version' : '', leggeGradle ? 'versionName|versionCode' : ''].filter((n) => n !== '').join('|')
+  const uguale = '(?:===|!==|==|!=)'
+  const valore = `(?:'[^']*'|"[^"]*"|\\\\"[^"]*\\\\"|\\d[\\w.\\-]*)`
+  if (new RegExp(`\\b(?:${nome})\\b\\s*${uguale}\\s*${valore}`, 'i').test(comando)) return true
+  if (new RegExp(`${valore}\\s*${uguale}\\s*[^\\s;&|<>]*?\\b(?:${nome})\\b`, 'i').test(comando)) return true
+  if (new RegExp(`\\b(?:${nome})\\b[^\\n]*\\.equals\\(`, 'i').test(comando)) return true
+  return false
+}
+
 export function criteriPerLaProva(criteri: Criterio[], cambiati?: readonly string[]): Criterio[] {
   const file = cambiati?.map((f) => f.replace(/\\/g, '/'))
   const toccaAndroid = file === undefined || file.some((f) => f.startsWith('android/'))
@@ -62,7 +81,7 @@ export function criteriPerLaProva(criteri: Criterio[], cambiati?: readonly strin
   for (const c of criteri) {
     const comando = c.comando?.trim()
     if (comando === undefined || comando === '') { fuori.push(c); continue }
-    if (misuraIlRemoto(comando)) continue
+    if (misuraIlRemoto(comando) || fissaLaVersione(comando)) continue
     const v = percorsiVitest(comando)
     if (v !== undefined) {
       quantiVitest += 1
