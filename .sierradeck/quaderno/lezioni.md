@@ -120,6 +120,7 @@
 - `package-lock.json` resta a 0.107.0 mentre `package.json` è già a 0.107.x: i bump non lo aggiornano; la versione si ripete solo in `package.json` e `src/shared/novita.ts`. _(2026-11-14)_
 - `noteDi` in `scripts/note-novita.mjs` restituisce un array di righe, non una stringa: per le note della release unirle con "- " e scrivere in UTF-8. _(2026-11-14)_
 - la versione sta in package.json e due volte in package-lock.json (radice e "packages.\"\""); le novità in src/shared/novita.ts, voce in cima. _(2026-11-15)_
+- prima del bump: `git fetch origin --tags` e `git tag -l vX.Y.Z`; il package-lock ha la versione in due punti, radice e packages."". _(2026-11-15)_
 
 ## git
 
@@ -491,6 +492,8 @@
 - Prima di pubblicare controllare `.git/MERGE_HEAD` e i file preparati: il cancello può avere un'unione a metà in main, e il pacchetto va costruito solo su main pulito. _(2026-11-14)_
 - Il controllo di unione fa `gh release view <tag>` e fallisce senza release: una bozza vuota basta. Il tag resta da creare prima della pubblicazione vera. _(2026-11-14)_
 - `gh release create --draft` senza tag crea un URL "untagged-…": il tag va creato e mandato sul remoto prima della pubblicazione vera. _(2026-11-15)_
+- prima di taggare controllare che package.json in main dica la versione da pubblicare: il compito di pubblicazione può partire prima che l'unione del bump sia avvenuta. _(2026-11-15)_
+- Prima di un compito di rilascio controllare che il bump di versione sia già in main: qui la bozza v0.107.4 esisteva su GitHub ma package.json era fermo a 0.107.3. _(2026-11-15)_
 
 ## build
 
