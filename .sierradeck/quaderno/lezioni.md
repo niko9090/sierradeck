@@ -173,6 +173,7 @@
 - nei worktree alcuni heredoc Bash con python vengono rifiutati come «troppo complessi»: scrivere lo script con Write ed eseguirlo, oppure usare Edit _(2026-11-09)_
 - Per scrivere stringhe con `\n` nei file non usare heredoc Python: gli escape vengono interpretati. Meglio lo strumento Edit. _(2026-11-10)_
 - Nel worktree gli heredoc con `cat >>` seguiti da altri comandi nella stessa chiamata Bash vengono rifiutati come «troppo complessi»: usare Edit e comandi separati. _(2026-11-10)_
+- Il programma blocca sleep oltre 30 s anche in ciclo o a pezzi; attese lunghe solo con il sì di Nicholas (classe sottofondo). _(2026-11-15)_
 
 ## hook
 
@@ -494,6 +495,7 @@
 - `gh release create --draft` senza tag crea un URL "untagged-…": il tag va creato e mandato sul remoto prima della pubblicazione vera. _(2026-11-15)_
 - prima di taggare controllare che package.json in main dica la versione da pubblicare: il compito di pubblicazione può partire prima che l'unione del bump sia avvenuta. _(2026-11-15)_
 - Prima di un compito di rilascio controllare che il bump di versione sia già in main: qui la bozza v0.107.4 esisteva su GitHub ma package.json era fermo a 0.107.3. _(2026-11-15)_
+- Prima di pubblicare controllare non solo package.json nella cartella ma anche `git show HEAD:package.json`: la versione può essere solo nell'indice di un'unione a metà (MERGE_HEAD). _(2026-11-15)_
 
 ## build
 
