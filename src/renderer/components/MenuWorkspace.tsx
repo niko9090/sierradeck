@@ -390,9 +390,10 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
         onClick={() => (aperto ? chiudi() : onAperto(true))}
         aria-haspopup="listbox"
         aria-expanded={aperto}
-        title={`Sei in «${attivo}». ${nomi.length} workspace: premi per vederli tutti`}
+        title={attivo !== '' ? `Sei in «${attivo}». ${nomi.length} workspace: premi per vederli tutti` : `Davanti c’è un workspace di un altro PC. Premi per scegliere uno dei ${nomi.length} workspace di questo PC`}
       >
-        <span className="ws-menu__nome">{attivo}</span>
+        {/* Davanti un workspace di un altro PC (13/11): qui non si mostra il suo nome, ma «Scegli». */}
+        <span className={`ws-menu__nome${attivo === '' ? ' ws-menu__nome--scegli' : ''}`}>{attivo !== '' ? attivo : 'Scegli'}</span>
         <span className="ws-menu__quanti">{nomi.length}</span>
         {quantiChiamano > 0 ? <span className="ws__chiama" aria-label="in altri workspace qualcuno aspetta una tua risposta">●</span> : null}
         <span className="ws-menu__freccia" aria-hidden>▾</span>

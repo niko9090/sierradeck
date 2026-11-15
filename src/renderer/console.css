@@ -5265,3 +5265,12 @@ body.divisore-in-mano { cursor: col-resize; user-select: none; }
 .parlato-segno__testo { display: flex; flex-direction: column; font-size: 12px; min-width: 0; }
 .parlato-segno__fase { color: var(--testo-quieto); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .parlato-segno__ferma { font-size: 14px; padding: 6px 14px; }
+
+/* «Questo PC» prima di tutto (13/11, Nicholas: «non si vedono le chat del PC che si sta usando ma solo
+   quelle degli altri PC»). La sezione dei workspace era l'unica a cedere (flex-shrink 1, min-width 0) e
+   «Altri PC» non cedeva mai (flex 0 0 auto): con tanti PC la fascia piena la schiacciava a larghezza
+   zero. Ora cede prima «Altri PC», fino al solo tasto, e i workspace di qui tengono sempre il loro posto. */
+.console .sezione--questo-pc { flex: 0 1 auto; min-width: min(240px, 24vw); }
+.console .altri-pc { flex: 0 1000 auto; min-width: 104px; }
+.altri-pc__tasto { min-width: 0; max-width: 100%; overflow: hidden; }
+.ws-menu__nome--scegli { font-style: italic; color: var(--testo-quieto); }

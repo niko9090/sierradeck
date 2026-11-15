@@ -96,6 +96,25 @@ export function separaWorkspace(nomi: readonly string[], remoti: Readonly<Record
   return { locali: nomi.filter((n) => remoti[n] === undefined), remoti: nomi.filter((n) => remoti[n] !== undefined) }
 }
 
+/**
+ * La parte «Questo PC» della fascia (13/11, Nicholas: «non si vedono le chat
+ * del PC che si sta usando ma solo quelle degli altri PC»). I workspace di
+ * questo PC ci sono sempre tutti, anche quando davanti c'è un workspace di un
+ * altro PC: in quel caso nessuno è segnato come attivo (`attivo` = '') e
+ * `davantiAltrove` lo dice, così il tasto non mostra il nome di un workspace
+ * remoto come se fosse di qui.
+ */
+export function fasciaQuestoPc(p: { nomi: readonly string[]; remoti: Readonly<Record<string, unknown>>; attivo: string }): {
+  nomi: string[]
+  attivo: string
+  davantiAltrove: boolean
+} {
+  const davantiAltrove = p.attivo !== '' && p.remoti[p.attivo] !== undefined
+  const base = p.nomi.length > 0 ? p.nomi : p.attivo !== '' ? [p.attivo] : []
+  const nomi = [...new Set(base)].filter((n) => n !== '' && p.remoti[n] === undefined)
+  return { nomi, attivo: !davantiAltrove && nomi.includes(p.attivo) ? p.attivo : '', davantiAltrove }
+}
+
 /** Una riga della sezione: un workspace di quel PC, già aperto qui o da aprire. */
 export type VoceAltroPc = { nome: string; aperto: boolean; davanti: boolean; sparito?: boolean }
 /**

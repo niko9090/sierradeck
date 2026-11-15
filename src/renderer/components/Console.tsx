@@ -8,6 +8,8 @@ import { ModaleNuovaChat } from './ModaleNuovaChat'
 import { cambiaSchermo } from '../cambio-schermo'
 import { MenuWorkspace } from './MenuWorkspace'
 import { SezioneAltriPc } from './SezioneAltriPc'
+import { Aiuto } from './Aiuto'
+import { fasciaQuestoPc } from '@shared/workspace-remoti'
 import { serveIlMenu } from '../menu-workspace'
 import { workspaceDaAzione, type Azione } from '@shared/scorciatoie'
 import { azioneDelTasto, impostaScorciatoie } from '../scorciatoie-vive'
@@ -172,6 +174,11 @@ export function Console({
   useEffect(() => {
     window.gestore.sistema.versione().then(setVersione).catch(() => setVersione(''))
   }, [])
+  // Il nome di questo PC, per «Questo PC» nella fascia (lo stesso del menu dei workspace).
+  const [nomePc, setNomePc] = useState<string | undefined>(undefined)
+  useEffect(() => {
+    void window.gestore.posta?.identita?.()?.then((i) => setNomePc(i.nome)).catch(() => undefined)
+  }, [])
 
   /**
    * Cambia workspace dalla fascia.
@@ -180,7 +187,10 @@ export function Console({
    * workspace che si lascia, altrimenti tornandoci si troverebbe vuoto — solo
    * senza dover aprire niente.
    */
-  const nomiWs = (workspaceNomi.length > 0 ? workspaceNomi : [workspaceAttivo]).filter((x) => x !== '' && workspaceRemoti[x] === undefined)
+  // «Questo PC» (13/11): i workspace di qui ci sono sempre tutti; con davanti un
+  // workspace di un altro PC nessuno è segnato attivo e il menu non ne mostra il nome.
+  const questoPc = fasciaQuestoPc({ nomi: workspaceNomi, remoti: workspaceRemoti, attivo: workspaceAttivo })
+  const nomiWs = questoPc.nomi
   const cambiaWorkspace = (nome: string): void => {
     if (nome === workspaceAttivo) return
     // L'errore non si ingoia: se il cambio non riesce, premere il nome del
@@ -426,8 +436,11 @@ export function Console({
       {/* L'unica sezione che cede: quando la finestra si stringe e' questa a
           stringersi e a scorrere, perche' i workspace sono tanti e cambiano di
           numero, mentre i comandi delle altre sezioni sono sempre quelli. */}
-      <div className="sezione sezione--cede">
-        <span className="serigrafia">Workspace</span>
+      <div className="sezione sezione--cede sezione--questo-pc" aria-label="Questo PC">
+        <span className="serigrafia" title={nomePc !== undefined && nomePc !== '' ? `I workspace di ${nomePc}, il PC che stai usando` : 'I workspace del PC che stai usando'}>Questo PC</span>
+        <Aiuto di="«Questo PC»">
+          Qui ci sono i workspace del PC che stai usando{nomePc !== undefined && nomePc !== '' ? ` (${nomePc})` : ''}, con le loro chat: ci lavori e ci scrivi come sempre. I workspace degli altri PC sono a destra, in «Altri PC», col nome del loro PC: si aprono con l’autopilota di quel PC e le loro chat si guardano soltanto.{questoPc.davantiAltrove ? ' Adesso hai davanti un workspace di un altro PC: scegline uno qui per tornare a questo PC.' : ''}
+        </Aiuto>
         {/* Pochi: tutti in vista, si passa dall'uno all'altro con un clic e si
             vede sempre dove si e'. Tanti: le linguette diventavano puntini
             («Prede…», «W…», «H…»), e allora il nome intero di dove sei con un
@@ -436,7 +449,7 @@ export function Console({
           {serveIlMenu(nomiWs) ? (
             <MenuWorkspace
               nomi={nomiWs}
-              attivo={workspaceAttivo}
+              attivo={questoPc.attivo}
               chiamano={workspaceCheChiamano}
               aperto={menuWsAperto}
               onAperto={setMenuWsAperto}
