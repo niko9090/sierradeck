@@ -40,6 +40,8 @@
 - per riprodurre un multibyte spezzato basta tagliare il Buffer a metà dei 3 byte di › ed emettere due 'data' su una richiesta finta. _(2026-11-14)_
 - vitest tests/main tests/shared nel worktree dura qualche minuto (470 file): lanciarlo una volta sola, l'output è enorme, leggere solo la riga «Test Files» con grep -a. _(2026-11-15)_
 - `git fetch` può fallire sul bundle del PC richiedente: se il ramo è già pari a `main`, basta `git merge --ff-only main`. _(2026-11-16)_
+- `src/aiutante/aggiornamento.ts` ora importa `electron` (`powerMonitor`): i test che lo caricano devono mockare `electron` con `powerMonitor`. _(2026-11-16)_
+- `avviaAggiornamenti` programma un primo controllo a 15 s: nei test con timer finti far passare prima quel tempo, poi contare i `checkForUpdates`. _(2026-11-16)_
 
 ## worktree
 
@@ -542,6 +544,8 @@
 - il lavoro remoto riceve solo prompt, strumenti e ramo; nessuna risorsa del PC di partenza passa, e la verifica dei requisiti (`regole.ts` 200-245) non copre le cartelle di rete. _(2026-11-16)_
 - Con `shell: true` un comando mancante non dà ENOENT ma codice 1: il ramo «non installato» di `versioneDi` non scatta mai per npm. _(2026-11-16)_
 - `aggiornamento.ts` classifica ogni errore come ERRORE: `eErroreDiRete` non è usato nell'Aiutante, quindi i passeggeri di rete arrivano agli errori arrivati. _(2026-11-16)_
+- con `shell:true` un comando mancante non dà ENOENT ma codice 1 con stderr «non riconosciuto/not recognized»: va letto lo stderr, non solo `err.code`. _(2026-11-16)_
+- `execFile` con timeout imposta `err.killed`: da distinguere da «non installato», altrimenti un PC occupato sembra senza npm. _(2026-11-16)_
 
 ## blocco
 
