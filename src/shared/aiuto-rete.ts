@@ -205,6 +205,9 @@ export type LavoroAffidato = {
   /** 13/11: perché non è riuscito (frase + dettagli), e la causa riconosciuta: decidono le pause (`aiuto-esito.ts`). */
   motivo?: string
   causa?: CausaFallimento
+  /** 16/11: i PC già provati per questo lavoro (non ci torna) e quante volte è passato di mano (al più 2). */
+  provati?: string[]
+  riassegnazioni?: number
 }
 
 export function lavoroAffidatoValido(x: unknown): LavoroAffidato | undefined {
@@ -235,7 +238,9 @@ export function lavoroAffidatoValido(x: unknown): LavoroAffidato | undefined {
     ...(t('riepilogo') !== undefined ? { riepilogo: t('riepilogo')! } : {}),
     ...(ramoValido(o.ramo) ? { ramo: o.ramo } : {}),
     ...(t('motivo') !== undefined ? { motivo: t('motivo')!.slice(0, 1000) } : {}),
-    ...(causaValida(o.causa) ? { causa: o.causa } : {})
+    ...(causaValida(o.causa) ? { causa: o.causa } : {}),
+    ...(Array.isArray(o.provati) && o.provati.some((p) => typeof p === 'string') ? { provati: o.provati.filter((p): p is string => typeof p === 'string').slice(0, 10) } : {}),
+    ...(typeof o.riassegnazioni === 'number' && o.riassegnazioni > 0 ? { riassegnazioni: Math.min(10, Math.floor(o.riassegnazioni)) } : {})
   }
 }
 

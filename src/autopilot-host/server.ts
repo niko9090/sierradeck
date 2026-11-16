@@ -1253,7 +1253,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             ...(typeof corpo?.riepilogo === 'string' ? { riepilogo: corpo.riepilogo } : {}),
             ...(typeof corpo?.ramo === 'string' ? { ramo: corpo.ramo } : {}),
             ...(typeof corpo?.motivo === 'string' ? { motivo: corpo.motivo } : {}),
-            ...(causaValida(corpo?.causa) ? { causa: corpo.causa } : {})
+            ...(causaValida(corpo?.causa) ? { causa: corpo.causa } : {}),
+            ...(typeof (corpo?.riassegna as Record<string, unknown> | undefined)?.pcId === 'string' ? { riassegna: { pcId: String((corpo!.riassegna as Record<string, unknown>).pcId), pcNome: String((corpo!.riassegna as Record<string, unknown>).pcNome ?? '').slice(0, 80) } } : {})
           }
           rispondi(res, 200, { fatto: servizio().aiutoAvanza(id, p) })
           return

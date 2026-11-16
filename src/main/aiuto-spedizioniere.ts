@@ -5,7 +5,9 @@ import {
   autoreValido, idLavoroValido, lavoroAffidatoValido, modoAiutoValido, programmaAiuto, PACCHETTO_MAX_BYTE, PEZZO_BYTE, quantiPezzi, ramoDiRitorno,
   SILENZIO_MAX_MS, type Aiutante, type LavoroAffidato, type VistaLavoroAiutato
 } from '@shared/aiuto-rete'
-import { causaDelMotivo, fraseCausa, type CausaFallimento } from '@shared/aiuto-esito'
+import { causaDelMotivo, causaRiassegnabile, fraseCausa, type CausaFallimento } from '@shared/aiuto-esito'
+import { decidiRiassegna, eventoArreso, eventoRiassegnato } from '@shared/aiuto-riassegna'
+import type { EventoAiuto } from '@shared/eventi-aiuto'
 import { ricavaRisorse } from '@shared/aiuto-risorse'
 
 /**
@@ -38,6 +40,8 @@ export type DipendenzeSpedizioniere = {
   errore?: (r: string) => void
   /** 14/11: un PC che non risponde è un caso atteso di rete: avviso nel registro, non errore (non va negli «Errori arrivati»). */
   avviso?: (r: string) => void
+  /** 16/11: il registro dei passaggi di mano (`eventi-aiuto.json`): riassegnazioni e rese. */
+  registra?: (e: EventoAiuto) => void
   adesso?: () => number
   dorme?: (ms: number) => Promise<void>
 }
@@ -74,6 +78,7 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): { giro: () => Pro
   const blocco = d.errore ?? ((r: string) => console.error(`[aiuto] ${r}`))
   const avviso = d.avviso ?? ((r: string) => console.warn(`[aiuto] ${r}`))
   const adesso = d.adesso ?? Date.now
+  const registra = (e: EventoAiuto): void => { try { d.registra?.(e) } catch { /* un registro che non si scrive non ferma il lavoro */ } }
   const dorme = d.dorme ?? ((ms: number) => new Promise<void>((ok) => { const t = setTimeout(ok, ms); t.unref?.() }))
   const inMano = new Set<string>()
   const fuori = new Map<string, number>()
@@ -180,6 +185,27 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): { giro: () => Pro
     } finally { try { rmSync(file, { force: true }) } catch { /* resta */ } }
   }
 
+  /**
+   * 16/11: il PC non ha potuto agire (causa del PC): se c'è un altro PC libero mai provato per questo
+   * lavoro, lo passa là (al più 2 volte), lo scrive nel registro e dice al servizio il nuovo PC.
+   * `undefined` = resta fallito (causa del lavoro, tentativi finiti, nessun altro PC).
+   */
+  const riassegna = async (l: LavoroAffidato, causa: CausaFallimento, motivo: string): Promise<LavoroAffidato | undefined> => {
+    const provati = [...new Set([...(l.provati ?? []), l.pcId])]
+    const compito = l.compito ?? l.descrizione.slice(0, 80)
+    const quando = new Date(adesso()).toISOString()
+    const mossa = decidiRiassegna({ causa, riassegnazioni: l.riassegnazioni ?? 0, provati, aiutanti: causaRiassegnabile(causa) ? await aggiornaPosti() : [], fuori, adesso: adesso() })
+    if (mossa.tipo === 'resta-fallito') {
+      if (mossa.arreso) registra(eventoArreso({ quando, lavoroId: l.id, compito, daPc: l.pcNome, motivo: `${mossa.motivo} (${motivo})` }))
+      return undefined
+    }
+    await d.chiama(l.pcId, '/api/aiuto/chiudi', { lavoro: l.id }).catch(() => undefined)
+    registra(eventoRiassegnato({ quando, lavoroId: l.id, compito, daPc: l.pcNome, aPc: mossa.a.nome, motivo, causa }))
+    await avanza(l.id, { riassegna: { pcId: mossa.a.pcId, pcNome: mossa.a.nome } })
+    log(`${l.id} (${compito}): passa da ${l.pcNome} a ${mossa.a.nome} (${motivo})`)
+    return { ...l, pcId: mossa.a.pcId, pcNome: mossa.a.nome, stato: 'da-spedire', provati, riassegnazioni: (l.riassegnazioni ?? 0) + 1 }
+  }
+
   const segui = async (l: LavoroAffidato): Promise<void> => {
     if (l.stato === 'da-spedire') {
       try { await spedisci(l) } catch (err) {
@@ -187,6 +213,8 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): { giro: () => Pro
         if (!delProgetto) {
           fuori.set(l.pcId, adesso() + FUORI_PER_MS)
           posti = { lista: [], il: -Infinity }
+          const nuovo = await riassegna(l, 'pc', `non sono riuscito a spedirlo a ${l.pcNome}: ${testo(err)}`)
+          if (nuovo !== undefined) return segui(nuovo)
         }
         const causa: CausaFallimento = delProgetto ? 'progetto' : 'pc'
         // Solo il progetto non spedibile è un difetto; un PC che non risponde è rete.
@@ -208,7 +236,10 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): { giro: () => Pro
         silenzioDa ??= adesso()
         if (sconosciuto || adesso() - silenzioDa > SILENZIO_MAX_MS) {
           fuori.set(l.pcId, adesso() + FUORI_PER_MS)
+          posti = { lista: [], il: -Infinity }
           avviso(`${l.id} (${l.compito ?? l.ruolo}): perso su ${l.pcNome}: ${sconosciuto ? 'non ha più il lavoro' : 'non risponde'}`)
+          const nuovo = await riassegna(l, 'pc', sconosciuto ? `${l.pcNome} non ha più questo lavoro (si è riavviato?)` : `${l.pcNome} non risponde da ${Math.round(SILENZIO_MAX_MS / 60_000)} minuti`)
+          if (nuovo !== undefined) return segui(nuovo)
           await avanza(l.id, { stato: 'fallito', causa: 'pc', motivo: sconosciuto ? `${l.pcNome} non ha più questo lavoro (si è riavviato?)` : `${l.pcNome} non risponde da ${Math.round(SILENZIO_MAX_MS / 60_000)} minuti` })
           // 12/11: «chiudi» anche qui, come alla fine e dopo una spedizione non riuscita: se quel PC
           // torna, o lo tiene ancora, toglie copia, ramo e pacchetti invece di lasciarli lì.
@@ -225,6 +256,12 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): { giro: () => Pro
           let causa: CausaFallimento | undefined = v.stato === 'fermato' ? 'fermato' : v.stato === 'fallito' ? (v.causa ?? causaDelMotivo(v.motivo)) : undefined
           if ((v.byte ?? 0) > 0) {
             try { ramo = await ritira(l, v.byte!) } catch (err) { motivo = `il ramo non è tornato da ${l.pcNome}: ${testo(err)}`; causa = 'pc'; log(`${l.id}: ${motivo}`) }
+          }
+          // 16/11: fallito per colpa del PC (risorsa mancante, accesso…) e senza lavoro da ritirare: passa a un altro PC.
+          if (v.stato === 'fallito' && ramo === undefined && causa !== undefined && causaRiassegnabile(causa)) {
+            if (causa !== 'pc') { fuori.set(l.pcId, adesso() + FUORI_PER_MS); posti = { lista: [], il: -Infinity } }
+            const nuovo = await riassegna(l, causa, motivo ?? fraseCausa(causa))
+            if (nuovo !== undefined) return segui(nuovo)
           }
           const riuscito = v.stato === 'finito' && ((v.byte ?? 0) === 0 || ramo !== undefined)
           await avanza(l.id, {
