@@ -39,6 +39,7 @@
 - criteriPerLaProva è usata anche da servizio-orchestratore.ts per un solo comando: se scarta il comando si ricade sull'originale, non sul vuoto _(2026-11-14)_
 - per riprodurre un multibyte spezzato basta tagliare il Buffer a metà dei 3 byte di › ed emettere due 'data' su una richiesta finta. _(2026-11-14)_
 - vitest tests/main tests/shared nel worktree dura qualche minuto (470 file): lanciarlo una volta sola, l'output è enorme, leggere solo la riga «Test Files» con grep -a. _(2026-11-15)_
+- `git fetch` può fallire sul bundle del PC richiedente: se il ramo è già pari a `main`, basta `git merge --ff-only main`. _(2026-11-16)_
 
 ## worktree
 
@@ -534,3 +535,18 @@
 ## aiuto
 
 - creaSpedizioniere ha ora `avviso` oltre a `errore`: solo ProgettoNonSpedibile e i fallimenti dichiarati dal PC restano errori. _(2026-11-14)_
+
+## aiutante
+
+- oggi un lavoro senza posto viene rifiutato (409) e non accodato; un fallimento resta `fallito` senza riassegnazione, e il PC «fuori» vive solo in memoria. _(2026-11-16)_
+- il lavoro remoto riceve solo prompt, strumenti e ramo; nessuna risorsa del PC di partenza passa, e la verifica dei requisiti (`regole.ts` 200-245) non copre le cartelle di rete. _(2026-11-16)_
+- Con `shell: true` un comando mancante non dà ENOENT ma codice 1: il ramo «non installato» di `versioneDi` non scatta mai per npm. _(2026-11-16)_
+- `aggiornamento.ts` classifica ogni errore come ERRORE: `eErroreDiRete` non è usato nell'Aiutante, quindi i passeggeri di rete arrivano agli errori arrivati. _(2026-11-16)_
+
+## blocco
+
+- Il «criterio rosso» di un progetto esterno arriva agli errori arrivati di SierraDeck perché il servizio usa `console.error`: per design (12/11), ma è una decisione da riguardare. _(2026-11-16)_
+
+## editor
+
+- con Edit, un `old_string` che finisce con uno spazio può perderlo nella sostituzione: rileggere la riga se il typecheck dà errori JSX. _(2026-11-16)_
