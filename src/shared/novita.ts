@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.108.0',
+    righe: [
+      '**Accesso a Claude per un anno:** «Rinnova l’accesso a Claude» (Impostazioni, avviso in alto, tasto nella chat; nell’Aiutante «Collega Claude per un anno») apre una finestra: approvi nel browser e il programma salva da solo un accesso che vale un anno, cifrato. Tutte le chat lo usano, niente più chat ferme per il login scaduto.',
+      '**Ripartenza subito:** rifatto il login o rinnovato l’accesso, le chat ferme ripartono entro pochi secondi invece che fra 5 minuti. L’errore d’accesso ora è in italiano.',
+      '**Unioni molto più veloci:** a ogni unione si provano solo i file cambiati (prima la suite intera e le prove Android ogni volta, 6-14 minuti). Guide, note e quaderno si uniscono subito. La suite intera resta prima di ogni release.',
+      '**Compiti davanti a te restano qui:** aprire una pagina nel tuo browser, o usare un file di questo PC, non viene più mandato a un altro PC.',
+    ],
+  },
+  {
     versione: '0.107.4',
     righe: [
       '**PC acceso ma non raggiungibile:** un PC che lascia segni recenti sul Drive ma non si raggiunge ora risulta «acceso secondo il Drive, ma non si raggiunge», con l\'invito a controllare Tailscale.',
