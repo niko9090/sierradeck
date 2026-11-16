@@ -6,7 +6,7 @@ import {
   SILENZIO_MAX_MS, type Aiutante, type LavoroAffidato, type VistaLavoroAiutato
 } from '@shared/aiuto-rete'
 import { causaDelMotivo, causaRiassegnabile, fraseCausa, type CausaFallimento } from '@shared/aiuto-esito'
-import { decidiRiassegna, eventoArreso, eventoRiassegnato } from '@shared/aiuto-riassegna'
+import { decidiRiassegna, eventoAffidato, eventoArreso, eventoRifiutato, eventoRiassegnato, eventoRisorsaMancante } from '@shared/aiuto-riassegna'
 import type { EventoAiuto } from '@shared/eventi-aiuto'
 import { ricavaRisorse } from '@shared/aiuto-risorse'
 
@@ -123,6 +123,10 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): { giro: () => Pro
     throw ultimo instanceof Error ? ultimo : new Error(String(ultimo))
   }
 
+  const base0 = (l: LavoroAffidato): { quando: string; lavoroId: string; compito: string; daPc: string; aPc: string } => ({
+    quando: new Date(adesso()).toISOString(), lavoroId: l.id, compito: l.compito ?? l.descrizione.slice(0, 80), daPc: 'questo PC', aPc: l.pcNome
+  })
+
   const spedisci = async (l: LavoroAffidato): Promise<void> => {
     // 13/11: quello che si prepara qui (ramo, commit, pacchetto) se non riesce è un guaio del progetto,
     // non del PC che aiuta: si dice così, e quel PC non va messo fuori.
@@ -155,13 +159,22 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): { giro: () => Pro
         email: (await git(['config', 'user.email'], l.cwd).catch(() => '')).trim()
       })
       const risorse = ricavaRisorse(l.prompt, l.risorse ?? [], [l.cwd])
-      await d.chiama(l.pcId, '/api/aiuto/avvia', {
-        lavoro: l.id, progetto: basename(l.cwd), ramoBase, base,
-        prompt: l.prompt, sistema: l.sistema, modello: l.modello, strumenti: l.strumenti, ruolo: l.ruolo, descrizione: l.descrizione,
-        // 16/11: le risorse (dichiarate + nominate nel messaggio) che là vanno verificate prima di partire; la cartella del progetto non serve, arriva col pacchetto.
-        ...(risorse.length > 0 ? { risorse } : {}),
-        ...(autore !== undefined ? { autore } : {})
-      })
+      try {
+        await d.chiama(l.pcId, '/api/aiuto/avvia', {
+          lavoro: l.id, progetto: basename(l.cwd), ramoBase, base,
+          prompt: l.prompt, sistema: l.sistema, modello: l.modello, strumenti: l.strumenti, ruolo: l.ruolo, descrizione: l.descrizione,
+          // 16/11: le risorse (dichiarate + nominate nel messaggio) che là vanno verificate prima di partire; la cartella del progetto non serve, arriva col pacchetto.
+          ...(risorse.length > 0 ? { risorse } : {}),
+          ...(autore !== undefined ? { autore } : {})
+        })
+      } catch (err) {
+        // 16/11: il PC ha risposto di no (niente posto, versione diversa…): è un rifiuto. Un PC che non risponde no, è rete.
+        if (!/timeout|tempo|non risponde|econn|enotfound|etimedout|fetch failed|raggiungibile|abort/iu.test(testo(err))) {
+          registra(eventoRifiutato({ ...base0(l), motivo: `il PC ha rifiutato il lavoro: ${testo(err)}` }))
+        }
+        throw err
+      }
+      registra(eventoAffidato(base0(l)))
       log(`${l.id} (${l.compito ?? l.ruolo}): progetto spedito a ${l.pcNome} (${pesoInParole(byte)}), parte lo specialista`)
       await avanza(l.id, { stato: 'spedito', attivita: 'arrivato, prepara la copia' })
     } finally { try { rmSync(file, { force: true }) } catch { /* resta */ } }
@@ -259,6 +272,9 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): { giro: () => Pro
           }
           // 16/11: fallito per colpa del PC (risorsa mancante, accesso…) e senza lavoro da ritirare: passa a un altro PC.
           if (v.stato === 'fallito' && ramo === undefined && causa !== undefined && causaRiassegnabile(causa)) {
+            // Prima del passaggio: il registro dice perché quel PC non ha potuto (risorsa indispensabile mancante, o rifiuto).
+            if (causa === 'risorsa') registra(eventoRisorsaMancante({ ...base0(l), motivo: motivo ?? fraseCausa(causa), dichiarate: l.risorse ?? [] }))
+            else if (causa !== 'pc') registra(eventoRifiutato({ ...base0(l), motivo: motivo ?? fraseCausa(causa) }))
             if (causa !== 'pc') { fuori.set(l.pcId, adesso() + FUORI_PER_MS); posti = { lista: [], il: -Infinity } }
             const nuovo = await riassegna(l, causa, motivo ?? fraseCausa(causa))
             if (nuovo !== undefined) return segui(nuovo)

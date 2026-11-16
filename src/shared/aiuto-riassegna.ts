@@ -1,5 +1,6 @@
 import { causaRiassegnabile, fraseCausa, motivoBreve, type CausaFallimento } from './aiuto-esito'
 import type { Aiutante } from './aiuto-rete'
+import type { Risorsa } from './aiuto-risorse'
 import type { EventoAiuto } from './eventi-aiuto'
 
 /**
@@ -57,6 +58,38 @@ export function eventoRiassegnato(p: { quando: string; lavoroId: string; compito
     quando: p.quando, lavoroId: p.lavoroId, compito: p.compito, daPc: p.daPc, aPc: p.aPc, tipo: 'riassegnato',
     motivo: motivoBreve(p.motivo),
     ...(p.causa === 'risorsa' ? { risorsa: 'una risorsa del lavoro' } : {})
+  }
+}
+
+type BaseEvento = { quando: string; lavoroId: string; compito: string; daPc: string; aPc: string }
+
+/** La riga per un lavoro mandato a un altro PC. */
+export function eventoAffidato(p: BaseEvento): EventoAiuto {
+  return { quando: p.quando, lavoroId: p.lavoroId, compito: p.compito, daPc: p.daPc, aPc: p.aPc, tipo: 'affidato', motivo: `mandato a ${p.aPc}` }
+}
+
+/** La riga per un PC che rifiuta il lavoro (niente posto, niente accesso a Claude, versione diversa…). */
+export function eventoRifiutato(p: BaseEvento & { motivo: string }): EventoAiuto {
+  return { quando: p.quando, lavoroId: p.lavoroId, compito: p.compito, daPc: p.daPc, aPc: p.aPc, tipo: 'rifiutato', motivo: motivoBreve(p.motivo) }
+}
+
+/**
+ * Le risorse mancanti, da scrivere nella riga. Solo le dichiarate esplicitamente sono indispensabili
+ * (un percorso ricavato dal testo è solo informativo): si cercano nel motivo; se nessuna c'è, il testo del motivo.
+ */
+export function risorseMancantiDelMotivo(motivo: string, dichiarate: readonly Risorsa[] = []): string {
+  const nominate = dichiarate.filter((r) => r.indispensabile !== false && motivo.toLowerCase().includes(r.valore.toLowerCase())).map((r) => r.valore)
+  if (nominate.length > 0) return nominate.join(', ').slice(0, 300)
+  const i = motivo.indexOf(' — ')
+  return (i >= 0 ? motivo.slice(i + 3) : 'una risorsa del lavoro').slice(0, 300)
+}
+
+/** La riga per un PC a cui manca una risorsa dichiarata indispensabile (rete, cartella, programma). */
+export function eventoRisorsaMancante(p: BaseEvento & { motivo: string; dichiarate?: readonly Risorsa[] }): EventoAiuto {
+  return {
+    quando: p.quando, lavoroId: p.lavoroId, compito: p.compito, daPc: p.daPc, aPc: p.aPc, tipo: 'risorsa-mancante',
+    motivo: motivoBreve(p.motivo),
+    risorsa: risorseMancantiDelMotivo(p.motivo, p.dichiarate)
   }
 }
 
