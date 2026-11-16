@@ -281,3 +281,10 @@ A mano su Z2-TECNICO: aprire Tailscale e controllare che sia connesso (non solo 
 
 1 gruppo: LAPTOP alla 0.107.0, TypeError «Cannot read properties of undefined (reading 'length')» in adessoDi dentro CorpoPanoramica (un autopilota senza chats).
 Già corretto nel commit c536fd60 (adessoDi regge un autopilota senza chats), presente dalla 0.107.1; riletto src/shared/adesso.ts: il controllo Array.isArray(a.chats) c'è (righe 84 e 149). LAPTOP era alla 0.107.0, che non lo conteneva: non serve altro codice, si risolve aggiornando quel PC. Corretto nella prossima versione pubblicata (già in main).
+
+# Errori arrivati (lotto 20261116150451)
+
+1 gruppo: «Claude non collegato» (accesso), registrato dall Aiutante come errore a ogni avvio.
+Non è un difetto: è un caso atteso (su quel PC Claude non è collegato). Il difetto era nel trattamento: veniva scritto come errore a ogni avvio, e l etichetta «la correzione non è bastata» compariva a torto. Corretto nella prossima versione (la 0.109.0, probabilmente; package.json è ancora alla 0.108.0): ora è un avviso. Già in main (compito k-l2), test in tests/aiutante/controllo-claude-avviso.test.ts.
+A mano: collegare Claude su quel PC («Collega Claude» dalla finestra dell Aiutante).
+Nota: il rapporto del lotto (.sierradeck/errori-arrivati/lotto-20261116150451.md) non era leggibile dalla mia copia, quindi la voce descrive solo questo gruppo; se il lotto ne ha altri vanno aggiunti.
