@@ -19,7 +19,7 @@ import { sorvegliaAccesso } from '../autopilot-host/sorveglia-accesso'
 import versioneJson from './versione.json'
 import { avviaAggiornamenti, type StatoAggiornamento } from './aggiornamento'
 import {
-  bloccoDaClaude, CONTROLLO_CLAUDE_MS, controllaClaude, esitoDaLavoro, serveProvaPiena, testoStatoClaude, type EsitoClaude
+  bloccoDaClaude, CONTROLLO_CLAUDE_MS, controllaClaude, esitoDaLavoro, livelloControlloClaude, serveProvaPiena, testoStatoClaude, type EsitoClaude
 } from './controllo-claude'
 import { creaFinestraAggiornamenti } from './finestra-aggiornamenti'
 import { NOVITA_AIUTANTE_URL, noteAiutante } from './novita-aiutante'
@@ -117,7 +117,11 @@ function avvia(): void {
       suFallito: (f) => {
         const e = esitoDaLavoro(f.causa, f.motivo, Date.now())
         if (e === undefined) return
-        if (claude.stato === 'ok') registro.errore(`[claude] un lavoro non è riuscito per ${testoStatoClaude(e.stato).toLowerCase()}: niente lavori nuovi finché la prova di Claude non torna buona`)
+        if (claude.stato === 'ok') {
+          const riga = `[claude] un lavoro non è riuscito per ${testoStatoClaude(e.stato).toLowerCase()}: niente lavori nuovi finché la prova di Claude non torna buona`
+          if (e.stato === 'accesso') registro.info(`[avviso] ${riga}`)
+          else registro.errore(riga)
+        }
         claude = e
         // Si riprova subito con la prova piena: se era un caso, i posti tornano; se no, resta rosso.
         setTimeout(() => { void ricontrollaClaude(true) }, 5_000).unref?.()
@@ -158,11 +162,15 @@ function avvia(): void {
           piena,
           adesso: Date.now
         })
-        if (nuovo.stato !== 'ok' && nuovo.stato !== 'controllo' && (prima === undefined || prima.stato === 'ok' || prima.stato !== nuovo.stato)) {
-          registro.errore(`[claude] ${testoStatoClaude(nuovo.stato)} su questo Aiutante: niente lavori finché non si sistema dalla sua finestra («Collega Claude»)${nuovo.estratto !== undefined ? ` (${nuovo.estratto})` : ''}`)
+        const livello = livelloControlloClaude(prima, nuovo)
+        if (livello === 'errore' || livello === 'avviso') {
+          const riga = `[claude] ${testoStatoClaude(nuovo.stato)} su questo Aiutante: niente lavori finché non si sistema dalla sua finestra («Collega Claude»)${nuovo.estratto !== undefined ? ` (${nuovo.estratto})` : ''}`
+          // Accesso mancante = azione a mano, non un difetto: riga info, fuori dagli errori arrivati.
+          if (livello === 'errore') registro.errore(riga)
+          else registro.info(`[avviso] ${riga}`)
+        } else if (livello === 'info') {
+          registro.info(prima === undefined ? `[claude] Claude collegato (${piena ? 'prova piena' : 'stato'})` : '[claude] Claude di nuovo collegato: l\'Aiutante riprende i lavori')
         }
-        if (nuovo.stato === 'ok' && prima !== undefined && prima.stato !== 'ok') registro.info('[claude] Claude di nuovo collegato: l\'Aiutante riprende i lavori')
-        if (nuovo.stato === 'ok' && prima === undefined) registro.info(`[claude] Claude collegato (${piena ? 'prova piena' : 'stato'})`)
         claude = nuovo
       } catch (err) {
         registro.info(`[claude] controllo non riuscito: ${String(err)}`)
