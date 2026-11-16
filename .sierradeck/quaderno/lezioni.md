@@ -134,6 +134,7 @@
 - prima del bump: `git fetch origin --tags` e `git tag -l vX.Y.Z`; il package-lock ha la versione in due punti, radice e packages."". _(2026-11-15)_
 - Se `npm run pubblica` rifiuta nella copia di lavoro per la junction di node_modules, basta un clone pulito del tag + `npm ci`: funziona senza toccare la cartella principale. _(2026-11-15)_
 - Le credenziali Google per `pubblica` si passano con SD_GOOGLE_CLIENT_ID/SECRET letti con node da google-oauth.json (campi clientId, clientSecret), senza stamparle. _(2026-11-15)_
+- 16/11: main è già alla 0.108.0 (tag v0.108.0, pubblicata da altrove): la prossima release va oltre, 0.109.0 se dentro ci sono funzioni (riassegnazione fra PC, Passaggi di mano), non 0.107.4. _(2026-11-16)_
 
 ## git
 
@@ -582,6 +583,7 @@
 ## menu
 
 - Gli affidati ad altri PC stanno solo in `aiuti-affidati.json` (non in `orchestratore.stato`): ogni vista che filtra `s.pc === undefined` li perde. _(2026-11-16)_
+- menu-specialisti.ts finisce nello script della pagina con .toString(): niente helper importati dentro, testi italiani scritti nella funzione stessa. _(2026-11-16)_
 
 ## panoramica
 
@@ -619,7 +621,12 @@
 ## vista
 
 - un tono nuovo di fraseStatoOrchestratore va mappato in 4 posti: autopiloti-vista, stato-telefono, COLORE_TONO di client-pagina e Android (ignoto = riposo grigio) _(2026-11-16)_
+- I lavori ospitati hanno stati ricevo/in-coda/preparo/lavoro: ora `fase` in VistaAttesa separa ricezione e preparazione; in-coda è ancora trattato come «al lavoro». _(2026-11-16)_
 
 ## codice
 
 - `chatViva` esiste già in `autopilota-telefono.ts` (senza `nelRecupero`): quello condiviso è `chatInVita` in `autopilota.ts`; non confonderli. _(2026-11-16)_
+
+## dati
+
+- un autopilota da un altro PC o da un file vecchio può mancare di `dialogo`, `decisioni` o `chats`: le funzioni in `shared` che lo leggono devono trattare gli elenchi assenti come vuoti. _(2026-11-16)_
