@@ -55,7 +55,9 @@ import { SchermataAvvio } from './components/SchermataAvvio'
 import { Serratura } from './components/Serratura'
 import type { StatoAggiornamento } from '../main/aggiornamenti'
 import { righeDiPty, righeDiPtyRecenti, segnaDatiPty, finestraDiPty } from './schermo-terminale'
-import { ogni } from './state/sondaggio'
+import { ogni, useSondaggio } from './state/sondaggio'
+import { sondaggioOrchestratore } from './components/TestaOrchestratore'
+import { schedeAffidate } from '@shared/panoramica-affidati'
 import { ETICHETTA_LAVORO_TIPO, soloTransizioni } from './progresso-sync'
 import { Fumetti, Fumetto, FumettoLavoroDrive, useChiusuraAutomatica } from './components/Fumetti'
 import { FumettoPreferenzeNonSalvate } from './components/FumettoPreferenzeNonSalvate'
@@ -1554,6 +1556,10 @@ export function App(): React.JSX.Element {
   const remotiQui = useWorkspaceRemoti(workspace.nomi)
   const remotoDelWorkspace = workspace.attivo !== '' ? remotiQui[workspace.attivo] : undefined
   const { stato: autopilotaDiLa, rileggi: rileggiDiLa } = useAutopilotaRemoto(remotoDelWorkspace?.pcId, workspace.attivo)
+  // k-s3: la vista dell'autopilota (la stessa della colonna degli specialisti) dice anche i lavori affidati a un altro PC.
+  const sondaggioAffidati = sondaggioOrchestratore(workspace.attivo, remotoDelWorkspace !== undefined ? sorgenteRemota(remotoDelWorkspace.pcId, remotoDelWorkspace.pcNome) : SORGENTE_LOCALE)
+  const vistaAffidati = useSondaggio(sondaggioAffidati)
+  useEffect(() => (remotoDelWorkspace === undefined ? SORGENTE_LOCALE.suSpecialistiCambiati(() => sondaggioAffidati.rileggi()) : undefined), [sondaggioAffidati, remotoDelWorkspace])
 
   useEffect(() => {
     if (aperto !== 'autopiloti' || alLogin !== undefined) return
@@ -1628,9 +1634,10 @@ export function App(): React.JSX.Element {
   const schedePanoramica = ((): SchedaVista[] => {
     if (vistaElenco === undefined) return []
     const ora = Date.now()
-    const specialisti = autopilotaFisso !== undefined ? specialistiDi(autopilotaFisso).elenco : []
+    // Su un workspace di un altro PC l'autopilota è quello di là (autopilotaVisto).
+    const specialisti = autopilotaVisto !== undefined ? specialistiDi(autopilotaVisto).elenco : []
     // Le chat adottate (0.78.0): il ruolo che le ha dato l'autopilota, o quello dal contenuto.
-    const adottate = new Map((autopilotaFisso?.adottate ?? []).map((x) => [x.sessionId, x]))
+    const adottate = new Map((autopilotaVisto?.adottate ?? []).map((x) => [x.sessionId, x]))
     const mie = new Set([...chatSoloMie, ...[...adottate.values()].filter((x) => x.soloMia === true).map((x) => x.sessionId)])
     const perSessione = new Map(specialisti.filter((x) => x.sessionId !== undefined).map((x) => [x.sessionId!, x]))
     const numero = (id: string): number => Number(/(\d+)$/.exec(id)?.[1] ?? 0)
@@ -1675,6 +1682,8 @@ export function App(): React.JSX.Element {
         ultimaAzione: x.ultimaAzione, righe: []
       })
     }
+    // k-s3: i lavori affidati a un altro PC (e gli specialisti di un workspace di là) non hanno riquadro: dalla vista.
+    fuori.push(...schedeAffidate(vistaAffidati, workspace.attivo, remotoDelWorkspace?.pcNome))
     return numeraUguali(fuori)
   })()
   // La cartella di là di una chat del workspace remoto: dove nascerebbe l'autopilota su quel PC.
