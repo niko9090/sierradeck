@@ -116,7 +116,9 @@ const corto = (s: string, n = 160): string => s.replace(/\s+/gu, ' ').trim().sli
 
 function git(args: string[], cwd: string, tempoMs = 10 * 60_000): Promise<string> {
   return new Promise((ok, no) => {
-    execFile('git', args, { cwd, windowsHide: true, maxBuffer: 32 * 1024 * 1024, timeout: tempoMs }, (err, out, errOut) => {
+    // I percorsi dell'Aiutante stanno sotto AppData (copia, progetto, nome del PC): su Windows
+    // oltre 260 caratteri git senza `core.longpaths` risponde «Filename too long».
+    execFile('git', ['-c', 'core.longpaths=true', ...args], { cwd, windowsHide: true, maxBuffer: 32 * 1024 * 1024, timeout: tempoMs }, (err, out, errOut) => {
       if (err !== null) no(new Error(`git ${args[0]}: ${corto(String(errOut) || err.message, 300)}`))
       else ok(String(out))
     })
