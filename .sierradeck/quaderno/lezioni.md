@@ -347,6 +347,8 @@
 ## pubblicazione
 
 - Un agente lanciato in worktree isolato non può eseguire git nella cartella principale: la pubblicazione dalla cartella principale va affidata a un agente senza isolamento. _(2026-11-08)_
+- `npm run pubblica-app` esige la voce `versione: 'X'` in `android/novita-app.txt` per il `versionName` corrente: va preparata insieme al bump Android, o l'app resta indietro. _(2026-11-16)_
+- `gh release create --draft --verify-tag` seguito da `npm run pubblica` con `GH_TOKEN` carica tutti e 7 i file senza 422; poi `--draft=false --latest` a mano. _(2026-11-16)_
 
 ## tsconfig
 
@@ -570,6 +572,7 @@
 ## pubblica-app
 
 - `npm run pubblica-app` copia anche `app-android.json` su v0.107.2 (la Latest) senza cambiarne i file né la Latest. _(2026-11-14)_
+- noteDi cerca `versione: '<v>'` e si ferma al prossimo `versione: `: mai quella parola con i due punti nel testo delle righe. _(2026-11-16)_
 
 ## log
 
