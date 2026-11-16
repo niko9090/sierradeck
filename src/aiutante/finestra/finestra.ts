@@ -1,4 +1,6 @@
 import logo from '../../../build/icon.png'
+import type { EventoAiuto } from '../../shared/eventi-aiuto'
+import { righePassaggi } from '../passaggi-finestra'
 
 /**
  * La finestra dell'Aiutante (12/11): HTML semplice, senza React. Rilegge lo
@@ -21,6 +23,7 @@ type Stato = {
   requisiti: Voce[]
   aggiornamento: { riga?: string; nonLetto: boolean; errore?: string }
   claude: { stato: string; testo: string; estratto?: string; il?: number; da?: string; inControllo: boolean }
+  passaggi?: EventoAiuto[]
   ultimoFallito?: { il: number; perPc?: string; causa: string; motivo: string }
   preferenze: { postiChat: number; postiScelti: number | null; scaricaAggiornamentiAutomatico: boolean; avvioAlLogin: boolean; inPausa: boolean; portaClient: number; pcSviluppo: string | null }
 }
@@ -97,6 +100,8 @@ function mostra(s: Stato): void {
   el('coda').replaceChildren(...(coda.length === 0
     ? [voce('Nessuno in coda.', 'nota')]
     : coda.map((l) => voce(`${l.posizione ?? '?'}. ${l.descrizione} (${l.ruolo}, per ${l.perPc}) — aspetta da ${da(l.inizio)}`))))
+  const passaggi = s.passaggi ?? []
+  el('passaggi').replaceChildren(...righePassaggi(passaggi).map((t) => voce(t, passaggi.length === 0 ? 'nota' : undefined)))
   el('requisiti').replaceChildren(...(s.requisiti.length === 0
     ? [voce('Controllo in corso…', 'attesa')]
     : s.requisiti.map((v) => voce(`${v.ok ? '✓' : '✗'} ${v.nome}: ${v.dettaglio}`, v.ok ? 'ok' : 'no'))))
