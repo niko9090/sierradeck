@@ -1,12 +1,13 @@
 import { execFile, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { appendFileSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, unlinkSync, utimesSync, writeFileSync, openSync, readSync, closeSync, lstatSync, rmdirSync } from 'node:fs'
+import { stat, appendFileSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, unlinkSync, utimesSync, writeFileSync, openSync, readSync, closeSync, lstatSync, rmdirSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import {
   commitValido, idLavoroValido, LAVORO_MAX_MS, modelloAiuto, nomeProgettoSicuro, PEZZO_BYTE, PACCHETTO_MAX_BYTE,
   quantiPezzi, ramoDiRitorno, ramoValido, STRUMENTI_AIUTO, autoreValido, type AutoreGit, strumentiAmmessi, VIETATI_AIUTO, type LavoroOspitato, type StatoAiuto, type VistaLavoroAiutato
 } from '@shared/aiuto-rete'
 import { causaDalTesto, fraseCausa, motivoDelRisultato, type CausaFallimento } from '@shared/aiuto-esito'
+import { motivoRisorsa, risorseValide, risorsaMancante, sezioneRisorse, verificaRisorse, type Risorsa, type StrumentiVerifica } from '@shared/aiuto-risorse'
 import type { AvviaProcesso } from './processo-claude'
 import { cancellaSicuraAsincrona } from '@shared/cancella-sicura'
 import { CARTELLA_PROVE } from '@shared/disco-prove'
@@ -48,6 +49,8 @@ export type RichiestaAvvio = {
   descrizione: string
   /** 12/11: chi firma i commit nella copia (nome ed email di git del PC che chiede). */
   autore?: AutoreGit
+  /** 16/11: le risorse che il compito nomina (cartelle, percorsi di rete, programmi, variabili): si verificano prima di lanciare. */
+  risorse?: Risorsa[]
 }
 
 /** 12/11: come è finito un lavoro, per chi ospita il lavoratore (l'Aiutante guarda il limite del piano). */
@@ -129,6 +132,15 @@ function npmCi(cartella: string, extra: string[]): Promise<void> {
 
 const eCollegamento = (p: string): boolean => { try { return lstatSync(p).isSymbolicLink() } catch { return false } }
 
+/** Le risorse guardate davvero: il file system (anche di rete), il PATH, l'ambiente. */
+const verificaRisorseQui: StrumentiVerifica = {
+  esiste: (p) => new Promise((ok) => { stat(p, (err) => { ok(err === null) }) }),
+  nelPath: (prog) => new Promise((ok) => {
+    execFile(process.platform === 'win32' ? 'where' : 'which', [prog], { windowsHide: true, timeout: 3000 }, (err) => { ok(err === null) })
+  }),
+  variabile: (nome) => (process.env[nome] ?? '') !== ''
+}
+
 export function creaLavoratoreAiuto(x: {
   /** Dove sta `lavori.json` (`<dati>/aiuto`); senza `lavoro`, anche copie, moduli e pacchetti. */
   cartella: string
@@ -141,6 +153,8 @@ export function creaLavoratoreAiuto(x: {
   pulisciOgniMs?: number
   /** 12/11: un lavoro è finito (riuscito o no): l'Aiutante ci legge il limite del piano e i blocchi. */
   suFine?: (f: FineLavoro) => void
+  /** 16/11: come si guardano le risorse su questo PC (nelle prove, un finto). */
+  verificaRisorse?: StrumentiVerifica
 }): LavoratoreAiuto {
   const adesso = x.adesso ?? Date.now
   const log = x.log ?? ((r: string) => console.info(`[aiuto] ${r}`))
@@ -376,7 +390,19 @@ export function creaLavoratoreAiuto(x: {
     const copia = join(base, 'copie', l.id)
     const pacchetto = pacchettiDi(l)[0]!
     const ramo = ramoDiRitorno(l.id)
-    cambia(l, { stato: 'preparo', attivita: 'apro il progetto arrivato', repo })
+    // 16/11: le risorse nominate dal compito, guardate subito (tempo massimo breve ciascuna). Una indispensabile
+    // che manca e senza alternativa: il lavoro fallisce SUBITO (causa 'risorsa', colpa del PC), e passa a un altro PC.
+    cambia(l, { stato: 'preparo', attivita: 'controllo le risorse del compito', repo })
+    const verificate = await verificaRisorse(r.risorse ?? [], x.verificaRisorse ?? verificaRisorseQui)
+    const mancante = risorsaMancante(verificate)
+    if (mancante !== undefined) {
+      cambia(l, { stato: 'fallito', motivo: `${fraseCausa('risorsa')} — ${corto(motivoRisorsa(mancante), 300)}`, causa: 'risorsa', attivita: 'non riuscito' })
+      log(`${l.id} (${progetto}): ${l.motivo ?? ''}`)
+      try { x.suFine?.({ id: l.id, stato: l.stato, testo: '', ...(l.motivo !== undefined ? { motivo: l.motivo } : {}), causa: 'risorsa', ...(l.perPc !== undefined ? { perPc: l.perPc } : {}), ...(l.ruolo !== undefined ? { ruolo: l.ruolo } : {}) }) } catch { /* chi ascolta non ferma niente */ }
+      await pulisciCopia(l).catch(() => undefined)
+      return
+    }
+    cambia(l, { attivita: 'apro il progetto arrivato' })
     // Il repo del progetto: la prima volta un clone dal pacchetto, poi i commit nuovi. Una cosa alla volta per progetto.
     await inProgetto(progetto, async () => {
       mkdirSync(join(base, 'copie'), { recursive: true })
@@ -410,7 +436,8 @@ export function creaLavoratoreAiuto(x: {
     // 12/11: fermato mentre si preparava: la copia appena fatta non serve, via subito (prima restava lì).
     if (l.stato === 'fermato') { await pulisciCopia(l); return }
     cambia(l, { stato: 'lavoro', attivita: `${r.ruolo} al lavoro` })
-    const sistema = `${r.sistema}\n\nLavori su un altro PC della rete di Nicholas («Aiuta la rete»): la tua copia è ${copia}, sul ramo ${ramo}. Il ramo principale del progetto è ${r.ramoBase}. Niente push: il ramo lo rimanda il programma al PC che ha chiesto, che lo prova e lo unisce.${notaModuli}`
+    const sezione = sezioneRisorse(verificate)
+    const sistema = `${r.sistema}${sezione !== '' ? `\n\n${sezione}` : ''}\n\nLavori su un altro PC della rete di Nicholas («Aiuta la rete»): la tua copia è ${copia}, sul ramo ${ramo}. Il ramo principale del progetto è ${r.ramoBase}. Niente push: il ramo lo rimanda il programma al PC che ha chiesto, che lo prova e lo unisce.${notaModuli}`
     const args = [
       '-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose',
       '--model', modelloAiuto(r.modello),
@@ -532,7 +559,8 @@ export function creaLavoratoreAiuto(x: {
         strumenti: strumentiAmmessi(p.strumenti),
         ruolo: typeof p.ruolo === 'string' ? corto(p.ruolo, 40) : 'sviluppatore',
         descrizione: typeof p.descrizione === 'string' ? corto(p.descrizione, 300) : '',
-        ...(autoreValido(p.autore) !== undefined ? { autore: autoreValido(p.autore)! } : {})
+        ...(autoreValido(p.autore) !== undefined ? { autore: autoreValido(p.autore)! } : {}),
+        ...(risorseValide(p.risorse).length > 0 ? { risorse: risorseValide(p.risorse) } : {})
       }
       cambia(l, { progetto: nomeProgettoSicuro(r.progetto), base: r.base, ruolo: r.ruolo, descrizione: r.descrizione, ...(typeof p.daNome === 'string' && p.daNome.trim() !== '' ? { perPc: corto(p.daNome, 60) } : {}) })
       log(`${l.id}: parte ${r.ruolo} per ${r.progetto} — ${r.descrizione.slice(0, 120)}`)
