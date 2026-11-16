@@ -180,10 +180,10 @@ object Ronda {
             else -> BersaglioAvviso("domanda", "")
         }
         val ora = System.currentTimeMillis()
-        val suona = Avvisi.suona(ultimoSuono, ora)
-        if (suona) ultimoSuono = ora
+        val (suona, nuovoUltimo) = Avvisi.decidiSuono(ultimoSuono, ora)
+        ultimoSuono = nuovoUltimo
         riferisci(contesto, a)
-        Avvisatore.mostra(contesto, AvvisoPc(n = 0, id = "r:${a.id}", tipo = tipo, titolo = a.titolo, testo = a.testo, bersaglio = bersaglio, suona = true), suona)
+        Avvisatore.mostra(contesto, AvvisoPc(n = 0, id = "r:${a.id}", tipo = tipo, titolo = a.titolo, testo = a.testo, bersaglio = bersaglio, suona = suona), suona)
     }
 }
 
