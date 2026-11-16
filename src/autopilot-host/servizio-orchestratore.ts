@@ -922,7 +922,24 @@ Il posto è tuo per 5 minuti.` })
           percentuale: o.stato === 'lavoro' ? Math.min(90, 10 + minuti) : 5, peso: PESO_PREDEFINITO,
           perPc: o.perPc
         }
+      }), affidati().filter((l) => l.stato === 'da-spedire' || l.stato === 'spedito').map((l, j) => {
+        // 16/11 (Nicholas: «due specialisti che lavorano e nel menu vedo nessuno»): gli affidati ad altri PC lavorano per questo workspace.
+        const cosaFa = rigaUltimaAzione(l.attivita ?? '')
+        const minuti = Math.max(0, Math.round((adesso - Date.parse(l.inizio)) / 60_000))
+        return {
+          posto: lavorano.length + (x.ospitati?.().length ?? 0) + j + 1, id: l.id, workspace: l.workspace,
+          ...(l.compito !== undefined ? { compito: l.compito } : {}),
+          descrizione: l.descrizione, tipo: l.ruolo, dal: l.inizio,
+          workspaceNome: nomeWorkspace(l.workspace), titolo: titoloDi(l.workspace, l.compito, l.descrizione),
+          ...(cosaFa !== '' ? { cosaFa } : {}),
+          percentuale: l.stato === 'spedito' ? Math.min(90, 10 + minuti) : 5, peso: pesoDi(l.workspace, l.compito),
+          suPc: l.pcNome
+        }
       })),
+      inUnione: [...filaUnioni.entries()].flatMap(([ws, lista]) => lista.map((l) => ({
+        id: l.chiave, workspace: ws, workspaceNome: nomeWorkspace(ws),
+        titolo: titoloDi(ws, l.compito, l.chi), inCorso: l.inCorso
+      }))),
       inFila: fila.map((v) => ({
         id: v.id, posizione: v.posizione, workspace: v.workspace,
         ...(v.autopilota !== undefined ? { autopilota: v.autopilota } : {}),

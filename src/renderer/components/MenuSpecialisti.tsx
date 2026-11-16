@@ -58,7 +58,7 @@ export function ElencoMenuSpecialisti({ vista, riferimenti, daFermare, onMossa, 
             <button className="tasto tasto--mini" onClick={() => onMossa(r.id, 'ferma')}>Sì, ferma</button>
             <button className="tasto tasto--mini" onClick={onAnnullaFerma}>No</button>
           </>
-        ) : r.perPc !== undefined ? <span className="menuspec__ritardo">per {r.perPc}</span> : (
+        ) : r.suPc !== undefined ? <span className="menuspec__ritardo">su {r.suPc}</span> : r.perPc !== undefined ? <span className="menuspec__ritardo">per {r.perPc}</span> : (
           <>
             <button className="tasto tasto--mini" title="Passa davanti a chi aspetta" disabled={!lavora && r.posizione === 1} onClick={() => onMossa(r.id, 'cima')}>↑ Precedenza</button>
             {lavora && !r.fermaRichiesta ? <button className="tasto tasto--mini" title="Lo ferma e lo mette in cima alla fila" onClick={() => onFerma(r.id)}>Ferma</button> : null}
@@ -76,6 +76,19 @@ export function ElencoMenuSpecialisti({ vista, riferimenti, daFermare, onMossa, 
       {m.lavorano.length === 0 ? <div className="menuspec__vuoto">Nessuno al lavoro</div> : <ul className="menuspec__elenco" aria-label="Al lavoro adesso">{m.lavorano.map((r) => riga(r, true))}</ul>}
       <span className="serigrafia">In fila</span>
       {m.inFila.length === 0 ? <div className="menuspec__vuoto">Nessuno in fila</div> : <ul className="menuspec__elenco" aria-label="In fila">{m.inFila.map((r) => riga(r, false))}</ul>}
+      {m.inUnione.length === 0 ? null : (
+        <>
+          <span className="serigrafia">In prova e unione dal programma</span>
+          <ul className="menuspec__elenco" aria-label="In prova e unione dal programma">
+            {m.inUnione.map((u) => (
+              <li key={u.id} className={`menuspec__riga${u.corrente ? ' menuspec__riga--mia' : ''}`}>
+                <span className="menuspec__titolo">{u.titolo}{u.altroWorkspace !== '' ? <span className="menuspec__ws"> · {u.altroWorkspace}</span> : null}</span>
+                <span className="menuspec__sotto">{u.inCorso ? 'in prova adesso' : 'aspetta il suo turno'}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
       <div className="menuspec__piede">
         <span>{m.totale}</span>
         {soloLettura ? null : <button className="tasto tasto--mini" onClick={onApriSezione}>Apri Specialisti</button>}
