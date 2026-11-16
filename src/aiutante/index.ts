@@ -20,7 +20,7 @@ import versioneJson from './versione.json'
 import { avviaAggiornamenti, type StatoAggiornamento } from './aggiornamento'
 import { assicuraUpdater, avviaUpdater, unoGiaInCorso, updaterVivo } from '../main/updater/compila'
 import {
-  bloccoDaClaude, CONTROLLO_CLAUDE_MS, controllaClaude, esitoDaLavoro, livelloControlloClaude, serveProvaPiena, testoStatoClaude, type EsitoClaude
+  bloccoDaClaude, CONTROLLO_CLAUDE_MS, controllaClaude, esitoDaLavoro, scriviControlloClaude, serveProvaPiena, testoStatoClaude, type EsitoClaude
 } from './controllo-claude'
 import { creaFinestraAggiornamenti } from './finestra-aggiornamenti'
 import { NOVITA_AIUTANTE_URL, noteAiutante } from './novita-aiutante'
@@ -163,15 +163,8 @@ function avvia(): void {
           piena,
           adesso: Date.now
         })
-        const livello = livelloControlloClaude(prima, nuovo)
-        if (livello === 'errore' || livello === 'avviso') {
-          const riga = `[claude] ${testoStatoClaude(nuovo.stato)} su questo Aiutante: niente lavori finché non si sistema dalla sua finestra («Collega Claude»)${nuovo.estratto !== undefined ? ` (${nuovo.estratto})` : ''}`
-          // Accesso mancante = azione a mano, non un difetto: riga info, fuori dagli errori arrivati.
-          if (livello === 'errore') registro.errore(riga)
-          else registro.info(`[avviso] ${riga}`)
-        } else if (livello === 'info') {
-          registro.info(prima === undefined ? `[claude] Claude collegato (${piena ? 'prova piena' : 'stato'})` : '[claude] Claude di nuovo collegato: l\'Aiutante riprende i lavori')
-        }
+        // Accesso mancante = azione a mano, non un difetto: riga info, fuori dagli errori arrivati.
+        scriviControlloClaude(registro, prima, nuovo, piena)
         claude = nuovo
       } catch (err) {
         registro.info(`[claude] controllo non riuscito: ${String(err)}`)
