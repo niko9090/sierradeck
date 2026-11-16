@@ -266,3 +266,18 @@ A mano: controllare Tailscale e il firewall su LAPTOP-E60QM2D1 (porta 47640).
 Causa della mancata strada: NON nel codice. Dopo la 0.106.2 nessuna correzione sul bussare (pc-remoto.ts, scoperta-pc.ts, tailscale.ts: git log v0.106.2..main non ha niente), e gli indirizzi si ricavano a ogni bussare dal battito e da Tailscale. Il collegamento è solo in uscita da Z2-TECNICO (le altre direzioni funzionano, e anche la posta di Z2-TECNICO verso fuori fallisce con «fetch failed»): è la rete o Tailscale di Z2-TECNICO, non PC-Fisso.
 Difetto vero nel testo, corretto (versione NON alzata): con un battito fresco (sotto i 35 minuti) e nessuna risposta la voce di Salute diceva «non so se è acceso» accanto a «Ultimo battito 10 minuti fa», e «Accendi PC-Fisso». Ora dice «acceso secondo il Drive, ma non si raggiunge» e come cosa fare di controllare Tailscale su tutti e due e premere «Riprova adesso» (salute.ts; il controllo unisce la riga come diagnosi generica in controllo-pc.ts). Test in tests/shared/salute.test.ts.
 A mano su Z2-TECNICO: aprire Tailscale e controllare che sia connesso (non solo «in ascolto»), premere «Riprova adesso» su PC-Fisso in Salute; se resta, controllare il firewall in uscita e proxy/VPN che bloccano le connessioni verso gli indirizzi 100.x e la porta 47640. Poi installare la 0.107.x (punto 1).
+
+# Errori arrivati (lotto 20261116081221)
+
+2 gruppi.
+1. npm mancante all'Aiutante su un portatile: corretto nella prossima versione (la versione in package.json è ancora la 0.107.3). Il motivo ora è distinto (tempo scaduto / non installato / errore con testo) e dopo un minuto c'è un nuovo tentativo. A mano: se su quel PC npm manca davvero, si risolve installando Node.js.
+2. Aggiornamento dell'Aiutante con net::ERR_NETWORK_IO_SUSPENDED: corretto nella prossima versione. Gli errori di rete passeggeri diventano un avviso (non un errore) con nuovo tentativo ogni 2 minuti, fino a 5 volte, e ripresa al risveglio del PC.
+
+# Errori arrivati (lotto 20261116112622)
+
+1 gruppo: «blocco fionda apl», criterio rosso dopo l'unione in un altro progetto. Non è un difetto di SierraDeck: è il criterio di un altro progetto, che arriva qui perché il servizio lo registra con console.error (scelta del 12/11, da riguardare). Nessuna correzione, nessuna versione.
+
+# Errori arrivati (lotto 20261116131822)
+
+1 gruppo: LAPTOP alla 0.107.0, TypeError «Cannot read properties of undefined (reading 'length')» in adessoDi dentro CorpoPanoramica (un autopilota senza chats).
+Già corretto nel commit c536fd60 (adessoDi regge un autopilota senza chats), presente dalla 0.107.1; riletto src/shared/adesso.ts: il controllo Array.isArray(a.chats) c'è (righe 84 e 149). LAPTOP era alla 0.107.0, che non lo conteneva: non serve altro codice, si risolve aggiornando quel PC. Corretto nella prossima versione pubblicata (già in main).
