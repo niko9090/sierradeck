@@ -42,6 +42,8 @@
 - `git fetch` può fallire sul bundle del PC richiedente: se il ramo è già pari a `main`, basta `git merge --ff-only main`. _(2026-11-16)_
 - `src/aiutante/aggiornamento.ts` ora importa `electron` (`powerMonitor`): i test che lo caricano devono mockare `electron` con `powerMonitor`. _(2026-11-16)_
 - `avviaAggiornamenti` programma un primo controllo a 15 s: nei test con timer finti far passare prima quel tempo, poi contare i `checkForUpdates`. _(2026-11-16)_
+- `creaServer` apre da solo `aiuti-affidati.json` in `archivio.cartella/servizio`: per provare gli affidati basta scrivere quel file prima. _(2026-11-16)_
+- `StatoScheda` usa 'lavora', `ChatGovernata` usa 'lavoro': nei test di panoramica il typecheck rifiuta la forma sbagliata, mentre vitest la lascia passare. _(2026-11-16)_
 
 ## worktree
 
@@ -338,6 +340,7 @@
 - «rispondi» a una domanda usa ancora l'attesa di 3 s (autopilot-client.ts:411-415): la 0.95.5 ha alzato a 30 s solo il dialogo. Ogni POST che scrive deve passare attesaScrittura. _(2026-11-10)_
 - Dalla 0.101.0 telefono, pagina e Telegram leggono lo stesso registro degli avvisi (`src/main/avvisi.ts`, `/api/eventi`): una regola su quando avvisare va lì, non nelle schermate; `avvisi=0` vuol dire «da capo» e l’attesa deve svegliarsi per ogni avviso nato dopo. _(2026-11-11)_
 - `dati += buffer` e `buffer.toString()` per pezzo spezzano i caratteri multibyte (U+FFFD): usare StringDecoder o setEncoding('utf8') su ogni lettura a pezzi. _(2026-11-14)_
+- `percentuale` per i lavori ospitati è inventata (10 + minuti): non mostrare una barra senza una stima vera. _(2026-11-16)_
 
 ## registro
 
@@ -396,6 +399,7 @@
 - un autopilota letto da un altro PC con altra versione può non avere campi array: leggerli sempre con `Array.isArray(...)`. _(2026-11-13)_
 - pauseAiuti (src/shared/aiuto-esito.ts) esclude un PC dopo un solo fallimento per accesso; il fallimento in sé è il segnale per l'utente, non un difetto. _(2026-11-14)_
 - Se un PC è raggiunto da tutti ma non raggiunge nessuno (anche la posta fa `fetch failed`), la causa è la sua rete in uscita o Tailscale, non gli indirizzi pubblicati. _(2026-11-15)_
+- il registro eventi-aiuto.json lo scrive il PC che affida: sull'Aiutante resta vuoto finché qualcuno non registra lì i passaggi. _(2026-11-16)_
 
 ## cancello
 
@@ -553,6 +557,7 @@
 - `execFile` con timeout imposta `err.killed`: da distinguere da «non installato», altrimenti un PC occupato sembra senza npm. _(2026-11-16)_
 - un lavoro in ricezione conta già nei posti: per decidere se accodare in `avvia` si confronta inCorso > tetto, non liberi <= 0 _(2026-11-16)_
 - lo stato 'in-coda' non è terminale: `segui` dello spedizioniere lo tratta come un normale aggiornamento di attività, senza modifiche _(2026-11-16)_
+- la finestra dell'Aiutante è HTML+TS senza React: la logica va in moduli puri sotto src/aiutante/, testabili senza DOM; lo stato passa da statoCompleto() in index.ts. _(2026-11-16)_
 
 ## blocco
 
@@ -561,3 +566,15 @@
 ## editor
 
 - con Edit, un `old_string` che finisce con uno spazio può perderlo nella sostituzione: rileggere la riga se il typecheck dà errori JSX. _(2026-11-16)_
+
+## menu
+
+- Gli affidati ad altri PC stanno solo in `aiuti-affidati.json` (non in `orchestratore.stato`): ogni vista che filtra `s.pc === undefined` li perde. _(2026-11-16)_
+
+## panoramica
+
+- le fonti di «Al lavoro» (riquadri, specialisti dell'autopilota, lavori affidati) non coincidono: lo stesso lavoro compare in una vista e manca nell'altra. _(2026-11-16)_
+
+## shared
+
+- `statoVero` in specialisti.ts restituisce una stringa libera, quindi `PAROLE` va indicizzata con stringhe e deve avere la voce 'ferma'. _(2026-11-16)_
