@@ -339,7 +339,9 @@ export function pianoAutopilota(a: Autopilota): CompitoPiano[] {
     for (const c of ultimaPerTesto.values()) {
       const giri = c.rifacimenti !== undefined && c.rifacimenti > 0 ? { giri: c.rifacimenti } : {}
       const base = { id: c.id, testo: c.compito, ...giri }
-      if (c.stato !== 'finita') {
+      // Unita (`conclusa`), chiusa (`fine`) o al recupero: finita anche se lo stato dice ancora «lavoro».
+      const chiusa = c.conclusa !== undefined || c.fine !== undefined || c.nelRecupero !== undefined
+      if (c.stato !== 'finita' && !chiusa) {
         fuori.push({
           ...base, fase: 'in-corso', ...(c.ruolo !== undefined ? { ruolo: c.ruolo } : {}), ...(c.sessionId !== undefined ? { sessione: c.sessionId } : {}),
           ...(c.stato === 'bloccata' ? { nota: 'aspetta una risposta' } : c.stato === 'pausa' ? { nota: 'in pausa' } : {})
@@ -347,7 +349,7 @@ export function pianoAutopilota(a: Autopilota): CompitoPiano[] {
         continue
       }
       const conRevisione = c.ruolo !== undefined && RUOLI[c.ruolo].conRevisione
-      if (a.stato === 'finito' || c.approvata === true || !conRevisione) {
+      if (a.stato === 'finito' || c.approvata === true || !conRevisione || chiusa) {
         fuori.push({ ...base, fase: 'fatto', ...(c.ruolo !== undefined ? { ruolo: c.ruolo } : {}), ...(c.sessionId !== undefined ? { sessione: c.sessionId } : {}) })
         continue
       }

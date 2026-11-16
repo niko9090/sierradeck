@@ -926,11 +926,18 @@ export function conStatiDatati(a: Autopilota, prima: Autopilota | undefined, ade
   return cambiato ? { ...a, chats } : a
 }
 
+type ChatViva = Pick<ChatGovernata, 'stato' | 'fine' | 'conclusa' | 'nelRecupero'>
+
+/** Una chat è viva se non è finita, chiusa (`fine`), unita (`conclusa`) né al recupero: un solo criterio per tutti. */
+export function chatInVita(c: ChatViva): boolean {
+  return c.stato !== 'finita' && c.fine === undefined && c.conclusa === undefined && c.nelRecupero === undefined
+}
+
 /**
  * Una chat governata è al lavoro solo se il suo autopilota gira (0.80.0). Con
  * l'autopilota fermo la chat resta segnata «lavoro» nel suo stato, ma non fa
  * niente: la tabella diceva «2 · 1 al lavoro» accanto a «fermo».
  */
-export function chatAlLavoro(a: Pick<Autopilota, 'stato'>, c: Pick<ChatGovernata, 'stato'>): boolean {
-  return c.stato === 'lavoro' && (a.stato === 'lavoro' || a.stato === 'attesa' || a.stato === 'intervista')
+export function chatAlLavoro(a: Pick<Autopilota, 'stato'>, c: ChatViva): boolean {
+  return chatInVita(c) && c.stato === 'lavoro' && (a.stato === 'lavoro' || a.stato === 'attesa' || a.stato === 'intervista')
 }

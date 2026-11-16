@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import {
-  idChatNuova, nuovoAutopilota,
+  chatInVita, idChatNuova, nuovoAutopilota,
   type Autopilota, type ChatAdottata, type ChatGovernata, type MessaggioAdottata, type MessaggioPerLaChat
 } from '@shared/autopilota'
 import { aggiungi, chiaveWorkspace, type Coda, type EventoCoda, type Modifica } from '@shared/coda-richieste'
@@ -106,7 +106,7 @@ export type EsitoPassaggio = {
 }
 
 /** La chat è viva: non finita, non in chiusura, non conclusa. */
-export const viva = (c: ChatGovernata): boolean => c.stato !== 'finita' && c.fine === undefined && c.conclusa === undefined && c.nelRecupero === undefined
+export const viva = (c: ChatGovernata): boolean => chatInVita(c)
 
 /** Un autopilota «a chat sola» con la sua chat accesa: la chat è lui. */
 const chatSola = (a: Autopilota): boolean => a.chats.length === 0 && a.sessionId !== undefined && (a.stato === 'lavoro' || a.stato === 'attesa')

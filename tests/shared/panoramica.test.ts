@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  daQuanto, gruppoStabile, numeraUguali, LARGHEZZA_FISSA, LARGHEZZA_LINGUETTA, linguetteVisibili, ordinaSchede, riassuntoAutopilota, righeDalVivo,
+  daQuanto, gruppoStabile, numeraUguali, LARGHEZZA_FISSA, LARGHEZZA_LINGUETTA, linguetteVisibili, ordinaSchede, pianoAutopilota, riassuntoAutopilota, righeDalVivo,
   type SchedaChat
 } from '@shared/panoramica'
 import { nuovoAutopilota } from '@shared/autopilota'
@@ -137,6 +137,25 @@ describe('0.77.0: la cornice tagliata con «…» non è una riga dal vivo', () 
   it('«────…» e «───_» spariscono', async () => {
     const { righeDalVivo } = await import('@shared/panoramica')
     expect(righeDalVivo(['● fatto', '──────────────…', '─────────────_'])).toEqual(['● fatto'])
+  })
+})
+
+describe('pianoAutopilota: chat chiuse di un autopilota finito', () => {
+  it('una chat «lavoro» ma conclusa, con l\'autopilota finito, va in «fatto»', () => {
+    const base = nuovoAutopilota({ id: 'ap-1', nome: 'N', obiettivo: 'Fai X', cwd: 'C:\\p', iniziatoIl: '2026-11-01T08:00:00.000Z' })
+    const a = {
+      ...base,
+      stato: 'finito' as const,
+      chats: [{ id: 'c-1', compito: 'k-1 Fai X', stato: 'lavoro' as const, cicli: 0, conclusa: { il: '2026-11-01T09:00:00.000Z', come: 'unito' as const } }]
+    }
+    const piano = pianoAutopilota(a)
+    expect(piano).toHaveLength(1)
+    expect(piano[0]?.fase).toBe('fatto')
+  })
+  it('conclusa, anche con l\'autopilota ancora al lavoro, non resta «in corso»', () => {
+    const base = nuovoAutopilota({ id: 'ap-1', nome: 'N', obiettivo: 'Fai X', cwd: 'C:\\p', iniziatoIl: '2026-11-01T08:00:00.000Z' })
+    const a = { ...base, stato: 'lavoro' as const, chats: [{ id: 'c-1', compito: 'k-1 Fai X', stato: 'lavoro' as const, cicli: 0, conclusa: { il: '2026-11-01T09:00:00.000Z', come: 'unito' as const } }] }
+    expect(pianoAutopilota(a)[0]?.fase).toBe('fatto')
   })
 })
 
