@@ -1,4 +1,5 @@
 import { annotaEliminato, annotaRinominato } from './workspace-ritrova'
+import { leggiConWorkspace, wsCodaScrittura } from './ws-coda'
 import { elencoRecuperoWorkspace, mettiWorkspaceNelRecupero, recuperoLeggibile, ripristinaWorkspace } from './workspace-recupero-file'
 import { leggiRecentiWorkspace, rinominaRecenteWorkspace, toccaRecenteWorkspace } from './workspace-recenti-file'
 import { rinominaSuPc, togliSuPc } from './workspace-su-pc-file'
@@ -1656,16 +1657,12 @@ export function registerAutopilotaIpc(client: ClientAutopilota, log?: (m: string
   ipcMain.handle('autopilota:postiChat', async () => client.postiChat().catch(() => undefined))
   // P1: la coda delle richieste del workspace. Il workspace è un nome (o «cartella:<percorso>»
   // per gli autopiloti nati prima del campo), la richiesta `r-N`.
-  const wsCoda = (ws: unknown): string => {
-    // eslint-disable-next-line no-control-regex
-    if (typeof ws !== 'string' || ws.trim() === '' || ws.length > 1000 || /[\u0000-\u001f\u007f]/.test(ws)) throw new Error('richiesta IPC non valida')
-    return ws.trim()
-  }
+  const wsCoda = wsCodaScrittura
   const idRichiesta = (id: unknown): string => {
     if (typeof id !== 'string' || !/^r-\d{1,9}$/.test(id)) throw new Error('richiesta IPC non valida')
     return id
   }
-  ipcMain.handle('autopilota:coda', async (_e, ws: unknown) => client.coda(wsCoda(ws)))
+  ipcMain.handle('autopilota:coda', async (_e, ws: unknown) => leggiConWorkspace(ws, (w) => client.coda(w)))
   ipcMain.handle('autopilota:codaSepara', async (_e, ws: unknown, id: unknown) => client.separaCoda(wsCoda(ws), idRichiesta(id)))
   ipcMain.handle('autopilota:codaUnisci', async (_e, ws: unknown, u: unknown) => {
     const o = (typeof u === 'object' && u !== null ? u : {}) as Record<string, unknown>
@@ -1687,8 +1684,8 @@ export function registerAutopilotaIpc(client: ClientAutopilota, log?: (m: string
   })
   // P3: l'autopilota del workspace (dal 30/10 l'unico, sempre acceso).
   ipcMain.handle('modelli:elenco', () => elencoModelliVivo())
-  ipcMain.handle('autopilota:orchestratore', async (_e, ws: unknown) => client.orchestratore(wsCoda(ws)).catch(() => undefined))
-  ipcMain.handle('autopilota:specialista', async (_e, ws: unknown, id: unknown) => (typeof id === 'string' && id !== '' ? client.specialista(wsCoda(ws), id).catch(() => undefined) : undefined))
+  ipcMain.handle('autopilota:orchestratore', async (_e, ws: unknown) => leggiConWorkspace(ws, (w) => client.orchestratore(w)))
+  ipcMain.handle('autopilota:specialista', async (_e, ws: unknown, id: unknown) => (typeof id === 'string' && id !== '' ? leggiConWorkspace(ws, (w) => client.specialista(w, id)) : undefined))
   // k-48: la lista d'attesa degli specialisti: la vista, la priorità di una voce, togliere una voce.
   ipcMain.handle('autopilota:attesaSpecialisti', async () => client.attesaSpecialisti().catch(() => undefined))
   ipcMain.handle('autopilota:prioritaAttesa', async (_e, id: unknown, mossa: unknown) => (typeof id === 'string' && id !== '' && id.length <= 100 && (mossa === 'su' || mossa === 'giu' || mossa === 'cima' || mossa === 'ferma') ? client.prioritaAttesa(id, mossa).catch(() => undefined) : undefined))
