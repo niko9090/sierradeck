@@ -241,6 +241,7 @@
 ## ui
 
 - il pannello «Altri computer» è `AltriComputer` in PannelloAccount.tsx (mostrato in Salute) e legge i battiti da `posta:pc`; la versione viva va chiesta a parte. _(2026-11-08)_
+- «Nessuno al lavoro» in PannelloSpecialisti riguarda i posti di questo PC (VistaAttesa), non la Panoramica: gli affidati non occupano posti qui. _(2026-11-16)_
 
 ## salute
 
@@ -574,6 +575,7 @@
 ## panoramica
 
 - le fonti di «Al lavoro» (riquadri, specialisti dell'autopilota, lavori affidati) non coincidono: lo stesso lavoro compare in una vista e manca nell'altra. _(2026-11-16)_
+- la vista dell'autopilota (VistaOrchestratore) è l'unica fonte che conosce gli specialisti affidati a un altro PC (campo pc): niente riquadro, niente chat locale. _(2026-11-16)_
 
 ## shared
 
