@@ -487,7 +487,7 @@ export function riassuntoAlLavoro(
  */
 export function numeraUguali<T extends SchedaChat>(schede: readonly T[]): T[] {
   // Uguali per come si vedono: i primi 40 caratteri (titoli diversi solo in fondo, tagliati dal «…», sembravano uguali).
-  const inizio = (t: string): string => t.replace(/s+/g, ' ').trim().slice(0, 40).toLowerCase()
+  const inizio = (t: string): string => t.replace(/\s+/g, ' ').trim().slice(0, 40).toLowerCase()
   const conti = new Map<string, number>()
   const numero = new Map<string, number>()
   for (const s of [...schede].sort(confrontaFisso)) {

@@ -46,8 +46,9 @@ export type Specialisti = {
   elenco: Specialista[]
 }
 
-const PAROLE: Record<ChatGovernata['stato'], string> = {
+const PAROLE: Record<string, string> = {
   lavoro: 'al lavoro',
+  ferma: 'ferma',
   bloccata: 'aspetta una risposta',
   pausa: 'in pausa per i limiti del piano',
   finita: 'finita'
@@ -106,8 +107,8 @@ export function specialistiDi(a: Autopilota, ora?: number): Specialisti {
         ruolo: c.ruolo !== undefined ? RUOLI[c.ruolo].nome : 'Chat',
         colore: c.ruolo !== undefined ? RUOLI[c.ruolo].colore : 'quieto',
         compito: c.compito,
-        stato: PAROLE[c.stato] ?? c.stato,
-        attivo: c.stato === 'lavoro',
+        stato: PAROLE[statoVero(a, c)] ?? statoVero(a, c),
+        attivo: statoVero(a, c) === 'lavoro',
         ultimaAzione: c.ultimaAzione ?? '',
         attivita: attivitaDi(c.ruolo, statoVero(a, c)),
         cosa: cosaFaChat(c, a.chats, c.stato === 'finita' || a.stato === 'finito'),

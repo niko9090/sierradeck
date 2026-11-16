@@ -107,4 +107,13 @@ describe('0.76.0: lo stesso ordine in ogni workspace', () => {
     expect(specialistiDi(ap({ stato: 'lavoro', sessionId: 's-0' })).elenco[0]).toMatchObject({ attivita: 'sviluppo', cosa: 'lavora all’obiettivo' })
     expect(specialistiDi(ap({ stato: 'attesa', sessionId: 's-0' })).elenco[0]?.attivita).toBe('aspetta')
   })
+
+  it('con l’autopilota fermo la parola e «attivo» dicono la stessa cosa del colore: ferma', () => {
+    const chats = [{ id: 'c-2', compito: 'x', stato: 'lavoro' as const, cicli: 1, ruolo: 'collaudo' as const }]
+    for (const stato of ['sospeso', 'fallito'] as const) {
+      expect(specialistiDi(ap({ stato, chats })).elenco[0]).toMatchObject({ stato: 'ferma', attivo: false, attivita: 'ferma' })
+    }
+    expect(specialistiDi(ap({ stato: 'lavoro', chats })).elenco[0]).toMatchObject({ stato: 'al lavoro', attivo: true })
+    expect(specialistiDi(ap({ stato: 'finito', chats })).elenco[0]).toMatchObject({ stato: 'finita', attivo: false })
+  })
 })
