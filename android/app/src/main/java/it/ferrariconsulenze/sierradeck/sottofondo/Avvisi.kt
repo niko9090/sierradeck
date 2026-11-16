@@ -94,6 +94,12 @@ object Avvisi {
     /** Se l'avviso di adesso deve suonare: no se l'ultimo ha suonato da poco (2.80.0). */
     fun suona(ultimoSuono: Long?, adesso: Long): Boolean = ultimoSuono == null || adesso - ultimoSuono >= VICINI_MS
 
+    /** La decisione di un avviso del giro: se suona, e il nuovo «ultimo suono» da ricordare. */
+    fun decidiSuono(ultimoSuono: Long?, adesso: Long): Pair<Boolean, Long?> {
+        val s = suona(ultimoSuono, adesso)
+        return s to (if (s) adesso else ultimoSuono)
+    }
+
     /**
      * Cosa annunciare, dato lo stato del computer e ciò che si è già detto.
      *
