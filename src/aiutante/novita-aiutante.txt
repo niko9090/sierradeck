@@ -3,6 +3,8 @@ cima). Dal 13/11 l'Aiutante esce allegato alla release del programma
 completo (scripts/allega-aiutante.mjs, dentro npm run pubblica).
 Ogni riga fra apici singoli; dentro, un apice si scrive \'.
 
+versione: '1.2.0'
+  'Gli aggiornamenti si installano davanti a te: invece di chiudersi e riaprirsi in silenzio, l\'Aiutante mostra chiusura, installazione e riapertura nella finestra in basso a destra, con le novità.'
 versione: '1.1.0'
   '«Collega Claude per un anno»: si apre una finestra, approvi nel browser e l\'Aiutante salva da solo un accesso a Claude che vale un anno (cifrato). Niente più lavori fermi per il login scaduto; due settimane prima della scadenza il tasto torna.',
   'Rifatto il login o rinnovato l\'accesso, l\'Aiutante ricontrolla Claude subito invece che fra mezz\'ora.',

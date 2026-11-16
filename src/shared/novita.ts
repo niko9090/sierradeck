@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.109.0',
+    righe: [
+      '**Aggiornamento tutto nella finestra in basso a destra:** mentre il programma è chiuso per installarsi, la finestra di installazione nasce nello stesso angolo e della stessa misura di quella degli aggiornamenti, con lo stesso aspetto: passi spuntati uno per uno, barra, «Cosa cambia». Niente più al centro dello schermo. Si toglie da sola quando SierraDeck è di nuovo aperto.',
+      '**Anche l’Aiutante:** invece di chiudersi e riaprirsi in silenzio, mostra chiusura, installazione e riapertura nella stessa finestra.',
+      '**Rete dei PC ad albero:** questo PC in cima, sotto i PC con SierraDeck e gli Aiutanti, con acceso o spento, versione, collegamento, ultimo segno, chat o lavori, carico e l’aggiornamento a distanza (con «Aggiorna da remoto»). Si apre da «Altri PC» → «Rete ad albero» e da Salute → Strumenti.',
+    ],
+  },
+  {
     versione: '0.108.0',
     righe: [
       '**Accesso a Claude per un anno:** «Rinnova l’accesso a Claude» (Impostazioni, avviso in alto, tasto nella chat; nell’Aiutante «Collega Claude per un anno») apre una finestra: approvi nel browser e il programma salva da solo un accesso che vale un anno, cifrato. Tutte le chat lo usano, niente più chat ferme per il login scaduto.',
