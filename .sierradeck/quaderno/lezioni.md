@@ -46,6 +46,8 @@
 - `StatoScheda` usa 'lavora', `ChatGovernata` usa 'lavoro': nei test di panoramica il typecheck rifiuta la forma sbagliata, mentre vitest la lascia passare. _(2026-11-16)_
 - A parità di posti `scegliAltroPc` ordina per `pcId`: nei test con più PC liberi si sceglie quello che viene prima alfabeticamente, non quello scritto per primo. _(2026-11-16)_
 - i lavori ospitati passano solo dal lavoratore Aiuta la rete: per testarli senza server estrarre la logica in una funzione pura (vista-ospitati.ts) _(2026-11-16)_
+- prima di creare un file di test controllare che il nome non esista già: Write sovrascrive in silenzio (tests/shared/stato-vero-autopilota.test.ts c'era già) _(2026-11-16)_
+- `StatoScheda` usa 'lavora', `ChatGovernata` usa 'lavoro': nei test del Piano usare `as const` sulla forma giusta o il typecheck rifiuta. _(2026-11-16)_
 
 ## worktree
 
@@ -82,6 +84,7 @@
 - `testDebugUnitTest --rerun` da zero costa circa 6 minuti con la compilazione: tenerne conto nei timeout del cancello. _(2026-11-14)_
 - Se il cancello taglia l'errore Gradle, il blocco «What went wrong» completo sta in C:\Users\nikof\.gradle\daemon\8.11.1\daemon-*.out.log: cercarlo lì prima di provare a riprodurre. _(2026-11-14)_
 - Su Windows due gradle sulla stessa android/app/build si pestano (output.bin aperto, lookups.tab): fallisce quello che arriva dopo. Il fallimento non lascia <failure> né hs_err. _(2026-11-14)_
+- Nella cartella android non c'è gradlew: i test partono con `gradle testDebugUnitTest --offline` (Gradle 8.11.1 in PATH, JAVA_HOME su JDK 21); il primo giro dura circa 4 minuti. _(2026-11-16)_
 
 ## release
 
@@ -609,3 +612,11 @@
 ## errori-arrivati
 
 - il dato `affidati` ha solo data e versione, non l'esito della chiusura: «si ripresenta» non può distinguere correzione fallita da azione a mano non fatta. _(2026-11-16)_
+
+## vista
+
+- un tono nuovo di fraseStatoOrchestratore va mappato in 4 posti: autopiloti-vista, stato-telefono, COLORE_TONO di client-pagina e Android (ignoto = riposo grigio) _(2026-11-16)_
+
+## codice
+
+- `chatViva` esiste già in `autopilota-telefono.ts` (senza `nelRecupero`): quello condiviso è `chatInVita` in `autopilota.ts`; non confonderli. _(2026-11-16)_
