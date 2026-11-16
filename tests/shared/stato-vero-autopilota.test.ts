@@ -63,4 +63,30 @@ describe('l’elenco degli autopiloti non dice «al lavoro» a vuoto', () => {
   it('senza il segno (servizio di prima): come prima', () => {
     expect(vistaAutopilota(ap(), ora).stato.id).toBe('al-lavoro')
   })
+
+  // k-s7: «In attesa: unioni in fila» non è finito; una lettura fallita non è «al lavoro».
+  it('«In attesa: unioni in fila», anche col vecchio tono riposo, non è finito né nei finiti', () => {
+    const v = vistaAutopilota(ap({ testo: 'In attesa: 1 unione in fila, ripartono da sole', tono: 'riposo' }), ora)
+    expect(v.stato.id).not.toBe('finito')
+    expect(v.gruppi).not.toContain('finiti')
+    expect(v.gruppi).toContain('lavoro')
+  })
+  it('il tono esplicito «attesa»: blu, nel lavoro, e la frase del PC lo dà', () => {
+    const f = fraseStatoOrchestratore({ ...base, richieste: { aperte: 0, daPianificare: 0 }, inCorso: { inFila: 1 } } as never, ORA)
+    expect(f.tono).toBe('attesa')
+    const v = vistaAutopilota(ap(f), ora)
+    expect(v.stato).toMatchObject({ id: 'in-attesa', colore: 'blu' })
+    expect(v.gruppi).toEqual(['lavoro'])
+    expect(fraseAdesso({ ...base, richieste: { aperte: 0, daPianificare: 0 }, inCorso: { inFila: 1 } } as never).tono).toBe('attesa')
+  })
+  it('un riposo vero (niente da fare) resta «a riposo»', () => {
+    expect(vistaAutopilota(ap({ testo: 'Niente da fare: tutte le richieste sono chiuse', tono: 'riposo' }), ora).stato.id).toBe('finito')
+  })
+  it('con la lettura fallita non dice «al lavoro»', () => {
+    const rotta = { ...ap(), vistaErrore: true } as Autopilota & { vistaErrore: boolean }
+    const v = vistaAutopilota(rotta, ora)
+    expect(v.stato.id).not.toBe('al-lavoro')
+    expect(v.stato).toMatchObject({ id: 'illeggibile', colore: 'ambra' })
+    expect(v.gruppi).not.toContain('lavoro')
+  })
 })

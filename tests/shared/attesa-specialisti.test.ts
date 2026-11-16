@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
   PRENOTAZIONE_MS, RIPOSO_MASSIMO_MS, SVEGLIE_MAX, aRiposo, assegna, attesaVuota, cambiaPriorita, chiaveRichiesta, compitoDi, inFila, ordinate, passo, riposoDopo, rivedi, scadute, togliVoce,
-  type RichiestaSpecialista, type StatoAttesa
+  type RichiestaSpecialista, type StatoAttesa, type VistaAttesa
 } from '@shared/attesa-specialisti'
+import { menuSpecialisti } from '@shared/menu-specialisti'
 
 /**
  * k-48: la lista d'attesa degli specialisti, pura. Il tempo è un numero che
@@ -25,6 +26,22 @@ function arriva(s: StatoAttesa, r: RichiestaSpecialista, liberi: number, adesso:
 
 /** Il compito di ogni voce, in ordine di fila. */
 const fila = (s: StatoAttesa, adesso = T0): Array<string | undefined> => inFila(s, adesso).map((v) => v.compito)
+
+describe('lavori di un altro PC senza stima (k-s4)', () => {
+  it('la vista ammette un lavoro senza percentuale e il menu non disegna la barra', () => {
+    const vista: VistaAttesa = {
+      posti: { usati: 0, tetto: 3 },
+      alLavoro: [{
+        posto: 1, id: 'r0000000000c1', workspace: 'Lavoro', descrizione: 'k-1: prova', tipo: 'sviluppatore',
+        dal: '2026-11-06T06:30:00.000Z', suPc: 'PORTATILE-PROVA'
+      }],
+      inFila: []
+    }
+    const m = menuSpecialisti(vista, ['Lavoro'])
+    expect(m.lavorano).toHaveLength(1)
+    expect(m.lavorano[0]!.percentuale).toBeUndefined()
+  })
+})
 
 describe('lista d’attesa degli specialisti (k-48)', () => {
   it('riconosce il compito dalla descrizione, e non scambia una parola qualunque per un compito', () => {

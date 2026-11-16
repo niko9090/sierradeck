@@ -66,6 +66,8 @@ describe('la lista d’attesa conta i lavori affidati ad altri PC', () => {
     expect(v.alLavoro.map((x) => x.id).sort()).toEqual(['r0000000000a1', 'r0000000000a2'])
     expect(v.alLavoro.every((x) => x.suPc === 'PORTATILE-PROVA')).toBe(true)
     expect(v.posti.usati).toBe(0)
+    // Nessuna stima vera dall'altro PC: niente percentuale inventata (10 + minuti).
+    expect(v.alLavoro.every((x) => x.percentuale === undefined)).toBe(true)
     const m = menuSpecialisti(v, ['Lavoro'])
     expect(m.etichetta).toBe('Specialisti 2')
     expect(m.lavorano.every((r) => r.corrente && r.suPc === 'PORTATILE-PROVA')).toBe(true)

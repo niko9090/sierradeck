@@ -100,7 +100,7 @@ describe('la frase di stato è coerente con quello che lavora', () => {
     expect(fraseAdesso({ ...base, inCorso: { unione: 'k-2', fase: 'prova', inFila: 1 } }).testo).toBe('Al lavoro: il programma prova e unisce k-2')
   })
   it('unioni in fila che ripartono da sole: in attesa, non fermo', () => {
-    expect(fraseStatoOrchestratore({ ...base, inCorso: { inFila: 1 } })).toEqual({ testo: 'In attesa: 1 unione in fila, ripartono da sole', tono: 'riposo' })
+    expect(fraseStatoOrchestratore({ ...base, inCorso: { inFila: 1 } })).toEqual({ testo: 'In attesa: 1 unione in fila, ripartono da sole', tono: 'attesa' })
   })
   it('fermo davvero: non chiede più a Nicholas di scrivere «vai avanti»', () => {
     const f = fraseStatoOrchestratore(base)

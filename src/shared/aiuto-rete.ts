@@ -156,7 +156,7 @@ export function modelloAiuto(x: unknown): string {
 }
 
 /** 12/11: un lavoro di un altro PC che gira qui, per l'elenco «Al lavoro adesso» di questo PC. */
-export type LavoroOspitato = { id: string; stato: StatoAiuto; ruolo: string; descrizione: string; perPc: string; inizio: string; attivita?: string; /** In coda: da 1 (il prossimo). */ posizione?: number }
+export type LavoroOspitato = { id: string; stato: StatoAiuto; ruolo: string; descrizione: string; perPc: string; inizio: string; attivita?: string; /** In coda: da 1 (il prossimo). */ posizione?: number; /** Un avanzamento vero (0-100), se chi ospita lo sa; altrimenti assente: nessuna stima inventata. */ percentuale?: number }
 
 /** Come sta un lavoro, dal lato di chi aiuta. */
 export type StatoAiuto = 'ricevo' | 'in-coda' | 'preparo' | 'lavoro' | 'finito' | 'fallito' | 'fermato'
@@ -194,6 +194,8 @@ export type LavoroAffidato = {
   strumenti: string[]
   /** 16/11: risorse dichiarate esplicitamente (cartelle, percorsi di rete, programmi, variabili); quelle nominate nel messaggio si ricavano alla spedizione. */
   risorse?: Risorsa[]
+  /** Un avanzamento vero (0-100) riferito dall'altro PC, se c'è; altrimenti assente. */
+  percentuale?: number
   /** da-spedire → spedito (là lavora) → finito / fallito. */
   stato: 'da-spedire' | 'spedito' | 'finito' | 'fallito'
   inizio: string

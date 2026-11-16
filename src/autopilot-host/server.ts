@@ -1018,13 +1018,16 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // sono al lavoro»): l'autopilota unico è sempre «lavoro», quindi ogni vista diceva «al lavoro».
     // Qui la verità, dalla vista dell'orchestratore: chi lavora, chi pensa, domande, pausa, fermo.
     let adesso: { testo: string; tono: string } | undefined
+    let vistaErrore = false
     if (a.stato === 'lavoro') {
-      try { adesso = fraseStatoOrchestratore(servizio().vista(chiaveWorkspace(a))) } catch { adesso = undefined }
+      // Se la lettura fallisce lo si dice (`vistaErrore`): senza `adesso` un servizio di prima resta «al lavoro», questo no.
+      try { adesso = fraseStatoOrchestratore(servizio().vista(chiaveWorkspace(a))) } catch { adesso = undefined; vistaErrore = true }
     }
     const conVeri = {
       ...(Object.keys(segniVeri).length > 0 ? { segniVeri } : {}),
       ...(pcCarico !== undefined ? { pcCarico } : {}),
-      ...(adesso !== undefined ? { adesso } : {})
+      ...(adesso !== undefined ? { adesso } : {}),
+      ...(vistaErrore ? { vistaErrore } : {})
     }
     if (segni.length === 0) return { segniDal, ...conVeri }
     const segniChat: Record<string, string> = {}
