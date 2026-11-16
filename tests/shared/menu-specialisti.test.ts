@@ -14,6 +14,23 @@ const vista: VistaMenu = {
   totale: { minuti: 75, compiti: 4 }
 }
 
+describe('menuSpecialisti: altri PC e unione (16/11)', () => {
+  it('chi lavora su un altro PC conta e porta il nome del PC', () => {
+    const m = menuSpecialisti({ alLavoro: [{ id: 'x1', workspace: 'Mio', descrizione: 'prova', suPc: 'PC-PROVA' }], inFila: [] }, ['Mio'])
+    expect(m.etichetta).toBe('Specialisti 1')
+    expect(m.lavorano[0]).toMatchObject({ suPc: 'PC-PROVA', corrente: true })
+  })
+  it('i lavori in prova e unione dal programma stanno in una lista a parte e contano nel tasto', () => {
+    const m = menuSpecialisti({ alLavoro: [], inFila: [], inUnione: [{ id: 'u1', workspace: 'C:\\Lavori\\Mio', titolo: 'La barra', inCorso: true }, { id: 'u2', workspace: 'C:\\Lavori\\Altro' }] }, ['C:\\Lavori\\Mio'])
+    expect(m.etichetta).toBe('Specialisti 0 · 2 in unione')
+    expect(m.inUnione[0]).toMatchObject({ titolo: 'La barra', corrente: true, altroWorkspace: '', inCorso: true })
+    expect(m.inUnione[1]).toMatchObject({ titolo: 'lavoro finito', corrente: false, altroWorkspace: 'Altro', inCorso: false })
+  })
+  it('«nessuno» solo se non c’è davvero nessuno', () => {
+    expect(menuSpecialisti({ alLavoro: [], inFila: [], inUnione: [] }, []).etichetta).toBe('Specialisti · nessuno')
+  })
+})
+
 describe('menuSpecialisti', () => {
   const m = menuSpecialisti(vista, ['cartella:c:\\lavori\\mio', 'C:\\Lavori\\Mio'])
 
