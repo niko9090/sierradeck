@@ -466,6 +466,7 @@
 - in errori-arrivati.md il testo esatto va controllato prima di un Edit: «la porta 47640» non è «e porta 47640», e l'ancora sbagliata fa fallire l'Edit. _(2026-11-16)_
 - «prossima versione» è corretto finché package.json resta indietro: controllare la versione prima di scrivere il numero. _(2026-11-16)_
 - errori-arrivati.md usa a capo CRLF: una voce aggiunta con Edit entra con LF e il file resta con a capo misti. _(2026-11-16)_
+- errori-arrivati.md è CRLF e le voci si accodano nello stesso punto: due rami che le aggiungono insieme vanno in conflitto, si risolve tenendole tutte e due. _(2026-11-16)_
 
 ## controllo-pc
 
@@ -491,6 +492,7 @@
 ## windows
 
 - path.relative fra dischi diversi dà un percorso assoluto, non '..': dopo relative controllare sempre isAbsolute _(2026-11-13)_
+- Per risolvere conflitti in file CRLF, con Edit gli a capo si rischiano: meglio PowerShell con regex `\r?\n` e verifica del conteggio CRLF. _(2026-11-16)_
 
 ## errori
 
