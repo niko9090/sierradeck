@@ -44,6 +44,7 @@
 - `avviaAggiornamenti` programma un primo controllo a 15 s: nei test con timer finti far passare prima quel tempo, poi contare i `checkForUpdates`. _(2026-11-16)_
 - `creaServer` apre da solo `aiuti-affidati.json` in `archivio.cartella/servizio`: per provare gli affidati basta scrivere quel file prima. _(2026-11-16)_
 - `StatoScheda` usa 'lavora', `ChatGovernata` usa 'lavoro': nei test di panoramica il typecheck rifiuta la forma sbagliata, mentre vitest la lascia passare. _(2026-11-16)_
+- A parità di posti `scegliAltroPc` ordina per `pcId`: nei test con più PC liberi si sceglie quello che viene prima alfabeticamente, non quello scritto per primo. _(2026-11-16)_
 
 ## worktree
 
@@ -547,6 +548,7 @@
 ## aiuto
 
 - creaSpedizioniere ha ora `avviso` oltre a `errore`: solo ProgettoNonSpedibile e i fallimenti dichiarati dal PC restano errori. _(2026-11-14)_
+- `eventi-aiuto.json` non era scritto da nessuno: `registraEventoAiuto` ora si chiama solo per `riassegnato` e `arreso`; mancano ancora `affidato`, `risorsa-mancante` e `rifiutato`. _(2026-11-16)_
 
 ## aiutante
 

@@ -32,13 +32,20 @@ export type RigaMenuSpecialisti = {
   fermaRichiesta: boolean
   /** 12/11: un lavoro di un altro PC che gira qui: il nome di quel PC, e niente tasti (lo segue chi l'ha chiesto). */
   perPc?: string
+  /** 16/11: un lavoro di questo workspace che gira su un altro PC: il nome di quel PC («su NOME-PC»), senza tasti. */
+  suPc?: string
 }
+
+/** 16/11: un lavoro finito che il programma sta provando e unendo. */
+export type RigaUnioneMenu = { id: string; titolo: string; altroWorkspace: string; corrente: boolean; inCorso: boolean }
 
 export type MenuSpecialisti = {
   /** Il testo del tasto: «Specialisti 2 · 1 in fila». */
   etichetta: string
   lavorano: RigaMenuSpecialisti[]
   inFila: RigaMenuSpecialisti[]
+  /** «In prova e unione dal programma». */
+  inUnione: RigaUnioneMenu[]
   /** «circa 45 min per finire tutto», o vuoto. */
   totale: string
 }
@@ -59,10 +66,12 @@ type VoceMenu = {
   parcheggiata?: true
   fermaRichiesta?: true
   perPc?: string
+  suPc?: string
 }
 
 export type VistaMenu = {
   alLavoro: VoceMenu[]
+  inUnione?: Array<{ id: string; workspace: string; workspaceNome?: string; titolo?: string; inCorso?: boolean }>
   inFila: VoceMenu[]
   totale?: { minuti: number; compiti: number }
 }
@@ -104,7 +113,8 @@ export function menuSpecialisti(vista: VistaMenu, riferimenti: string[]): MenuSp
       prenotata: v.prenotata === true,
       parcheggiata: v.parcheggiata === true,
       fermaRichiesta: v.fermaRichiesta === true,
-      ...(v.perPc !== undefined ? { perPc: v.perPc } : {})
+      ...(v.perPc !== undefined ? { perPc: v.perPc } : {}),
+      ...(v.suPc !== undefined ? { suPc: v.suPc } : {})
     }
     if (!inAttesa && v.percentuale !== undefined) r.percentuale = Math.max(0, Math.min(95, Math.round(v.percentuale)))
     if (inAttesa && v.posizione !== undefined) r.posizione = v.posizione
@@ -114,9 +124,19 @@ export function menuSpecialisti(vista: VistaMenu, riferimenti: string[]): MenuSp
   const tutti = vista.alLavoro.map((v) => riga(v, false))
   const lavorano = tutti.filter((x) => x.corrente).concat(tutti.filter((x) => !x.corrente))
   const inFila = vista.inFila.map((v) => riga(v, true))
-  const etichetta = lavorano.length === 0 && inFila.length === 0
+  const inUnione = (vista.inUnione !== undefined ? vista.inUnione : []).map((u) => {
+    const corrente = miei.indexOf(norma(u.workspace)) >= 0
+    return {
+      id: u.id,
+      titolo: corto(u.titolo !== undefined && u.titolo !== '' ? u.titolo : 'lavoro finito'),
+      altroWorkspace: corrente ? '' : (u.workspaceNome !== undefined && u.workspaceNome !== '' ? u.workspaceNome : nome(u.workspace)),
+      corrente,
+      inCorso: u.inCorso === true
+    }
+  })
+  const etichetta = lavorano.length === 0 && inFila.length === 0 && inUnione.length === 0
     ? 'Specialisti · nessuno'
-    : 'Specialisti ' + lavorano.length + (inFila.length > 0 ? ' · ' + inFila.length + ' in fila' : '')
+    : 'Specialisti ' + lavorano.length + (inFila.length > 0 ? ' · ' + inFila.length + ' in fila' : '') + (inUnione.length > 0 ? ' · ' + inUnione.length + ' in unione' : '')
   const totale = vista.totale !== undefined && vista.totale.compiti > 0 ? 'circa ' + durata(vista.totale.minuti) + ' per finire tutto' : ''
-  return { etichetta, lavorano, inFila, totale }
+  return { etichetta, lavorano, inFila, inUnione, totale }
 }

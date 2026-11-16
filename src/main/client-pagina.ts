@@ -5926,7 +5926,7 @@ function menuSpecHtml(a) {
     const misura = lavora && r.percentuale !== undefined
       ? '<div class="misura-riga">' + esc(r.percentuale) + '%</div><div class="barra"><i style="width:' + esc(r.percentuale) + '%"></i></div>' : ''
     const stato = esc(r.manca) + (r.inRitardo ? ' · <b>in ritardo</b>' : '') + (r.prenotata ? ' · <b>tocca a lui</b>' : '') + (r.parcheggiata ? ' · fermato, riparte per primo' : '') + (r.fermaRichiesta ? ' · <b>fermata chiesta…</b>' : '')
-    const tasti = lettura ? '' : r.perPc ? '<span class="sotto">per ' + esc(r.perPc) + '</span>' : menuSpecConferma === r.id
+    const tasti = lettura ? '' : r.suPc ? '<span class="sotto">su ' + esc(r.suPc) + '</span>' : r.perPc ? '<span class="sotto">per ' + esc(r.perPc) + '</span>' : menuSpecConferma === r.id
       ? '<span class="sotto">Lo fermo e lo metto in cima alla fila: il suo lavoro resta salvato.</span> <button data-id="' + esc(r.id) + '" data-m="ferma" onclick="menuSpecMossa(this)">Sì, ferma</button> <button onclick="menuSpecAnnulla()">No</button>'
       : '<button data-id="' + esc(r.id) + '" data-m="cima"' + (!lavora && r.posizione === 1 ? ' disabled' : '') + ' onclick="menuSpecMossa(this)">↑ Precedenza</button>' +
         (lavora && !r.fermaRichiesta ? '<button data-id="' + esc(r.id) + '" onclick="menuSpecFerma(this.dataset.id)">Ferma</button>' : '')
@@ -5940,6 +5940,8 @@ function menuSpecHtml(a) {
     (m.lavorano.length === 0 ? '<div class="sotto">Nessuno al lavoro</div>' : m.lavorano.map((r) => riga(r, true)).join('')) +
     '<div class="solco"></div><div class="titolo">In fila</div>' +
     (m.inFila.length === 0 ? '<div class="sotto">Nessuno in fila</div>' : m.inFila.map((r) => riga(r, false)).join('')) +
+    (m.inUnione.length === 0 ? '' : '<div class="solco"></div><div class="titolo">In prova e unione dal programma</div>' + m.inUnione.map((u) =>
+      '<div class="cartella"' + (u.corrente ? ' style="border-left:3px solid var(--ambra, #d9a441)"' : '') + '><div>' + esc(u.titolo) + (u.altroWorkspace ? ' <span class="sotto">· ' + esc(u.altroWorkspace) + '</span>' : '') + '</div><div class="sotto">' + (u.inCorso ? 'in prova adesso' : 'aspetta il suo turno') + '</div></div>').join('')) +
     (attesaNota ? '<div class="errore">' + esc(attesaNota) + '</div>' : '') +
     '<div class="riga"><span class="sotto">' + esc(m.totale) + '</span>' + (lettura ? '' : '<button onclick="menuSpecApri()">Apri Specialisti</button>') + '</div></div>'
 }

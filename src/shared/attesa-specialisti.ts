@@ -383,7 +383,11 @@ export type VistaAttesa = {
     fermaRichiesta?: true
     /** 12/11: un lavoro di un altro PC che gira qui (Aiuta la rete): il nome di quel PC. Niente «Ferma» né precedenze da qui. */
     perPc?: string
+    /** 16/11: un lavoro di questo workspace affidato a un altro PC (Aiuta la rete): il nome di quel PC. Conta come al lavoro, ma non tiene un posto qui. */
+    suPc?: string
   } & StimaVoce>
+  /** 16/11: i lavori finiti che il programma sta provando e unendo (in coda o in corso): non sono né al lavoro né in fila, ma non sono ancora chiusi. */
+  inUnione?: Array<{ id: string; workspace: string; workspaceNome: string; titolo: string; inCorso: boolean }>
   inFila: Array<{
     id: string
     posizione: number
