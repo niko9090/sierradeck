@@ -288,3 +288,9 @@ Già corretto nel commit c536fd60 (adessoDi regge un autopilota senza chats), pr
 Non è un difetto: è un caso atteso (su quel PC Claude non è collegato). Il difetto era nel trattamento: veniva scritto come errore a ogni avvio, e l etichetta «la correzione non è bastata» compariva a torto. Corretto nella prossima versione (la 0.109.0, probabilmente; package.json è ancora alla 0.108.0): ora è un avviso. Già in main (compito k-l2), test in tests/aiutante/controllo-claude-avviso.test.ts.
 A mano: collegare Claude su quel PC («Collega Claude» dalla finestra dell Aiutante).
 Nota: il rapporto del lotto (.sierradeck/errori-arrivati/lotto-20261116150451.md) non era leggibile dalla mia copia, quindi la voce descrive solo questo gruppo; se il lotto ne ha altri vanno aggiunti.
+
+# Errori arrivati (lotto 20261116155433)
+
+1 gruppo (renderer): «errore di render — TypeError: Cannot read properties of undefined (reading 'filter')», da `conversazione` chiamata da `ChatAutopilota` dentro `CorpoPanoramica` (0.108.0, 2 volte su un PC). Altri 3 errori visti solo su versioni più vecchie sono stati lasciati fuori dal rapporto.
+È un difetto vero. Causa: `conversazione(a)` chiamava `a.dialogo.filter(...)` senza controllare che l'elenco ci fosse; un autopilota arrivato con dati parziali, senza dialogo, decisioni o chat (da un altro PC o salvato da una versione vecchia), faceva rompere tutta la Panoramica.
+Corretto nella prossima versione (la versione in package.json è la 0.108.0, quindi probabilmente la 0.109.0): la correzione è già in main (k-m1), i campi che mancano si trattano come vuoti. Test: tests/shared/chat-autopilota-dati-parziali.test.ts. Nessuna azione a mano.
