@@ -143,6 +143,7 @@
 - 12/11: v0.101.1 uscita da clone (a2df43ce). Il .git del principale (config, refs/heads/main e refs/remotes/origin/main a zeri) è stato riparato il 12/11 col sì di Nicholas: config ricostruito, main da `logs/refs/heads/main`, `reset --mixed a2df43ce`, fsck pulito; le copie rotte sono in `.git/*.rovinato*`. Resta da togliere SierraDeck-rilascio-0101 (decide Nicholas). _(2026-11-12)_
 - Prima di una pubblicazione manuale controllare MERGE_HEAD e i file in stage nella cartella principale: il programma può avere un'unione a metà che blocca il rilascio per minuti. _(2026-11-14)_
 - Il `lezioni.md` modificato dal programma sporca la cartella, ma non ha fermato `pubblica-app`. _(2026-11-14)_
+- in questa copia `git fetch` può fallire se il remoto è un bundle sparito; `merge --ff-only main` basta _(2026-11-16)_
 
 ## autopilota
 
@@ -546,6 +547,8 @@
 - `aggiornamento.ts` classifica ogni errore come ERRORE: `eErroreDiRete` non è usato nell'Aiutante, quindi i passeggeri di rete arrivano agli errori arrivati. _(2026-11-16)_
 - con `shell:true` un comando mancante non dà ENOENT ma codice 1 con stderr «non riconosciuto/not recognized»: va letto lo stderr, non solo `err.code`. _(2026-11-16)_
 - `execFile` con timeout imposta `err.killed`: da distinguere da «non installato», altrimenti un PC occupato sembra senza npm. _(2026-11-16)_
+- un lavoro in ricezione conta già nei posti: per decidere se accodare in `avvia` si confronta inCorso > tetto, non liberi <= 0 _(2026-11-16)_
+- lo stato 'in-coda' non è terminale: `segui` dello spedizioniere lo tratta come un normale aggiornamento di attività, senza modifiche _(2026-11-16)_
 
 ## blocco
 
