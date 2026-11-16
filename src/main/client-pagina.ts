@@ -5857,7 +5857,12 @@ function attesaHtml() {
   const v = attesaVista
   const titolo = (x) => (x.compito ? '<b>' + esc(x.compito) + '</b> ' : '') + esc(x.titolo || x.descrizione)
   const nomeWs = (x) => '<div><b>' + esc(x.workspaceNome || nomeWorkspace(x.workspace)) + '</b>' + (x.parcheggiata ? ' <b>· parcheggiato</b>' : '') + '</div>'
-  const lavoro = v.alLavoro.length === 0 ? '<div class="sotto">Nessuno al lavoro</div>' : v.alLavoro.map((x) => {
+  const lavorano = v.alLavoro.filter((x) => !x.fase)
+  const inArrivo = v.alLavoro.filter((x) => x.fase).map((x) =>
+    '<div class="cartella">' + nomeWs(x) + '<div>' + titolo(x) + '</div>' +
+    (x.cosaFa ? '<div class="sotto">' + esc(x.cosaFa) + '</div>' : '') +
+    '<div class="sotto">' + esc(x.tipo) + ' · <b>' + (x.fase === 'in-arrivo' ? 'in arrivo' : 'in preparazione') + '</b>' + (x.perPc ? ' · per ' + esc(x.perPc) : '') + '</div></div>').join('')
+  const lavoro = lavorano.length === 0 ? '<div class="sotto">Nessuno al lavoro</div>' : lavorano.map((x) => {
     const id = escJs(x.id)
     const barra = typeof x.percentuale === 'number'
       ? '<div class="sotto"><progress max="100" value="' + esc(x.percentuale) + '"></progress> ' + esc(x.percentuale) + '%' + (typeof x.minutiStimati === 'number' ? ' · mancano circa ' + esc(minutiTesto(x.minutiStimati)) : '') + (x.inRitardo ? ' · <b>in ritardo</b>' : '') + '</div>'
@@ -5889,6 +5894,7 @@ function attesaHtml() {
   return testa + '<div class="numeri" style="margin-top:12px"><div class="numero"><b>' + esc(postiTesto(v.posti.usati, v.posti.tetto)) + '</b></div>' + (v.totale ? '<div class="sotto">' + esc(totaleTesto(v.totale.minuti, v.totale.compiti)) + '</div>' : '') + '</div>' +
     (attesaNota ? '<div class="errore">' + esc(attesaNota) + '</div>' : '') +
     '<div class="solco"></div><div class="titolo">Al lavoro adesso</div>' + lavoro +
+    (inArrivo ? '<div class="solco"></div><div class="titolo">In arrivo</div>' + inArrivo : '') +
     '<div class="solco"></div><div class="titolo">In fila</div>' + fila +
     '<div class="riga"><button onclick="attesaRileggi()">Aggiorna</button></div></div>'
 }
@@ -5925,7 +5931,7 @@ function menuSpecHtml(a) {
   const riga = (r, lavora) => {
     const misura = lavora && r.percentuale !== undefined
       ? '<div class="misura-riga">' + esc(r.percentuale) + '%</div><div class="barra"><i style="width:' + esc(r.percentuale) + '%"></i></div>' : ''
-    const stato = esc(r.manca) + (r.inRitardo ? ' · <b>in ritardo</b>' : '') + (r.prenotata ? ' · <b>tocca a lui</b>' : '') + (r.parcheggiata ? ' · fermato, riparte per primo' : '') + (r.fermaRichiesta ? ' · <b>fermata chiesta…</b>' : '')
+    const stato = (r.fase ? '<b>' + esc(r.fase) + '</b>' : '') + esc(r.manca) + (r.inRitardo ? ' · <b>in ritardo</b>' : '') + (r.prenotata ? ' · <b>tocca a lui</b>' : '') + (r.parcheggiata ? ' · fermato, riparte per primo' : '') + (r.fermaRichiesta ? ' · <b>fermata chiesta…</b>' : '')
     const tasti = lettura ? '' : r.suPc ? '<span class="sotto">su ' + esc(r.suPc) + '</span>' : r.perPc ? '<span class="sotto">per ' + esc(r.perPc) + '</span>' : menuSpecConferma === r.id
       ? '<span class="sotto">Lo fermo e lo metto in cima alla fila: il suo lavoro resta salvato.</span> <button data-id="' + esc(r.id) + '" data-m="ferma" onclick="menuSpecMossa(this)">Sì, ferma</button> <button onclick="menuSpecAnnulla()">No</button>'
       : '<button data-id="' + esc(r.id) + '" data-m="cima"' + (!lavora && r.posizione === 1 ? ' disabled' : '') + ' onclick="menuSpecMossa(this)">↑ Precedenza</button>' +
@@ -5938,6 +5944,7 @@ function menuSpecHtml(a) {
   return tasto + giu + '<div class="piastrella">' +
     '<div class="titolo">Al lavoro adesso' + aiuto('menu-spec', 'Con «↑ Precedenza» uno specialista passa in cima alla fila e prende il prossimo posto libero prima degli altri. Non ferma mai chi sta già lavorando: cambia solo l’ordine di chi aspetta. «Ferma» invece interrompe chi lavora e lo mette in cima alla fila: il suo lavoro resta salvato sul suo ramo. La percentuale è una stima e non arriva a 100 prima della fine.', 'precedenza') + '</div>' +
     (m.lavorano.length === 0 ? '<div class="sotto">Nessuno al lavoro</div>' : m.lavorano.map((r) => riga(r, true)).join('')) +
+    (m.inArrivo.length === 0 ? '' : '<div class="solco"></div><div class="titolo">In arrivo</div>' + m.inArrivo.map((r) => riga(r, false)).join('')) +
     '<div class="solco"></div><div class="titolo">In fila</div>' +
     (m.inFila.length === 0 ? '<div class="sotto">Nessuno in fila</div>' : m.inFila.map((r) => riga(r, false)).join('')) +
     (m.inUnione.length === 0 ? '' : '<div class="solco"></div><div class="titolo">In prova e unione dal programma</div>' + m.inUnione.map((u) =>

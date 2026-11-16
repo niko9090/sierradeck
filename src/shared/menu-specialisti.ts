@@ -34,6 +34,8 @@ export type RigaMenuSpecialisti = {
   perPc?: string
   /** 16/11: un lavoro di questo workspace che gira su un altro PC: il nome di quel PC («su NOME-PC»), senza tasti. */
   suPc?: string
+  /** «in arrivo» o «in preparazione»: un lavoro ospitato non ancora partito (non è al lavoro: niente barra, niente minuti). */
+  fase?: string
 }
 
 /** 16/11: un lavoro finito che il programma sta provando e unendo. */
@@ -42,7 +44,10 @@ export type RigaUnioneMenu = { id: string; titolo: string; altroWorkspace: strin
 export type MenuSpecialisti = {
   /** Il testo del tasto: «Specialisti 2 · 1 in fila». */
   etichetta: string
+  /** Solo chi lavora davvero: chi è «in arrivo» o «in preparazione» sta in `inArrivo`. */
   lavorano: RigaMenuSpecialisti[]
+  /** Lavori ospitati per un altro PC che non sono ancora partiti: non contano fra chi lavora. */
+  inArrivo: RigaMenuSpecialisti[]
   inFila: RigaMenuSpecialisti[]
   /** «In prova e unione dal programma». */
   inUnione: RigaUnioneMenu[]
@@ -67,6 +72,7 @@ type VoceMenu = {
   fermaRichiesta?: true
   perPc?: string
   suPc?: string
+  fase?: 'in-arrivo' | 'in-preparazione'
 }
 
 export type VistaMenu = {
@@ -114,15 +120,17 @@ export function menuSpecialisti(vista: VistaMenu, riferimenti: string[]): MenuSp
       parcheggiata: v.parcheggiata === true,
       fermaRichiesta: v.fermaRichiesta === true,
       ...(v.perPc !== undefined ? { perPc: v.perPc } : {}),
-      ...(v.suPc !== undefined ? { suPc: v.suPc } : {})
+      ...(v.suPc !== undefined ? { suPc: v.suPc } : {}),
+      ...(v.fase !== undefined ? { fase: v.fase === 'in-arrivo' ? 'in arrivo' : 'in preparazione' } : {})
     }
-    if (!inAttesa && v.percentuale !== undefined) r.percentuale = Math.max(0, Math.min(95, Math.round(v.percentuale)))
+    if (!inAttesa && v.fase === undefined && v.percentuale !== undefined) r.percentuale = Math.max(0, Math.min(95, Math.round(v.percentuale)))
     if (inAttesa && v.posizione !== undefined) r.posizione = v.posizione
     return r
   }
   // Chi lavora: prima quelli di questa chat, poi gli altri. La fila resta com'è: il posto conta.
-  const tutti = vista.alLavoro.map((v) => riga(v, false))
+  const tutti = vista.alLavoro.filter((v) => v.fase === undefined).map((v) => riga(v, false))
   const lavorano = tutti.filter((x) => x.corrente).concat(tutti.filter((x) => !x.corrente))
+  const inArrivo = vista.alLavoro.filter((v) => v.fase !== undefined).map((v) => riga(v, false))
   const inFila = vista.inFila.map((v) => riga(v, true))
   const inUnione = (vista.inUnione !== undefined ? vista.inUnione : []).map((u) => {
     const corrente = miei.indexOf(norma(u.workspace)) >= 0
@@ -134,9 +142,9 @@ export function menuSpecialisti(vista: VistaMenu, riferimenti: string[]): MenuSp
       inCorso: u.inCorso === true
     }
   })
-  const etichetta = lavorano.length === 0 && inFila.length === 0 && inUnione.length === 0
+  const etichetta = lavorano.length === 0 && inArrivo.length === 0 && inFila.length === 0 && inUnione.length === 0
     ? 'Specialisti · nessuno'
-    : 'Specialisti ' + lavorano.length + (inFila.length > 0 ? ' · ' + inFila.length + ' in fila' : '') + (inUnione.length > 0 ? ' · ' + inUnione.length + ' in unione' : '')
+    : 'Specialisti ' + lavorano.length + (inArrivo.length > 0 ? ' · ' + inArrivo.length + ' in arrivo' : '') + (inFila.length > 0 ? ' · ' + inFila.length + ' in fila' : '') + (inUnione.length > 0 ? ' · ' + inUnione.length + ' in unione' : '')
   const totale = vista.totale !== undefined && vista.totale.compiti > 0 ? 'circa ' + durata(vista.totale.minuti) + ' per finire tutto' : ''
-  return { etichetta, lavorano, inFila, inUnione, totale }
+  return { etichetta, lavorano, inArrivo, inFila, inUnione, totale }
 }

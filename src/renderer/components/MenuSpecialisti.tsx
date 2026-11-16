@@ -45,6 +45,7 @@ export function ElencoMenuSpecialisti({ vista, riferimenti, daFermare, onMossa, 
       ) : null}
       {r.cosaFa !== '' ? <span className="menuspec__cosa">{r.cosaFa}</span> : null}
       <span className="menuspec__sotto">
+        {r.fase !== undefined ? <b>{r.fase}</b> : null}
         {r.manca}
         {r.inRitardo ? <span className="menuspec__ritardo"> · in ritardo</span> : null}
         {r.prenotata ? <span className="menuspec__ritardo"> · tocca a lui</span> : null}
@@ -74,6 +75,12 @@ export function ElencoMenuSpecialisti({ vista, riferimenti, daFermare, onMossa, 
         <Aiuto di="precedenza">{soloLettura ? 'Questa è la lista di un altro PC, letta da là ogni pochi secondi. Qui si guarda soltanto: per cambiare la fila o fermare qualcuno si lavora su quel PC. La percentuale è una stima, non arriva mai a 100 prima della fine.' : '«↑ Precedenza» porta uno specialista in cima alla fila: prende il prossimo posto libero prima degli altri. Non ferma mai chi sta già lavorando: cambia solo l’ordine di chi aspetta. «Ferma» invece interrompe chi lavora, lo mette in cima alla fila e il suo lavoro resta salvato sul suo ramo; riparte per primo quando si libera un posto. La percentuale è una stima, non arriva mai a 100 prima della fine.'}</Aiuto>
       </div>
       {m.lavorano.length === 0 ? <div className="menuspec__vuoto">Nessuno al lavoro</div> : <ul className="menuspec__elenco" aria-label="Al lavoro adesso">{m.lavorano.map((r) => riga(r, true))}</ul>}
+      {m.inArrivo.length === 0 ? null : (
+        <>
+          <span className="serigrafia">In arrivo</span>
+          <ul className="menuspec__elenco" aria-label="In arrivo">{m.inArrivo.map((r) => riga(r, false))}</ul>
+        </>
+      )}
       <span className="serigrafia">In fila</span>
       {m.inFila.length === 0 ? <div className="menuspec__vuoto">Nessuno in fila</div> : <ul className="menuspec__elenco" aria-label="In fila">{m.inFila.map((r) => riga(r, false))}</ul>}
       {m.inUnione.length === 0 ? null : (

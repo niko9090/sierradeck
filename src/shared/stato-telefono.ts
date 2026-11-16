@@ -116,7 +116,8 @@ type VoceStimata = { workspace: string; compito?: string; descrizione: string; t
 
 function vociDel(attesa: VistaAttesa | undefined, ws: string): { alLavoro: VoceStimata[]; inFila: VoceStimata[] } {
   const nel = (x: VoceStimata): boolean => x.workspace === ws
-  return { alLavoro: (attesa?.alLavoro ?? []).filter(nel), inFila: (attesa?.inFila ?? []).filter(nel) }
+  // Chi è «in arrivo» o «in preparazione» (lavoro ospitato non ancora partito) non è al lavoro.
+  return { alLavoro: (attesa?.alLavoro ?? []).filter((x) => nel(x) && (x as { fase?: unknown }).fase === undefined), inFila: (attesa?.inFila ?? []).filter(nel) }
 }
 
 /** La lista d'attesa letta da `/api/specialisti/attesa`, o niente se la forma non torna. */
