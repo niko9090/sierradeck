@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import {
-  PRENOTAZIONE_MS, RIPOSO_MASSIMO_MS, SVEGLIE_MAX, aRiposo, assegna, attesaVuota, cambiaPriorita, chiaveRichiesta, compitoDi, inFila, ordinate, passo, riposoDopo, rivedi, scadute, togliVoce,
+  PRENOTAZIONE_MS, RIPOSO_MASSIMO_MS, SVEGLIE_MAX, aRiposo, assegna, attesaVuota, cambiaPriorita, chiaveRichiesta, compitoDi, faseOspitato, inFila, testoFase, ordinate, passo, riposoDopo, rivedi, scadute, togliVoce,
   type RichiestaSpecialista, type StatoAttesa, type VistaAttesa
 } from '@shared/attesa-specialisti'
 import { menuSpecialisti } from '@shared/menu-specialisti'
+import { statoTelefono } from '@shared/stato-telefono'
 
 /**
  * k-48: la lista d'attesa degli specialisti, pura. Il tempo è un numero che
@@ -40,6 +41,27 @@ describe('lavori di un altro PC senza stima (k-s4)', () => {
     const m = menuSpecialisti(vista, ['Lavoro'])
     expect(m.lavorano).toHaveLength(1)
     expect(m.lavorano[0]!.percentuale).toBeUndefined()
+  })
+})
+
+describe('lavori ospitati in ricezione o in preparazione (k-s9)', () => {
+  it('faseOspitato e testoFase', () => {
+    expect(faseOspitato('ricevo')).toBe('in-arrivo')
+    expect(faseOspitato('preparo')).toBe('in-preparazione')
+    expect(faseOspitato('lavoro')).toBeUndefined()
+    expect(testoFase('in-arrivo')).toBe('in arrivo')
+    expect(testoFase('in-preparazione')).toBe('in preparazione')
+  })
+
+  it('il telefono non conta tra chi lavora chi ha una fase', () => {
+    const base = { posto: 1, workspace: 'Lavoro', descrizione: 'k-1: prova', tipo: 'sviluppatore', dal: '2026-11-06T06:30:00.000Z' }
+    const vista: VistaAttesa = {
+      posti: { usati: 3, tetto: 3 },
+      alLavoro: [{ ...base, id: 'x1', fase: 'in-arrivo' }, { ...base, id: 'x2', fase: 'in-preparazione' }, { ...base, id: 'x3' }],
+      inFila: []
+    }
+    const t = statoTelefono({ workspace: 'Lavoro', autopilota: 'ap-1', attesa: vista, vista: { stato: 'fermo' } as never, domande: 0 })
+    expect(t.ruoli).toHaveLength(1)
   })
 })
 

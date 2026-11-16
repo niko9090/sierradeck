@@ -98,7 +98,8 @@ describe('lo spedizioniere riassegna', () => {
         return {}
       },
       cartella: mkdtempSync(join(tmpdir(), 'spedizioni-')), git, log: () => undefined, errore: () => undefined, avviso: () => undefined,
-      registra: (e) => { eventi.push(e) }, dorme: async () => undefined
+      // Qui contano solo i passaggi e le rese; affidato, risorsa-mancante e rifiutato sono in aiuto-eventi-registro.test.ts.
+      registra: (e) => { if (e.tipo === 'riassegnato' || e.tipo === 'arreso') eventi.push(e) }, dorme: async () => undefined
     })
     try {
       await sp.giro()
