@@ -57,6 +57,7 @@
 - `tests/aiutante` passa 114/114 in due corse sul PC principale a HEAD 9c3dc639; un 113/114 isolato fa pensare a una prova sensibile al carico, non a file locali diversi. _(2026-11-16)_
 - 16/11: tests/aiutante passa 114/114 lanciato a mano anche nel principale, ma 113/114 quando lo misura il servizio (≈2,8 s contro 6,4): una prova dipende dall'ambiente del processo (env, PATH). _(2026-11-16)_
 - Il servizio lancia i criteri con TEMP/TMP su una sottocartella: percorsi >260 caratteri, `git rev-list` risponde «Filename too long» e l'Aiutante registra 0 commit. Prova a mano: TEMP su una sottocar… _(2026-11-16)_
+- I criteri del servizio girano con TEMP/TMP su una sottocartella sierradeck-criterio-…: i percorsi dei test possono superare 260 caratteri. I git dell'Aiutante usano -c core.longpaths=true (16/11) _(2026-11-16)_
 
 ## worktree
 
@@ -480,6 +481,7 @@
 - «prossima versione» è corretto finché package.json resta indietro: controllare la versione prima di scrivere il numero. _(2026-11-16)_
 - errori-arrivati.md usa a capo CRLF: una voce aggiunta con Edit entra con LF e il file resta con a capo misti. _(2026-11-16)_
 - errori-arrivati.md è CRLF e le voci si accodano nello stesso punto: due rami che le aggiungono insieme vanno in conflitto, si risolve tenendole tutte e due. _(2026-11-16)_
+- il commit di un compito k-xx non ha il codice nel messaggio: per trovarlo in main si cerca per contenuto (es. `git log --grep=orchestratore`), non per «k-f1» _(2026-11-16)_
 
 ## controllo-pc
 
