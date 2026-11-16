@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  causaDalTesto, causaDelMotivo, chiaveCompito, colpaDelPc, estrattoSicuro, fraseCausa, motivoBreve, motivoDelRisultato,
+  causaDalTesto, causaDelMotivo, causaRiassegnabile, chiaveCompito, colpaDelPc, estrattoSicuro, fraseCausa, motivoBreve, motivoDelRisultato,
   pauseAiuti, pcInPausa, serieGuasti, PAUSA_PC_MS, PAUSA_PROGETTO_MS, RIPROVA_STESSO_PC_MS
 } from '../../src/shared/aiuto-esito'
 import { lavoroAffidatoValido, type LavoroAffidato } from '../../src/shared/aiuto-rete'
@@ -157,5 +157,30 @@ describe('le pause: lo stesso compito non torna subito sullo stesso PC', () => {
   it('senza id del piano lo stesso compito è la stessa descrizione', () => {
     expect(chiaveCompito({ descrizione: '  Il  Grafico ' })).toBe('il grafico')
     expect(chiaveCompito({ compito: 'k-3', descrizione: 'x' })).toBe('k-3')
+  })
+})
+
+describe('colpa del PC o colpa del lavoro (riassegnazione)', () => {
+  it('risorsa mancante, PC in silenzio, accesso, programmi: si riassegna', () => {
+    for (const c of ['pc', 'risorsa', 'strumenti', 'accesso', 'limite', 'modello', 'npm'] as const) expect(causaRiassegnabile(c), c).toBe(true)
+  })
+
+  it('prove rosse, turni finiti, progetto non spedibile, fermato, sconosciuta: non si riassegna', () => {
+    for (const c of ['compito', 'turni', 'progetto', 'fermato', 'sconosciuta', 'api', 'permesso', 'git'] as const) expect(causaRiassegnabile(c), c).toBe(false)
+  })
+
+  it('dal testo: «prove rosse» è del lavoro, «claude non riconosciuto» è del PC', () => {
+    expect(causaRiassegnabile(causaDalTesto('vitest: 3 tests failed'))).toBe(false)
+    expect(causaRiassegnabile(causaDalTesto('typecheck fallito'))).toBe(false)
+    expect(causaRiassegnabile(causaDalTesto("'claude' is not recognized as an internal or external command"))).toBe(true)
+  })
+
+  it('dal motivo scritto da un PC di prima si ritrova la stessa classificazione', () => {
+    expect(causaRiassegnabile(causaDelMotivo(fraseCausa('risorsa')))).toBe(true)
+    expect(causaRiassegnabile(causaDelMotivo(fraseCausa('compito')))).toBe(false)
+  })
+
+  it('ogni causa riassegnabile è anche colpa del PC (mai il contrario del contrario)', () => {
+    for (const c of ['pc', 'risorsa', 'strumenti', 'accesso', 'limite', 'modello', 'npm'] as const) expect(colpaDelPc(c), c).toBe(true)
   })
 })

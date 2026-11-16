@@ -57,6 +57,17 @@ export function colpaDelPc(c: CausaFallimento): boolean {
 }
 
 /**
+ * 16/11: le cause per cui il lavoro si può passare a un altro PC (risorsa mancante o non
+ * raggiungibile, rete, PC in silenzio, accesso/quota/modello/programmi di quel PC).
+ * Un fallimento del lavoro stesso (prove rosse, turni, progetto, fermato) non si riassegna.
+ */
+const RIASSEGNABILI: ReadonlySet<CausaFallimento> = new Set(['pc', 'risorsa', 'strumenti', 'accesso', 'limite', 'modello', 'npm'])
+
+export function causaRiassegnabile(c: CausaFallimento): boolean {
+  return RIASSEGNABILI.has(c)
+}
+
+/**
  * 14/11: un PC che non risponde è un caso atteso di rete (il lavoro si rifà altrove): la riga
  * nel registro è un avviso, non un errore che finisce negli «Errori arrivati». Tutto il resto
  * (accesso scaduto, specialista fallito, causa sconosciuta) resta errore.

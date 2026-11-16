@@ -288,7 +288,7 @@ export type ServizioUnico = {
    */
   aiutoGiro: (aiutanti: Aiutante[]) => LavoroAffidato[]
   /** 0.103.0: com'è andato un lavoro affidato (spedito, cosa fa, finito con il suo ramo, non riuscito). */
-  aiutoAvanza: (id: string, p: { stato?: 'spedito' | 'finito' | 'fallito'; attivita?: string; riepilogo?: string; ramo?: string; motivo?: string; causa?: CausaFallimento }) => boolean
+  aiutoAvanza: (id: string, p: { stato?: 'spedito' | 'finito' | 'fallito'; attivita?: string; riepilogo?: string; ramo?: string; motivo?: string; causa?: CausaFallimento; riassegna?: { pcId: string; pcNome: string } }) => boolean
   /** k-48: chi lavora adesso sui posti del PC e chi aspetta, in ordine. */
   attesa: () => VistaAttesa
   /** La spinta a evento: cambia a ogni specialista che parte, finisce o cambia posto in lista. */
@@ -2976,6 +2976,15 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     aiutoAvanza(id, p) {
       const l = affidati().find((v) => v.id === id)
       if (l === undefined || l.stato === 'finito' || l.stato === 'fallito') return false
+      // 16/11: il PC non ha potuto agire: il lavoro passa a un altro PC (si rispedisce), il vecchio resta tra i provati.
+      if (p.riassegna !== undefined) {
+        const provati = [...new Set([...(l.provati ?? []), l.pcId])]
+        const { motivo: _m, causa: _c, ...resto } = l
+        archivioAiuti.scrivi(affidati().map((v) => (v.id === id ? { ...resto, pcId: p.riassegna!.pcId, pcNome: p.riassegna!.pcNome, stato: 'da-spedire' as const, attivita: `passato a ${p.riassegna!.pcNome}: ${l.pcNome} non poteva agire`.slice(0, 200), provati, riassegnazioni: (l.riassegnazioni ?? 0) + 1 } : v)))
+        console.warn(`[aiuto] ${l.workspace} — ${l.compito ?? l.id}: da ${l.pcNome} a ${p.riassegna.pcNome} (${(l.riassegnazioni ?? 0) + 1}° passaggio)`)
+        cambiSpecialisti.segna()
+        return true
+      }
       const chiuso = p.stato === 'finito' || p.stato === 'fallito'
       const fallito = p.stato === 'fallito'
       // 13/11: il perché resta nel lavoro (e quindi nel file, anche dopo un riavvio): ne seguono le pause.

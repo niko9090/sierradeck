@@ -217,7 +217,7 @@ import { apriStoricoErrori, conStorico, leggiStoricoDi, type StoricoSuFile } fro
 import { testoDaCopiare, type InvioErrori, type StoricoErrori } from '@shared/storico-errori'
 import { cartellaDiSierraDeck, mandaErrori, salvaErroriArrivati } from './errori-arrivati'
 import { giroErroriArrivati } from './errori-arrivati-lavoro'
-import { eventiPiuRecentiInCima, leggiEventiAiuto } from '@shared/eventi-aiuto'
+import { eventiPiuRecentiInCima, leggiEventiAiuto, registraEventoAiuto } from '@shared/eventi-aiuto'
 import { GIRO_INVIO_MS, giroInvioErrori, pcSviluppoDi, vistaErrori, type StatoInvio } from './errori-invio-automatico'
 import { eRemotoDiSviluppo, pcProclamato, perchéNonProclama } from '@shared/pc-sviluppo'
 import type { AttesaInvio } from '@shared/attesa-invio'
@@ -4800,6 +4800,7 @@ if (!app.requestSingleInstanceLock()) {
         chiama: (pc, percorso, corpo) => remoto.chiama(pc, percorso, corpo),
         servizio: (percorso, corpo) => clientAutopilota.aiuto(percorso, corpo),
         cartella: join(dati, 'aiuto-spedizioni'),
+        registra: (e) => { registraEventoAiuto(dati, e) },
         log: (r) => registro.info(`[aiuto] ${r}`),
         errore: (r) => registro.errore(`[aiuto] ${r}`),
         avviso: (r) => registro.info(`[aiuto] ${r}`)
