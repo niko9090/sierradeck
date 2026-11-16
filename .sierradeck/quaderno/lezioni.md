@@ -448,6 +448,7 @@
 - `.sierradeck/quaderno/lezioni.md` risulta modificato nella cartella principale: lo scrive il programma e sporca main prima del rilascio. _(2026-11-13)_
 - il file del lotto in .sierradeck/errori-arrivati/ non è tracciato: si legge con Read dal percorso della cartella principale, non dal worktree. _(2026-11-13)_
 - errori-arrivati.md usa fine riga CRLF: per aggiungere voci usare Edit ancorato all'ultima frase, non append da shell. _(2026-11-14)_
+- in errori-arrivati.md il testo esatto va controllato prima di un Edit: «la porta 47640» non è «e porta 47640», e l'ancora sbagliata fa fallire l'Edit. _(2026-11-16)_
 
 ## controllo-pc
 
