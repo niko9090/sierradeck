@@ -49,6 +49,7 @@
 - prima di creare un file di test controllare che il nome non esista già: Write sovrascrive in silenzio (tests/shared/stato-vero-autopilota.test.ts c'era già) _(2026-11-16)_
 - `StatoScheda` usa 'lavora', `ChatGovernata` usa 'lavoro': nei test del Piano usare `as const` sulla forma giusta o il typecheck rifiuta. _(2026-11-16)_
 - aiuto-riassegna.test.ts confronta l'elenco esatto degli eventi del registro: ogni nuovo tipo di evento richiede di filtrare il finto `registra` o aggiornare le asserzioni. _(2026-11-16)_
+- coda-aiutante.test.ts («parte appena si libera un posto») può fallire a vuoto con il PC carico: rilanciarlo da solo prima di indagare. _(2026-11-16)_
 
 ## worktree
 
@@ -582,6 +583,7 @@
 - lo stato 'in-coda' non è terminale: `segui` dello spedizioniere lo tratta come un normale aggiornamento di attività, senza modifiche _(2026-11-16)_
 - la finestra dell'Aiutante è HTML+TS senza React: la logica va in moduli puri sotto src/aiutante/, testabili senza DOM; lo stato passa da statoCompleto() in index.ts. _(2026-11-16)_
 - a ogni avvio il primo controllo di Claude non ha uno stato precedente, quindi un accesso mancante diventa errore a ogni aggiornamento: uno stato che si risolve a mano è un avviso. _(2026-11-16)_
+- la versione dell'Aiutante sta in src/aiutante/versione.json e va alzata insieme alla voce in novita-aiutante.txt; novita.ts e package.json sono del programma completo. _(2026-11-16)_
 
 ## blocco
 
