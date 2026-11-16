@@ -52,6 +52,11 @@
 - coda-aiutante.test.ts («parte appena si libera un posto») può fallire a vuoto con il PC carico: rilanciarlo da solo prima di indagare. _(2026-11-16)_
 - `vi.waitFor` ha 1 s di default: nei test che aspettano la preparazione con git, col PC carico serve un `timeout` esplicito largo (qui 60 s) e un limite largo anche per il test. _(2026-11-16)_
 - Il test che falliva a vuoto in `coda-aiutante.test.ts` era «con un posto libero il lavoro parte subito», non «parte appena si libera un posto»: non fidarsi del nome nel quaderno, rilanciare e leggere. _(2026-11-16)_
+- `aggiornamento-aiutante.test.ts` legge `versione.json` e `novita-aiutante.txt` dal disco: se non sono allineati (file non committato) la prova fallisce solo nella cartella dove stanno. _(2026-11-16)_
+- 16/11: tests/aiutante fallisce 113/114 solo nel principale di questo PC, verde su NB-PROBOOK con lo stesso commit: un compito per riprodurlo va fatto girare su questo PC, non affidato fuori. _(2026-11-16)_
+- `tests/aiutante` passa 114/114 in due corse sul PC principale a HEAD 9c3dc639; un 113/114 isolato fa pensare a una prova sensibile al carico, non a file locali diversi. _(2026-11-16)_
+- 16/11: tests/aiutante passa 114/114 lanciato a mano anche nel principale, ma 113/114 quando lo misura il servizio (≈2,8 s contro 6,4): una prova dipende dall'ambiente del processo (env, PATH). _(2026-11-16)_
+- Il servizio lancia i criteri con TEMP/TMP su una sottocartella: percorsi >260 caratteri, `git rev-list` risponde «Filename too long» e l'Aiutante registra 0 commit. Prova a mano: TEMP su una sottocar… _(2026-11-16)_
 
 ## worktree
 
@@ -161,6 +166,7 @@
 - in questa copia `git fetch` può fallire se il remoto è un bundle sparito; `merge --ff-only main` basta _(2026-11-16)_
 - in questa copia `git fetch` può fallire se il bundle di arrivo è già stato cancellato: `git merge --ff-only main` basta, main è già locale. _(2026-11-16)_
 - il ramo worktree-agent-r45a1013a982d non era nella copia di destinazione: per unire basta il commit d611b967 se l'oggetto è presente. _(2026-11-16)_
+- `core.longpaths=true` risolve «Filename too long» ma non `$GIT_DIR too big`: sotto Temp profonde nella prova tenere nomi corti (`p`, `a`). _(2026-11-16)_
 
 ## autopilota
 
@@ -646,3 +652,7 @@
 ## dati
 
 - un autopilota da un altro PC o da un file vecchio può mancare di `dialogo`, `decisioni` o `chats`: le funzioni in `shared` che lo leggono devono trattare gli elenchi assenti come vuoti. _(2026-11-16)_
+
+## metodo
+
+- se un criterio rosso nel principale è verde in un worktree pulito, confrontare lo stato non committato del principale prima di toccare i tempi dei test. _(2026-11-16)_
