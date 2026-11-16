@@ -1054,7 +1054,7 @@ async function chiediAp(percorso, corpo, conEtag) {
 /** I colori degli stati in una parola (0.70.0), come sul PC. */
 const COLORE_VISTA = { verde: 'var(--verde,#3c9)', ambra: 'var(--ambra,#e0a33c)', rosso: 'var(--rosso,#dc5f5f)', blu: 'var(--blu,#4aa3ff)', quieto: 'var(--testo-quieto,#9aa1a9)' }
 /** 11/11: il colore della frase di adesso, dal suo tono (lo stesso della riga sotto la percentuale sul PC). */
-const COLORE_TONO = { lavora: 'var(--verde,#3c9)', aspetta: 'var(--ambra,#e0a33c)', fermo: 'var(--rosso,#dc5f5f)', riposo: 'var(--testo-quieto,#9aa1a9)' }
+const COLORE_TONO = { lavora: 'var(--verde,#3c9)', aspetta: 'var(--ambra,#e0a33c)', fermo: 'var(--rosso,#dc5f5f)', riposo: 'var(--testo-quieto,#9aa1a9)', attesa: 'var(--blu,#4aa3ff)' }
 /** 11/11: cosa succede adesso, in una frase scritta dal PC; da un PC di prima lo stato in una parola. */
 function fraseApHtml(a) {
   if (a.adesso && a.adesso.testo) return '<b style="color:' + (COLORE_TONO[a.adesso.tono] || COLORE_TONO.riposo) + '">' + esc(a.adesso.testo) + '</b>'

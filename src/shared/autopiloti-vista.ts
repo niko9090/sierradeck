@@ -33,16 +33,21 @@ export const GRUPPI_AP: { id: GruppoAp; testo: string }[] = [
 ]
 
 /** Dal più importante. */
-const RANGO: Record<string, number> = { guasto: 0, aspetta: 1, 'senza-segni': 2, 'al-lavoro': 3, prepara: 4, pronto: 5, fermo: 6, finito: 7 }
+const RANGO: Record<string, number> = { guasto: 0, aspetta: 1, 'senza-segni': 2, illeggibile: 2, 'al-lavoro': 3, 'in-attesa': 3, prepara: 4, pronto: 5, fermo: 6, finito: 7 }
 
 /**
  * 0.102.1: «al lavoro» solo se qualcuno lavora davvero. L'autopilota unico è sempre nello stato
  * «lavoro»; quello che succede lo dice il servizio in `adesso` (la frase della barra).
  * Senza `adesso` (un servizio di prima) resta com'era.
  */
-function statoDalLavoroVero(adesso: { testo: string; tono: string } | undefined): StatoVista {
+function statoDalLavoroVero(adesso: { testo: string; tono: string } | undefined, vistaErrore?: boolean): StatoVista {
+  // La lettura è fallita: non si sa, e non si dice «al lavoro» (diverso da un servizio vecchio, senza `adesso`).
+  if (adesso === undefined && vistaErrore === true) return stato('illeggibile', 'stato non leggibile', 'ambra', 'il servizio non riesce a leggere lo stato: riprova fra poco')
   if (adesso === undefined || adesso.tono === 'lavora') return stato('al-lavoro', 'al lavoro', 'verde', adesso?.testo)
   if (adesso.tono === 'aspetta') return stato('aspetta', 'aspetta te', 'ambra', adesso.testo)
+  // Unioni in fila che ripartono da sole: il lavoro continua, non è finito.
+  // (Un servizio di prima mandava la stessa frase col tono «riposo»: lo si riconosce dal testo, solo qui.)
+  if (adesso.tono === 'attesa' || (adesso.tono === 'riposo' && adesso.testo.startsWith('In attesa'))) return stato('in-attesa', 'in attesa', 'blu', adesso.testo)
   if (adesso.tono === 'riposo') return adesso.testo.startsWith('In pausa') ? stato('pronto', 'in pausa', 'blu', adesso.testo) : stato('finito', 'a riposo', 'verde', adesso.testo)
   return stato('fermo', 'fermo', 'rosso', adesso.testo)
 }
@@ -51,14 +56,14 @@ function statoDalLavoroVero(adesso: { testo: string; tono: string } | undefined)
  * Lo stato in una parola. Vince il primo che vale: guasto (fallito) › aspetta
  * te › senza segni › al lavoro › si prepara › pronto › fermo › finito.
  */
-export function vistaAutopilota(a: Autopilota & { domanda?: unknown; adesso?: { testo: string; tono: string } }, ora: number, ultimoSegno?: number): VistaAutopilota {
+export function vistaAutopilota(a: Autopilota & { domanda?: unknown; adesso?: { testo: string; tono: string }; vistaErrore?: boolean }, ora: number, ultimoSegno?: number): VistaAutopilota {
   const dv = statoAutopilotaDalVivo(a, ora, ultimoSegno)
   const motivo = a.motivoSospensione
   let s: StatoVista
   if (a.stato === 'fallito') s = stato('guasto', 'guasto', 'rosso', motivo)
   else if (dv.etichetta === 'aspetta te' || (a.stato === 'intervista' && motivo !== undefined)) s = stato('aspetta', 'aspetta te', 'ambra', motivo)
   else if (dv.senzaSegni !== undefined) s = stato('senza-segni', 'senza segni', 'ambra', dv.senzaSegni)
-  else if (a.stato === 'lavoro') s = statoDalLavoroVero(a.adesso)
+  else if (a.stato === 'lavoro') s = statoDalLavoroVero(a.adesso, a.vistaErrore)
   else if (a.stato === 'intervista') s = stato('prepara', 'si prepara', 'blu', 'guarda il progetto e prepara i criteri')
   else if (a.stato === 'pronto') s = stato('pronto', 'pronto', 'blu', 'aspetta il tuo «Vai»')
   else if (a.stato === 'finito') s = stato('finito', 'finito', 'verde')
@@ -66,8 +71,8 @@ export function vistaAutopilota(a: Autopilota & { domanda?: unknown; adesso?: { 
   else s = stato('fermo', 'fermo', 'rosso', motivo)
 
   const gruppi: Exclude<GruppoAp, 'tutti'>[] = []
-  if (s.id === 'guasto' || s.id === 'aspetta' || s.id === 'senza-segni' || s.id === 'pronto') gruppi.push('aspettano')
-  if (s.id === 'al-lavoro' || s.id === 'senza-segni' || s.id === 'prepara') gruppi.push('lavoro')
+  if (s.id === 'guasto' || s.id === 'aspetta' || s.id === 'senza-segni' || s.id === 'illeggibile' || s.id === 'pronto') gruppi.push('aspettano')
+  if (s.id === 'al-lavoro' || s.id === 'in-attesa' || s.id === 'senza-segni' || s.id === 'prepara') gruppi.push('lavoro')
   if (s.id === 'fermo' || s.id === 'guasto') gruppi.push('fermi')
   if (s.id === 'finito') gruppi.push('finiti')
 
@@ -76,7 +81,7 @@ export function vistaAutopilota(a: Autopilota & { domanda?: unknown; adesso?: { 
   const totali = 0
   const alLavoro = a.chats.filter((c) => chatAlLavoro(a, c)).length
   const azione: AzioneAp = s.id === 'aspetta' ? 'rispondi'
-    : s.id === 'al-lavoro' || s.id === 'senza-segni' || s.id === 'prepara' ? 'ferma'
+    : s.id === 'al-lavoro' || s.id === 'in-attesa' || s.id === 'senza-segni' || s.id === 'prepara' ? 'ferma'
       : 'riprendi'
   return {
     stato: s,
