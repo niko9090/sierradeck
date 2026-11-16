@@ -294,3 +294,13 @@ Nota: il rapporto del lotto (.sierradeck/errori-arrivati/lotto-20261116150451.md
 1 gruppo (renderer): «errore di render — TypeError: Cannot read properties of undefined (reading 'filter')», da `conversazione` chiamata da `ChatAutopilota` dentro `CorpoPanoramica` (0.108.0, 2 volte su un PC). Altri 3 errori visti solo su versioni più vecchie sono stati lasciati fuori dal rapporto.
 È un difetto vero. Causa: `conversazione(a)` chiamava `a.dialogo.filter(...)` senza controllare che l'elenco ci fosse; un autopilota arrivato con dati parziali, senza dialogo, decisioni o chat (da un altro PC o salvato da una versione vecchia), faceva rompere tutta la Panoramica.
 Corretto nella prossima versione (la versione in package.json è la 0.108.0, quindi probabilmente la 0.109.0): la correzione è già in main (k-m1), i campi che mancano si trattano come vuoti. Test: tests/shared/chat-autopilota-dati-parziali.test.ts. Nessuna azione a mano.
+
+# Errori arrivati (lotto 20261116170625)
+
+## Gruppo 1: «Error occurred in handler for 'autopilota:orchestratore': Error: richiesta IPC non valida» (LAPTOP-E60QM2D1 e Z2-TECNICO, 0.109.0, 3 volte, a wsCoda)
+Difetto vero, corretto nella versione 0.109.1. Causa: la finestra chiedeva la coda (e l'orchestratore e lo specialista) prima che il workspace fosse scelto, e l'handler IPC lanciava «richiesta IPC non valida». Correzione in main da k-f1 (commit 95be34cf: con il workspace vuoto la lettura risponde `undefined` invece di lanciare; src/main/ipc.ts, src/main/ws-coda.ts, src/renderer/sorgente-autopilota.tsx). Verificato: aprendo la finestra senza workspace non compare più nessun errore. Test: tests/main/ipc-ws-vuoto.test.ts.
+
+## Gruppo 2: «[claude] Claude non collegato o accesso scaduto su questo Aiutante… (loggedIn: false)» (DESKTOP-O2DITVE, Aiutante 1.2.0, 1 volta, segnato «si ripresenta»)
+Non è un difetto vero: è un caso atteso. Senza accesso a Claude l'Aiutante deve dare solo un avviso nella sua finestra. La correzione 0cc5bac4 è arrivata dopo la 1.2.0, ed è per questo che l'errore si è ripresentato. Corretto nella versione 0.109.1: con l'Aiutante 1.2.1 (k-f2) è solo un avviso e non arriva più fra gli errori; se Claude non è installato resta invece un errore, come deve essere.
+Sempre con k-f2 è stato corretto un difetto vero, a parte: i git dell'Aiutante non reggevano i percorsi oltre i 260 caratteri. Ora usano `-c core.longpaths=true` e non perdono più il lavoro consegnato. Tutto questo entra nella 0.109.1 con l'Aiutante 1.2.1.
+A mano: se su quel PC Claude non è collegato, «Collega Claude» dalla finestra dell'Aiutante.
