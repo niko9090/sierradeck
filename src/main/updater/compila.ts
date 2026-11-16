@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { scriviAtomico } from '@shared/scrittura-atomica'
 import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { sorgenteUpdater, VERSIONE_UPDATER } from './sorgente'
+import { FILE_NOTE_UPDATER, sorgenteUpdater, VERSIONE_UPDATER } from './sorgente'
 
 /**
  * Costruire l'updater sul posto, invece di distribuirlo.
@@ -161,6 +161,16 @@ export type AvvioUpdater = {
    * non fosse mai stato guardato.
    */
   notaClaude?: string
+  /**
+   * 16/11: come si chiama chi si aggiorna («SierraDeck», «SierraDeck Aiutante»),
+   * dove nasce la finestra (dove stava quella degli aggiornamenti, mai al centro),
+   * da che versione si parte e le novità da mostrare in «Cosa cambia».
+   */
+  nome?: string
+  rettangolo?: { x: number; y: number; width: number; height: number }
+  daVersione?: string
+  /** Righe «# versione» e «- voce» (`righeNotePerUpdater`). */
+  note?: string[]
 }
 
 /**
@@ -180,6 +190,13 @@ export type AvvioUpdater = {
  *
  * Tre strade in ordine, e si accontenta della prima che funziona.
  */
+/** «x,y,w,h» in numeri interi, o vuoto: l'updater allora si mette in basso a destra da solo. */
+export function rigaRettangolo(r: AvvioUpdater['rettangolo']): string {
+  if (r === undefined) return ''
+  const n = [r.x, r.y, r.width, r.height].map((v) => Math.round(v))
+  return n.every((v) => Number.isFinite(v)) ? n.join(',') : ''
+}
+
 export function avviaUpdater(percorso: string, dati: AvvioUpdater): boolean {
   try {
     if (unoGiaInCorso()) {
@@ -194,11 +211,15 @@ export function avviaUpdater(percorso: string, dati: AvvioUpdater): boolean {
       join(cartella, 'aggiornamento.txt'),
       [
         String(dati.pid), dati.installer, dati.eseguibile, dati.versione,
-        dati.claude ?? '', dati.notaClaude ?? '', String(dati.portaClient ?? 47640)
+        dati.claude ?? '', dati.notaClaude ?? '', String(dati.portaClient ?? 47640),
+        dati.nome ?? '', rigaRettangolo(dati.rettangolo), dati.daVersione ?? ''
       ].join(String.fromCharCode(10)),
       'updater'
     )
     if (!scritto) return false
+    // Le novità: un file a parte, perché sono tante righe. Se non si scrive, la
+    // finestra dice dove trovarle: non è un motivo per non aggiornare.
+    scriviAtomico(join(cartella, FILE_NOTE_UPDATER), (dati.note ?? []).join(String.fromCharCode(10)), 'novità dell updater')
     // Il diario di prima direbbe «è vivo» di un updater che non è ancora nato.
     // In **tutte** le cartelle temporanee candidate: l'updater (.NET) legge
     // `TMP` prima di `TEMP`, noi il contrario, e con due valori diversi si

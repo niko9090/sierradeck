@@ -421,3 +421,24 @@ export async function raccogliNote(p: {
 export function noteDaNovita(novita: { versione: string; righe: string[] }[]): NotaResa[] {
   return novita.map((n) => ({ versione: n.versione, blocchi: analizzaMarkdown(n.righe.map((r) => `- ${r}`).join('\n')) }))
 }
+
+/**
+ * Le novità in righe semplici per SierraDeck Update (16/11), che le mostra in
+ * «Cosa cambia» mentre il programma è chiuso: «# versione» apre una versione,
+ * «## titolo» è un titoletto, «- testo» una voce, il resto un paragrafo. Niente
+ * stili: l'updater è un programma piccolo, e una riga storta non deve poter
+ * diventare altro che testo. Al massimo `versioni` versioni e `righe` righe.
+ */
+export function righeNotePerUpdater(note: readonly NotaResa[], limiti: { versioni?: number; righe?: number } = {}): string[] {
+  const piano = (pezzi: readonly Pezzo[]): string => pezzi.map((p) => p.testo).join('').replace(/\s+/gu, ' ').trim()
+  const fuori: string[] = []
+  for (const v of note.slice(0, limiti.versioni ?? 4)) {
+    fuori.push(`# ${v.versione}`)
+    for (const b of v.blocchi) {
+      if (b.tipo === 'titolo') fuori.push(`## ${piano(b.pezzi)}`)
+      else if (b.tipo === 'paragrafo') fuori.push(piano(b.pezzi))
+      else if (b.tipo === 'elenco') for (const voce of b.voci) fuori.push(`- ${piano(voce)}`)
+    }
+  }
+  return fuori.filter((r) => r.replace(/^#+ |^- /u, '').trim() !== '').slice(0, limiti.righe ?? 60)
+}

@@ -98,8 +98,11 @@ $blu    = [System.Drawing.Color]::FromArgb(74, 163, 255)
 
 $form = New-Object System.Windows.Forms.Form
 $form.FormBorderStyle = 'None'
-$form.StartPosition = 'CenterScreen'
+# In basso a destra, dove sta la finestra degli aggiornamenti: mai al centro (16/11).
+$form.StartPosition = 'Manual'
 $form.Size = New-Object System.Drawing.Size(460, 300)
+$area = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+$form.Location = New-Object System.Drawing.Point(($area.Right - 12 - 460), ($area.Bottom - 12 - 300))
 $form.BackColor = $sfondo
 $form.TopMost = $true
 $form.ShowInTaskbar = $false

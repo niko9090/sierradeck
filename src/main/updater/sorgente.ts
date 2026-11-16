@@ -15,11 +15,24 @@
  * lancia l'installer, aspetta che finisca, riavvia il programma e si toglie.
  * Nessun pezzo di questa catena dipende da un processo che sta per sparire.
  *
+ * **Dal 16/11 (versione 14) è la stessa finestra degli aggiornamenti.** Prima
+ * nasceva al centro dello schermo, con un aspetto suo. Nicholas: «voglio che
+ * tutto l'aggiornamento venga fatto e visualizzato nella finestra a destra».
+ * Ora nasce esattamente dove stava la finestra degli aggiornamenti del
+ * programma (il rettangolo arriva nei parametri), della stessa misura, con gli
+ * stessi colori, la stessa testata col simbolo, la stessa barra e «Cosa cambia»:
+ * a chi guarda sembra la stessa finestra che continua mentre il programma è
+ * chiuso. Si toglie quando il programma riaperto ha di nuovo una finestra
+ * sullo schermo, così il passaggio non lascia buchi. La usa anche l'Aiutante.
+ *
  * Il sorgente sta qui e viene compilato al primo avvio con il compilatore C#
  * che ogni Windows ha già: nessuna dipendenza da aggiungere, nessun secondo
  * eseguibile da firmare e distribuire. Quando questo testo cambia, l'updater si
  * ricompila da solo — è il modo in cui si aggiorna senza che nessuno lo
  * sostituisca mentre sta lavorando.
+ *
+ * Il testo comincia con il BOM: è così che il compilatore lo legge come UTF-8 e
+ * le frasi a schermo possono avere accenti e simboli veri.
  */
 
 /**
@@ -29,35 +42,63 @@
  * spazio aggiunto farebbe ricompilare per niente, e chi la alza qui sta anche
  * dicendo «ho cambiato qualcosa che conta».
  */
-export const VERSIONE_UPDATER = 13
+export const VERSIONE_UPDATER = 14
+
+/** Il file delle novità, accanto all'eseguibile: una riga per voce («# 0.108.0», «- testo»). */
+export const FILE_NOTE_UPDATER = 'aggiornamento-note.txt'
 
 export function sorgenteUpdater(): string {
-  return `using System;
+  return '﻿' + `using System;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
 
 // SierraDeck Update - installa una versione nuova mentre il programma e' chiuso.
-// Argomenti: <pid> <installer> <eseguibile> <versione> [claude] [nota]
+// Argomenti: <pid> <installer> <eseguibile> <versione> [claude] [nota] [porta]
+//            [nome] [rettangolo x,y,w,h] [versione di partenza]
 //
-// L'ultimo, se c'e', e' il comando di Claude Code da aggiornare: si fa qui e
+// Il quinto, se c'e', e' il comando di Claude Code da aggiornare: si fa qui e
 // non nel programma perche' qui il programma e' gia' chiuso, e Claude Code non
 // si lascia sostituire mentre le sue chat lo tengono aperto.
 class Aggiornamento : Form {
     static string percorsoDiario;
-    Label fase;
-    Label percento;
-    Panel barra;
-    Panel binario;
-    Timer battito;
 
-    int passo = 0;      // 0 attesa uscita, 1 installazione, 2 avvio, 3 finito
+    // I colori della finestra degli aggiornamenti del programma (console.css).
+    static readonly Color CHASSIS = Color.FromArgb(20, 22, 26);
+    static readonly Color CHASSIS_ALTO = Color.FromArgb(26, 28, 32);
+    static readonly Color CHASSIS_ACCESO = Color.FromArgb(33, 35, 39);
+    static readonly Color FONDO_CUPO = Color.FromArgb(7, 9, 13);
+    static readonly Color BORDO = Color.FromArgb(30, 32, 36);
+    static readonly Color TESTO = Color.FromArgb(226, 228, 232);
+    static readonly Color QUIETO = Color.FromArgb(160, 162, 166);
+    static readonly Color ACCENTO = Color.FromArgb(74, 163, 255);
+    static readonly Color VERDE = Color.FromArgb(84, 192, 122);
+    static readonly Color ROSSO = Color.FromArgb(220, 95, 95);
+
+    Font fontApp = new Font("Segoe UI", 8.25f);
+    Font fontTitolo = new Font("Segoe UI Semibold", 12.75f);
+    Font fontVersioni = new Font("Segoe UI", 9f);
+    Font fontTesto = new Font("Segoe UI", 9.75f);
+    Font fontPiccolo = new Font("Segoe UI", 9f);
+    Font fontSezione = new Font("Segoe UI Semibold", 8.25f);
+    Font fontSegni = new Font("Segoe UI Symbol", 9.75f);
+
+    Timer battito;
+    RichTextBox novita;
+
+    int passo = 0;      // 0 attesa uscita, 1 installazione, 5 Claude Code, 2 avvio, 3 finito
     int valore = 0;
+    // Il testo della fase, disegnato a ogni battito.
+    string faseTesto = "Chiudo SierraDeck…";
+    // 0 lavoro (blu), 1 riuscito (verde), 2 non riuscito (rosso).
+    int tono = 0;
 
     /**
      * Quello che la spia racconta a chi guarda da fuori.
@@ -66,7 +107,7 @@ class Aggiornamento : Form {
      * della spia: senza, il secondo potrebbe leggere all'infinito una copia
      * ferma nella sua cache.
      */
-    static volatile string spiaTesto = "Chiusura di SierraDeck...";
+    static volatile string spiaTesto = "Chiudo SierraDeck…";
     static volatile int spiaPercento = 0;
     static volatile string spiaVersione = "";
     static volatile bool spiaViva = true;
@@ -77,6 +118,11 @@ class Aggiornamento : Form {
     string versione;
     string claude;
     string notaClaude;
+    string nome = "SierraDeck";
+    string daVersione = "";
+    // Il passo di Claude Code c'e' solo per il programma completo: l'Aiutante
+    // non passa ne' comando ne' nota, e per lui sarebbe una riga vuota.
+    bool conClaude;
     Process installazione;
     Process claudeInCorso;
     // La versione che «claude update» dice di installare, letta dal suo output
@@ -87,13 +133,11 @@ class Aggiornamento : Form {
     // «aggiornato» prima di passare oltre, o non si leggerebbe.
     int claudeFinitoAGiro = -1;
     // Sotto questi giri non si chiude comunque: una finestra che appare e
-    // sparisce in un lampo, mentre lo schermo e' occupato dall'installer, non
-    // e' apparsa.
+    // sparisce in un lampo non e' apparsa.
     const int GIRI_MINIMI = 45;
     // Quanto si aspetta prima di smettere di chiedere per favore: cinque
     // secondi bastano a una finestra per salvare e sparire.
     const int GIRI_GENTILI = 25;
-    bool chiestoGentilmente = false;
     int vuoti = 0;
     // I giri passati **in questa fase**: la barra misura il tempo di ogni
     // tratto, non quello totale.
@@ -101,21 +145,33 @@ class Aggiornamento : Form {
     int vistiUnaVolta = -1;
     const int GIRI_MASSIMI = 3000;
     // Quanto si aspetta che la nuova istanza si faccia viva prima di dire
-    // «Pronto» comunque: trenta secondi. Oltre, o e' partita senza farsi
-    // riconoscere o non partira', e in entrambi i casi tenere la finestra
-    // ferma non aiuta nessuno.
+    // «fatto» comunque: trenta secondi.
     const int GIRI_AVVIO = 150;
+    // Il passaggio di mano: dal giro in cui si e' finito (bene o male) si
+    // aspetta che il programma riaperto abbia una finestra a schermo, almeno
+    // per questi giri e non oltre quelli.
+    int giroFinale = -1;
+    int finaleMinimo = 8;
+    const int FINALE_MASSIMO = 100;
+    bool chiudendo = false;
+
+    [DllImport("user32.dll")] static extern bool ReleaseCapture();
+    [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr finestra, int messaggio, int w, int l);
+    [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr finestra);
+    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr finestra, out uint pid);
+    delegate bool Visita(IntPtr finestra, IntPtr dato);
+    [DllImport("user32.dll")] static extern bool EnumWindows(Visita visita, IntPtr dato);
+    [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr finestra, int attributo, ref int valore, int grandezza);
 
     /**
-     * I parametri scritti accanto all'eseguibile: pid, installer, programma,
-     * versione, uno per riga.
+     * I parametri scritti accanto all'eseguibile, uno per riga.
      */
     static string[] DaFile() {
         try {
             string mio = Path.GetDirectoryName(Application.ExecutablePath);
             string f = Path.Combine(mio, "aggiornamento.txt");
             if (!File.Exists(f)) { Nota("nessun aggiornamento.txt accanto a me"); return new string[0]; }
-            string[] righe = File.ReadAllLines(f);
+            string[] righe = File.ReadAllLines(f, Encoding.UTF8);
             Nota("parametri letti dal file: " + righe.Length);
             return righe;
         } catch (Exception e) {
@@ -163,93 +219,299 @@ class Aggiornamento : Form {
         notaClaude = args.Length > 5 ? args[5] : "";
         int porta = 47640;
         if (args.Length > 6) int.TryParse(args[6], out porta);
+        if (args.Length > 7 && args[7].Trim().Length > 0) nome = args[7].Trim();
+        string rettangolo = args.Length > 8 ? args[8] : "";
+        daVersione = args.Length > 9 ? args[9].Trim() : "";
+        conClaude = claude.Length > 0 || notaClaude.Length > 0;
+        faseTesto = "Chiudo " + nome + "…";
+        spiaTesto = faseTesto;
         spiaVersione = versione;
-        AvviaSpia(porta);
-
-        Color sfondo = Color.FromArgb(11, 12, 14);
-        Color chiaro = Color.FromArgb(223, 227, 231);
-        Color tenue = Color.FromArgb(154, 161, 169);
+        // Porta zero: nessun telefono da servire (l'Aiutante). La spia resta spenta.
+        if (porta > 0) AvviaSpia(porta);
 
         FormBorderStyle = FormBorderStyle.None;
-        StartPosition = FormStartPosition.CenterScreen;
-        Size = new Size(460, 300);
-        BackColor = sfondo;
+        StartPosition = FormStartPosition.Manual;
+        Bounds = Dove(rettangolo);
+        BackColor = CHASSIS;
+        DoubleBuffered = true;
         TopMost = true;
         ShowInTaskbar = true;
-        Text = "SierraDeck Update";
+        Text = nome + " · Aggiornamento";
 
-        PictureBox logo = new PictureBox();
-        logo.SetBounds(198, 26, 64, 64);
-        logo.BackColor = Color.Transparent;
-        Bitmap b = new Bitmap(64, 64);
-        Graphics g = Graphics.FromImage(b);
-        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-        Faccia(g, new float[] { 268,92, 392,306, 268,306 }, Color.FromArgb(223,227,231));
-        Faccia(g, new float[] { 268,92, 132,306, 268,306 }, Color.FromArgb(125,133,141));
-        Faccia(g, new float[] { 132,306, 268,306, 200,412 }, Color.FromArgb(82,90,98));
-        Faccia(g, new float[] { 268,306, 392,306, 326,412 }, Color.FromArgb(54,61,68));
-        Faccia(g, new float[] { 200,412, 326,412, 268,306 }, Color.FromArgb(37,43,49));
-        Faccia(g, new float[] { 268,92, 312,168, 268,168 }, Color.FromArgb(84,192,122));
-        g.Dispose();
-        logo.Image = b;
-        Controls.Add(logo);
-
-        // La stessa immagine come icona della finestra: senza, nella barra
-        // delle applicazioni compare il rettangolo bianco di Windows - che di
-        // tutto il programma e' l'unica cosa che si vede da laggiu'.
+        // Il simbolo come icona della finestra: senza, nella barra delle
+        // applicazioni compare il rettangolo bianco di Windows.
         try {
+            Bitmap b = new Bitmap(64, 64);
+            using (Graphics g = Graphics.FromImage(b)) {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                Simbolo(g, 0, 0, 64);
+            }
             Icon = System.Drawing.Icon.FromHandle(b.GetHicon());
         } catch {
-            // Senza icona resta il rettangolo bianco di Windows: brutto, non
-            // grave. Un aggiornamento non si ferma per un ornamento.
+            // Senza icona resta il rettangolo bianco: brutto, non grave.
         }
 
-        Label titolo = new Label();
-        titolo.Text = "SIERRADECK UPDATE";
-        titolo.ForeColor = tenue;
-        titolo.Font = new Font("Segoe UI", 10);
-        titolo.TextAlign = ContentAlignment.MiddleCenter;
-        titolo.SetBounds(0, 100, 460, 24);
-        Controls.Add(titolo);
-
-        fase = new Label();
-        fase.Text = "Chiusura di SierraDeck...";
-        fase.ForeColor = chiaro;
-        fase.Font = new Font("Segoe UI", 11);
-        fase.TextAlign = ContentAlignment.MiddleCenter;
-        fase.SetBounds(0, 138, 460, 26);
-        Controls.Add(fase);
-
-        binario = new Panel();
-        binario.SetBounds(70, 186, 320, 6);
-        binario.BackColor = Color.FromArgb(27, 31, 35);
-        Controls.Add(binario);
-
-        barra = new Panel();
-        barra.SetBounds(0, 0, 0, 6);
-        barra.BackColor = Color.FromArgb(74, 163, 255);
-        binario.Controls.Add(barra);
-
-        percento = new Label();
-        percento.Text = "0%";
-        percento.ForeColor = chiaro;
-        percento.Font = new Font("Segoe UI", 20);
-        percento.TextAlign = ContentAlignment.MiddleCenter;
-        percento.SetBounds(0, 206, 460, 44);
-        Controls.Add(percento);
+        novita = new RichTextBox();
+        novita.BorderStyle = BorderStyle.None;
+        novita.ReadOnly = true;
+        novita.TabStop = false;
+        novita.DetectUrls = false;
+        novita.ScrollBars = RichTextBoxScrollBars.None;
+        novita.BackColor = CHASSIS;
+        novita.ForeColor = TESTO;
+        novita.Font = fontTesto;
+        novita.Cursor = Cursors.Default;
+        Controls.Add(novita);
+        ScriviNovita();
+        Disponi();
+        Resize += delegate { Disponi(); Invalidate(); };
+        // Si trascina dalla testata, come quella del programma.
+        MouseDown += delegate(object o, MouseEventArgs e) {
+            if (e.Button == MouseButtons.Left && e.Y < 76) {
+                ReleaseCapture();
+                SendMessage(Handle, 0xA1, 2, 0);
+            }
+        };
 
         battito = new Timer();
         battito.Interval = 200;
         battito.Tick += new EventHandler(Batte);
         battito.Start();
-        Nota("finestra pronta, versione attesa " + versione);
+        Nota("finestra pronta in " + Bounds.ToString() + ", versione attesa " + versione);
     }
 
-    static void Faccia(Graphics g, float[] p, Color c) {
-        float s = 64f / 512f;
+    protected override void OnHandleCreated(EventArgs e) {
+        base.OnHandleCreated(e);
+        // Gli angoli arrotondati di Windows 11, come le finestre del programma.
+        // Su Windows 10 la chiamata non esiste o non fa niente: angoli dritti.
+        try {
+            int tondi = 2;
+            DwmSetWindowAttribute(Handle, 33, ref tondi, 4);
+        } catch {
+            // Un ornamento: un aggiornamento non si ferma per lui.
+        }
+    }
+
+    /**
+     * Dove nasce: dove stava la finestra degli aggiornamenti del programma.
+     *
+     * Il rettangolo arriva da SierraDeck, che sa dov'era (o dove sarebbe) la
+     * sua finestra. Senza, o se e' fuori da ogni schermo, l'angolo in basso a
+     * destra dello schermo principale con la misura di sempre: mai il centro.
+     */
+    static Rectangle Dove(string testo) {
+        try {
+            string[] p = (testo ?? "").Split(',');
+            if (p.Length == 4) {
+                Rectangle r = new Rectangle(int.Parse(p[0].Trim()), int.Parse(p[1].Trim()), int.Parse(p[2].Trim()), int.Parse(p[3].Trim()));
+                if (r.Width >= 300 && r.Height >= 300) {
+                    foreach (Screen s in Screen.AllScreens) {
+                        if (s.WorkingArea.IntersectsWith(r)) return r;
+                    }
+                }
+            }
+        } catch {
+            // Un rettangolo storto vale come nessun rettangolo.
+        }
+        Rectangle area = Screen.PrimaryScreen.WorkingArea;
+        int larga = Math.Min(520, area.Width - 24);
+        int alta = Math.Min(640, area.Height - 24);
+        return new Rectangle(area.Right - 12 - larga, area.Bottom - 12 - alta, larga, alta);
+    }
+
+    // Dove stanno le parti, a misura della finestra.
+    const int TESTA = 76;
+    const int STATO_Y = 88;
+    const int STATO_ALTO = 112;
+    const int RIGA_PASSO = 24;
+    const int PIEDE = 44;
+
+    string[] Passi() {
+        string installo = versione.Length > 0 ? "Installo la versione " + versione : "Installo la versione nuova";
+        if (conClaude) return new string[] { "Chiudo " + nome, installo, "Controllo Claude Code", "Riapro " + nome };
+        return new string[] { "Chiudo " + nome, installo, "Riapro " + nome };
+    }
+
+    /** Quale passo e' in corso, nell'elenco di Passi(); la lunghezza = tutti fatti. */
+    int PassoInCorso() {
+        int n = Passi().Length;
+        if (passo == 0) return 0;
+        if (passo == 1) return 1;
+        if (passo == 5) return 2;
+        if (passo == 2) return n - 1;
+        return n;
+    }
+
+    int NovitaY() {
+        return STATO_Y + STATO_ALTO + 14 + Passi().Length * RIGA_PASSO + 14;
+    }
+
+    void Disponi() {
+        if (novita == null) return;
+        int y = NovitaY() + 22;
+        novita.SetBounds(16, y, Math.Max(10, ClientSize.Width - 32), Math.Max(10, ClientSize.Height - PIEDE - 10 - y));
+    }
+
+    /**
+     * «Cosa cambia»: le novita' che il programma ha scritto accanto a noi.
+     * Una riga «# 0.108.0» apre una versione, «- testo» e' una voce.
+     */
+    void ScriviNovita() {
+        string[] righe = new string[0];
+        try {
+            string f = Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "${FILE_NOTE_UPDATER}");
+            if (File.Exists(f)) righe = File.ReadAllLines(f, Encoding.UTF8);
+        } catch (Exception e) {
+            Nota("novita non lette: " + e.Message);
+        }
+        bool qualcosa = false;
+        foreach (string grezza in righe) {
+            string r = grezza.TrimEnd();
+            if (r.Trim().Length == 0) continue;
+            if (r.StartsWith("# ")) {
+                if (qualcosa) Aggiungi(Environment.NewLine, fontTesto, TESTO);
+                Aggiungi(r.Substring(2).Trim() + Environment.NewLine, fontTitolo, TESTO);
+            } else if (r.StartsWith("## ")) {
+                Aggiungi(r.Substring(3).Trim() + Environment.NewLine, fontSezione, QUIETO);
+            } else if (r.StartsWith("- ")) {
+                Aggiungi("•  ", fontTesto, ACCENTO);
+                Aggiungi(r.Substring(2).Trim() + Environment.NewLine, fontTesto, TESTO);
+            } else {
+                Aggiungi(r.Trim() + Environment.NewLine, fontTesto, QUIETO);
+            }
+            qualcosa = true;
+        }
+        if (!qualcosa) {
+            Aggiungi("Le novità le trovi nella finestra degli aggiornamenti appena " + nome + " si riapre.", fontTesto, QUIETO);
+        }
+        novita.SelectionStart = 0;
+        novita.SelectionLength = 0;
+    }
+
+    void Aggiungi(string testo, Font font, Color colore) {
+        novita.SelectionStart = novita.TextLength;
+        novita.SelectionLength = 0;
+        novita.SelectionFont = font;
+        novita.SelectionColor = colore;
+        novita.AppendText(testo);
+    }
+
+    /** Il simbolo di SierraDeck: i cinque piani del cristallo con la scheggia verde. */
+    static void Simbolo(Graphics g, float x, float y, float lato) {
+        // Il disegno originale sta fra 80 e 440 (viewBox dell'SVG del programma).
+        Faccia(g, x, y, lato, new float[] { 268,92, 392,306, 268,306 }, Color.FromArgb(223,227,231));
+        Faccia(g, x, y, lato, new float[] { 268,92, 132,306, 268,306 }, Color.FromArgb(125,133,141));
+        Faccia(g, x, y, lato, new float[] { 132,306, 268,306, 200,412 }, Color.FromArgb(82,90,98));
+        Faccia(g, x, y, lato, new float[] { 268,306, 392,306, 326,412 }, Color.FromArgb(54,61,68));
+        Faccia(g, x, y, lato, new float[] { 200,412, 326,412, 268,306 }, Color.FromArgb(37,43,49));
+        Faccia(g, x, y, lato, new float[] { 268,92, 312,168, 268,168 }, Color.FromArgb(84,192,122));
+    }
+
+    static void Faccia(Graphics g, float x, float y, float lato, float[] p, Color c) {
+        float s = lato / 360f;
         PointF[] punti = new PointF[p.Length / 2];
-        for (int i = 0; i < punti.Length; i++) punti[i] = new PointF(p[i*2] * s, p[i*2+1] * s);
-        g.FillPolygon(new SolidBrush(c), punti);
+        for (int i = 0; i < punti.Length; i++) punti[i] = new PointF(x + (p[i*2] - 80) * s, y + (p[i*2+1] - 80) * s);
+        using (SolidBrush pennello = new SolidBrush(c)) g.FillPolygon(pennello, punti);
+    }
+
+    static GraphicsPath Tondo(float x, float y, float l, float a, float r) {
+        GraphicsPath p = new GraphicsPath();
+        float d = r * 2;
+        p.AddArc(x, y, d, d, 180, 90);
+        p.AddArc(x + l - d, y, d, d, 270, 90);
+        p.AddArc(x + l - d, y + a - d, d, d, 0, 90);
+        p.AddArc(x, y + a - d, d, d, 90, 90);
+        p.CloseFigure();
+        return p;
+    }
+
+    static void Riempi(Graphics g, Color c, float x, float y, float l, float a, float r) {
+        if (l <= 0 || a <= 0) return;
+        if (l < r * 2) r = l / 2;
+        using (GraphicsPath p = Tondo(x, y, l, a, r))
+        using (SolidBrush pennello = new SolidBrush(c)) g.FillPath(pennello, p);
+    }
+
+    Color ColoreTono() {
+        if (tono == 1) return VERDE;
+        if (tono == 2) return ROSSO;
+        return ACCENTO;
+    }
+
+    string Titolo() {
+        if (tono == 1) return versione.Length > 0 ? "Installata la versione " + versione : "Aggiornamento installato";
+        if (tono == 2) return "Aggiornamento non riuscito";
+        return versione.Length > 0 ? "Installo la versione " + versione : "Installo l'aggiornamento";
+    }
+
+    protected override void OnPaint(PaintEventArgs e) {
+        Graphics g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+        int W = ClientSize.Width;
+        int H = ClientSize.Height;
+        TextFormatFlags riga = TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis | TextFormatFlags.SingleLine;
+
+        // La testata: lo stesso sfumato, il simbolo nel suo riquadro scuro.
+        using (LinearGradientBrush sfumato = new LinearGradientBrush(new Rectangle(0, 0, W, TESTA), CHASSIS_ALTO, CHASSIS, 90f)) {
+            g.FillRectangle(sfumato, 0, 0, W, TESTA);
+        }
+        Riempi(g, FONDO_CUPO, 16, 16, 40, 40, 10);
+        Simbolo(g, 22, 22, 28);
+        TextRenderer.DrawText(g, nome.ToUpperInvariant(), fontApp, new Rectangle(68, 14, W - 84, 16), QUIETO, riga);
+        TextRenderer.DrawText(g, Titolo(), fontTitolo, new Rectangle(66, 29, W - 82, 26), TESTO, riga);
+        string versioni = daVersione.Length > 0 && versione.Length > 0 ? daVersione + "  →  " + versione : versione;
+        TextRenderer.DrawText(g, versioni, fontVersioni, new Rectangle(68, 54, W - 84, 18), QUIETO, riga);
+
+        // Il riquadro dello stato: fase, barra, misure. Il bordo a sinistra
+        // dice com'e' andata: blu lavoro, verde fatto, rosso non riuscito.
+        int x = 16;
+        int l = W - 32;
+        Riempi(g, FONDO_CUPO, x, STATO_Y, l, STATO_ALTO, 8);
+        using (SolidBrush lato = new SolidBrush(ColoreTono())) g.FillRectangle(lato, x, STATO_Y + 4, 3, STATO_ALTO - 8);
+        TextRenderer.DrawText(g, faseTesto, fontTesto, new Rectangle(x + 14, STATO_Y + 10, l - 28, 40), TESTO,
+            TextFormatFlags.NoPrefix | TextFormatFlags.WordBreak | TextFormatFlags.EndEllipsis);
+        int binario = l - 28;
+        Riempi(g, CHASSIS_ACCESO, x + 14, STATO_Y + 56, binario, 8, 4);
+        Riempi(g, ColoreTono(), x + 14, STATO_Y + 56, (float)(binario * valore / 100.0), 8, 4);
+        int n = Passi().Length;
+        int corrente = Math.Min(PassoInCorso() + 1, n);
+        TextRenderer.DrawText(g, valore + "%", fontPiccolo, new Rectangle(x + 14, STATO_Y + 70, 80, 18), QUIETO, riga);
+        TextRenderer.DrawText(g, "passo " + corrente + " di " + n, fontPiccolo, new Rectangle(x + 14, STATO_Y + 70, binario, 18), QUIETO,
+            riga | TextFormatFlags.Right);
+        string sotto = tono == 2
+            ? "I tuoi dati non sono stati toccati."
+            : (tono == 1 ? nome + " si sta riaprendo." : "Non serve fare niente: riapro " + nome + " da solo.");
+        TextRenderer.DrawText(g, sotto, fontPiccolo, new Rectangle(x + 14, STATO_Y + 88, binario, 18), QUIETO, riga);
+
+        // I passi, uno per riga: fatto, in corso, da fare.
+        int y = STATO_Y + STATO_ALTO + 14;
+        string[] passi = Passi();
+        int inCorso = PassoInCorso();
+        for (int i = 0; i < passi.Length; i++) {
+            string segno;
+            Color colore;
+            Color testo = TESTO;
+            if (i < inCorso) { segno = "✓"; colore = VERDE; testo = QUIETO; }
+            else if (i == inCorso && tono == 2) { segno = "✕"; colore = ROSSO; }
+            else if (i == inCorso) { segno = "●"; colore = ACCENTO; }
+            else { segno = "○"; colore = QUIETO; testo = QUIETO; }
+            TextRenderer.DrawText(g, segno, fontSegni, new Rectangle(x + 4, y + i * RIGA_PASSO, 20, RIGA_PASSO), colore,
+                TextFormatFlags.NoPrefix | TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            TextRenderer.DrawText(g, passi[i], fontTesto, new Rectangle(x + 30, y + i * RIGA_PASSO, l - 30, RIGA_PASSO), testo,
+                riga | TextFormatFlags.VerticalCenter);
+        }
+
+        // «Cosa cambia», come nella finestra del programma.
+        TextRenderer.DrawText(g, "COSA CAMBIA", fontSezione, new Rectangle(16, NovitaY(), W - 32, 18), QUIETO, riga);
+
+        // Il piede, con la riga sopra.
+        using (Pen linea = new Pen(BORDO)) {
+            g.DrawLine(linea, 0, H - PIEDE, W, H - PIEDE);
+            g.DrawRectangle(linea, 0, 0, W - 1, H - 1);
+        }
+        TextRenderer.DrawText(g, "Si chiude da sola quando " + nome + " è di nuovo aperto.", fontPiccolo,
+            new Rectangle(16, H - PIEDE + 13, W - 32, 18), QUIETO, riga);
     }
 
     /**
@@ -288,16 +550,11 @@ class Aggiornamento : Form {
      * Dove sta la barra adesso.
      *
      * Cresce sempre e non si ferma mai: si avvicina alla fine del tratto senza
-     * raggiungerla, rallentando quando la fase dura piu' del previsto. La barra
-     * che restava ferma al 65 per trenta secondi e poi saltava al 100 diceva
-     * due bugie in fila - che fosse bloccata, e che avesse appena fatto un
-     * terzo del lavoro in un istante.
+     * raggiungerla, rallentando quando la fase dura piu' del previsto.
      */
     int Avanzamento() {
         double t = giriPasso;
         double previsti = Previsti();
-        // A t = previsti la frazione vale 0,8: il tratto e' quasi finito ma
-        // resta spazio per un'attesa piu' lunga, senza mai fermarsi.
         double frazione = t / (t + previsti * 0.25);
         int da = Da();
         return da + (int)((A() - da) * frazione);
@@ -308,106 +565,112 @@ class Aggiornamento : Form {
      *
      * Azzerare il cronometro della fase e' il punto di tutto: la barra misura
      * quanto sta durando **questo** tratto, non quanto e' passato dall'inizio.
-     * Senza, la fase piu' lunga si mangiava il tempo di tutte le altre e loro
-     * comparivano gia' finite.
      */
     void Vai(int prossimo) {
         passo = prossimo;
         giriPasso = 0;
-        // La barra non torna indietro: il tratto nuovo comincia dove finisce
-        // quello vecchio, e se si era arrivati piu' avanti si resta li'.
+        // La barra non torna indietro.
         if (valore < Da()) valore = Da();
+    }
+
+    /**
+     * Da qui si aspetta solo il passaggio di mano: com'e' andata e' deciso.
+     * Minimo: quanti giri tenere comunque la finestra, perche' si legga.
+     */
+    void Finale(int minimo) {
+        if (giroFinale >= 0) return;
+        giroFinale = giri;
+        finaleMinimo = minimo;
     }
 
     void Batte(object mittente, EventArgs e) {
         giri++;
         giriPasso++;
+
+        if (giroFinale >= 0) {
+            // Finito (bene o male): si resta finche' il programma riaperto non
+            // ha di nuovo una finestra a schermo - la sua finestra degli
+            // aggiornamenti nasce nello stesso angolo e prende il nostro posto.
+            int passati = giri - giroFinale;
+            bool pronto = passati >= finaleMinimo && giri > GIRI_MINIMI && FinestraNuova();
+            if (!chiudendo && (pronto || passati > FINALE_MASSIMO)) {
+                Nota(pronto ? "il programma ha di nuovo una finestra: mi tolgo" : "nessuna finestra del programma: mi tolgo lo stesso");
+                Chiudi();
+            }
+            Aggiorna();
+            return;
+        }
+
         int calcolato = Avanzamento();
-        // Mai indietro: al cambio di fase il valore nuovo parte dal fondo del
-        // tratto precedente, e un attimo di aritmetica non deve far arretrare
-        // quello che si e' gia' visto.
         if (calcolato > valore) valore = calcolato;
 
         if (passo == 0) {
             int rimasti = ChiudiTutte();
-            fase.Text = rimasti > 1
-                ? "Chiusura di SierraDeck (" + rimasti + " finestre)..."
-                : "Chiusura di SierraDeck...";
-            // Due giri a zero, non uno: un processo che sta uscendo sparisce
-            // dall'elenco un istante prima di rilasciare davvero i suoi file, e
-            // partire in quell'istante e' esattamente il conflitto da evitare.
-            if (rimasti == 0) vuoti++; else vuoti = 0;
+            faseTesto = rimasti > 1
+                ? "Chiudo " + nome + " (" + rimasti + " finestre)…"
+                : "Chiudo " + nome + "…";
             // Tre giri a zero di fila: un processo che sta uscendo sparisce
             // dall'elenco un istante prima di rilasciare i suoi file, e
             // partire in quell'istante e' il conflitto da evitare.
+            if (rimasti == 0) vuoti++; else vuoti = 0;
             if (vuoti >= 3) {
                 Nota("nessuna istanza rimasta: lancio l'installer");
                 Installa();
                 Vai(1);
             }
         } else if (passo == 1) {
-            fase.Text = versione.Length > 0
-                ? "Installazione della versione " + versione + "..."
-                : "Installazione in corso...";
+            faseTesto = versione.Length > 0
+                ? "Installo la versione " + versione + "…"
+                : "Installo la versione nuova…";
             // Uscire non e' riuscire. Un'installazione nulla vuol dire che
-            // Installa() non e' nemmeno partito (Process.Start ha lanciato); un
-            // codice d'uscita diverso da zero vuol dire che l'installer e' uscito
-            // ma ha fallito (file in uso, disinstallazione non riuscita). In
-            // entrambi i casi proseguire riaprirebbe il binario VECCHIO dicendo
-            // «Pronto», e l'utente resterebbe indietro senza saperlo: e' il difetto
-            // per cui «si e' riavviato ancora con la versione vecchia». Solo il
+            // Installa() non e' nemmeno partito; un codice d'uscita diverso da
+            // zero vuol dire che l'installer e' uscito ma ha fallito (file in
+            // uso, disinstallazione non riuscita). In entrambi i casi
+            // proseguire riaprirebbe il binario VECCHIO dicendo «fatto». Solo il
             // codice d'uscita zero e' un successo.
             if (installazione == null || (installazione.HasExited && installazione.ExitCode != 0)) {
-                battito.Stop();
-                string dettaglio = installazione == null
-                    ? "Non sono riuscito ad avviare l'installazione."
-                    : "L'aggiornamento non e' riuscito (codice " + installazione.ExitCode + ").";
-                fase.Text = dettaglio + " Riapro la versione attuale.";
+                faseTesto = installazione == null
+                    ? "Non sono riuscito ad avviare l'installazione. Riapro la versione di prima."
+                    : "L'installazione non è riuscita (codice " + installazione.ExitCode + "). Riapro la versione di prima.";
                 Nota(installazione == null
                     ? "installer non avviato: aggiornamento fallito"
                     : "installer fallito, codice " + installazione.ExitCode);
+                tono = 2;
                 // Si ridA' all'utente la sua versione: l'installazione fallita non
-                // l'ha toccata, ed e' meglio del nulla dopo aver chiuso tutto. La
-                // barra resta al valore vero, non 100: niente bugia «Pronto».
+                // l'ha toccata. La barra resta al valore vero, non 100.
                 Avvia();
-                barra.Width = (int)(320.0 * valore / 100.0);
-                percento.Text = valore + "%";
-                Chiudi();
+                Finale(40);
+                Aggiorna();
                 return;
             }
             if (installazione.HasExited) {
                 Nota("installer terminato (codice 0)");
                 // Claude Code prima della riapertura, sempre: quando c'e' da
                 // aggiornarlo lo si aggiorna, quando non c'e' lo si dice.
-                // Riaprire senza averlo guardato lascerebbe il dubbio, e il
-                // dubbio si risolve solo riaggiornando a mano.
-                AggiornaClaude();
-                Vai(5);
+                if (conClaude) {
+                    AggiornaClaude();
+                    Vai(5);
+                } else {
+                    Avvia();
+                    Vai(2);
+                }
             }
         } else if (passo == 5) {
-            // Claude Code: si aggiorna adesso, che nessuna chat lo tiene
-            // aperto. E' l'unico momento in cui si puo' fare senza chiedere
-            // all'utente di chiudere tutto a mano.
+            // Claude Code: si aggiorna adesso, che nessuna chat lo tiene aperto.
             if (claudeInCorso == null) {
-                // Nessun comando da eseguire: non si e' potuto nemmeno cercare.
-                // Lo si dice - una fase che passa in silenzio si legge come una
-                // fase che non e' avvenuta, ed e' proprio il dubbio da togliere.
-                fase.Text = notaClaude.Length > 0 ? notaClaude : "Claude Code non verificato.";
-                // Niente return: la barra va comunque ridisegnata in fondo a
-                // questo giro, altrimenti resta indietro di un battito.
+                // Nessun comando da eseguire: lo si dice, una fase che passa in
+                // silenzio si legge come una fase che non e' avvenuta.
+                faseTesto = notaClaude.Length > 0 ? notaClaude : "Claude Code non verificato.";
                 if (giriPasso >= 10) {
                     Avvia();
                     Vai(2);
                 }
             } else if (claudeInCorso.HasExited) {
-                // Finito: si tiene un istante la scritta «aggiornato» - con la
-                // versione se l'abbiamo letta dall'output - o passerebbe troppo
-                // in fretta per leggerla, e il terzo passo non si vedrebbe.
                 if (claudeFinitoAGiro < 0) {
                     claudeFinitoAGiro = giri;
                     Nota("claude code aggiornato" + (claudeVersioneVista.Length > 0 ? " alla " + claudeVersioneVista : ""));
                 }
-                fase.Text = claudeVersioneVista.Length > 0
+                faseTesto = claudeVersioneVista.Length > 0
                     ? "Claude Code aggiornato alla versione " + claudeVersioneVista + "."
                     : "Claude Code aggiornato.";
                 if (giri - claudeFinitoAGiro >= 8) {
@@ -415,84 +678,59 @@ class Aggiornamento : Form {
                     Vai(2);
                 }
             } else {
-                // Prima «cerco», poi - appena l'output rivela il numero nuovo -
-                // «aggiornamento alla versione X». La console non si vede piu':
-                // e' questa riga a raccontare cosa sta succedendo la' dietro.
-                fase.Text = claudeVersioneVista.Length > 0
-                    ? "Aggiornamento di Claude Code alla versione " + claudeVersioneVista + "..."
-                    : "Cerco aggiornamenti di Claude Code...";
+                faseTesto = claudeVersioneVista.Length > 0
+                    ? "Aggiorno Claude Code alla versione " + claudeVersioneVista + "…"
+                    : "Cerco aggiornamenti di Claude Code…";
             }
         } else if (passo == 2) {
-            fase.Text = "Avvio della nuova versione...";
+            faseTesto = "Riapro " + nome + "…";
             // Si aspetta che la nuova istanza sia davvero in piedi prima di
-            // dire «Pronto»: dirlo mentre sta ancora nascendo e' la stessa
-            // bugia della barra ferma all'82.
-            // I giri di questa fase e non quelli totali: con il totale, i giri
-            // minimi erano gia' passati da un pezzo e la finestra diceva
-            // «Pronto» nello stesso istante in cui cominciava ad aspettare -
-            // la bugia per cui restava al 82% dicendo di aver finito.
+            // dire «fatto». I giri di questa fase e non quelli totali.
             if (NuovaViva() || giriPasso > GIRI_AVVIO) Vai(3);
         } else {
-            fase.Text = "Pronto.";
+            faseTesto = versione.Length > 0
+                ? "Fatto: la versione " + versione + " è installata."
+                : "Fatto: aggiornamento installato.";
             valore = 100;
-            if (giri > GIRI_MINIMI) {
-                battito.Stop();
-                // Si disegna il 100 **prima** di uscire: con il return subito
-                // dopo lo stop, l'ultimo disegno era quello del giro prima e la
-                // finestra si chiudeva dicendo «Pronto» accanto a un 82%.
-                barra.Width = 320;
-                percento.Text = "100%";
-                Nota("finito");
-                Chiudi();
-                return;
-            }
+            tono = 1;
+            Nota("finito");
+            Finale(8);
         }
 
         // Un'installazione che non finisce piu' non deve lasciare una finestra
         // orfana sullo schermo per sempre.
-        if (giri > GIRI_MASSIMI) {
-            fase.Text = "L'installazione sta impiegando troppo: controlla SierraDeck.";
-            battito.Stop();
-            barra.Width = (int)(320.0 * valore / 100.0);
-            percento.Text = valore + "%";
+        if (giri > GIRI_MASSIMI && giroFinale < 0) {
+            faseTesto = "L'installazione sta impiegando troppo: apri " + nome + " e controlla.";
+            tono = 2;
             Nota("tempo scaduto");
-            Chiudi();
-            return;
+            Finale(40);
         }
 
-        barra.Width = (int)(320.0 * valore / 100.0);
-        percento.Text = valore + "%";
-        spiaTesto = fase.Text;
+        Aggiorna();
+    }
+
+    void Aggiorna() {
+        spiaTesto = faseTesto;
         spiaPercento = valore;
+        Invalidate();
     }
 
     /**
      * La spia: **questo** programma risponde al telefono mentre SierraDeck e' morto.
      *
-     * E' l'idea che risolve un problema che sembrava insolubile. Dal telefono,
-     * durante l'installazione, non c'era nessuno a cui chiedere a che punto si
-     * fosse: SierraDeck e' chiuso, ed e' proprio lui che parla col telefono. La
-     * schermata sull'app raccontava quindi una storia **parallela**, dedotta dal
-     * silenzio — e le due percentuali non coincidevano mai.
-     *
-     * Ma c'e' un programma vivo esattamente in quei trenta secondi, ed e'
-     * questo. La porta del Client e' libera proprio perche' SierraDeck l'ha
-     * lasciata. Quindi la si prende in prestito: stessa porta, stesso indirizzo,
-     * stessa rotta '/api/aggiornamento'. Il telefono continua a chiedere le
-     * stesse cose allo stesso posto, e per quei trenta secondi risponde
-     * l'installer con **le sue** parole e la **sua** percentuale. Non piu' due
-     * racconti da tenere allineati: uno solo, con due schermi davanti.
+     * Dal telefono, durante l'installazione, non c'era nessuno a cui chiedere
+     * a che punto si fosse: SierraDeck e' chiuso, ed e' proprio lui che parla
+     * col telefono. Ma c'e' un programma vivo esattamente in quei trenta
+     * secondi, ed e' questo. La porta del Client e' libera proprio perche'
+     * SierraDeck l'ha lasciata: la si prende in prestito, stessa rotta
+     * '/api/aggiornamento', e il telefono legge le **nostre** parole e la
+     * **nostra** percentuale.
      *
      * Un 'TcpListener' e non 'HttpListener': il secondo, su Windows, vuole una
-     * prenotazione dell'URL o i diritti di amministratore, e un aggiornamento
-     * non e' il momento di chiederli. La risposta e' abbastanza semplice da
-     * scriverla a mano.
+     * prenotazione dell'URL o i diritti di amministratore.
      *
-     * Non dice niente di segreto — un testo e un numero — e vive un minuto. Ma
-     * soprattutto **non puo' far fallire l'aggiornamento**: gira in un thread a
-     * parte, in un try che ingoia tutto, e se la porta non si prende nessuno se
-     * ne accorge. Un aggiornamento che si rompe per mostrare una percentuale
-     * sarebbe il peggior baratto possibile.
+     * Non puo' far fallire l'aggiornamento: gira in un thread a parte, in un
+     * try che ingoia tutto.
      */
     static void AvviaSpia(int porta) {
         try {
@@ -553,9 +791,7 @@ class Aggiornamento : Form {
      * Costruito con VIRG e BARRA invece che con le sequenze di fuga: questo
      * sorgente C# vive dentro una stringa TypeScript, quindi ogni barra
      * rovesciata attraversa due linguaggi prima di arrivare al compilatore e
-     * ne perde uno strato per strada. E' successo, e il risultato erano dieci
-     * errori di "nuova riga nella costante". Con i caratteri per numero non
-     * c'e' niente da far sopravvivere al viaggio.
+     * ne perde uno strato per strada.
      */
     static readonly char VIRG = (char)34;
     static readonly char BARRA = (char)92;
@@ -579,69 +815,85 @@ class Aggiornamento : Form {
         return uno.Replace(VIRG.ToString(), b + VIRG.ToString());
     }
 
+    /** Si toglie piano: mezzo secondo di dissolvenza, poi via. */
     void Chiudi() {
+        if (chiudendo) return;
+        chiudendo = true;
+        battito.Stop();
+        Invalidate();
         Timer fine = new Timer();
-        fine.Interval = 1600;
-        fine.Tick += delegate { fine.Stop(); spiaViva = false; Close(); };
+        fine.Interval = 40;
+        fine.Tick += delegate {
+            Opacity = Math.Max(0, Opacity - 0.08);
+            if (Opacity <= 0.01) { fine.Stop(); spiaViva = false; Close(); }
+        };
         fine.Start();
     }
 
     /**
-     * Chiude ogni istanza di SierraDeck e dice quante ne restano.
+     * Il programma riaperto ha una finestra visibile? E' il momento di passare
+     * la mano: la sua finestra degli aggiornamenti nasce nello stesso angolo.
+     */
+    bool FinestraNuova() {
+        try {
+            string nomeExe = Path.GetFileNameWithoutExtension(eseguibile);
+            if (nomeExe == null || nomeExe.Length == 0) return false;
+            Process[] vivi = Process.GetProcessesByName(nomeExe);
+            if (vivi.Length == 0) return false;
+            System.Collections.Generic.HashSet<uint> pid = new System.Collections.Generic.HashSet<uint>();
+            foreach (Process p in vivi) { if (p.Id != pidVecchio) pid.Add((uint)p.Id); }
+            bool trovata = false;
+            EnumWindows(delegate(IntPtr f, IntPtr d) {
+                uint suo;
+                GetWindowThreadProcessId(f, out suo);
+                if (pid.Contains(suo) && IsWindowVisible(f)) { trovata = true; return false; }
+                return true;
+            }, IntPtr.Zero);
+            return trovata;
+        } catch { return false; }
+    }
+
+    /**
+     * Chiude ogni istanza del programma e dice quante ne restano.
      *
      * Non basta aspettare quella che ci ha lanciati: una seconda finestra
-     * aperta su un altro monitor, o un'istanza dimenticata, tiene aperti gli
-     * stessi file - e l'installer si ferma con «impossibile disinstallare i
-     * vecchi file». E' successo, ed e' il motivo per cui questo metodo esiste.
+     * aperta su un altro monitor tiene aperti gli stessi file - e l'installer
+     * si ferma con «impossibile disinstallare i vecchi file».
      *
      * Prima si chiede con gentilezza, cosi' il programma salva quello che deve;
-     * dopo qualche secondo, chi non se ne va viene chiuso comunque. Aspettare
-     * all'infinito una finestra che non risponde vorrebbe dire non aggiornare
-     * mai.
+     * dopo qualche secondo, chi non se ne va viene chiuso comunque.
      */
     int ChiudiTutte() {
-        string nome = Path.GetFileNameWithoutExtension(eseguibile);
-        if (nome == null || nome.Length == 0) nome = "SierraDeck";
+        string nomeExe = Path.GetFileNameWithoutExtension(eseguibile);
+        if (nomeExe == null || nomeExe.Length == 0) nomeExe = "SierraDeck";
         Process[] trovati;
         // Se non si riesce a contarle, si assume che ce ne sia una: «non lo so»
-        // deve fermare, non far partire. Rispondere zero qui significherebbe
-        // lanciare l'installer su file che potrebbero essere in uso, ed e'
-        // precisamente il conflitto che questo metodo esiste per evitare.
-        try { trovati = Process.GetProcessesByName(nome); } catch { return 1; }
+        // deve fermare, non far partire.
+        try { trovati = Process.GetProcessesByName(nomeExe); } catch { return 1; }
 
         int mio = Process.GetCurrentProcess().Id;
         int vivi = 0;
         foreach (Process p in trovati) {
             try {
                 if (p.HasExited) continue;
-                // Se stessi non ci si chiude: l'updater ha un nome diverso, ma
-                // un confronto in piu' costa nulla e vale per sempre.
                 if (p.Id == mio) continue;
                 vivi++;
-                // La richiesta gentile si ripete a ogni giro finche' serve: una
-                // sola volta bastava per la finestra che risponde subito, e
-                // lasciava aperte quelle che stavano ancora salvando - e' cosi'
-                // che ne restava una viva mentre l'installer partiva.
                 if (giri < GIRI_GENTILI) {
                     // CloseMainWindow non fa niente quando la finestra
-                    // principale non c'e' ancora - e non lo dice, restituisce
-                    // false. Per questo si insiste a ogni giro e per questo, se
+                    // principale non c'e' ancora: si insiste a ogni giro e, se
                     // il tempo di grazia passa, si chiude comunque.
                     p.CloseMainWindow();
                 } else {
-                    Nota("chiudo a forza il processo " + p.Id + " (" + nome + ")");
+                    Nota("chiudo a forza il processo " + p.Id + " (" + nomeExe + ")");
                     p.Kill();
                 }
             } catch {
                 // Un processo che sparisce fra l elenco e la chiusura: e
-                // esattamente quello che stiamo aspettando che succeda, e
-                // segnalarlo come guasto sarebbe segnalare un successo.
+                // esattamente quello che stiamo aspettando che succeda.
             }
         }
-        // Quante ne ha viste, scritto una volta sola: e' l'informazione che
-        // mancava quando «ne ha chiusa una sola» e' rimasto un mistero.
         if (vivi != vistiUnaVolta) {
-            Nota("istanze di " + nome + " ancora aperte: " + vivi);
+            Nota("istanze di " + nomeExe + " ancora aperte: " + vivi);
             vistiUnaVolta = vivi;
         }
         return vivi;
@@ -650,25 +902,23 @@ class Aggiornamento : Form {
     void Installa() {
         try {
             ProcessStartInfo p = new ProcessStartInfo(installer);
-            // Silenzioso: la finestra che si vede e' questa. L'installer di
-            // electron-builder riavvia da solo, quindi glielo si vieta: a
-            // riaprire il programma ci pensiamo noi, dopo, quando siamo sicuri
-            // che l'installazione e' finita davvero.
+            // Silenzioso: la finestra che si vede e' questa. A riaprire il
+            // programma ci pensiamo noi, dopo, quando siamo sicuri che
+            // l'installazione e' finita davvero.
             p.Arguments = "/S --update-if-installed";
             p.UseShellExecute = false;
             installazione = Process.Start(p);
         } catch (Exception e) {
             Nota("installer non partito: " + e.Message);
-            fase.Text = "Non sono riuscito a installare: apri l'installer a mano.";
         }
     }
 
-    /** La nuova versione e' gia' a schermo? */
+    /** La nuova versione e' gia' partita? */
     bool NuovaViva() {
         try {
-            string nome = Path.GetFileNameWithoutExtension(eseguibile);
-            if (nome == null || nome.Length == 0) return false;
-            return Process.GetProcessesByName(nome).Length > 0;
+            string nomeExe = Path.GetFileNameWithoutExtension(eseguibile);
+            if (nomeExe == null || nomeExe.Length == 0) return false;
+            return Process.GetProcessesByName(nomeExe).Length > 0;
         } catch { return false; }
     }
 
@@ -676,8 +926,7 @@ class Aggiornamento : Form {
      * Aggiorna Claude Code con il suo stesso comando.
      *
      * Non si reinstalla e non si scarica niente da noi: «claude update» sa
-     * come farlo, e affidarglielo significa non dover inseguire il modo in cui
-     * si aggiorna quando cambiera'.
+     * come farlo.
      */
     void AggiornaClaude() {
         // Senza comando non c'e' niente da aggiornare: il programma ha gia'
@@ -690,16 +939,11 @@ class Aggiornamento : Form {
             // barra rovescia arriverebbe al compilatore C# senza la barra.
             ProcessStartInfo p = new ProcessStartInfo("cmd.exe", "/c \\"" + claude + "\\" update");
             p.UseShellExecute = false;
-            // NIENTE console. Prima si vedeva la finestra nera di «claude update»
-            // sfilare accanto alla nostra: due finestre per una cosa sola. Ora
-            // gira nascosta e cio' che fa lo raccontiamo noi, nella stessa
-            // finestra, con lo stato e la versione lette dal suo output.
+            // NIENTE console: gira nascosta e cio' che fa lo raccontiamo noi,
+            // nella stessa finestra.
             p.CreateNoWindow = true;
             p.RedirectStandardOutput = true;
             p.RedirectStandardError = true;
-            // Lo stdin chiuso subito: se «claude update» provasse a leggere da
-            // tastiera — non lo fa, ma per prudenza — troverebbe la fine e non
-            // resterebbe appeso ad aspettare una risposta che non arriva.
             p.RedirectStandardInput = true;
             claudeInCorso = new Process();
             claudeInCorso.StartInfo = p;
@@ -716,16 +960,12 @@ class Aggiornamento : Form {
     }
 
     /**
-     * Una riga dall'output di «claude update». Gira su un thread del pool, non
-     * su quello della finestra: qui si tocca solo un campo stringa (assegnarlo
-     * e' atomico), e la finestra lo legge al suo battito. Niente controlli da
-     * aggiornare da qui, o servirebbe un Invoke.
+     * Una riga dall'output di «claude update». Gira su un thread del pool: qui
+     * si tocca solo un campo stringa, e la finestra lo legge al suo battito.
      */
     void RigaClaude(object mittente, DataReceivedEventArgs ev) {
         if (ev == null || ev.Data == null) return;
         Nota("claude> " + ev.Data);
-        // La versione bersaglio: il numero piu' alto che compare. «claude update»
-        // stampa sia l'attuale sia la nuova, e la nuova e' sempre la maggiore.
         foreach (Match m in Regex.Matches(ev.Data, "\\\\d+\\\\.\\\\d+\\\\.\\\\d+")) {
             if (PiuGrande(m.Value, claudeVersioneVista)) claudeVersioneVista = m.Value;
         }
@@ -746,20 +986,11 @@ class Aggiornamento : Form {
     }
 
     void Avvia() {
-        // **La porta si molla prima di riaprire**, e non alla fine.
-        //
-        // La spia sta in ascolto sulla porta del Client, che e' libera solo
-        // perche' SierraDeck e' chiuso. Se la tenesse ancora mentre la nuova
-        // versione parte, quella troverebbe la porta occupata e resterebbe senza
-        // Client: il telefono non lo vedrebbe piu' fino al riavvio successivo.
-        // Un aggiornamento che rompe la cosa che stavi guardando dal telefono e'
-        // esattamente il contrario di quello che questa spia doveva fare.
-        //
-        // Il ciclo della spia controlla questo flag ogni decimo di secondo,
-        // quindi la porta e' libera molto prima che il programma nuovo arrivi a
-        // chiederla.
+        // **La porta si molla prima di riaprire**, e non alla fine: se la spia
+        // la tenesse ancora mentre la nuova versione parte, quella resterebbe
+        // senza Client e il telefono non la vedrebbe piu'.
         spiaViva = false;
-        Nota("spia spenta: la porta torna a SierraDeck");
+        Nota("spia spenta: la porta torna al programma");
         try {
             if (File.Exists(eseguibile)) {
                 ProcessStartInfo p = new ProcessStartInfo(eseguibile);

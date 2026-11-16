@@ -1,4 +1,4 @@
-import { powerMonitor } from 'electron'
+import { app, powerMonitor } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import type { Registro } from '../main/registro'
 import { eErroreDiRete } from '../shared/errori-rete'
@@ -55,6 +55,13 @@ export function avviaAggiornamenti(d: {
   /** Ogni cambio di fase o di progresso (finestra davanti, barra delle applicazioni, tooltip). */
   suCambio?: (s: StatoAggiornamento) => void
   adesso?: () => number
+  /**
+   * 16/11: l'installazione nella stessa finestra degli aggiornamenti. Lancia
+   * SierraDeck Update con l'installer scaricato e dice se si è fatto vivo:
+   * allora l'Aiutante esce e installa lui, mostrando le fasi in basso a destra.
+   * Assente o false: l'installazione silenziosa di sempre.
+   */
+  conUpdater?: (p: { installer: string; versione: string }) => Promise<boolean>
 }): Aggiornamenti {
   const adesso = d.adesso ?? Date.now
   const stato: StatoAggiornamento = { fase: 'niente' }
@@ -77,6 +84,8 @@ export function avviaAggiornamenti(d: {
     debug: () => {}
   }
   let ultimoErrore: string | undefined
+  /** Il file scaricato da electron-updater: lo esegue SierraDeck Update. */
+  let installerScaricato: string | undefined
   let tentativiRete = 0
   let ritento: ReturnType<typeof setTimeout> | undefined
   autoUpdater.on('update-available', (info) => {
@@ -101,6 +110,7 @@ export function avviaAggiornamenti(d: {
     stato.fase = 'pronto'
     stato.versione = info.version
     stato.prontoDa = adesso()
+    installerScaricato = (info as { downloadedFile?: string }).downloadedFile
     if (stato.progresso !== undefined) stato.progresso = { ...stato.progresso, percento: 100, scaricati: stato.progresso.totale }
     d.registro.info(`[aggiornamenti] ${info.version} pronta: niente lavori nuovi, installo appena finiscono quelli in corso`)
     cambiato()
@@ -148,9 +158,23 @@ export function avviaAggiornamenti(d: {
     d.registro.info(`[aggiornamenti] installo la ${stato.versione ?? 'nuova versione'} (${perche}; ${d.inCorso()} lavori ancora in corso)`)
     // Un attimo per far vedere «Installo…» nella finestra, poi si chiude.
     setTimeout(() => {
-      try { d.primaDiInstallare() } catch { /* si installa lo stesso */ }
-      // In silenzio, e l'Aiutante riparte da solo a installazione finita.
-      autoUpdater.quitAndInstall(true, true)
+      void (async () => {
+        // Prima la finestra: SierraDeck Update nasce dove sta quella degli
+        // aggiornamenti e mostra chiusura, installazione e riapertura.
+        let conFinestra = false
+        const installer = installerScaricato
+        if (installer !== undefined && d.conUpdater !== undefined) {
+          try { conFinestra = await d.conUpdater({ installer, versione: stato.versione ?? '' }) } catch { conFinestra = false }
+        }
+        try { d.primaDiInstallare() } catch { /* si installa lo stesso */ }
+        if (conFinestra) {
+          d.registro.info('[aggiornamenti] SierraDeck Update è vivo: esco, installa lui nella finestra in basso a destra')
+          app.quit()
+          return
+        }
+        // Ripiego: in silenzio, e l'Aiutante riparte da solo a installazione finita.
+        autoUpdater.quitAndInstall(true, true)
+      })()
     }, 1500)
   }
   const controlla = (): void => {

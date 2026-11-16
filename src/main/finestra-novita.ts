@@ -117,6 +117,18 @@ function posiziona(): void {
   win.setBounds(posizioneInBassoADestra(schermo.workArea, grandezzaRicordata()))
 }
 
+/**
+ * Dove sta la finestra, o dove starebbe se fosse aperta (16/11): la usa
+ * SierraDeck Update per nascere nello stesso posto e della stessa misura,
+ * così l'installazione continua «nella finestra a destra» anche a programma chiuso.
+ */
+export function rettangoloFinestraNovita(): { x: number; y: number; width: number; height: number } {
+  if (win !== undefined && !win.isDestroyed() && win.isVisible() && !win.isMinimized()) return win.getBounds()
+  const p = principale()
+  const schermo = p !== undefined ? screen.getDisplayMatching(p.getBounds()) : screen.getPrimaryDisplay()
+  return posizioneInBassoADestra(schermo.workArea, grandezzaRicordata())
+}
+
 /** L'icona del pacchetto (`build/icon.png`, nei `files` di electron-builder), se c'è. */
 function iconaFinestra(): { icon?: string } {
   try {

@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, Menu, nativeImage, safeStorage, shell, Tra
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { linkAmmesso, type NoteAggiornamento } from '@shared/note-aggiornamento'
+import { linkAmmesso, righeNotePerUpdater, type NoteAggiornamento } from '@shared/note-aggiornamento'
 import { tavolozza } from '@shared/preferenze'
 import { aggiungiRuntimeAlPath } from '@shared/runtime-noti'
 import { ambientePulito } from '@shared/ambiente-figli'
@@ -18,6 +18,7 @@ import { avviaRinnovaAccesso } from '@shared/rinnova-accesso'
 import { sorvegliaAccesso } from '../autopilot-host/sorveglia-accesso'
 import versioneJson from './versione.json'
 import { avviaAggiornamenti, type StatoAggiornamento } from './aggiornamento'
+import { assicuraUpdater, avviaUpdater, unoGiaInCorso, updaterVivo } from '../main/updater/compila'
 import {
   bloccoDaClaude, CONTROLLO_CLAUDE_MS, controllaClaude, esitoDaLavoro, serveProvaPiena, testoStatoClaude, type EsitoClaude
 } from './controllo-claude'
@@ -262,7 +263,28 @@ function avvia(): void {
       inCorso: () => nucleo.lavoratore.inCorso(),
       primaDiInstallare: () => { staUscendo = true; storico.scriviOra(); finestraAgg.chiudi(); r.ferma() },
       attivo: app.isPackaged && prova === undefined,
-      suCambio: suCambioAgg
+      suCambio: suCambioAgg,
+      conUpdater: async ({ installer, versione }) => {
+        // Lo stesso SierraDeck Update del programma completo, compilato nella
+        // cartella dei dati dell'Aiutante. Se ne gira già uno (il programma
+        // completo che si aggiorna), si installa in silenzio come prima.
+        if (unoGiaInCorso()) return false
+        const updater = assicuraUpdater(join(app.getPath('userData'), 'updater'))
+        if (updater === undefined) return false
+        const partito = avviaUpdater(updater, {
+          installer,
+          eseguibile: app.getPath('exe'),
+          versione,
+          pid: process.pid,
+          // Nessun telefono da servire: la spia resta spenta.
+          portaClient: 0,
+          nome: 'SierraDeck Aiutante',
+          daVersione: VERSIONE,
+          note: await noteDellAiutante(versione).then((n) => righeNotePerUpdater(n.note)).catch(() => []),
+          rettangolo: finestraAgg.rettangolo()
+        })
+        return partito && await updaterVivo()
+      }
     })
     // Aperta, la finestra rilegge ogni pochi secondi (i lavori in corso cambiano la frase di «pronta»).
     setInterval(() => { if (finestraAgg.stato().aperta) finestraAgg.manda('aiutante-agg:stato', rispostaAgg()) }, 3000).unref?.()
@@ -271,6 +293,10 @@ function avvia(): void {
     ipcMain.handle('aiutante-agg:note', async () => {
       const nuova = statoAgg().versione
       if (nuova === undefined) return undefined
+      return noteDellAiutante(nuova)
+    })
+    /** Le note fra la versione installata e `nuova`, dal registro su GitHub (in memoria per la stessa versione). */
+    async function noteDellAiutante(nuova: string): Promise<NoteAggiornamento> {
       if (noteInCache?.per === nuova) return noteInCache.note
       let sorgente: string | undefined
       try {
@@ -280,7 +306,7 @@ function avvia(): void {
       const note = noteAiutante({ sorgente, installata: VERSIONE, nuova })
       if (sorgente !== undefined) noteInCache = { per: nuova, note }
       return note
-    })
+    }
     ipcMain.handle('aiutante-agg:installa', (_e, confermato: unknown) => {
       const e = aggiornamenti?.installaAdesso(confermato === true) ?? { esito: 'no' as const, motivo: 'Aggiornamenti non attivi.' }
       if (e.esito === 'installa') registro.info(`[aggiornamenti] «Installa adesso» premuto (${nucleo.lavoratore.inCorso()} lavori in corso)`)

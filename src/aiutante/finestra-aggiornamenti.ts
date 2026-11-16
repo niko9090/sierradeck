@@ -33,6 +33,8 @@ export type FinestraAggiornamentiAiutante = {
   progresso: (p: number) => void
   manda: (canale: string, dati: unknown) => void
   chiudi: () => void
+  /** Dove sta, o starebbe (16/11): SierraDeck Update nasce lì, della stessa misura. */
+  rettangolo: () => { x: number; y: number; width: number; height: number }
 }
 
 export function creaFinestraAggiornamenti(d: { dati: string; preload: string; icona?: string; renderer: () => { url?: string; file: string } }): FinestraAggiornamentiAiutante {
@@ -112,6 +114,9 @@ export function creaFinestraAggiornamenti(d: { dati: string; preload: string; ic
     letto: () => { lettura = segnaLetto(lettura) },
     progresso: (p) => { if (win !== undefined && !win.isDestroyed()) win.setProgressBar(p) },
     manda: (canale, dati) => { if (win !== undefined && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send(canale, dati) },
+    rettangolo: () => (win !== undefined && !win.isDestroyed() && win.isVisible() && !win.isMinimized()
+      ? win.getBounds()
+      : posizioneInBassoADestra(screen.getPrimaryDisplay().workArea, ricordata())),
     chiudi: () => { uscendo = true; if (win !== undefined && !win.isDestroyed()) win.destroy(); win = undefined }
   }
 }

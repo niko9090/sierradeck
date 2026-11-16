@@ -6,7 +6,8 @@ import type { BrowserWindow } from 'electron'
 import { avviaFinestraAggiornamento } from './finestra-aggiornamento'
 import { allineaBaseDifferenziale, cartellaCacheUpdater } from './base-differenziale'
 import { assicuraUpdater, avviaUpdater, diariUpdater, updaterVivo } from './updater/compila'
-import { PAGINA_VERSIONI, raccogliNote, type NoteAggiornamento } from '@shared/note-aggiornamento'
+import { PAGINA_VERSIONI, raccogliNote, righeNotePerUpdater, type NoteAggiornamento } from '@shared/note-aggiornamento'
+import { APP_NAME } from '@shared/version'
 import { eErroreDiRete } from '@shared/errori-rete'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 import { eFileRilascioMancante, valutaFileRilascioMancante, type Episodio404 } from '@shared/aggiornamenti-404'
@@ -317,6 +318,19 @@ const ascoltatoriAnnunci = new Set<(s: StatoAggiornamento) => void>()
 export function ascoltaAnnunci(f: (s: StatoAggiornamento) => void): () => void {
   ascoltatoriAnnunci.add(f)
   return () => { ascoltatoriAnnunci.delete(f) }
+}
+
+/**
+ * Dove nasce la finestra di SierraDeck Update (16/11): dove sta, o starebbe,
+ * la finestra degli aggiornamenti in basso a destra. La dà `finestra-novita.ts`
+ * da `index.ts`; senza, l'updater si mette da solo in basso a destra.
+ */
+let rettangoloFinestra: () => { x: number; y: number; width: number; height: number } | undefined = () => undefined
+export function impostaRettangoloFinestraAggiornamento(f: typeof rettangoloFinestra): void { rettangoloFinestra = f }
+
+/** Il rettangolo, senza mai far fallire un aggiornamento per una finestra. */
+function rettangoloSicuro(): { x: number; y: number; width: number; height: number } | undefined {
+  try { return rettangoloFinestra() } catch { return undefined }
 }
 
 export function creaAggiornamenti(
@@ -866,6 +880,7 @@ export function creaAggiornamenti(
       const claude = claudeDaAggiornare?.()
       if (updater !== undefined && installer !== undefined) {
         segnaTentativo(stato.versione ?? versioneScaricata ?? '?')
+        const rettangolo = rettangoloSicuro()
         const partito = avviaUpdater(updater, {
           installer,
           eseguibile: app.getPath('exe'),
@@ -876,7 +891,13 @@ export function creaAggiornamenti(
           // cui nessuna chat lo tiene aperto, e chiederlo all'utente vorrebbe
           // dire chiedergli di chiudere tutto a mano.
           ...(claude !== undefined ? { claude } : {}),
-          notaClaude: notaClaude?.() ?? ''
+          notaClaude: notaClaude?.() ?? '',
+          // La finestra di SierraDeck Update nasce dove sta quella degli
+          // aggiornamenti, con le stesse novità: sembra la stessa che continua.
+          nome: APP_NAME,
+          daVersione: app.getVersion(),
+          note: noteRaccolte !== undefined && noteRaccolte.versione === (stato.versione ?? versioneScaricata) ? righeNotePerUpdater(noteRaccolte.note.note) : [],
+          ...(rettangolo !== undefined ? { rettangolo } : {})
         })
         if (partito) {
           // Non si chiude niente finché l'updater non dice di esserci. Se lo

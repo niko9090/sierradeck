@@ -3,7 +3,7 @@ import { frenoDrive, MESSAGGIO_DRIVE_PIENO, RICONTROLLO_PIENO_MIN } from './cass
 import { nonRipartePerAltri } from '@shared/apertura-solo-utente'
 import { portaInVista, statoApertura } from '@shared/finestra-visibile'
 import { chiudiPannelliConLApp, finestreDiChat, finestreViveSenzaServizio, segnaFinestraDiServizio } from './finestre-pannello'
-import { chiudiFinestraNovita, controllaInstallata, finestraNovitaViva, impostaFinestraNovita, mostraAttesaLunga, suStatoAggiornamento } from './finestra-novita'
+import { chiudiFinestraNovita, controllaInstallata, finestraNovitaViva, impostaFinestraNovita, mostraAttesaLunga, rettangoloFinestraNovita, suStatoAggiornamento } from './finestra-novita'
 import { workspaceVisti } from './chat-vista'
 import { APP_ID, portePerLaProva } from './identita-app'
 import { scelteDiTerminale } from '@shared/scelte-terminale'
@@ -138,7 +138,7 @@ import { avviaRitiro, consegnaDaIdTesto, doveConsegnare, leggiConsegne, finestra
 import type { Chat } from './client-rotte'
 import { accendiAvvisi, ipcAvvisi } from './avvisi-avvio'
 import { leggiEsitoAltroPc, type EsitoAltroPc } from './risposta-verificata'
-import { ascoltaAnnunci, creaAggiornamenti, leggiAggiornamentoAppenaFatto, type EsitoQuiete } from './aggiornamenti'
+import { ascoltaAnnunci, creaAggiornamenti, impostaRettangoloFinestraAggiornamento, leggiAggiornamentoAppenaFatto, type EsitoQuiete } from './aggiornamenti'
 import { attesaMassimaMs, descriviAttesaDrive, lavoroAutomatico, percheNonFinito } from './attesa-drive'
 import { claudeDaAggiornare, notaClaude } from './claude-versione'
 import { contatoreDrive, cpuRamDa } from './risorse'
@@ -6169,6 +6169,8 @@ if (!app.requestSingleInstanceLock()) {
       // Gli aggiornamenti: cercare si fa da soli, scaricare e installare li
       // decide l'utente. Il secondo «sì» esiste perché installare chiude il
       // programma con le chat aperte dentro.
+      // SierraDeck Update nasce dove sta la finestra degli aggiornamenti (16/11).
+      impostaRettangoloFinestraAggiornamento(rettangoloFinestraNovita)
       aggiornamenti = creaAggiornamenti(
         // Anche la finestra degli aggiornamenti in basso a destra (13/11) riceve lo stato.
         () => [...finestreDiChat(), ...finestraNovitaViva()],
