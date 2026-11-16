@@ -66,7 +66,10 @@ export type Battuta = {
  *
  * Pura: si prova senza servizio.
  */
-export function conversazione(a: Autopilota): Battuta[] {
+export function conversazione(parziale: Autopilota): Battuta[] {
+  // Dati parziali (un altro PC, un file di una versione più vecchia): un elenco
+  // che manca è vuoto, non un errore.
+  const a: Autopilota = { ...parziale, dialogo: parziale.dialogo ?? [], decisioni: parziale.decisioni ?? [], chats: parziale.chats ?? [] }
   const righe: { b: Battuta; ordine: number }[] = []
   let n = 0
   const metti = (b: Battuta): void => { righe.push({ b, ordine: n++ }) }
@@ -255,7 +258,7 @@ export function comprimiNote(battute: Battuta[]): Battuta[] {
 
 /** Sta ancora pensando alla tua ultima battuta: l'ultima cosa detta è tua. */
 export function staPensando(a: Autopilota): boolean {
-  const ultima = a.dialogo[a.dialogo.length - 1]
+  const ultima = a.dialogo?.[a.dialogo.length - 1]
   return ultima?.da === 'tu' && ultima.traccia !== true
 }
 
