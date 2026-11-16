@@ -37,10 +37,16 @@ data class VoceAttesa(
     val colore: String? = null
 )
 
-/** Il tono di una frase di stato: decide il colore e l'ordine. */
-enum class Tono { FERMO, ASPETTA, LAVORA, RIPOSO;
+/**
+ * Il tono di una frase di stato: decide il colore e l'ordine.
+ * ATTESA (blu): l'autopilota aspetta unioni in fila, il lavoro va avanti da solo;
+ * sta subito dopo LAVORA, fra quelli al lavoro e prima di chi è a riposo.
+ */
+enum class Tono { FERMO, ASPETTA, LAVORA, ATTESA, RIPOSO;
+    /** Al lavoro, anche se in attesa di unioni. */
+    val alLavoro: Boolean get() = this == LAVORA || this == ATTESA
     companion object {
-        fun di(s: String?): Tono = when (s) { "fermo" -> FERMO; "aspetta" -> ASPETTA; "lavora" -> LAVORA; else -> RIPOSO }
+        fun di(s: String?): Tono = when (s) { "fermo" -> FERMO; "aspetta" -> ASPETTA; "lavora" -> LAVORA; "attesa" -> ATTESA; else -> RIPOSO }
     }
 }
 
