@@ -86,6 +86,8 @@
 - Se il cancello taglia l'errore Gradle, il blocco «What went wrong» completo sta in C:\Users\nikof\.gradle\daemon\8.11.1\daemon-*.out.log: cercarlo lì prima di provare a riprodurre. _(2026-11-14)_
 - Su Windows due gradle sulla stessa android/app/build si pestano (output.bin aperto, lookups.tab): fallisce quello che arriva dopo. Il fallimento non lascia <failure> né hs_err. _(2026-11-14)_
 - Nella cartella android non c'è gradlew: i test partono con `gradle testDebugUnitTest --offline` (Gradle 8.11.1 in PATH, JAVA_HOME su JDK 21); il primo giro dura circa 4 minuti. _(2026-11-16)_
+- Il blu degli stati sta in `ColoreStato.blu` (tema/Attivita.kt), non in `Banco`: i colori di stato vanno presi dalla tabella unica del PC. _(2026-11-16)_
+- `Tono` è ordinato per `ordinal` nelle schede workspace: un tono nuovo va messo nella posizione giusta dell'enum, non in fondo. _(2026-11-16)_
 
 ## release
 
