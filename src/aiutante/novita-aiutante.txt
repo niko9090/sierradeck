@@ -3,6 +3,10 @@ cima). Dal 13/11 l'Aiutante esce allegato alla release del programma
 completo (scripts/allega-aiutante.mjs, dentro npm run pubblica).
 Ogni riga fra apici singoli; dentro, un apice si scrive \'.
 
+versione: '1.1.0'
+  '«Collega Claude per un anno»: si apre una finestra, approvi nel browser e l\'Aiutante salva da solo un accesso a Claude che vale un anno (cifrato). Niente più lavori fermi per il login scaduto; due settimane prima della scadenza il tasto torna.',
+  'Rifatto il login o rinnovato l\'accesso, l\'Aiutante ricontrolla Claude subito invece che fra mezz\'ora.',
+  'Nella finestra i riquadri «Attivi» e «In coda»: i lavori in corso e quelli che aspettano un posto.'
 versione: '1.0.3'
   'Controlla che Claude funzioni davvero (non solo che il file dell\'accesso ci sia): se l\'accesso è scaduto lo dice in rosso e non prende lavori, così gli altri PC non glieli mandano.',
   'Il tasto «Collega Claude» apre un terminale per rifare l\'accesso; «Ricontrolla» rifà la prova. Nella finestra anche il motivo dell\'ultimo lavoro non riuscito.',
