@@ -215,7 +215,7 @@ export function testoLotto(p: { id: string; gruppi: readonly GruppoErrori[]; ver
     righe.push(`- dove: ${g.dove}${g.punto !== undefined ? ` · punto: \`${g.punto}\`` : ''}`)
     righe.push(`- volte: ${g.volte} · dal ${g.prima} al ${g.ultima}`)
     righe.push(`- da: ${g.da.join(', ')} · versioni: ${g.versioni.length > 0 ? g.versioni.join(', ') : 'non dette'}`)
-    if (g.ritorna !== undefined) righe.push(`- **si ripresenta**: affidato il ${g.ritorna.il.slice(0, 10)}${g.ritorna.versione !== undefined ? ` (alla ${g.ritorna.versione})` : ''}, ma c’è ancora su una versione più nuova: la correzione non è bastata`)
+    if (g.ritorna !== undefined) righe.push(`- **si ripresenta**: affidato il ${g.ritorna.il.slice(0, 10)}${g.ritorna.versione !== undefined ? ` (alla ${g.ritorna.versione})` : ''}, ma c’è ancora su una versione più nuova: o la correzione non è bastata, o la chiusura era «non è un difetto / si risolve a mano» e l'azione a mano non è ancora stata fatta (guarda nel quaderno com'era stato chiuso)`)
     if (g.cosa !== undefined) righe.push(`- cosa si stava facendo: ${g.cosa}`)
     if (g.messaggio.length > 160) righe.push('', '```', g.messaggio, '```')
     if (g.dettagli !== undefined) righe.push('', '```', g.dettagli, '```')

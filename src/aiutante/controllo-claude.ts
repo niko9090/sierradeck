@@ -62,6 +62,20 @@ export function bloccoDaClaude(e: EsitoClaude): string | undefined {
   return testoStatoClaude(e.stato)
 }
 
+/**
+ * 16/11: che riga scrivere nel registro quando lo stato di Claude cambia (o si conferma
+ * all'avvio). Un accesso mancante si risolve a mano («Collega Claude»): è un avviso, riga
+ * info che non entra negli «Errori arrivati». Claude non installato, limite del piano e
+ * «non risponde» restano errori. Lo stesso stato di prima non scrive niente; il ritorno a
+ * `ok` è info. All'avvio `prima` è `undefined`.
+ */
+export function livelloControlloClaude(prima: EsitoClaude | undefined, nuovo: EsitoClaude): 'errore' | 'avviso' | 'info' | undefined {
+  if (nuovo.stato === 'controllo') return undefined
+  if (nuovo.stato === 'ok') return prima === undefined || prima.stato !== 'ok' ? 'info' : undefined
+  if (prima !== undefined && prima.stato === nuovo.stato) return undefined
+  return nuovo.stato === 'accesso' ? 'avviso' : 'errore'
+}
+
 /** Il risultato grezzo di un comando: codice d'uscita, uscite, e il codice dell'errore di avvio (ENOENT…). */
 export type Uscita = { codice: number | null; stdout: string; stderr: string; errore?: string; scaduto?: boolean }
 
