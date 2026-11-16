@@ -144,6 +144,7 @@
 - Prima di una pubblicazione manuale controllare MERGE_HEAD e i file in stage nella cartella principale: il programma può avere un'unione a metà che blocca il rilascio per minuti. _(2026-11-14)_
 - Il `lezioni.md` modificato dal programma sporca la cartella, ma non ha fermato `pubblica-app`. _(2026-11-14)_
 - in questa copia `git fetch` può fallire se il remoto è un bundle sparito; `merge --ff-only main` basta _(2026-11-16)_
+- in questa copia `git fetch` può fallire se il bundle di arrivo è già stato cancellato: `git merge --ff-only main` basta, main è già locale. _(2026-11-16)_
 
 ## autopilota
 
@@ -518,6 +519,8 @@
 
 - un PC con versione vecchia può mandare `causa` 'sconosciuta' con il testo giusto nel motivo: la causa dichiarata va usata solo se riconosciuta, altrimenti si rilegge il testo. _(2026-11-14)_
 - la pausa per accesso scaduto è calcolata dal file dei lavori affidati, quindi vale anche dopo un riavvio; se un PC viene riprovato dopo pochi minuti, controllare la causa salvata nel lavoro. _(2026-11-14)_
+- la cartella del progetto non è una risorsa da verificare: arriva col pacchetto, va esclusa (`escludi`) nel ricavare i percorsi dal prompt. _(2026-11-16)_
+- un percorso ricavato dal testo non fa fallire il lavoro (informativo, con alternativa); solo le risorse dichiarate esplicitamente sono indispensabili. _(2026-11-16)_
 
 ## gradle
 
