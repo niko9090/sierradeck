@@ -41,9 +41,10 @@ export type SorgenteAutopilota = {
 
 export const SORGENTE_LOCALE: SorgenteAutopilota = {
   chiave: 'qui',
-  orchestratore: async (ws) => normalizzaOrchestratore(await window.gestore.autopilota.orchestratore(ws)),
-  coda: async (ws) => normalizzaCoda(await window.gestore.autopilota.coda(ws)),
-  specialista: (ws, id) => window.gestore.autopilota.specialista(ws, id),
+  // Niente chiamata senza workspace (al primo disegno può essere ancora vuoto).
+  orchestratore: async (ws) => normalizzaOrchestratore(ws.trim() === '' ? undefined : await window.gestore.autopilota.orchestratore(ws)),
+  coda: async (ws) => normalizzaCoda(ws.trim() === '' ? undefined : await window.gestore.autopilota.coda(ws)),
+  specialista: async (ws, id) => (ws.trim() === '' ? undefined : window.gestore.autopilota.specialista(ws, id)),
   attesa: () => window.gestore.autopilota.attesaSpecialisti(),
   priorita: (id, mossa) => window.gestore.autopilota.prioritaAttesa(id, mossa),
   dialoga: (a, t) => window.gestore.autopilota.dialoga(a, t),
