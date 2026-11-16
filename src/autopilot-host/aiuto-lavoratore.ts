@@ -95,7 +95,12 @@ export type LavoratoreAiuto = {
   /** 12/11: i lavori degli altri PC al lavoro qui, per l'elenco «Al lavoro adesso». */
   ospitati: () => LavoroOspitato[]
   pezzo: (p: { lavoro: unknown; n: unknown; totale: unknown; dati: unknown }) => { ok: true; ricevuti: number } | { ok: false; motivo: string }
-  avvia: (p: Record<string, unknown>) => { ok: true } | { ok: false; motivo: string }
+  /** `accoda`: niente posto adesso, il lavoro aspetta in coda e parte da solo (`avanzaCoda`). */
+  avvia: (p: Record<string, unknown>, accoda?: boolean) => { ok: true } | { ok: false; motivo: string }
+  /** I lavori che aspettano un posto, in ordine di arrivo (posizione da 1). */
+  inCoda: () => LavoroOspitato[]
+  /** Avvia il primo lavoro in coda; falso se non ce n'è. Lo chiama chi sa che c'è un posto libero. */
+  avanzaCoda: () => boolean
   stato: (id: unknown) => VistaLavoroAiutato | undefined
   ritira: (p: { lavoro: unknown; n: unknown }) => { ok: true; dati: string; totale: number } | { ok: false; motivo: string }
   chiudi: (id: unknown) => boolean
@@ -302,7 +307,7 @@ export function creaLavoratoreAiuto(x: {
   /** Una radice: pacchetti che non servono più, copie di lavori non al lavoro, rami di lavori chiusi, moduli vecchi. */
   const spazzaRadice = async (r: string): Promise<void> => {
     const serve: Array<[string, (l: Lavoro) => boolean]> = [
-      [join(r, 'arrivi'), (l) => l.stato === 'ricevo' || l.stato === 'preparo'],
+      [join(r, 'arrivi'), (l) => l.stato === 'ricevo' || l.stato === 'in-coda' || l.stato === 'preparo'],
       [join(r, 'uscite'), () => true]
     ]
     for (const [cartella, tieni] of serve) {
@@ -486,7 +491,34 @@ export function creaLavoratoreAiuto(x: {
     if (!tolta) log(`${l.id}: la copia ${copia} non si toglie ancora (file in uso?): riprovo al prossimo giro`)
   }
 
+  /** In memoria, in ordine di arrivo: un riavvio la perde (i lavori in coda risultano non riusciti, come quelli a metà). */
+  const coda: Array<{ l: Lavoro; r: RichiestaAvvio }> = []
+  const togliDallaCoda = (id: string): void => {
+    const i = coda.findIndex((c) => c.l.id === id)
+    if (i >= 0) coda.splice(i, 1)
+  }
+  const parti = (l: Lavoro, r: RichiestaAvvio): void => {
+    void lancia(l, r).catch(async (err: unknown) => {
+      log(`${l.id}: non riuscito: ${String(err).slice(0, 300)}`)
+      if (l.stato !== 'fermato') {
+        // 13/11: anche qui la causa (git che non apre il pacchetto, npm, un programma che manca), con la sua frase.
+        const grezzo = corto(err instanceof Error ? err.message : String(err), 300)
+        const causa = causaDalTesto(grezzo)
+        cambia(l, { stato: 'fallito', motivo: causa === 'sconosciuta' ? grezzo : `${fraseCausa(causa)} — ${grezzo}`, causa, attivita: 'non riuscito' })
+      }
+      try { x.suFine?.({ id: l.id, stato: l.stato, testo: '', ...(l.motivo !== undefined ? { motivo: l.motivo } : {}), ...(l.causa !== undefined ? { causa: l.causa } : {}), ...(l.perPc !== undefined ? { perPc: l.perPc } : {}), ...(l.ruolo !== undefined ? { ruolo: l.ruolo } : {}) }) } catch { /* chi ascolta non ferma niente */ }
+      await pulisciCopia(l).catch(() => undefined)
+    })
+  }
+
   const lavoratore: LavoratoreAiuto = {
+    inCoda: () => coda.map(({ l }, i) => ({ id: l.id, stato: l.stato, ruolo: l.ruolo ?? 'sviluppatore', descrizione: l.descrizione ?? l.progetto, perPc: l.perPc ?? 'un altro PC', inizio: new Date(l.inizio).toISOString(), posizione: i + 1 })),
+    avanzaCoda() {
+      const primo = coda.shift()
+      if (primo === undefined) return false
+      parti(primo.l, primo.r)
+      return true
+    },
     inCorso: () => [...lavori.values()].filter((l) => l.stato === 'ricevo' || l.stato === 'preparo' || l.stato === 'lavoro').length,
     ospitati: () => [...lavori.values()]
       .filter((l) => l.stato === 'ricevo' || l.stato === 'preparo' || l.stato === 'lavoro')
@@ -515,7 +547,7 @@ export function creaLavoratoreAiuto(x: {
       l.attivita = `ricevo il progetto (${l.ricevuti}/${totale})`
       return { ok: true, ricevuti: l.ricevuti }
     },
-    avvia(p) {
+    avvia(p, accoda = false) {
       const l = idLavoroValido(p.lavoro) ? lavori.get(p.lavoro) : undefined
       if (l === undefined || l.stato !== 'ricevo') return { ok: false, motivo: 'il progetto di questo lavoro non è arrivato' }
       if (l.ricevuti !== l.totale) return { ok: false, motivo: `mancano pezzi (${l.ricevuti}/${String(l.totale)})` }
@@ -535,18 +567,14 @@ export function creaLavoratoreAiuto(x: {
         ...(autoreValido(p.autore) !== undefined ? { autore: autoreValido(p.autore)! } : {})
       }
       cambia(l, { progetto: nomeProgettoSicuro(r.progetto), base: r.base, ruolo: r.ruolo, descrizione: r.descrizione, ...(typeof p.daNome === 'string' && p.daNome.trim() !== '' ? { perPc: corto(p.daNome, 60) } : {}) })
+      if (accoda) {
+        cambia(l, { stato: 'in-coda', attivita: 'in coda: aspetta un posto' })
+        coda.push({ l, r })
+        log(`${l.id}: in coda (posizione ${coda.length}) — ${r.ruolo} per ${r.progetto}`)
+        return { ok: true }
+      }
       log(`${l.id}: parte ${r.ruolo} per ${r.progetto} — ${r.descrizione.slice(0, 120)}`)
-      void lancia(l, r).catch(async (err: unknown) => {
-        log(`${l.id}: non riuscito: ${String(err).slice(0, 300)}`)
-        if (l.stato !== 'fermato') {
-          // 13/11: anche qui la causa (git che non apre il pacchetto, npm, un programma che manca), con la sua frase.
-          const grezzo = corto(err instanceof Error ? err.message : String(err), 300)
-          const causa = causaDalTesto(grezzo)
-          cambia(l, { stato: 'fallito', motivo: causa === 'sconosciuta' ? grezzo : `${fraseCausa(causa)} — ${grezzo}`, causa, attivita: 'non riuscito' })
-        }
-        try { x.suFine?.({ id: l.id, stato: l.stato, testo: '', ...(l.motivo !== undefined ? { motivo: l.motivo } : {}), ...(l.causa !== undefined ? { causa: l.causa } : {}), ...(l.perPc !== undefined ? { perPc: l.perPc } : {}), ...(l.ruolo !== undefined ? { ruolo: l.ruolo } : {}) }) } catch { /* chi ascolta non ferma niente */ }
-        await pulisciCopia(l).catch(() => undefined)
-      })
+      parti(l, r)
       return { ok: true }
     },
     stato(id) {
@@ -579,6 +607,7 @@ export function creaLavoratoreAiuto(x: {
       const l = idLavoroValido(id) ? lavori.get(id) : undefined
       if (l === undefined) return false
       l.ferma?.()
+      togliDallaCoda(l.id)
       lavori.delete(l.id)
       salva()
       void pulisciCopia(l).catch(() => undefined)
@@ -587,8 +616,12 @@ export function creaLavoratoreAiuto(x: {
     ferma(id) {
       const l = idLavoroValido(id) ? lavori.get(id) : undefined
       if (l === undefined || l.stato === 'finito' || l.stato === 'fallito') return false
+      const inAttesa = l.stato === 'in-coda'
+      togliDallaCoda(l.id)
       cambia(l, { stato: 'fermato', motivo: 'fermato dal PC che l’aveva chiesto', attivita: 'fermato' })
       l.ferma?.()
+      // Mai partito: non c'è un processo che ripulisca, il pacchetto arrivato si toglie qui.
+      if (inAttesa) void pulisciCopia(l).catch(() => undefined)
       return true
     },
     pulizia

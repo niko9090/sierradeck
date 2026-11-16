@@ -1,7 +1,7 @@
 import { creaLavoratoreAiuto, type FineLavoro, type LavoratoreAiuto } from '../autopilot-host/aiuto-lavoratore'
 import type { AvviaProcesso } from '../autopilot-host/processo-claude'
 import type { MisuraPc, RegolazionePosti } from '@shared/posti-chat'
-import type { LavoroOspitato } from '@shared/aiuto-rete'
+import { CODA_AIUTO_MAX, type LavoroOspitato } from '@shared/aiuto-rete'
 import { causaDelMotivo, motivoBreve, type CausaFallimento } from '@shared/aiuto-esito'
 import { limiteDaFine, postiAiutante, type PerchePosti } from './regole'
 
@@ -17,6 +17,9 @@ import { limiteDaFine, postiAiutante, type PerchePosti } from './regole'
  * `rotte-aiuto.ts` lo gira a chi chiede allo stesso modo.
  */
 
+/** Ogni quanto chi aspetta in coda controlla se c'è un posto (la misura del PC sale anche senza che un lavoro finisca). */
+const CODA_GIRO_MS = 10_000
+
 export type Nucleo = {
   lavoratore: LavoratoreAiuto
   /** La rotta `/aiuto/<cosa>` (senza `/api`), come quella del servizio. */
@@ -25,6 +28,10 @@ export type Nucleo = {
   /** Fino a quando il piano di Claude è esaurito (ms), se lo è. */
   limiteFino: () => number | undefined
   ospitati: () => LavoroOspitato[]
+  /** I lavori che aspettano un posto, in ordine di arrivo. */
+  inCoda: () => LavoroOspitato[]
+  /** Fa partire chi aspetta, finché ci sono posti (lo chiama anche un giro ogni pochi secondi). */
+  avanzaCoda: () => void
   /** Come è finito un lavoro (lo chiama il lavoratore; esposto per le prove). */
   suFine: (f: FineLavoro) => void
   /** 1.0.3: l'ultimo lavoro non riuscito, con il motivo corto e la causa (per la finestra). */
@@ -78,7 +85,7 @@ export function creaNucleo(x: {
     avvia: x.avvia,
     adesso,
     log: (r) => x.log(`[aiuto] ${r}`),
-    suFine
+    suFine: (f) => { suFine(f); try { avanzaCoda() } catch { /* lo riprova il giro della coda */ } }
   })
   const posti = (): { liberi: number; tetto: number; perche: PerchePosti } => {
     const r = x.regolazione()
@@ -95,6 +102,14 @@ export function creaNucleo(x: {
     })
   }
   const no = (motivo: string): never => { throw new Error(motivo) }
+  /** Un posto si è liberato (un lavoro è finito o fermato, o la misura è salita): parte chi aspetta, in ordine di arrivo. */
+  const avanzaCoda = (): void => {
+    while (lavoratore.inCoda().length > 0 && posti().liberi > 0) {
+      if (!lavoratore.avanzaCoda()) break
+    }
+  }
+  const giroCoda = setInterval(() => { try { avanzaCoda() } catch { /* al prossimo giro */ } }, CODA_GIRO_MS)
+  giroCoda.unref?.()
   const servizio = async (percorso: string, corpo: Record<string, unknown> = {}): Promise<unknown> => {
     switch (percorso) {
       case '/aiuto/posti': {
@@ -104,12 +119,18 @@ export function creaNucleo(x: {
       case '/aiuto/pezzo': {
         // Un lavoro nuovo (il primo pezzo) solo se c'è posto: con l'aggiornamento in attesa, il limite
         // del piano o un requisito mancante l'Aiutante dice 0 posti, ma chi chiedeva può averli letti prima.
-        if (corpo.n === 0 && posti().liberi <= 0) return no('questo Aiutante adesso non ha posti liberi')
+        // Se è solo pieno, il lavoro può aspettare in coda (fino al tetto); per ogni altro motivo si rifiuta.
+        if (corpo.n === 0) {
+          const p = posti()
+          if (p.liberi <= 0 && !(p.perche === 'pieno' && lavoratore.inCoda().length < CODA_AIUTO_MAX)) return no('questo Aiutante adesso non ha posti liberi')
+        }
         const e = lavoratore.pezzo({ lavoro: corpo.lavoro, n: corpo.n, totale: corpo.totale, dati: corpo.dati })
         return e.ok ? e : no(e.motivo)
       }
       case '/aiuto/avvia': {
-        const e = lavoratore.avvia(corpo)
+        // Il lavoro che arriva conta già nei posti (sta ricevendo): aspetta se ce ne sono più del tetto, o se altri aspettano prima.
+        const accoda = lavoratore.inCoda().length > 0 || lavoratore.inCorso() > posti().tetto
+        const e = lavoratore.avvia(corpo, accoda)
         return e.ok ? { fatto: true } : no(e.motivo)
       }
       case '/aiuto/stato': {
@@ -120,10 +141,10 @@ export function creaNucleo(x: {
         const e = lavoratore.ritira({ lavoro: corpo.lavoro, n: corpo.n })
         return e.ok ? e : no(e.motivo)
       }
-      case '/aiuto/chiudi': return { fatto: lavoratore.chiudi(corpo.lavoro) }
-      case '/aiuto/ferma': return { fatto: lavoratore.ferma(corpo.lavoro) }
+      case '/aiuto/chiudi': { const fatto = lavoratore.chiudi(corpo.lavoro); avanzaCoda(); return { fatto } }
+      case '/aiuto/ferma': { const fatto = lavoratore.ferma(corpo.lavoro); avanzaCoda(); return { fatto } }
       default: return no('rotta sconosciuta')
     }
   }
-  return { lavoratore, servizio, posti, limiteFino: () => (limite !== undefined && limite > adesso() ? limite : undefined), ospitati: () => lavoratore.ospitati(), suFine, ultimoFallito: () => ultimo }
+  return { lavoratore, servizio, posti, limiteFino: () => (limite !== undefined && limite > adesso() ? limite : undefined), ospitati: () => lavoratore.ospitati(), inCoda: () => lavoratore.inCoda(), avanzaCoda, suFine, ultimoFallito: () => ultimo }
 }

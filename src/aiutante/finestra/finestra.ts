@@ -7,7 +7,7 @@ import logo from '../../../build/icon.png'
  */
 
 type Voce = { chiave: string; nome: string; ok: boolean; dettaglio: string }
-type Lavoro = { id: string; stato: string; ruolo: string; descrizione: string; perPc: string; inizio: string; attivita?: string }
+type Lavoro = { id: string; stato: string; ruolo: string; descrizione: string; perPc: string; inizio: string; attivita?: string; posizione?: number }
 type Stato = {
   versione: string
   nome: string
@@ -17,6 +17,7 @@ type Stato = {
   posti: { liberi: number; tetto: number; perche: string }
   limiteFino?: number
   lavori: Lavoro[]
+  coda?: Lavoro[]
   requisiti: Voce[]
   aggiornamento: { riga?: string; nonLetto: boolean; errore?: string }
   claude: { stato: string; testo: string; estratto?: string; il?: number; da?: string; inControllo: boolean }
@@ -61,6 +62,12 @@ const PERCHE: Record<string, string> = {
   limite: 'il piano di Claude ha finito la quota'
 }
 
+/** «da 5 min»: da quanto è passato l'istante (ISO). */
+const da = (iso: string): string => {
+  const min = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60_000))
+  return min < 1 ? 'meno di 1 min' : min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${min % 60} min`
+}
+
 let primaVolta = true
 function mostra(s: Stato): void {
   testo('versione', `Versione ${s.versione} · ${s.nome}`)
@@ -82,10 +89,14 @@ function mostra(s: Stato): void {
   el('riga-cassaforte').style.display = r.driveConnesso && !r.cassaforteAperta ? 'flex' : 'none'
 
   const limite = s.limiteFino !== undefined ? ` fino alle ${new Date(s.limiteFino).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}` : ''
-  testo('posti', `${s.lavori.length} lavori · ${s.posti.liberi} posti liberi su ${s.posti.tetto} · ${s.preferenze.inPausa ? 'in pausa' : (PERCHE[s.posti.perche] ?? s.posti.perche) + limite}`)
+  testo('posti', `${s.lavori.length} attivi · ${(s.coda ?? []).length} in coda · ${s.posti.liberi} posti liberi su ${s.posti.tetto} · ${s.preferenze.inPausa ? 'in pausa' : (PERCHE[s.posti.perche] ?? s.posti.perche) + limite}`)
   el('lavori').replaceChildren(...(s.lavori.length === 0
-    ? [voce('Nessun lavoro adesso.', 'nota')]
-    : s.lavori.map((l) => voce(`${l.ruolo} per ${l.perPc}: ${l.descrizione}${l.attivita !== undefined ? ` — ${l.attivita}` : ''}`))))
+    ? [voce('Nessun lavoro attivo.', 'nota')]
+    : s.lavori.map((l) => voce(`${l.ruolo} per ${l.perPc}, da ${da(l.inizio)}: ${l.descrizione}${l.attivita !== undefined ? ` — ${l.attivita}` : ''}`))))
+  const coda = s.coda ?? []
+  el('coda').replaceChildren(...(coda.length === 0
+    ? [voce('Nessuno in coda.', 'nota')]
+    : coda.map((l) => voce(`${l.posizione ?? '?'}. ${l.descrizione} (${l.ruolo}, per ${l.perPc}) — aspetta da ${da(l.inizio)}`))))
   el('requisiti').replaceChildren(...(s.requisiti.length === 0
     ? [voce('Controllo in corso…', 'attesa')]
     : s.requisiti.map((v) => voce(`${v.ok ? '✓' : '✗'} ${v.nome}: ${v.dettaglio}`, v.ok ? 'ok' : 'no'))))

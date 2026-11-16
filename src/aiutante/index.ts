@@ -309,6 +309,7 @@ function avvia(): void {
         posti: nucleo.posti(),
         limiteFino: nucleo.limiteFino(),
         lavori: nucleo.ospitati(),
+        coda: nucleo.inCoda(),
         requisiti: requisiti?.voci ?? [],
         claude: { ...claude, testo: testoStatoClaude(claude.stato), inControllo: claudeInControllo },
         ultimoFallito: nucleo.ultimoFallito(),
