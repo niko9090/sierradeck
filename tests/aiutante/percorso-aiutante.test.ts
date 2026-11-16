@@ -17,10 +17,15 @@ import type { LavoroAffidato } from '../../src/shared/aiuto-rete'
  * un commit SENZA dire chi è: lo firma l'autore del progetto, che l'Aiutante
  * ha impostato nella sua copia (su un Aiutante appena preparato git non lo sa).
  */
+// 16/11: il servizio lancia i criteri con una Temp già profonda (cartella del criterio + cartella
+// finta dei test): la copia dell'Aiutante superava i 260 caratteri e `git rev-list` rispondeva
+// «Filename too long» (0 commit, ramo non tornato) solo lì, mai a mano. Il codice ora passa
+// `core.longpaths`; qui i nomi sono corti (`p`, `a`) per restare sotto il limite duro di git
+// (`$GIT_DIR too big`) anche con la Temp del servizio, e anche i git della prova usano il flag.
 const radice = mkdtempSync(join(tmpdir(), 'aiutante-percorso-'))
 afterAll(() => { try { rmSync(radice, { recursive: true, force: true }) } catch { /* Windows tiene i file un attimo */ } })
 
-const g = (cwd: string, ...args: string[]): string => execFileSync('git', args, { cwd, encoding: 'utf8' })
+const g = (cwd: string, ...args: string[]): string => execFileSync('git', ['-c', 'core.longpaths=true', ...args], { cwd, encoding: 'utf8' })
 
 const specialistaFinto: AvviaProcesso = ({ cwd }) => {
   const righe: ((r: string) => void)[] = []
@@ -44,8 +49,8 @@ const specialistaFinto: AvviaProcesso = ({ cwd }) => {
 
 describe('un lavoro affidato a SierraDeck Aiutante', () => {
   it('va, l’Aiutante lavora, il ramo torna firmato dall’autore del progetto', async () => {
-    const qui = join(radice, 'progetto')
-    execFileSync('git', ['init', '-b', 'main', qui])
+    const qui = join(radice, 'p')
+    execFileSync('git', ['-c', 'core.longpaths=true', 'init', '-b', 'main', qui])
     g(qui, 'config', 'user.name', 'Autore Progetto')
     g(qui, 'config', 'user.email', 'autore@example.invalid')
     writeFileSync(join(qui, 'leggimi.txt'), 'ciao\n')
@@ -53,7 +58,7 @@ describe('un lavoro affidato a SierraDeck Aiutante', () => {
     g(qui, 'commit', '-m', 'inizio')
 
     const nucleo = creaNucleo({
-      cartella: join(radice, 'aiutante', 'aiuto'), avvia: specialistaFinto,
+      cartella: join(radice, 'a'), avvia: specialistaFinto,
       misura: () => ({ processori: 8, memoriaLiberaMb: 32_000, memoriaTotaleMb: 64_000, caricoPercento: 5 }),
       regolazione: () => ({ postiScelti: 2 }), pronto: () => true, inScarico: () => false,
       log: () => {}, errore: () => {}
