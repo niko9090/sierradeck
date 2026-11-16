@@ -45,6 +45,7 @@
 - `creaServer` apre da solo `aiuti-affidati.json` in `archivio.cartella/servizio`: per provare gli affidati basta scrivere quel file prima. _(2026-11-16)_
 - `StatoScheda` usa 'lavora', `ChatGovernata` usa 'lavoro': nei test di panoramica il typecheck rifiuta la forma sbagliata, mentre vitest la lascia passare. _(2026-11-16)_
 - A parità di posti `scegliAltroPc` ordina per `pcId`: nei test con più PC liberi si sceglie quello che viene prima alfabeticamente, non quello scritto per primo. _(2026-11-16)_
+- i lavori ospitati passano solo dal lavoratore Aiuta la rete: per testarli senza server estrarre la logica in una funzione pura (vista-ospitati.ts) _(2026-11-16)_
 
 ## worktree
 
@@ -561,6 +562,7 @@
 - un lavoro in ricezione conta già nei posti: per decidere se accodare in `avvia` si confronta inCorso > tetto, non liberi <= 0 _(2026-11-16)_
 - lo stato 'in-coda' non è terminale: `segui` dello spedizioniere lo tratta come un normale aggiornamento di attività, senza modifiche _(2026-11-16)_
 - la finestra dell'Aiutante è HTML+TS senza React: la logica va in moduli puri sotto src/aiutante/, testabili senza DOM; lo stato passa da statoCompleto() in index.ts. _(2026-11-16)_
+- a ogni avvio il primo controllo di Claude non ha uno stato precedente, quindi un accesso mancante diventa errore a ogni aggiornamento: uno stato che si risolve a mano è un avviso. _(2026-11-16)_
 
 ## blocco
 
@@ -582,3 +584,23 @@
 ## shared
 
 - `statoVero` in specialisti.ts restituisce una stringa libera, quindi `PAROLE` va indicizzata con stringhe e deve avere la voce 'ferma'. _(2026-11-16)_
+
+## viste
+
+- le stime fatte coi minuti trascorsi (10+min) mentono su lavori bloccati: per lavori remoti la percentuale va omessa, non inventata _(2026-11-16)_
+
+## stato
+
+- il tono `riposo` di `fraseStatoOrchestratore` vale sia per «a riposo» sia per «in attesa di unioni»: `autopiloti-vista` lo legge come finito. Serve distinguere dal testo. _(2026-11-16)_
+
+## chat
+
+- `c.stato === 'lavoro'` non dice che la chat lavora: resta così a fine turno e dopo la chiusura; i conteggi devono guardare `viva`, `fine` e `conclusa`. _(2026-11-16)_
+
+## notifiche
+
+- in `Ronda.kt` il calcolo del suono è fatto e poi ignorato (`suona = true`): i test Kotlin non lo coprono. _(2026-11-16)_
+
+## errori arrivati
+
+- «affidato» non vuol dire «corretto»: per il lotto del 13/11 non c'è stata nessuna modifica di codice, quindi «la correzione non è bastata» è un'etichetta sbagliata. _(2026-11-16)_
