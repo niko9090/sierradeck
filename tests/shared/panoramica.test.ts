@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  daQuanto, gruppoStabile, LARGHEZZA_FISSA, LARGHEZZA_LINGUETTA, linguetteVisibili, ordinaSchede, riassuntoAutopilota, righeDalVivo,
+  daQuanto, gruppoStabile, numeraUguali, LARGHEZZA_FISSA, LARGHEZZA_LINGUETTA, linguetteVisibili, ordinaSchede, riassuntoAutopilota, righeDalVivo,
   type SchedaChat
 } from '@shared/panoramica'
 import { nuovoAutopilota } from '@shared/autopilota'
@@ -137,5 +137,14 @@ describe('0.77.0: la cornice tagliata con «…» non è una riga dal vivo', () 
   it('«────…» e «───_» spariscono', async () => {
     const { righeDalVivo } = await import('@shared/panoramica')
     expect(righeDalVivo(['● fatto', '──────────────…', '─────────────_'])).toEqual(['● fatto'])
+  })
+})
+
+describe("numeraUguali", () => {
+  it("«ass» e «a» non sono titoli uguali; gli spazi doppi sì", () => {
+    const r = numeraUguali([s("c-1", "lavora", 1), s("c-2", "lavora", 2)].map((x, i) => ({ ...x, titolo: ["ass", "a"][i] ?? "" })))
+    expect(r.map((x) => x.titolo)).toEqual(["ass", "a"])
+    const u = numeraUguali([s("c-1", "lavora", 1), s("c-2", "lavora", 2)].map((x, i) => ({ ...x, titolo: ["a  b", "a b"][i] ?? "" })))
+    expect(u.map((x) => x.titolo)).toEqual(["#1 a  b", "#2 a b"])
   })
 })
