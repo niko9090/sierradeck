@@ -348,6 +348,7 @@
 ## registro
 
 - copie-di-versione/<ver>-<data> contiene il pausa-aggiornamento.json e aggiornamento-in-corso.json di ogni update: prova utile a capire cosa fu salvato prima dell'uscita. _(2026-11-09)_
+- `Registro` ha solo info ed errore: l'«avviso» è una riga info con prefisso [avviso]; solo `errore` entra nello storico degli errori arrivati. _(2026-11-16)_
 
 ## ripresa
 
@@ -604,3 +605,7 @@
 ## errori arrivati
 
 - «affidato» non vuol dire «corretto»: per il lotto del 13/11 non c'è stata nessuna modifica di codice, quindi «la correzione non è bastata» è un'etichetta sbagliata. _(2026-11-16)_
+
+## errori-arrivati
+
+- il dato `affidati` ha solo data e versione, non l'esito della chiusura: «si ripresenta» non può distinguere correzione fallita da azione a mano non fatta. _(2026-11-16)_
