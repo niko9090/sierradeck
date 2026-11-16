@@ -155,10 +155,13 @@ export function modelloAiuto(x: unknown): string {
 }
 
 /** 12/11: un lavoro di un altro PC che gira qui, per l'elenco «Al lavoro adesso» di questo PC. */
-export type LavoroOspitato = { id: string; stato: StatoAiuto; ruolo: string; descrizione: string; perPc: string; inizio: string; attivita?: string }
+export type LavoroOspitato = { id: string; stato: StatoAiuto; ruolo: string; descrizione: string; perPc: string; inizio: string; attivita?: string; /** In coda: da 1 (il prossimo). */ posizione?: number }
 
 /** Come sta un lavoro, dal lato di chi aiuta. */
-export type StatoAiuto = 'ricevo' | 'preparo' | 'lavoro' | 'finito' | 'fallito' | 'fermato'
+export type StatoAiuto = 'ricevo' | 'in-coda' | 'preparo' | 'lavoro' | 'finito' | 'fallito' | 'fermato'
+
+/** Quanti lavori aspettano al più un posto su un Aiutante: oltre, il lavoro si rifiuta. */
+export const CODA_AIUTO_MAX = 10
 
 export type VistaLavoroAiutato = {
   id: string
