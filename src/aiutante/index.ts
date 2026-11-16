@@ -7,6 +7,7 @@ import { tavolozza } from '@shared/preferenze'
 import { aggiungiRuntimeAlPath } from '@shared/runtime-noti'
 import { ambientePulito } from '@shared/ambiente-figli'
 import { radiceLavoroAiuto } from '@shared/disco-prove'
+import { leggiEventiAiuto } from '@shared/eventi-aiuto'
 import { nomeDaMostrare, nomeSceltoValido } from '@shared/nome-pc'
 import { apriRegistro } from '../main/registro'
 import { gitPerLeChat } from '../main/git-nel-path'
@@ -315,6 +316,7 @@ function avvia(): void {
         requisiti: requisiti?.voci ?? [],
         claude: { ...claude, testo: testoStatoClaude(claude.stato), inControllo: claudeInControllo },
         ultimoFallito: nucleo.ultimoFallito(),
+        passaggi: leggiEventiAiuto(dati),
         aggiornamento: { riga: rigaAggiornamento(statoAgg()), nonLetto: finestraAgg.stato().nonLetto, errore: statoAgg().errore },
         preferenze: {
           postiChat: p.base.postiChat ?? 0,
