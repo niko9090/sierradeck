@@ -1,42 +1,92 @@
 import { describe, it, expect } from 'vitest'
-import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
+import { fraseStatoOrchestratore, quandoSveglia } from '@shared/piano-orchestratore'
+import { fraseAdesso } from '@shared/stato-telefono'
 import { vistaAutopilota } from '@shared/autopiloti-vista'
-import { fraseStatoOrchestratore } from '@shared/piano-orchestratore'
+import type { Autopilota } from '@shared/autopilota'
 
-/** k-s7: le viste non devono dire «finito» o «al lavoro» quando non è vero. */
-const ORA = Date.parse('2026-11-16T10:00:00Z')
-function ap(over: Record<string, unknown> = {}): Autopilota & { adesso?: { testo: string; tono: string }; vistaErrore?: boolean } {
-  return {
-    ...nuovoAutopilota({ id: 'ap-1', nome: 'Prova', obiettivo: 'Prova', cwd: 'C:/prova', iniziatoIl: '2026-11-16T09:00:00.000Z' }),
-    stato: 'lavoro',
-    ultimoEvento: '2026-11-16T09:59:00.000Z',
-    ...over
-  } as Autopilota
-}
+/**
+ * 0.102.1 (Nicholas, 12/11: «ci sono ancora progetti fermi nonostante se chiedo mi
+ * dicono che sono al lavoro»). L'autopilota unico è sempre nello stato «lavoro»:
+ * ogni vista diceva «al lavoro» anche con nessuno al lavoro. E una pausa chiesta da
+ * lui (la sveglia delle 19:02) sembrava un fermo.
+ */
+const ORA = Date.parse('2026-11-12T14:00:00')
+const base = { pensa: false, vivo: true, specialisti: [], piano: { totale: 13, uniti: 9 }, richieste: { aperte: 5, daPianificare: 0 }, domandeAperte: 0 }
 
-describe('lo stato vero dell’autopilota', () => {
-  it('«In attesa: unioni in fila» non è finito: resta nel gruppo del lavoro', () => {
-    const adesso = { testo: 'In attesa: 1 unione in fila, ripartono da sole', tono: 'riposo' }
-    const v = vistaAutopilota(ap({ adesso }), ORA)
+describe('la frase di adesso dice la verità', () => {
+  it('nessuno al lavoro e compiti aperti: «Fermo», non «al lavoro»', () => {
+    expect(fraseStatoOrchestratore(base, ORA)).toEqual(expect.objectContaining({ tono: 'fermo' }))
+  })
+  it('con una sveglia futura è una pausa voluta, con l’ora', () => {
+    const f = fraseStatoOrchestratore({ ...base, sveglia: { il: '2026-11-12T19:02:00', perche: 'di sera' } }, ORA)
+    expect(f.tono).toBe('riposo')
+    expect(f.testo).toBe('In pausa: riprende alle 19:02, come gli hai chiesto')
+  })
+  it('una sveglia passata non conta più', () => {
+    expect(fraseStatoOrchestratore({ ...base, sveglia: { il: '2026-11-12T09:00:00', perche: 'x' } }, ORA).tono).toBe('fermo')
+  })
+  it('una domanda aperta vince sulla pausa', () => {
+    expect(fraseStatoOrchestratore({ ...base, domandeAperte: 1, sveglia: { il: '2026-11-12T19:02:00', perche: 'x' } }, ORA).tono).toBe('aspetta')
+  })
+  it('l’ora della sveglia in parole', () => {
+    expect(quandoSveglia('2026-11-12T19:02:00', ORA)).toBe('alle 19:02')
+    expect(quandoSveglia('2026-11-13T09:00:00', ORA)).toBe('domani alle 9:00')
+    expect(quandoSveglia('2026-11-20T08:30:00', ORA)).toBe('il 20/11 alle 8:30')
+  })
+  it('sul telefono la stessa pausa', () => {
+    const fra = new Date(Date.now() + 3 * 3_600_000).toISOString()
+    expect(fraseAdesso({ ...base, sveglia: { il: fra, perche: 'x' } }).testo).toMatch(/^In pausa: riprende /)
+  })
+})
+
+describe('l’elenco degli autopiloti non dice «al lavoro» a vuoto', () => {
+  const ap = (adesso?: { testo: string; tono: string }): Autopilota & { adesso?: { testo: string; tono: string } } => ({
+    id: 'ap-1', nome: 'NexoraOS', obiettivo: '', cwd: 'E:\NexoraOS', stato: 'lavoro', chats: [], decisioni: [], creato: '2026-11-01T00:00:00Z',
+    ...(adesso !== undefined ? { adesso } : {})
+  }) as unknown as Autopilota & { adesso?: { testo: string; tono: string } }
+  const ora = ORA
+  it('fermo davvero: rosso, con il perché', () => {
+    const v = vistaAutopilota(ap({ testo: 'Fermo: 4 compiti nel piano e nessuno specialista al lavoro', tono: 'fermo' }), ora)
+    expect(v.stato.id).toBe('fermo')
+    expect(v.gruppi).toContain('fermi')
+  })
+  it('in pausa: «in pausa», non al lavoro', () => {
+    const v = vistaAutopilota(ap({ testo: 'In pausa: riprende alle 19:02, come gli hai chiesto', tono: 'riposo' }), ora)
+    expect(v.stato.parola).toBe('in pausa')
+  })
+  it('aspetta una risposta: «aspetta te»', () => {
+    expect(vistaAutopilota(ap({ testo: 'Fermo: aspetta una tua risposta', tono: 'aspetta' }), ora).stato.id).toBe('aspetta')
+  })
+  it('qualcuno lavora davvero: al lavoro', () => {
+    expect(vistaAutopilota(ap({ testo: 'Al lavoro: sviluppatore', tono: 'lavora' }), ora).stato.id).toBe('al-lavoro')
+  })
+  it('senza il segno (servizio di prima): come prima', () => {
+    expect(vistaAutopilota(ap(), ora).stato.id).toBe('al-lavoro')
+  })
+
+  // k-s7: «In attesa: unioni in fila» non è finito; una lettura fallita non è «al lavoro».
+  it('«In attesa: unioni in fila», anche col vecchio tono riposo, non è finito né nei finiti', () => {
+    const v = vistaAutopilota(ap({ testo: 'In attesa: 1 unione in fila, ripartono da sole', tono: 'riposo' }), ora)
     expect(v.stato.id).not.toBe('finito')
     expect(v.gruppi).not.toContain('finiti')
-    const col = fraseStatoOrchestratore({ pensa: false, specialisti: [], piano: { totale: 1, uniti: 0 }, inCorso: { inFila: 1 } } as never)
-    expect(col.tono).toBe('attesa')
-    const v2 = vistaAutopilota(ap({ adesso: col }), ORA)
-    expect(v2.stato).toMatchObject({ id: 'in-attesa', colore: 'blu' })
-    expect(v2.gruppi).toEqual(['lavoro'])
-    expect(v2.azione).toBe('ferma')
+    expect(v.gruppi).toContain('lavoro')
   })
-
+  it('il tono esplicito «attesa»: blu, nel lavoro, e la frase del PC lo dà', () => {
+    const f = fraseStatoOrchestratore({ ...base, richieste: { aperte: 0, daPianificare: 0 }, inCorso: { inFila: 1 } } as never, ORA)
+    expect(f.tono).toBe('attesa')
+    const v = vistaAutopilota(ap(f), ora)
+    expect(v.stato).toMatchObject({ id: 'in-attesa', colore: 'blu' })
+    expect(v.gruppi).toEqual(['lavoro'])
+    expect(fraseAdesso({ ...base, richieste: { aperte: 0, daPianificare: 0 }, inCorso: { inFila: 1 } } as never).tono).toBe('attesa')
+  })
   it('un riposo vero (niente da fare) resta «a riposo»', () => {
-    expect(vistaAutopilota(ap({ adesso: { testo: 'Niente da fare: tutte le richieste sono chiuse', tono: 'riposo' } }), ORA).stato.id).toBe('finito')
+    expect(vistaAutopilota(ap({ testo: 'Niente da fare: tutte le richieste sono chiuse', tono: 'riposo' }), ora).stato.id).toBe('finito')
   })
-
-  it('con la lettura fallita non dice «al lavoro»; senza adesso e senza errore (servizio vecchio) sì', () => {
-    const rotta = vistaAutopilota(ap({ vistaErrore: true }), ORA)
-    expect(rotta.stato.id).not.toBe('al-lavoro')
-    expect(rotta.stato).toMatchObject({ id: 'illeggibile', colore: 'ambra' })
-    expect(rotta.gruppi).not.toContain('lavoro')
-    expect(vistaAutopilota(ap(), ORA).stato.id).toBe('al-lavoro')
+  it('con la lettura fallita non dice «al lavoro»', () => {
+    const rotta = { ...ap(), vistaErrore: true } as Autopilota & { vistaErrore: boolean }
+    const v = vistaAutopilota(rotta, ora)
+    expect(v.stato.id).not.toBe('al-lavoro')
+    expect(v.stato).toMatchObject({ id: 'illeggibile', colore: 'ambra' })
+    expect(v.gruppi).not.toContain('lavoro')
   })
 })
