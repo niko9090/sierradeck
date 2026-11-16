@@ -518,7 +518,7 @@ export function rigaUnioneInCorso(v: Pick<VistaOrchestratore, 'inCorso'>): strin
   return [fa, fila].filter((s) => s !== '').join(', ')
 }
 
-export function fraseStatoOrchestratore(v: Pick<VistaOrchestratore, 'pensa' | 'specialisti' | 'piano' | 'richieste' | 'domandeAperte' | 'vivo' | 'sveglia' | 'inCorso'>, ora: number = Date.now()): { testo: string; tono: 'lavora' | 'aspetta' | 'fermo' | 'riposo' } {
+export function fraseStatoOrchestratore(v: Pick<VistaOrchestratore, 'pensa' | 'specialisti' | 'piano' | 'richieste' | 'domandeAperte' | 'vivo' | 'sveglia' | 'inCorso'>, ora: number = Date.now()): { testo: string; tono: 'lavora' | 'aspetta' | 'fermo' | 'riposo' | 'attesa' } {
   const alLavoro = v.specialisti.filter((c) => c.stato === 'lavoro' || c.stato === 'avviato')
   const domande = v.domandeAperte ?? 0
   const aperte = v.richieste?.aperte ?? 0
@@ -537,7 +537,7 @@ export function fraseStatoOrchestratore(v: Pick<VistaOrchestratore, 'pensa' | 's
   if (v.sveglia !== undefined && Date.parse(v.sveglia.il) > ora) return { testo: `In pausa: riprende ${quandoSveglia(v.sveglia.il, ora)}, come gli hai chiesto`, tono: 'riposo' }
   const daFare = v.piano.totale - v.piano.uniti
   // 12/11: unioni in fila che ripartono da sole: il lavoro va avanti, non è un fermo.
-  if (unione !== undefined) return { testo: `In attesa: ${unione}, ripartono da sole`, tono: 'riposo' }
+  if (unione !== undefined) return { testo: `In attesa: ${unione}, ripartono da sole`, tono: 'attesa' }
   // 12/11: niente più «scrivi vai avanti»: il programma lo risveglia da solo (`spingiFermi`).
   if (aperte > 0 && daFare > 0) return { testo: `Fermo: ${da(daFare, 'compito', 'compiti')} nel piano e nessuno specialista al lavoro: il programma lo rimette al lavoro da solo fra pochi minuti`, tono: 'fermo' }
   if (aperte > 0 || daPianificare > 0) return { testo: `Fermo: ${da(aperte + daPianificare, 'richiesta aperta', 'richieste aperte')} senza compiti: il programma lo rimette al lavoro da solo fra pochi minuti`, tono: 'fermo' }

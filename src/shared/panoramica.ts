@@ -239,7 +239,7 @@ export function ultimaAzioneDalVivo(righe: readonly string[]): string {
 export type StatoSituazione = { id: string; parola: string; colore: string; simbolo: string; ragione?: string }
 
 const SIMBOLO_SITUAZIONE: Record<string, string> = {
-  guasto: '✗', aspetta: '◆', 'senza-segni': '◐', 'al-lavoro': '●', prepara: '○', pronto: '◆', fermo: '■', finito: '✓', 'da-verificare': '◐'
+  guasto: '✗', aspetta: '◆', 'senza-segni': '◐', 'al-lavoro': '●', 'in-attesa': '●', illeggibile: '◐', prepara: '○', pronto: '◆', fermo: '■', finito: '✓', 'da-verificare': '◐'
 }
 
 /**

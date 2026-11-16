@@ -24,7 +24,8 @@ import { inParole } from './titoli-in-parole'
  * parola dell'autopilota: i campi ci sono sempre.
  */
 
-export type TonoAdesso = 'lavora' | 'aspetta' | 'fermo' | 'riposo'
+/** `attesa`: il lavoro va avanti da solo (unioni in fila); l'app Android lo legge come «riposo» (tono ignoto = quieto), ma col testo giusto. */
+export type TonoAdesso = 'lavora' | 'aspetta' | 'fermo' | 'riposo' | 'attesa'
 export type AdessoTelefono = { testo: string; tono: TonoAdesso }
 export type AvanzamentoTelefono = { percento?: number; mancaMin?: number }
 export type RuoloTelefono = { ruolo: string; colore: string; cosa?: string }
