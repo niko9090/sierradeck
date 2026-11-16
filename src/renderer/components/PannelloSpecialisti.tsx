@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { VistaAttesa } from '@shared/attesa-specialisti'
+import { testoFase, type VistaAttesa } from '@shared/attesa-specialisti'
 import { SPIEGA_STIME, daQuanto, minutiTesto, nomeWorkspace, postiTesto, prioritaTesto, quantoManca, totaleTesto } from '@shared/attesa-vista'
 import { MISURE, larghezzaEffettiva, larghezzaTrascinata, limita, massimoColonna, passoFreccia, suggerimentoBarra } from '@shared/misure-pannelli'
 import { useLarghezzaFinestra } from '../larghezza-finestra'
@@ -41,7 +41,10 @@ type Props = {
 export function ListaSpecialisti({ vista, adesso, daTogliere, daFermare, onMossa, onFerma, onAnnullaFerma, onTogli, onAnnullaTogli, onConfermaTogli }: Props): React.JSX.Element {
   if (vista === undefined) return <div className="progetti__vuoto">Leggo la lista…</div>
   if (vista === 'vecchio') return <div className="progetti__vuoto spec__vecchio">Serve la versione nuova del servizio</div>
-  const { posti, alLavoro, inFila, totale } = vista
+  const { posti, inFila, totale } = vista
+  // Chi sta ancora arrivando o si prepara non è al lavoro: ha la sua sezione, senza barra né minuti.
+  const alLavoro = vista.alLavoro.filter((v) => v.fase === undefined)
+  const inArrivo = vista.alLavoro.filter((v) => v.fase !== undefined)
   return (
     <div className="spec">
       <div className="spec__posti">
@@ -96,6 +99,27 @@ export function ListaSpecialisti({ vista, adesso, daTogliere, daFermare, onMossa
           </ul>
         )}
       </div>
+
+      {inArrivo.length === 0 ? null : (
+        <div className="spec__sezione">
+          <span className="serigrafia">In arrivo</span>
+          <ul className="spec__elenco" aria-label="In arrivo">
+            {inArrivo.map((v) => (
+              <li key={v.id} className="spec__riga">
+                <span className="spec__corpo">
+                  <span className="spec__ws">{v.workspaceNome ?? nomeWorkspace(v.workspace)}</span>
+                  <span className="spec__titolo">{v.compito !== undefined ? <b>{v.compito} </b> : null}{v.titolo ?? v.descrizione}</span>
+                  {v.cosaFa !== undefined && v.cosaFa !== '' ? <span className="spec__cosa" title={v.cosaFa}>{v.cosaFa}</span> : null}
+                  <span className="spec__sotto">{v.tipo} · {v.fase !== undefined ? testoFase(v.fase) : ''}</span>
+                </span>
+                <span className="spec__tasti">
+                  {v.perPc !== undefined ? <span className="spec__chiede" title="Aiuta la rete: lo segue il PC che l’ha chiesto">per {v.perPc}</span> : null}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="spec__sezione">
         <span className="serigrafia">In fila</span>

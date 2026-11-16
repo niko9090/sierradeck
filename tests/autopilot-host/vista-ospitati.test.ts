@@ -43,4 +43,36 @@ describe('vista dei lavori ospitati', () => {
     expect(m.lavorano.length).toBeGreaterThan(0)
     expect(m.lavorano.every((r) => r.percentuale === undefined)).toBe(true)
   })
+
+  it('in ricezione: «in arrivo», senza percentuale nemmeno se ne ha una', () => {
+    const v = voceOspitata(ospitato({ stato: 'ricevo', percentuale: 5 }), 1, '', 'prova', 2)
+    expect(v.fase).toBe('in-arrivo')
+    expect('percentuale' in v).toBe(false)
+  })
+
+  it('in preparazione: «in preparazione», senza percentuale', () => {
+    const v = voceOspitata(ospitato({ stato: 'preparo', percentuale: 5 }), 1, '', 'prova', 2)
+    expect(v.fase).toBe('in-preparazione')
+    expect('percentuale' in v).toBe(false)
+  })
+
+  it('partito davvero: nessuna fase, la percentuale vera resta', () => {
+    const v = voceOspitata(ospitato({ stato: 'lavoro', percentuale: 40 }), 1, '', 'prova', 2)
+    expect(v.fase).toBeUndefined()
+    expect(v.percentuale).toBe(40)
+  })
+
+  it('il menu separa chi arriva o si prepara da chi lavora e non lo conta', () => {
+    const voce = (stato: LavoroOspitato['stato'], id: string) => ({ ...voceOspitata(ospitato({ id, stato, percentuale: 5 }), 1, '', 'prova', 2), workspace: 'Lavoro' })
+    const vista: VistaAttesa = {
+      posti: { usati: 3, tetto: 3 },
+      alLavoro: [voce('ricevo', 'a1'), voce('preparo', 'a2'), voce('lavoro', 'a3')],
+      inFila: []
+    }
+    const m = menuSpecialisti(vista, ['Lavoro'])
+    expect(m.lavorano.map((r) => r.id)).toEqual(['a3'])
+    expect(m.inArrivo.map((r) => [r.id, r.fase])).toEqual([['a1', 'in arrivo'], ['a2', 'in preparazione']])
+    expect(m.inArrivo.every((r) => r.percentuale === undefined)).toBe(true)
+    expect(m.etichetta).toBe('Specialisti 1 · 2 in arrivo')
+  })
 })

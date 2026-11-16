@@ -363,6 +363,21 @@ export type StimaVoce = {
   peso?: 1 | 2 | 3
 }
 
+/**
+ * Un lavoro ospitato per un altro PC che non è ancora partito davvero: il pacchetto
+ * sta arrivando («in arrivo») o la copia si sta preparando («in preparazione»).
+ * Finché è così non è «al lavoro»: niente barra, niente minuti di lavoro.
+ */
+export type FaseOspitato = 'in-arrivo' | 'in-preparazione'
+
+/** La fase di un lavoro ospitato dal suo stato (`ricevo`, `preparo`); niente se è già partito. */
+export function faseOspitato(stato: string): FaseOspitato | undefined {
+  return stato === 'ricevo' ? 'in-arrivo' : stato === 'preparo' ? 'in-preparazione' : undefined
+}
+
+/** La fase in parole semplici. */
+export const testoFase = (f: FaseOspitato): string => (f === 'in-arrivo' ? 'in arrivo' : 'in preparazione')
+
 /** Quello che vede la sezione: chi lavora adesso e chi aspetta, in ordine. */
 export type VistaAttesa = {
   /** Specialisti al lavoro sul PC e posti disponibili. */
@@ -383,6 +398,8 @@ export type VistaAttesa = {
     fermaRichiesta?: true
     /** 12/11: un lavoro di un altro PC che gira qui (Aiuta la rete): il nome di quel PC. Niente «Ferma» né precedenze da qui. */
     perPc?: string
+    /** Solo per un lavoro ospitato che non è ancora partito: «in arrivo» o «in preparazione». Non è al lavoro: le viste non lo contano e non mostrano barra né minuti. */
+    fase?: FaseOspitato
     /** 16/11: un lavoro di questo workspace affidato a un altro PC (Aiuta la rete): il nome di quel PC. Conta come al lavoro, ma non tiene un posto qui. */
     suPc?: string
   } & StimaVoce>
