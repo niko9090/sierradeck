@@ -218,6 +218,7 @@ import { apriStoricoErrori, conStorico, leggiStoricoDi, type StoricoSuFile } fro
 import { testoDaCopiare, type InvioErrori, type StoricoErrori } from '@shared/storico-errori'
 import { cartellaDiSierraDeck, mandaErrori, salvaErroriArrivati } from './errori-arrivati'
 import { giroErroriArrivati } from './errori-arrivati-lavoro'
+import { eventiPiuRecentiInCima, leggiEventiAiuto } from '@shared/eventi-aiuto'
 import { GIRO_INVIO_MS, giroInvioErrori, pcSviluppoDi, vistaErrori, type StatoInvio } from './errori-invio-automatico'
 import { eRemotoDiSviluppo, pcProclamato, perchéNonProclama } from '@shared/pc-sviluppo'
 import type { AttesaInvio } from '@shared/attesa-invio'
@@ -3968,6 +3969,8 @@ if (!app.requestSingleInstanceLock()) {
         const { voci, inviate } = vistaErrori(leggiStoricoDi(dati, storicoErrori.leggi()), statoInvioErroriGlobale?.())
         return { voci, inviate, testo: testoDaCopiare({ voci }, { versione: app.getVersion() }), ...(rigaArriviGlobale !== undefined ? { arrivi: rigaArriviGlobale } : {}) }
       })
+      // I passaggi di mano dei lavori mandati ad altri PC: i più recenti in cima.
+      ipcMain.handle('aiuto:eventi', () => eventiPiuRecentiInCima(leggiEventiAiuto(dati)))
       // I passi delle consegne dell'autopilota (0.38.2): ritirata, riquadro,
       // pronto o tetto, scritta, invio, partita. Prima stavano solo nella
       // console del renderer, e dopo un guasto il registro non diceva niente.

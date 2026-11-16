@@ -40,6 +40,10 @@
 - per riprodurre un multibyte spezzato basta tagliare il Buffer a metà dei 3 byte di › ed emettere due 'data' su una richiesta finta. _(2026-11-14)_
 - vitest tests/main tests/shared nel worktree dura qualche minuto (470 file): lanciarlo una volta sola, l'output è enorme, leggere solo la riga «Test Files» con grep -a. _(2026-11-15)_
 - `git fetch` può fallire sul bundle del PC richiedente: se il ramo è già pari a `main`, basta `git merge --ff-only main`. _(2026-11-16)_
+- `src/aiutante/aggiornamento.ts` ora importa `electron` (`powerMonitor`): i test che lo caricano devono mockare `electron` con `powerMonitor`. _(2026-11-16)_
+- `avviaAggiornamenti` programma un primo controllo a 15 s: nei test con timer finti far passare prima quel tempo, poi contare i `checkForUpdates`. _(2026-11-16)_
+- `creaServer` apre da solo `aiuti-affidati.json` in `archivio.cartella/servizio`: per provare gli affidati basta scrivere quel file prima. _(2026-11-16)_
+- `StatoScheda` usa 'lavora', `ChatGovernata` usa 'lavoro': nei test di panoramica il typecheck rifiuta la forma sbagliata, mentre vitest la lascia passare. _(2026-11-16)_
 
 ## worktree
 
@@ -141,6 +145,8 @@
 - 12/11: v0.101.1 uscita da clone (a2df43ce). Il .git del principale (config, refs/heads/main e refs/remotes/origin/main a zeri) è stato riparato il 12/11 col sì di Nicholas: config ricostruito, main da `logs/refs/heads/main`, `reset --mixed a2df43ce`, fsck pulito; le copie rotte sono in `.git/*.rovinato*`. Resta da togliere SierraDeck-rilascio-0101 (decide Nicholas). _(2026-11-12)_
 - Prima di una pubblicazione manuale controllare MERGE_HEAD e i file in stage nella cartella principale: il programma può avere un'unione a metà che blocca il rilascio per minuti. _(2026-11-14)_
 - Il `lezioni.md` modificato dal programma sporca la cartella, ma non ha fermato `pubblica-app`. _(2026-11-14)_
+- in questa copia `git fetch` può fallire se il remoto è un bundle sparito; `merge --ff-only main` basta _(2026-11-16)_
+- in questa copia `git fetch` può fallire se il bundle di arrivo è già stato cancellato: `git merge --ff-only main` basta, main è già locale. _(2026-11-16)_
 
 ## autopilota
 
@@ -235,6 +241,7 @@
 ## ui
 
 - il pannello «Altri computer» è `AltriComputer` in PannelloAccount.tsx (mostrato in Salute) e legge i battiti da `posta:pc`; la versione viva va chiesta a parte. _(2026-11-08)_
+- «Nessuno al lavoro» in PannelloSpecialisti riguarda i posti di questo PC (VistaAttesa), non la Panoramica: gli affidati non occupano posti qui. _(2026-11-16)_
 
 ## salute
 
@@ -334,6 +341,7 @@
 - «rispondi» a una domanda usa ancora l'attesa di 3 s (autopilot-client.ts:411-415): la 0.95.5 ha alzato a 30 s solo il dialogo. Ogni POST che scrive deve passare attesaScrittura. _(2026-11-10)_
 - Dalla 0.101.0 telefono, pagina e Telegram leggono lo stesso registro degli avvisi (`src/main/avvisi.ts`, `/api/eventi`): una regola su quando avvisare va lì, non nelle schermate; `avvisi=0` vuol dire «da capo» e l’attesa deve svegliarsi per ogni avviso nato dopo. _(2026-11-11)_
 - `dati += buffer` e `buffer.toString()` per pezzo spezzano i caratteri multibyte (U+FFFD): usare StringDecoder o setEncoding('utf8') su ogni lettura a pezzi. _(2026-11-14)_
+- `percentuale` per i lavori ospitati è inventata (10 + minuti): non mostrare una barra senza una stima vera. _(2026-11-16)_
 
 ## registro
 
@@ -392,6 +400,7 @@
 - un autopilota letto da un altro PC con altra versione può non avere campi array: leggerli sempre con `Array.isArray(...)`. _(2026-11-13)_
 - pauseAiuti (src/shared/aiuto-esito.ts) esclude un PC dopo un solo fallimento per accesso; il fallimento in sé è il segnale per l'utente, non un difetto. _(2026-11-14)_
 - Se un PC è raggiunto da tutti ma non raggiunge nessuno (anche la posta fa `fetch failed`), la causa è la sua rete in uscita o Tailscale, non gli indirizzi pubblicati. _(2026-11-15)_
+- il registro eventi-aiuto.json lo scrive il PC che affida: sull'Aiutante resta vuoto finché qualcuno non registra lì i passaggi. _(2026-11-16)_
 
 ## cancello
 
@@ -444,6 +453,7 @@
 - `.sierradeck/quaderno/lezioni.md` risulta modificato nella cartella principale: lo scrive il programma e sporca main prima del rilascio. _(2026-11-13)_
 - il file del lotto in .sierradeck/errori-arrivati/ non è tracciato: si legge con Read dal percorso della cartella principale, non dal worktree. _(2026-11-13)_
 - errori-arrivati.md usa fine riga CRLF: per aggiungere voci usare Edit ancorato all'ultima frase, non append da shell. _(2026-11-14)_
+- in errori-arrivati.md il testo esatto va controllato prima di un Edit: «la porta 47640» non è «e porta 47640», e l'ancora sbagliata fa fallire l'Edit. _(2026-11-16)_
 
 ## controllo-pc
 
@@ -515,6 +525,8 @@
 
 - un PC con versione vecchia può mandare `causa` 'sconosciuta' con il testo giusto nel motivo: la causa dichiarata va usata solo se riconosciuta, altrimenti si rilegge il testo. _(2026-11-14)_
 - la pausa per accesso scaduto è calcolata dal file dei lavori affidati, quindi vale anche dopo un riavvio; se un PC viene riprovato dopo pochi minuti, controllare la causa salvata nel lavoro. _(2026-11-14)_
+- la cartella del progetto non è una risorsa da verificare: arriva col pacchetto, va esclusa (`escludi`) nel ricavare i percorsi dal prompt. _(2026-11-16)_
+- un percorso ricavato dal testo non fa fallire il lavoro (informativo, con alternativa); solo le risorse dichiarate esplicitamente sono indispensabili. _(2026-11-16)_
 
 ## gradle
 
@@ -542,6 +554,11 @@
 - il lavoro remoto riceve solo prompt, strumenti e ramo; nessuna risorsa del PC di partenza passa, e la verifica dei requisiti (`regole.ts` 200-245) non copre le cartelle di rete. _(2026-11-16)_
 - Con `shell: true` un comando mancante non dà ENOENT ma codice 1: il ramo «non installato» di `versioneDi` non scatta mai per npm. _(2026-11-16)_
 - `aggiornamento.ts` classifica ogni errore come ERRORE: `eErroreDiRete` non è usato nell'Aiutante, quindi i passeggeri di rete arrivano agli errori arrivati. _(2026-11-16)_
+- con `shell:true` un comando mancante non dà ENOENT ma codice 1 con stderr «non riconosciuto/not recognized»: va letto lo stderr, non solo `err.code`. _(2026-11-16)_
+- `execFile` con timeout imposta `err.killed`: da distinguere da «non installato», altrimenti un PC occupato sembra senza npm. _(2026-11-16)_
+- un lavoro in ricezione conta già nei posti: per decidere se accodare in `avvia` si confronta inCorso > tetto, non liberi <= 0 _(2026-11-16)_
+- lo stato 'in-coda' non è terminale: `segui` dello spedizioniere lo tratta come un normale aggiornamento di attività, senza modifiche _(2026-11-16)_
+- la finestra dell'Aiutante è HTML+TS senza React: la logica va in moduli puri sotto src/aiutante/, testabili senza DOM; lo stato passa da statoCompleto() in index.ts. _(2026-11-16)_
 
 ## blocco
 
@@ -550,3 +567,16 @@
 ## editor
 
 - con Edit, un `old_string` che finisce con uno spazio può perderlo nella sostituzione: rileggere la riga se il typecheck dà errori JSX. _(2026-11-16)_
+
+## menu
+
+- Gli affidati ad altri PC stanno solo in `aiuti-affidati.json` (non in `orchestratore.stato`): ogni vista che filtra `s.pc === undefined` li perde. _(2026-11-16)_
+
+## panoramica
+
+- le fonti di «Al lavoro» (riquadri, specialisti dell'autopilota, lavori affidati) non coincidono: lo stesso lavoro compare in una vista e manca nell'altra. _(2026-11-16)_
+- la vista dell'autopilota (VistaOrchestratore) è l'unica fonte che conosce gli specialisti affidati a un altro PC (campo pc): niente riquadro, niente chat locale. _(2026-11-16)_
+
+## shared
+
+- `statoVero` in specialisti.ts restituisce una stringa libera, quindi `PAROLE` va indicizzata con stringhe e deve avere la voce 'ferma'. _(2026-11-16)_

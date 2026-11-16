@@ -13,11 +13,34 @@ import type { MisureRequisiti } from './regole'
 
 type Versione = { ok: true; versione: string } | { ok: false; motivo: string }
 
+/** Il risultato grezzo di `execFile` (con la shell un comando mancante dà codice 1, non ENOENT). */
+export type EsitoComando = { codice?: number | string | null; killed?: boolean; stderr?: string }
+
+/** Il testo che chiude un motivo di timeout: index.ts lo usa per rimisurare presto. */
+export const MOTIVO_TIMEOUT = 'non ha risposto in 20 s (PC occupato): riprovo'
+
+/**
+ * Il motivo, in italiano, per cui un comando di versione è fallito. Pura.
+ * `chi` è il nome da mostrare («npm»), `comando` quello provato.
+ */
+export function motivoComandoFallito(chi: string, comando: string, e: EsitoComando): string {
+  if (e.killed === true) return MOTIVO_TIMEOUT
+  const errTesto = (e.stderr ?? '').replace(/\s+/gu, ' ').trim()
+  if (e.codice === 'ENOENT' || /non (?:è )?riconosciut|not recognized|not found|command not found|impossibile trovare|cannot find/iu.test(errTesto)) {
+    return chi === 'npm' || chi === 'node'
+      ? 'non installato: installa Node.js LTS (porta npm), poi riavvia l\'Aiutante'
+      : 'non installato (o non nel PATH): installalo, poi riavvia l\'Aiutante'
+  }
+  return `c'è ma \`${comando}\` esce con errore${errTesto !== '' ? `: ${errTesto.slice(0, 120)}` : ` (codice ${String(e.codice ?? '?')})`}`
+}
+
 function versioneDi(comando: string, args: string[], shell = false): Promise<Versione> {
   return new Promise((ok) => {
-    execFile(comando, args, { windowsHide: true, timeout: 20_000, shell }, (err, out) => {
-      if (err !== null) ok({ ok: false, motivo: (err as NodeJS.ErrnoException).code === 'ENOENT' ? 'non installato (o non nel PATH)' : err.message.replace(/\s+/gu, ' ').slice(0, 160) })
-      else ok({ ok: true, versione: String(out).trim().split(/\r?\n/u)[0]?.slice(0, 80) ?? '' })
+    execFile(comando, args, { windowsHide: true, timeout: 20_000, shell }, (err, out, errOut) => {
+      if (err !== null) {
+        const e = err as NodeJS.ErrnoException & { killed?: boolean }
+        ok({ ok: false, motivo: motivoComandoFallito(comando === 'npm' ? 'npm' : comando, `${comando} ${args.join(' ')}`, { codice: e.code, killed: e.killed === true, stderr: String(errOut ?? '') }) })
+      } else ok({ ok: true, versione: String(out).trim().split(/\r?\n/u)[0]?.slice(0, 80) ?? '' })
     })
   })
 }

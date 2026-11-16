@@ -650,6 +650,10 @@ contextBridge.exposeInMainWorld('gestore', {
     /** Un passo da ricordare nel registro (le consegne dell'autopilota). */
     info: (messaggio: string): Promise<void> => ipcRenderer.invoke('log:info', messaggio)
   },
+  /** I passaggi di mano dei lavori mandati ad altri PC, i più recenti in cima. */
+  aiutoEventi: {
+    leggi: (): Promise<unknown[]> => ipcRenderer.invoke('aiuto:eventi')
+  },
   /** Lo storico degli errori di questo PC (0.81.0), con il testo di «Copia». */
   errori: {
     storico: (): Promise<{ voci: unknown[]; inviate?: unknown[]; testo: string; arrivi?: string }> => ipcRenderer.invoke('errori:storico'),

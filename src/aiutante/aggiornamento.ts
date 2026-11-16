@@ -1,5 +1,7 @@
+import { powerMonitor } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import type { Registro } from '../main/registro'
+import { eErroreDiRete } from '../shared/errori-rete'
 import { CANALE_AIUTANTE, CERCA_AGGIORNAMENTI_MS, decidiInstallazione, FEED_AIUTANTE, installaAdesso, type FaseAggiornamento, type ProgressoScarico } from './regole'
 
 /**
@@ -25,6 +27,10 @@ import { CANALE_AIUTANTE, CERCA_AGGIORNAMENTI_MS, decidiInstallazione, FEED_AIUT
  * all'avvio dopo 15 secondi (prima un minuto: chi riapriva l'Aiutante per
  * aggiornarlo non vedeva niente).
  */
+
+const RITENTA_RETE_MS = 2 * 60_000
+const TENTATIVI_RETE_MAX = 5
+const RISVEGLIO_MS = 10_000
 
 export type StatoAggiornamento = { fase: FaseAggiornamento; versione?: string; prontoDa?: number; errore?: string; ultimaRicerca?: number; progresso?: ProgressoScarico; cercando?: boolean }
 
@@ -71,7 +77,10 @@ export function avviaAggiornamenti(d: {
     debug: () => {}
   }
   let ultimoErrore: string | undefined
+  let tentativiRete = 0
+  let ritento: ReturnType<typeof setTimeout> | undefined
   autoUpdater.on('update-available', (info) => {
+    tentativiRete = 0
     stato.versione = info.version
     stato.cercando = false
     delete stato.errore
@@ -79,7 +88,7 @@ export function avviaAggiornamenti(d: {
     d.registro.info(`[aggiornamenti] c'è la ${info.version}${autoUpdater.autoDownload ? ': la scarico' : ' (aggiornamenti automatici spenti: non la scarico)'}`)
     cambiato()
   })
-  autoUpdater.on('update-not-available', () => { stato.cercando = false; delete stato.errore; cambiato() })
+  autoUpdater.on('update-not-available', () => { tentativiRete = 0; stato.cercando = false; delete stato.errore; cambiato() })
   let ultimoAvviso = 0
   autoUpdater.on('download-progress', (p: { percent?: number; transferred?: number; total?: number; bytesPerSecond?: number }) => {
     if (stato.fase !== 'scarico' && stato.fase !== 'disponibile') return
@@ -98,9 +107,20 @@ export function avviaAggiornamenti(d: {
   })
   autoUpdater.on('error', (err) => {
     const m = (err instanceof Error ? err.message : String(err)).replace(/\s+/gu, ' ').slice(0, 300)
-    stato.errore = m
     stato.cercando = false
     if (stato.fase === 'scarico') { stato.fase = 'niente'; delete stato.progresso }
+    if (eErroreDiRete(m)) {
+      // Rete caduta o PC in sospensione: non è un guasto, nessun errore nella finestra né nello storico; si riprova.
+      delete stato.errore
+      d.registro.info('[aggiornamenti] avviso: rete interrotta, riprovo')
+      cambiato()
+      if (tentativiRete < TENTATIVI_RETE_MAX && !ritento) {
+        tentativiRete++
+        ritento = setTimeout(() => { ritento = undefined; cerca() }, RITENTA_RETE_MS)
+      }
+      return
+    }
+    stato.errore = m
     cambiato()
     // Un blocco: nello storico degli errori, una volta per motivo.
     if (m !== ultimoErrore) { ultimoErrore = m; d.registro.errore(`[aggiornamenti] aggiornamento dell'Aiutante non riuscito: ${m}`) }
@@ -146,11 +166,23 @@ export function avviaAggiornamenti(d: {
   const primo = setTimeout(cerca, 15_000)
   const ogniOra = setInterval(cerca, CERCA_AGGIORNAMENTI_MS)
   const ogniMinuto = setInterval(controlla, 60_000)
+  // Al risveglio dalla sospensione la rete ci mette qualche secondo a tornare.
+  let alRisveglio: ReturnType<typeof setTimeout> | undefined
+  const suRisveglio = (): void => {
+    if (alRisveglio) clearTimeout(alRisveglio)
+    alRisveglio = setTimeout(() => { alRisveglio = undefined; tentativiRete = 0; cerca() }, RISVEGLIO_MS)
+  }
+  try { powerMonitor.on('resume', suRisveglio) } catch { /* senza powerMonitor resta il controllo orario */ }
   return {
     stato: () => stato,
     cerca,
     scarica,
     installaAdesso: adessoAMano,
-    ferma: () => { clearTimeout(primo); clearInterval(ogniOra); clearInterval(ogniMinuto) }
+    ferma: () => {
+      clearTimeout(primo); clearInterval(ogniOra); clearInterval(ogniMinuto)
+      if (ritento) clearTimeout(ritento)
+      if (alRisveglio) clearTimeout(alRisveglio)
+      try { powerMonitor.removeListener('resume', suRisveglio) } catch { /* niente */ }
+    }
   }
 }

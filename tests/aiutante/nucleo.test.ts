@@ -13,6 +13,8 @@ function lavoratoreFinto(inCorso = 0): LavoratoreAiuto & { pezzi: number } {
     pezzi: 0,
     inCorso: () => inCorso,
     ospitati: () => [],
+    inCoda: () => [],
+    avanzaCoda: () => false,
     pezzo: () => { l.pezzi += 1; return { ok: true as const, ricevuti: 1 } },
     avvia: () => ({ ok: true as const }),
     stato: () => undefined,

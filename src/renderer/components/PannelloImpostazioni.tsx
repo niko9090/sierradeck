@@ -13,6 +13,7 @@ import { SezionePin } from './SezionePin'
 import { SezioneQuadernoPersonale } from './SezioneQuadernoPersonale'
 import { SezioneAggiornamenti, apriFinestraAggiornamenti } from './SezioneAggiornamenti'
 import { SezioneErrori } from './SezioneErrori'
+import { SezionePassaggiDiMano } from './SezionePassaggiDiMano'
 import { SezioneNotifiche } from './SezioneNotifiche'
 import { SezioneLimiti } from './SezioneLimiti'
 import { Aiuto } from './Aiuto'
@@ -632,6 +633,7 @@ Di lato è larghezza, sopra o sotto è altezza: è sempre la stessa
               {vede('registro') ? <button className="tasto" title="Toglie le copie e i rami delle chat concluse e accorcia le note troppo grosse: lo fa già da solo ogni 6 ore" onClick={pulisciAdesso}>Pulisci adesso</button> : null}
             </div>
             {nota !== undefined ? <div className="impostazioni__nota">{nota}</div> : null}
+            {vede('errori') ? <SezionePassaggiDiMano /> : null}
             {vede('errori') ? <SezioneErrori pcSviluppo={p.pcSviluppo} scegliPc={(id) => cambia({ pcSviluppo: id })} proclamato={p.proclamaSviluppo === true} proclama={(si) => cambia(si ? { proclamaSviluppo: true, proclamaSviluppoIl: new Date().toISOString() } : { proclamaSviluppo: false, proclamaSviluppoIl: undefined })} /> : null}
           </section>
         ) : null}

@@ -1,4 +1,5 @@
 import { causaValida, type CausaFallimento } from './aiuto-esito'
+import { risorseValide, type Risorsa } from './aiuto-risorse'
 
 /**
  * **I posti liberi degli altri PC** (0.103.0, tappa 3 del lavoro a distanza).
@@ -155,10 +156,13 @@ export function modelloAiuto(x: unknown): string {
 }
 
 /** 12/11: un lavoro di un altro PC che gira qui, per l'elenco «Al lavoro adesso» di questo PC. */
-export type LavoroOspitato = { id: string; stato: StatoAiuto; ruolo: string; descrizione: string; perPc: string; inizio: string; attivita?: string }
+export type LavoroOspitato = { id: string; stato: StatoAiuto; ruolo: string; descrizione: string; perPc: string; inizio: string; attivita?: string; /** In coda: da 1 (il prossimo). */ posizione?: number }
 
 /** Come sta un lavoro, dal lato di chi aiuta. */
-export type StatoAiuto = 'ricevo' | 'preparo' | 'lavoro' | 'finito' | 'fallito' | 'fermato'
+export type StatoAiuto = 'ricevo' | 'in-coda' | 'preparo' | 'lavoro' | 'finito' | 'fallito' | 'fermato'
+
+/** Quanti lavori aspettano al più un posto su un Aiutante: oltre, il lavoro si rifiuta. */
+export const CODA_AIUTO_MAX = 10
 
 export type VistaLavoroAiutato = {
   id: string
@@ -188,6 +192,8 @@ export type LavoroAffidato = {
   sistema: string
   modello: string
   strumenti: string[]
+  /** 16/11: risorse dichiarate esplicitamente (cartelle, percorsi di rete, programmi, variabili); quelle nominate nel messaggio si ricavano alla spedizione. */
+  risorse?: Risorsa[]
   /** da-spedire → spedito (là lavora) → finito / fallito. */
   stato: 'da-spedire' | 'spedito' | 'finito' | 'fallito'
   inizio: string
@@ -221,6 +227,7 @@ export function lavoroAffidatoValido(x: unknown): LavoroAffidato | undefined {
     sistema: t('sistema') ?? '',
     modello: modelloAiuto(o.modello),
     strumenti: strumentiAmmessi(o.strumenti),
+    ...(risorseValide(o.risorse).length > 0 ? { risorse: risorseValide(o.risorse) } : {}),
     stato,
     inizio: t('inizio') ?? new Date(0).toISOString(),
     ...(t('fine') !== undefined ? { fine: t('fine')! } : {}),

@@ -1,12 +1,13 @@
 import { execFile, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { appendFileSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, unlinkSync, utimesSync, writeFileSync, openSync, readSync, closeSync, lstatSync, rmdirSync } from 'node:fs'
+import { stat, appendFileSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, unlinkSync, utimesSync, writeFileSync, openSync, readSync, closeSync, lstatSync, rmdirSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import {
   commitValido, idLavoroValido, LAVORO_MAX_MS, modelloAiuto, nomeProgettoSicuro, PEZZO_BYTE, PACCHETTO_MAX_BYTE,
   quantiPezzi, ramoDiRitorno, ramoValido, STRUMENTI_AIUTO, autoreValido, type AutoreGit, strumentiAmmessi, VIETATI_AIUTO, type LavoroOspitato, type StatoAiuto, type VistaLavoroAiutato
 } from '@shared/aiuto-rete'
 import { causaDalTesto, fraseCausa, motivoDelRisultato, type CausaFallimento } from '@shared/aiuto-esito'
+import { motivoRisorsa, risorseValide, risorsaMancante, sezioneRisorse, verificaRisorse, type Risorsa, type StrumentiVerifica } from '@shared/aiuto-risorse'
 import type { AvviaProcesso } from './processo-claude'
 import { cancellaSicuraAsincrona } from '@shared/cancella-sicura'
 import { CARTELLA_PROVE } from '@shared/disco-prove'
@@ -48,6 +49,8 @@ export type RichiestaAvvio = {
   descrizione: string
   /** 12/11: chi firma i commit nella copia (nome ed email di git del PC che chiede). */
   autore?: AutoreGit
+  /** 16/11: le risorse che il compito nomina (cartelle, percorsi di rete, programmi, variabili): si verificano prima di lanciare. */
+  risorse?: Risorsa[]
 }
 
 /** 12/11: come è finito un lavoro, per chi ospita il lavoratore (l'Aiutante guarda il limite del piano). */
@@ -95,7 +98,12 @@ export type LavoratoreAiuto = {
   /** 12/11: i lavori degli altri PC al lavoro qui, per l'elenco «Al lavoro adesso». */
   ospitati: () => LavoroOspitato[]
   pezzo: (p: { lavoro: unknown; n: unknown; totale: unknown; dati: unknown }) => { ok: true; ricevuti: number } | { ok: false; motivo: string }
-  avvia: (p: Record<string, unknown>) => { ok: true } | { ok: false; motivo: string }
+  /** `accoda`: niente posto adesso, il lavoro aspetta in coda e parte da solo (`avanzaCoda`). */
+  avvia: (p: Record<string, unknown>, accoda?: boolean) => { ok: true } | { ok: false; motivo: string }
+  /** I lavori che aspettano un posto, in ordine di arrivo (posizione da 1). */
+  inCoda: () => LavoroOspitato[]
+  /** Avvia il primo lavoro in coda; falso se non ce n'è. Lo chiama chi sa che c'è un posto libero. */
+  avanzaCoda: () => boolean
   stato: (id: unknown) => VistaLavoroAiutato | undefined
   ritira: (p: { lavoro: unknown; n: unknown }) => { ok: true; dati: string; totale: number } | { ok: false; motivo: string }
   chiudi: (id: unknown) => boolean
@@ -129,6 +137,15 @@ function npmCi(cartella: string, extra: string[]): Promise<void> {
 
 const eCollegamento = (p: string): boolean => { try { return lstatSync(p).isSymbolicLink() } catch { return false } }
 
+/** Le risorse guardate davvero: il file system (anche di rete), il PATH, l'ambiente. */
+const verificaRisorseQui: StrumentiVerifica = {
+  esiste: (p) => new Promise((ok) => { stat(p, (err) => { ok(err === null) }) }),
+  nelPath: (prog) => new Promise((ok) => {
+    execFile(process.platform === 'win32' ? 'where' : 'which', [prog], { windowsHide: true, timeout: 3000 }, (err) => { ok(err === null) })
+  }),
+  variabile: (nome) => (process.env[nome] ?? '') !== ''
+}
+
 export function creaLavoratoreAiuto(x: {
   /** Dove sta `lavori.json` (`<dati>/aiuto`); senza `lavoro`, anche copie, moduli e pacchetti. */
   cartella: string
@@ -141,6 +158,8 @@ export function creaLavoratoreAiuto(x: {
   pulisciOgniMs?: number
   /** 12/11: un lavoro è finito (riuscito o no): l'Aiutante ci legge il limite del piano e i blocchi. */
   suFine?: (f: FineLavoro) => void
+  /** 16/11: come si guardano le risorse su questo PC (nelle prove, un finto). */
+  verificaRisorse?: StrumentiVerifica
 }): LavoratoreAiuto {
   const adesso = x.adesso ?? Date.now
   const log = x.log ?? ((r: string) => console.info(`[aiuto] ${r}`))
@@ -302,7 +321,7 @@ export function creaLavoratoreAiuto(x: {
   /** Una radice: pacchetti che non servono più, copie di lavori non al lavoro, rami di lavori chiusi, moduli vecchi. */
   const spazzaRadice = async (r: string): Promise<void> => {
     const serve: Array<[string, (l: Lavoro) => boolean]> = [
-      [join(r, 'arrivi'), (l) => l.stato === 'ricevo' || l.stato === 'preparo'],
+      [join(r, 'arrivi'), (l) => l.stato === 'ricevo' || l.stato === 'in-coda' || l.stato === 'preparo'],
       [join(r, 'uscite'), () => true]
     ]
     for (const [cartella, tieni] of serve) {
@@ -376,7 +395,19 @@ export function creaLavoratoreAiuto(x: {
     const copia = join(base, 'copie', l.id)
     const pacchetto = pacchettiDi(l)[0]!
     const ramo = ramoDiRitorno(l.id)
-    cambia(l, { stato: 'preparo', attivita: 'apro il progetto arrivato', repo })
+    // 16/11: le risorse nominate dal compito, guardate subito (tempo massimo breve ciascuna). Una indispensabile
+    // che manca e senza alternativa: il lavoro fallisce SUBITO (causa 'risorsa', colpa del PC), e passa a un altro PC.
+    cambia(l, { stato: 'preparo', attivita: 'controllo le risorse del compito', repo })
+    const verificate = await verificaRisorse(r.risorse ?? [], x.verificaRisorse ?? verificaRisorseQui)
+    const mancante = risorsaMancante(verificate)
+    if (mancante !== undefined) {
+      cambia(l, { stato: 'fallito', motivo: `${fraseCausa('risorsa')} — ${corto(motivoRisorsa(mancante), 300)}`, causa: 'risorsa', attivita: 'non riuscito' })
+      log(`${l.id} (${progetto}): ${l.motivo ?? ''}`)
+      try { x.suFine?.({ id: l.id, stato: l.stato, testo: '', ...(l.motivo !== undefined ? { motivo: l.motivo } : {}), causa: 'risorsa', ...(l.perPc !== undefined ? { perPc: l.perPc } : {}), ...(l.ruolo !== undefined ? { ruolo: l.ruolo } : {}) }) } catch { /* chi ascolta non ferma niente */ }
+      await pulisciCopia(l).catch(() => undefined)
+      return
+    }
+    cambia(l, { attivita: 'apro il progetto arrivato' })
     // Il repo del progetto: la prima volta un clone dal pacchetto, poi i commit nuovi. Una cosa alla volta per progetto.
     await inProgetto(progetto, async () => {
       mkdirSync(join(base, 'copie'), { recursive: true })
@@ -410,7 +441,8 @@ export function creaLavoratoreAiuto(x: {
     // 12/11: fermato mentre si preparava: la copia appena fatta non serve, via subito (prima restava lì).
     if (l.stato === 'fermato') { await pulisciCopia(l); return }
     cambia(l, { stato: 'lavoro', attivita: `${r.ruolo} al lavoro` })
-    const sistema = `${r.sistema}\n\nLavori su un altro PC della rete di Nicholas («Aiuta la rete»): la tua copia è ${copia}, sul ramo ${ramo}. Il ramo principale del progetto è ${r.ramoBase}. Niente push: il ramo lo rimanda il programma al PC che ha chiesto, che lo prova e lo unisce.${notaModuli}`
+    const sezione = sezioneRisorse(verificate)
+    const sistema = `${r.sistema}${sezione !== '' ? `\n\n${sezione}` : ''}\n\nLavori su un altro PC della rete di Nicholas («Aiuta la rete»): la tua copia è ${copia}, sul ramo ${ramo}. Il ramo principale del progetto è ${r.ramoBase}. Niente push: il ramo lo rimanda il programma al PC che ha chiesto, che lo prova e lo unisce.${notaModuli}`
     const args = [
       '-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose',
       '--model', modelloAiuto(r.modello),
@@ -486,7 +518,34 @@ export function creaLavoratoreAiuto(x: {
     if (!tolta) log(`${l.id}: la copia ${copia} non si toglie ancora (file in uso?): riprovo al prossimo giro`)
   }
 
+  /** In memoria, in ordine di arrivo: un riavvio la perde (i lavori in coda risultano non riusciti, come quelli a metà). */
+  const coda: Array<{ l: Lavoro; r: RichiestaAvvio }> = []
+  const togliDallaCoda = (id: string): void => {
+    const i = coda.findIndex((c) => c.l.id === id)
+    if (i >= 0) coda.splice(i, 1)
+  }
+  const parti = (l: Lavoro, r: RichiestaAvvio): void => {
+    void lancia(l, r).catch(async (err: unknown) => {
+      log(`${l.id}: non riuscito: ${String(err).slice(0, 300)}`)
+      if (l.stato !== 'fermato') {
+        // 13/11: anche qui la causa (git che non apre il pacchetto, npm, un programma che manca), con la sua frase.
+        const grezzo = corto(err instanceof Error ? err.message : String(err), 300)
+        const causa = causaDalTesto(grezzo)
+        cambia(l, { stato: 'fallito', motivo: causa === 'sconosciuta' ? grezzo : `${fraseCausa(causa)} — ${grezzo}`, causa, attivita: 'non riuscito' })
+      }
+      try { x.suFine?.({ id: l.id, stato: l.stato, testo: '', ...(l.motivo !== undefined ? { motivo: l.motivo } : {}), ...(l.causa !== undefined ? { causa: l.causa } : {}), ...(l.perPc !== undefined ? { perPc: l.perPc } : {}), ...(l.ruolo !== undefined ? { ruolo: l.ruolo } : {}) }) } catch { /* chi ascolta non ferma niente */ }
+      await pulisciCopia(l).catch(() => undefined)
+    })
+  }
+
   const lavoratore: LavoratoreAiuto = {
+    inCoda: () => coda.map(({ l }, i) => ({ id: l.id, stato: l.stato, ruolo: l.ruolo ?? 'sviluppatore', descrizione: l.descrizione ?? l.progetto, perPc: l.perPc ?? 'un altro PC', inizio: new Date(l.inizio).toISOString(), posizione: i + 1 })),
+    avanzaCoda() {
+      const primo = coda.shift()
+      if (primo === undefined) return false
+      parti(primo.l, primo.r)
+      return true
+    },
     inCorso: () => [...lavori.values()].filter((l) => l.stato === 'ricevo' || l.stato === 'preparo' || l.stato === 'lavoro').length,
     ospitati: () => [...lavori.values()]
       .filter((l) => l.stato === 'ricevo' || l.stato === 'preparo' || l.stato === 'lavoro')
@@ -515,7 +574,7 @@ export function creaLavoratoreAiuto(x: {
       l.attivita = `ricevo il progetto (${l.ricevuti}/${totale})`
       return { ok: true, ricevuti: l.ricevuti }
     },
-    avvia(p) {
+    avvia(p, accoda = false) {
       const l = idLavoroValido(p.lavoro) ? lavori.get(p.lavoro) : undefined
       if (l === undefined || l.stato !== 'ricevo') return { ok: false, motivo: 'il progetto di questo lavoro non è arrivato' }
       if (l.ricevuti !== l.totale) return { ok: false, motivo: `mancano pezzi (${l.ricevuti}/${String(l.totale)})` }
@@ -532,21 +591,18 @@ export function creaLavoratoreAiuto(x: {
         strumenti: strumentiAmmessi(p.strumenti),
         ruolo: typeof p.ruolo === 'string' ? corto(p.ruolo, 40) : 'sviluppatore',
         descrizione: typeof p.descrizione === 'string' ? corto(p.descrizione, 300) : '',
-        ...(autoreValido(p.autore) !== undefined ? { autore: autoreValido(p.autore)! } : {})
+        ...(autoreValido(p.autore) !== undefined ? { autore: autoreValido(p.autore)! } : {}),
+        ...(risorseValide(p.risorse).length > 0 ? { risorse: risorseValide(p.risorse) } : {})
       }
       cambia(l, { progetto: nomeProgettoSicuro(r.progetto), base: r.base, ruolo: r.ruolo, descrizione: r.descrizione, ...(typeof p.daNome === 'string' && p.daNome.trim() !== '' ? { perPc: corto(p.daNome, 60) } : {}) })
+      if (accoda) {
+        cambia(l, { stato: 'in-coda', attivita: 'in coda: aspetta un posto' })
+        coda.push({ l, r })
+        log(`${l.id}: in coda (posizione ${coda.length}) — ${r.ruolo} per ${r.progetto}`)
+        return { ok: true }
+      }
       log(`${l.id}: parte ${r.ruolo} per ${r.progetto} — ${r.descrizione.slice(0, 120)}`)
-      void lancia(l, r).catch(async (err: unknown) => {
-        log(`${l.id}: non riuscito: ${String(err).slice(0, 300)}`)
-        if (l.stato !== 'fermato') {
-          // 13/11: anche qui la causa (git che non apre il pacchetto, npm, un programma che manca), con la sua frase.
-          const grezzo = corto(err instanceof Error ? err.message : String(err), 300)
-          const causa = causaDalTesto(grezzo)
-          cambia(l, { stato: 'fallito', motivo: causa === 'sconosciuta' ? grezzo : `${fraseCausa(causa)} — ${grezzo}`, causa, attivita: 'non riuscito' })
-        }
-        try { x.suFine?.({ id: l.id, stato: l.stato, testo: '', ...(l.motivo !== undefined ? { motivo: l.motivo } : {}), ...(l.causa !== undefined ? { causa: l.causa } : {}), ...(l.perPc !== undefined ? { perPc: l.perPc } : {}), ...(l.ruolo !== undefined ? { ruolo: l.ruolo } : {}) }) } catch { /* chi ascolta non ferma niente */ }
-        await pulisciCopia(l).catch(() => undefined)
-      })
+      parti(l, r)
       return { ok: true }
     },
     stato(id) {
@@ -579,6 +635,7 @@ export function creaLavoratoreAiuto(x: {
       const l = idLavoroValido(id) ? lavori.get(id) : undefined
       if (l === undefined) return false
       l.ferma?.()
+      togliDallaCoda(l.id)
       lavori.delete(l.id)
       salva()
       void pulisciCopia(l).catch(() => undefined)
@@ -587,8 +644,12 @@ export function creaLavoratoreAiuto(x: {
     ferma(id) {
       const l = idLavoroValido(id) ? lavori.get(id) : undefined
       if (l === undefined || l.stato === 'finito' || l.stato === 'fallito') return false
+      const inAttesa = l.stato === 'in-coda'
+      togliDallaCoda(l.id)
       cambia(l, { stato: 'fermato', motivo: 'fermato dal PC che l’aveva chiesto', attivita: 'fermato' })
       l.ferma?.()
+      // Mai partito: non c'è un processo che ripulisca, il pacchetto arrivato si toglie qui.
+      if (inAttesa) void pulisciCopia(l).catch(() => undefined)
       return true
     },
     pulizia

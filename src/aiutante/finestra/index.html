@@ -60,10 +60,14 @@
   <div class="riga" id="riga-cassaforte"><input type="password" id="passphrase" placeholder="Passphrase della cassaforte" /><button id="sblocca">Apri</button></div>
   <div class="nota" id="esito-rete"></div>
 
-  <h2>Al lavoro adesso <button class="aiuto" data-spiega="sp-lavori">?</button></h2>
-  <div class="spiega" id="sp-lavori">I lavori che gli altri PC hanno affidato a questo Aiutante: chi lo fa, cosa, e per quale PC. Alla fine il ramo torna al PC che l’ha chiesto, che lo prova e lo unisce.</div>
+  <h2>Attivi <button class="aiuto" data-spiega="sp-lavori">?</button></h2>
+  <div class="spiega" id="sp-lavori">I lavori che gli altri PC hanno affidato a questo Aiutante: chi lo fa, cosa, per quale PC e da quanto. Alla fine il ramo torna al PC che l’ha chiesto, che lo prova e lo unisce.</div>
   <div id="posti"></div>
   <ul id="lavori"></ul>
+
+  <h2>In coda <button class="aiuto" data-spiega="sp-coda">?</button></h2>
+  <div class="spiega" id="sp-coda">Quando i posti sono pieni, i lavori nuovi aspettano qui, in ordine di arrivo (al massimo 10). Partono da soli appena si libera un posto.</div>
+  <ul id="coda"></ul>
 
   <h2>Cosa serve <button class="aiuto" data-spiega="sp-requisiti">?</button></h2>
   <div class="spiega" id="sp-requisiti">Senza una di queste cose un lavoro fallirebbe a metà: finché manca, l’Aiutante dice agli altri PC che non ha posti. Il controllo si rifà ogni 10 minuti.</div>

@@ -62,4 +62,42 @@ describe('lo spedizioniere e gli Aiutanti', () => {
     } finally { sp.ferma() }
     expect(avvii[0]?.autore).toEqual({ nome: 'Mario Rossi', email: 'mario@example.com' })
   })
+
+  it('l’avvio porta le risorse dichiarate e quelle nominate nel messaggio', async () => {
+    const cartella = mkdtempSync(join(tmpdir(), 'spedizioni-'))
+    const l: LavoroAffidato = {
+      id: 'r0000000000a2', workspace: 'Prova', cwd: tmpdir(), pcId: 'pc-aiu', pcNome: 'Aiutante', ruolo: 'sviluppatore',
+      descrizione: 'x', prompt: 'copia i listini da \\\\nas\\listini e lancia `docker ps`', sistema: '', modello: 'sonnet', strumenti: [],
+      risorse: [{ tipo: 'variabile', valore: 'NAS_HOST', perche: 'indirizzo del NAS' }],
+      stato: 'da-spedire', inizio: new Date().toISOString()
+    }
+    const avvii: Record<string, unknown>[] = []
+    const git = async (args: string[]): Promise<string> => {
+      if (args[0] === 'symbolic-ref') return 'main\n'
+      if (args[0] === 'rev-parse') return `${'a'.repeat(40)}\n`
+      if (args[0] === 'bundle') { writeFileSync(args[2]!, Buffer.from('pacchetto')); return '' }
+      return ''
+    }
+    const sp = creaSpedizioniere({
+      altri: () => [],
+      chiama: async (_pc, percorso, corpo) => {
+        if (percorso === '/api/aiuto/avvia') avvii.push(corpo ?? {})
+        if (percorso === '/api/aiuto/stato') return { id: l.id, stato: 'finito', byte: 0 }
+        return {}
+      },
+      servizio: async (percorso, corpo) => {
+        if (percorso === '/aiuto/giro') return { lavori: l.stato === 'da-spedire' || l.stato === 'spedito' ? [l] : [] }
+        if (corpo?.stato !== undefined) l.stato = corpo.stato as LavoroAffidato['stato']
+        return {}
+      },
+      cartella, git, log: () => undefined, dorme: async () => undefined
+    })
+    try {
+      await sp.giro()
+      const fine = Date.now() + 5000
+      while (avvii.length === 0 && Date.now() < fine) await new Promise((ok) => setTimeout(ok, 20))
+    } finally { sp.ferma() }
+    const risorse = avvii[0]?.risorse as { tipo: string; valore: string }[]
+    expect(risorse.map((r) => `${r.tipo}:${r.valore}`)).toEqual(['variabile:NAS_HOST', 'percorso-rete:\\\\nas\\listini', 'programma:docker'])
+  })
 })

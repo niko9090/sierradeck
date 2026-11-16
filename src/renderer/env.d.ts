@@ -264,6 +264,10 @@ declare global {
         errore: (messaggio: string) => Promise<void>
         info: (messaggio: string) => Promise<void>
       }
+      /** I passaggi di mano dei lavori mandati ad altri PC, i più recenti in cima. */
+      aiutoEventi: {
+        leggi: () => Promise<import('@shared/eventi-aiuto').EventoAiuto[]>
+      }
       /** Lo storico degli errori di questo PC (0.81.0): programma e servizio insieme. */
       errori: {
         storico: () => Promise<{ voci: import('@shared/storico-errori').VoceErrore[]; inviate?: Array<import('@shared/storico-errori').VoceErrore & { inviatoIl: string }>; testo: string; arrivi?: string }>
