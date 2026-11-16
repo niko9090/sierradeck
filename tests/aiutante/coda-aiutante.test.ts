@@ -40,6 +40,11 @@ const avvia = (n: Nucleo, numero: number): Promise<unknown> => n.servizio('/aiut
 const arriva = async (n: Nucleo, numero: number): Promise<void> => { await occupa(n, numero); await avvia(n, numero) }
 const stato = async (n: Nucleo, numero: number): Promise<string> => ((await n.servizio('/aiuto/stato', { lavoro: id(numero) })) as { stato: string }).stato
 
+/** Attesa su condizione (non un tempo fisso): la preparazione usa git, col PC carico dura molto più di 1 s. */
+const finisceFallito = (n: Nucleo, numero: number): Promise<void> =>
+  vi.waitFor(async () => expect(await stato(n, numero)).toBe('fallito'), { timeout: 60_000, interval: 50 })
+const PROVA_MAX_MS = 90_000
+
 describe('la coda dell’Aiutante', () => {
   it('con i posti pieni il lavoro aspetta in coda, con la sua posizione', async () => {
     const n = aiutante(1)
@@ -57,8 +62,8 @@ describe('la coda dell’Aiutante', () => {
     await arriva(n, 2)
     expect(n.inCoda()).toEqual([])
     expect(await stato(n, 2)).not.toBe('in-coda')
-    await vi.waitFor(async () => expect(await stato(n, 2)).toBe('fallito')) // niente processo nelle prove: finisce da solo
-  })
+    await finisceFallito(n, 2) // niente processo nelle prove: finisce da solo
+  }, PROVA_MAX_MS)
 
   it('parte appena si libera un posto, in ordine di arrivo', async () => {
     const n = aiutante(1)
@@ -69,11 +74,11 @@ describe('la coda dell’Aiutante', () => {
     expect(await stato(n, 2)).not.toBe('in-coda')
     expect(await stato(n, 3)).toBe('in-coda')
     expect(n.inCoda().map((l) => [l.id, l.posizione])).toEqual([[id(3), 1]])
-    await vi.waitFor(async () => expect(await stato(n, 2)).toBe('fallito'))
+    await finisceFallito(n, 2)
     n.avanzaCoda()
     expect(await stato(n, 3)).not.toBe('in-coda')
-    await vi.waitFor(async () => expect(await stato(n, 3)).toBe('fallito'))
-  })
+    await finisceFallito(n, 3)
+  }, PROVA_MAX_MS)
 
   it('oltre il tetto il lavoro si rifiuta come prima', async () => {
     const n = aiutante(1)
