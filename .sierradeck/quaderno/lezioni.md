@@ -310,6 +310,7 @@
 - le chiamate preferenze.imposta hanno un .catch vuoto (App.tsx:979 e simili): un salvataggio fallito non si vede. _(2026-11-12)_
 - Un hook che cambia sorgente (workspace o PC) non deve tenere il valore di prima: `useSondaggio` lo legava al sondaggio vecchio, e `useAutopilotaRemoto` lasciava scrivere una lettura in viaggio del workspace precedente. Ogni lettura va legata al suo giro. _(2026-11-13)_
 - le guardie sui campi array dell'autopilota vanno messe anche nei chiamanti di `adessoDi` (es. DalVivoAutopilota): la riga «chat sola» li fa passare anche senza `chats`. _(2026-11-13)_
+- SORGENTE_LOCALE (sorgente-autopilota.tsx) è il punto unico da cui il renderer chiama coda/orchestratore/specialista: le guardie sul workspace vanno lì. _(2026-11-16)_
 
 ## fermate
 
@@ -487,6 +488,7 @@
 ## ipc
 
 - `preferenze:imposta` ora risponde `{ preferenze, salvato }`: chi lo chiama dal renderer usi `salvaPreferenze` (src/renderer/salva-preferenze.ts), non `imposta` diretto. _(2026-11-12)_
+- negli handler IPC di sola lettura la validazione dell'argomento va dentro il catch/guard: un throw prima del .catch finisce nel log di Electron come errore. _(2026-11-16)_
 
 ## testo
 
