@@ -56,6 +56,7 @@ import { cartellaDelWorkspace, hookAdottato, nuovoUnico, obiettiviInCoda, passaA
 import { quandoInParole, riassuntoOrchestratore } from './riassunto-orchestratore'
 import { motivoSpecialistaDoppio, ripresaDopoRiavvio } from './ripresa-riavvio'
 import { AGENTI_ORCHESTRATORE, fileAgenti, fileImpostazioniCli, RUOLI_AGENTI } from './agenti-orchestratore'
+import { percentualeVera, voceOspitata } from './vista-ospitati'
 import { motivoAffidato, motivoPerRestareQui, RUOLI_IN_VIAGGIO, scegliPosto, type Aiutante, type LavoroAffidato, type LavoroOspitato } from '@shared/aiuto-rete'
 import { giudicaGuardiaOrchestratore } from './guardia-orchestratore'
 import type { Giudizio } from './divieti'
@@ -916,26 +917,17 @@ Il posto è tuo per 5 minuti.` })
         }
       }), (x.ospitati?.() ?? []).map((o, j) => {
         // 12/11 (Nicholas: «nel PC che ospita gli agenti di altri PC voglio che nella lista vengano visualizzati»).
-        const cosaFa = rigaUltimaAzione(o.attivita ?? '')
-        const minuti = Math.max(0, Math.round((adesso - Date.parse(o.inizio)) / 60_000))
-        return {
-          posto: lavorano.length + j + 1, id: o.id, workspace: '', descrizione: o.descrizione, tipo: o.ruolo, dal: o.inizio,
-          workspaceNome: `per ${o.perPc}`, titolo: titoloBreve(o.descrizione),
-          ...(cosaFa !== '' ? { cosaFa } : {}),
-          percentuale: o.stato === 'lavoro' ? Math.min(90, 10 + minuti) : 5, peso: PESO_PREDEFINITO,
-          perPc: o.perPc
-        }
+        return voceOspitata(o, lavorano.length + j + 1, rigaUltimaAzione(o.attivita ?? ''), titoloBreve(o.descrizione), PESO_PREDEFINITO)
       }), affidati().filter((l) => l.stato === 'da-spedire' || l.stato === 'spedito').map((l, j) => {
         // 16/11 (Nicholas: «due specialisti che lavorano e nel menu vedo nessuno»): gli affidati ad altri PC lavorano per questo workspace.
         const cosaFa = rigaUltimaAzione(l.attivita ?? '')
-        const minuti = Math.max(0, Math.round((adesso - Date.parse(l.inizio)) / 60_000))
         return {
           posto: lavorano.length + (x.ospitati?.().length ?? 0) + j + 1, id: l.id, workspace: l.workspace,
           ...(l.compito !== undefined ? { compito: l.compito } : {}),
           descrizione: l.descrizione, tipo: l.ruolo, dal: l.inizio,
           workspaceNome: nomeWorkspace(l.workspace), titolo: titoloDi(l.workspace, l.compito, l.descrizione),
           ...(cosaFa !== '' ? { cosaFa } : {}),
-          percentuale: l.stato === 'spedito' ? Math.min(90, 10 + minuti) : 5, peso: pesoDi(l.workspace, l.compito),
+          ...percentualeVera(l.percentuale), peso: pesoDi(l.workspace, l.compito),
           suPc: l.pcNome
         }
       })),
