@@ -65,19 +65,8 @@ export function aggiungiEventoAiuto(elenco: readonly EventoAiuto[], evento: Even
   return tetto > 0 && nuovo.length > tetto ? nuovo.slice(nuovo.length - tetto) : nuovo
 }
 
-/** I più recenti in cima, per la sezione. Ordina per `quando`; a parità, l'ultimo aggiunto sta sopra. */
-export function eventiPiuRecentiInCima(elenco: readonly EventoAiuto[]): EventoAiuto[] {
-  return elenco
-    .map((e, i) => ({ e, i }))
-    .sort((a, b) => {
-      const ta = Date.parse(a.e.quando)
-      const tb = Date.parse(b.e.quando)
-      const da = Number.isNaN(ta) ? 0 : ta
-      const db = Number.isNaN(tb) ? 0 : tb
-      return db - da || b.i - a.i
-    })
-    .map((x) => x.e)
-}
+// In un file senza disco (16/11): lo usa anche la finestra dell'Aiutante, che gira nel browser.
+export { eventiPiuRecentiInCima } from './eventi-aiuto-elenco'
 
 export function fileEventiAiuto(dati: string): string {
   return join(dati, CARTELLA_EVENTI_AIUTO, FILE_EVENTI_AIUTO)

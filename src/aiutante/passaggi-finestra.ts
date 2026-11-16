@@ -1,4 +1,5 @@
-import { eventiPiuRecentiInCima, type EventoAiuto, type TipoEventoAiuto } from '../shared/eventi-aiuto'
+import type { EventoAiuto, TipoEventoAiuto } from '../shared/eventi-aiuto'
+import { eventiPiuRecentiInCima } from '../shared/eventi-aiuto-elenco'
 
 /**
  * «Passaggi di mano» nella finestra dell'Aiutante: da quali PC a quali PC è
