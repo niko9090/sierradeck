@@ -306,7 +306,7 @@ describe('la fila delle unioni (06/11)', () => {
     await attendi(() => orch.piano('Lavoro').compiti[1]!.esito?.startsWith('unione non fatta') === true, { cosa: 'k-1 respinto', timeout: 8000 })
     const esito = orch.piano('Lavoro').compiti[1]!.esito!
     // La descrizione da sola («le prove vitest dei compiti già uniti») non dice quale test: lo dice la coda dell'uscita.
-    expect(esito).toMatch(/^unione non fatta: il ramo rompe prove che sul principale passano: le prove vitest dei compiti già uniti[^—]* — RUN v4 \| FAIL {2}tests\/x\.test\.ts > somma \| AssertionError: expected 1 to be 2 \| Tests {2}1 failed \| 9 passed$/u)
+    expect(esito).toMatch(/^unione non fatta: il ramo rompe prove che sul principale passano: le prove vitest dei compiti già uniti[^—]* — FAIL +tests\/x\.test\.ts > somma \| AssertionError: expected 1 to be 2$/u)
     expect(esito).not.toContain('anche nella cartella principale')
     expect(chiamate).toBe(2)
     expect(porte.merge).toEqual([R1])

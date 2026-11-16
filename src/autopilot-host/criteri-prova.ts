@@ -15,14 +15,43 @@ import type { Criterio } from '@shared/autopilota'
  * `android/`, vitest e tsc con soli file in `android/`, note e quaderno).
  */
 
-const VITEST = /^\s*(?:npx\s+)?vitest\s+run((?:\s+[^\s\-;&|<>`$()][^\s;&|<>`$()]*)*)\s*$/i
+// 16/11: anche con le opzioni (`--maxWorkers=2`): prima un `vitest run --maxWorkers=2` restava un
+// comando a parte, cioè tutta la suite (5 minuti) prima e dopo ogni unione, anche per una nota.
+const VITEST = /^\s*(?:npx\s+)?vitest\s+run((?:\s+[^\s;&|<>`$()]+)*)\s*$/i
 const GRADLE_ANDROID = /^\s*cd\s+android\s*&&\s*(gradlew?)\s+([^;&|<>`$()]+)$/i
+/**
+ * Qualunque `gradle`/`gradlew` sul progetto Android, anche con il percorso
+ * (`E:/…/gradle -p android testDebugUnitTest`): prima solo `cd android && gradlew …`
+ * si riconosceva, e gli altri giravano a ogni unione (2 minuti e mezzo) anche senza Android.
+ */
+const GRADLE_QUALSIASI = /\bgradlew?(?:\.bat)?\b[^\n]*\bandroid\b|\bandroid\b[^\n]*\bgradlew?(?:\.bat)?\b/i
+
+/** I file che cambiano tutto il modo di provare: con uno di questi si prova tutta la suite. */
+const CAMBIA_TUTTO = /^(?:package(?:-lock)?\.json|tsconfig[^/]*\.json|vitest\.config\.[cm]?[jt]s|vite\.config\.[cm]?[jt]s|electron\.vite[^/]*\.[cm]?[jt]s|tests\/setup\/.*)$/i
+/** Un file che `vitest related` sa seguire. */
+const CODICE = /\.(?:[cm]?[jt]sx?)$/i
+
+/**
+ * Le prove vitest di un'unione, dai file del ramo (16/11): `vitest related`
+ * prova i file cambiati e le prove che li usano (16 s invece di 5 minuti).
+ * `undefined`: nessun file di codice, niente vitest. `[]`: tutta la suite
+ * (configurazione cambiata, o file non noti). La suite intera resta prima di
+ * ogni release (`npm run pubblica`).
+ */
+export function proveVitestDelRamo(cambiati: readonly string[] | undefined): { tutta: true } | { file: string[] } | undefined {
+  if (cambiati === undefined) return { tutta: true }
+  const file = cambiati.map((f) => f.replace(/\\/g, '/'))
+  if (file.some((f) => CAMBIA_TUTTO.test(f))) return { tutta: true }
+  const codice = file.filter((f) => CODICE.test(f) && !f.startsWith('android/') && !soloNote(f))
+  return codice.length === 0 ? undefined : { file: [...new Set(codice)].sort() }
+}
 
 /** I percorsi di un `vitest run` con soli percorsi ([] = tutta la suite), o undefined se ha altro. */
 function percorsiVitest(comando: string): string[] | undefined {
   const m = VITEST.exec(comando)
   if (m === null) return undefined
-  return (m[1] ?? '').trim().split(/\s+/).filter((t) => t !== '').map((t) => t.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, ''))
+  // Le opzioni (--maxWorkers=2, --reporter…) non scelgono le prove: si tolgono.
+  return (m[1] ?? '').trim().split(/\s+/).filter((t) => t !== '' && !t.startsWith('-')).map((t) => t.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, ''))
 }
 
 /** Toglie i percorsi già compresi in una cartella dell'elenco. */
@@ -94,6 +123,8 @@ export function criteriPerLaProva(criteri: Criterio[], cambiati?: readonly strin
       if (toccaAndroid) gradle.push({ programma: g[1]!, parti: g[2]!.trim().split(/\s+/).filter((t) => t !== '' && t.toLowerCase() !== 'clean') })
       continue
     }
+    // Un gradle scritto in un altro modo: senza file in android/ non si lancia.
+    if (!toccaAndroid && GRADLE_QUALSIASI.test(comando)) { quantiGradle += 1; continue }
     if (!toccaResto && /\btsc\b/.test(comando)) continue
     const senzaClean = /\bgradlew?\b/i.test(comando) ? comando.replace(/\s+clean\b/gi, '') : comando
     if (visti.has(senzaClean)) continue
@@ -104,7 +135,13 @@ export function criteriPerLaProva(criteri: Criterio[], cambiati?: readonly strin
   if (vitest.length > 0) {
     const tutta = vitest.some((p) => p.length === 0)
     const percorsi = tutta ? [] : senzaCompresi(vitest.flat())
-    uniti.push({ descrizione: `le prove vitest dei compiti già uniti (${quantiVitest} criteri in un comando)`, comando: `npx vitest run${percorsi.length > 0 ? ` ${percorsi.join(' ')}` : ''}`, soddisfatto: true })
+    // 16/11: con i file del ramo noti, solo le prove che quei file possono rompere (`vitest related`).
+    const delRamo = proveVitestDelRamo(file)
+    if (delRamo !== undefined && 'file' in delRamo) {
+      uniti.push({ descrizione: `le prove vitest legate ai ${delRamo.file.length} file del ramo (${quantiVitest} criteri dei compiti già uniti)`, comando: `npx vitest related --run ${delRamo.file.join(' ')}`, soddisfatto: true })
+    } else if (delRamo !== undefined) {
+      uniti.push({ descrizione: `le prove vitest dei compiti già uniti (${quantiVitest} criteri in un comando)`, comando: `npx vitest run${percorsi.length > 0 ? ` ${percorsi.join(' ')}` : ''}`, soddisfatto: true })
+    }
   }
   if (gradle.length > 0) {
     // I compiti prima, le opzioni (--no-daemon…) in fondo, ognuno una volta.

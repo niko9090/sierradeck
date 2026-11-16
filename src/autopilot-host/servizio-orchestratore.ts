@@ -56,7 +56,7 @@ import { cartellaDelWorkspace, hookAdottato, nuovoUnico, obiettiviInCoda, passaA
 import { quandoInParole, riassuntoOrchestratore } from './riassunto-orchestratore'
 import { motivoSpecialistaDoppio, ripresaDopoRiavvio } from './ripresa-riavvio'
 import { AGENTI_ORCHESTRATORE, fileAgenti, fileImpostazioniCli, RUOLI_AGENTI } from './agenti-orchestratore'
-import { motivoAffidato, RUOLI_IN_VIAGGIO, scegliPosto, type Aiutante, type LavoroAffidato, type LavoroOspitato } from '@shared/aiuto-rete'
+import { motivoAffidato, motivoPerRestareQui, RUOLI_IN_VIAGGIO, scegliPosto, type Aiutante, type LavoroAffidato, type LavoroOspitato } from '@shared/aiuto-rete'
 import { giudicaGuardiaOrchestratore } from './guardia-orchestratore'
 import type { Giudizio } from './divieti'
 import { doppioniDaArchiviare, rigaDoppione, type Doppione, type RichiestaDoppioni } from '@shared/autopiloti-doppioni'
@@ -788,6 +788,9 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
    */
   const affidaAltrove = (a: Autopilota, r: { descrizione: string; tipo: string; prompt: string }, idUso: string | undefined): string | undefined => {
     if (!RUOLI_IN_VIAGGIO.has(r.tipo) || r.prompt.trim() === '' || !conGit(a.cwd)) return undefined
+    // 16/11: aprire qualcosa davanti a Nicholas, o usare un file di questo PC: resta qui.
+    const restaQui = motivoPerRestareQui(`${r.descrizione}\n${r.prompt}`, a.cwd)
+    if (restaQui !== undefined) { console.info(`[aiuto] ${wsDi(a)} — resta su questo PC: ${restaQui}`); return undefined }
     if (oraMs() - aiutanti.il > AIUTANTI_VALGONO_MS || aiutanti.lista.length === 0) return undefined
     const def = AGENTI_ORCHESTRATORE[r.tipo]
     if (def === undefined) return undefined

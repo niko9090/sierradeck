@@ -57,9 +57,31 @@ describe('i criteri dell’unione di prova', () => {
     expect(soloAndroid.map((x) => x.comando)).toEqual(['cd android && gradle testDebugUnitTest assembleDebug --no-daemon', 'git tag --list v0.95.*'])
   })
 
-  it('un vitest con opzioni resta com’è; uno senza percorsi vale per tutti', () => {
-    const r = criteriPerLaProva([c('npx vitest run tests/main'), c('npx vitest run --reporter=dot tests/x.test.ts'), c('npx vitest run')])
-    expect(r.map((x) => x.comando)).toEqual(['npx vitest run', 'npx vitest run --reporter=dot tests/x.test.ts'])
+  it('16/11: le opzioni di vitest non contano; uno senza percorsi vale per tutti', () => {
+    const r = criteriPerLaProva([c('npx vitest run tests/main'), c('npx vitest run --reporter=dot tests/x.test.ts'), c('npx vitest run --maxWorkers=2')])
+    expect(r.map((x) => x.comando)).toEqual(['npx vitest run'])
+  })
+
+  it('16/11: con i file del ramo noti, solo le prove legate a quei file (vitest related)', () => {
+    const tutti = [c('npx vitest run --maxWorkers=2'), c('npx vitest run tests/main'), c('npx tsc --noEmit')]
+    const r = criteriPerLaProva(tutti, ['src/main/a.ts', 'tests/main/a.test.ts', 'src/main/a.ts', 'README.md'])
+    expect(r.map((x) => x.comando)).toEqual(['npx vitest related --run src/main/a.ts tests/main/a.test.ts', 'npx tsc --noEmit'])
+  })
+
+  it('16/11: configurazione cambiata: tutta la suite', () => {
+    const r = criteriPerLaProva([c('npx vitest run tests/main')], ['package.json', 'src/main/a.ts'])
+    expect(r.map((x) => x.comando)).toEqual(['npx vitest run tests/main'])
+  })
+
+  it('16/11: una guida o una nota: nessuna prova', () => {
+    const tutti = [c('npx vitest run --maxWorkers=2'), c('npx tsc --noEmit'), c('E:/Programs/Gradle/gradle-8.11.1/bin/gradle -p android testDebugUnitTest --rerun --offline')]
+    expect(criteriPerLaProva(tutti, ['docs/rete/guida-chiave-cloudflare.html', '.sierradeck/quaderno/errori-arrivati.md'])).toEqual([])
+  })
+
+  it('16/11: gradle col percorso (-p android) si salta senza file in android/', () => {
+    const g = 'E:/Programs/Gradle/gradle-8.11.1/bin/gradle -p android testDebugUnitTest --rerun --offline'
+    expect(criteriPerLaProva([c(g)], ['src/main/a.ts']).map((x) => x.comando)).toEqual([])
+    expect(criteriPerLaProva([c(g)], ['android/app/A.kt']).map((x) => x.comando)).toEqual([g])
   })
 })
 

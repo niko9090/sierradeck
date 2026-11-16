@@ -242,3 +242,32 @@ export function motivoAffidato(pcNome: string, compito: string | undefined): str
 export const SILENZIO_MAX_MS = 20 * 60_000
 /** Un lavoro che dura oltre questo si ferma (come uno specialista di qui che non finisce più). */
 export const LAVORO_MAX_MS = 3 * 60 * 60_000
+
+/**
+ * **Un compito che va fatto su questo PC** (16/11).
+ *
+ * Il caso vero: «APRI TU IL FILE HTML», l'autopilota affida al verificatore
+ * «aprire la guida HTML nel browser di Nicholas», e il programma lo manda sul
+ * portatile: la pagina si sarebbe aperta là, non davanti a lui. Restano qui:
+ * - quello che si vede o si fa sullo schermo di Nicholas (aprire nel browser,
+ *   mostrare, doppio clic, Start-Process…);
+ * - quello che usa un file di questo PC fuori dal progetto (un percorso
+ *   assoluto che non sta nella cartella del progetto: `C:\Users\…\token.txt`),
+ *   che sull'altro PC non c'è.
+ * Restituisce il motivo, o `undefined` se può andare altrove.
+ */
+export function motivoPerRestareQui(testo: string, cartellaProgetto: string): string | undefined {
+  const t = testo.normalize('NFC')
+  // Aprire o mostrare nel browser (non «il tasto apre una finestra»: quello è codice, va bene ovunque).
+  if (/\b(?:apr[ei]\w*|mostr\w*|visualizz\w*|open\w*|show\w*)\b[^\n]{0,80}?\b(?:nel|sul|in|into)\s+(?:(?:suo|tuo|his|the)\s+)?browser\b/iu.test(t)) return 'va aperto nel browser di Nicholas'
+  if (/\b(?:browser|schermo|desktop)\s+di\s+nicholas\b|\bdavanti\s+a\s+nicholas\b|\bdoppio\s+clic\b|\bstart-process\b|\binvoke-item\b|\bexplorer(?:\.exe)?\s+["']?[a-z]:\\/iu.test(t)) return 'va fatto su questo PC, davanti a Nicholas'
+  const base = cartellaProgetto.replace(/\//gu, '\\').replace(/\\+$/u, '').toLowerCase()
+  for (const m of t.matchAll(/(?<![\w\\/])([A-Za-z]:[\\/][^\s"'`<>|*?]+)/gu)) {
+    const pulito = m[1]!.replace(/[.,;:)\]]+$/u, '')
+    // Dal punto del testo, non dal pezzo trovato: un percorso del progetto può avere spazi («Progetti SierraDeck\fionda apl»).
+    const da = t.slice(m.index ?? 0, (m.index ?? 0) + base.length + 1).replace(/\//gu, '\\').toLowerCase()
+    if (base !== '' && da.startsWith(base) && /^(?:$|[\\\s"'`),;:.])/u.test(da.slice(base.length))) continue
+    return `usa un file di questo PC fuori dal progetto (${pulito})`
+  }
+  return undefined
+}
