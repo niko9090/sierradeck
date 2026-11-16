@@ -41,6 +41,17 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.109.1',
+    righe: [
+      '**Lavori ospitati:** quelli in arrivo o in preparazione non risultano più «al lavoro» con una percentuale finta.',
+      '**Panoramica più solida:** regge una chat dell’autopilota con dati parziali, senza più rompersi.',
+      '**Passaggi di mano:** nel registro compaiono anche affidato, risorsa mancante e rifiutato.',
+      '**Ronda:** l’avviso del giro suona solo quando serve, con il limite di 20 secondi.',
+      '**Aiutante:** se manca l’accesso a Claude lo mostra come avviso, non come errore.',
+      '**App Android:** gli autopiloti che aspettano unioni sono blu «in attesa» e contano fra quelli al lavoro.',
+    ],
+  },
+  {
     versione: '0.109.0',
     righe: [
       '**Aggiornamento tutto nella finestra in basso a destra:** mentre il programma è chiuso per installarsi, la finestra di installazione nasce nello stesso angolo e della stessa misura di quella degli aggiornamenti, con lo stesso aspetto: passi spuntati uno per uno, barra, «Cosa cambia». Niente più al centro dello schermo. Si toglie da sola quando SierraDeck è di nuovo aperto.',
