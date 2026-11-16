@@ -53,7 +53,7 @@ export function diario(a: Autopilota): VoceDiario[] {
   // Il dialogo con te sta nello stesso diario, al suo posto nel tempo: e' la
   // parte del lavoro che hai fatto tu, e senza si leggerebbe un cambio di
   // rotta senza sapere chi l'ha chiesto.
-  for (const s of a.dialogo) {
+  for (const s of a.dialogo ?? []) {
     voci.push(
       s.da === 'tu'
         ? { quando: s.quando, tipo: 'tu' as const, titolo: 'Gli hai scritto', dettaglio: accorcia(s.testo) }
@@ -76,7 +76,7 @@ export function diario(a: Autopilota): VoceDiario[] {
  * l'autopilota lo mette al suo posto da sé.
  */
 export function vociDecisioni(a: Autopilota): VoceDiario[] {
-  return a.decisioni.map((d) => {
+  return (a.decisioni ?? []).map((d) => {
     const cosa = d.cosa
 
     if (cosa.startsWith('proseguito:')) {
