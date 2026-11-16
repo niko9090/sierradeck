@@ -44,6 +44,7 @@ import { PannelloNegozio } from './components/PannelloNegozio'
 import { tavolozza, type Preferenze } from '@shared/preferenze'
 import { avvisiConsumi, type AvvisoConsumi } from '@shared/polso-chat'
 import { ModaleAccesso } from './components/ModaleAccesso'
+import { rinnovaAccessoClaude, useAccessoClaude } from './accesso-claude'
 import { ModalePreparazione } from './components/ModalePreparazione'
 import type { StatoPreparazione } from '../main/preparazione'
 import { BandaAvvisi } from './components/BandaAvvisi'
@@ -1160,6 +1161,8 @@ export function App(): React.JSX.Element {
   }, [autopiloti, erroreAutopiloti])
   const [alLogin, setAlLogin] = useState<boolean | undefined>(undefined)
   const [accesso, setAccesso] = useState<StatoAccesso>({ autenticato: true })
+  // L'accesso di un anno (16/11): si rilegge da solo ogni 10 minuti.
+  const accessoClaude = useAccessoClaude()
   const [pronto, setPronto] = useState(false)
   // La serratura, per chi l'ha voluta. `undefined` finche' non si sa: aprire il
   // programma e poi coprirlo con la richiesta sarebbe mostrare per un istante
@@ -1798,7 +1801,8 @@ export function App(): React.JSX.Element {
           autopiloti,
           ...(preparazione !== undefined ? { preparazione } : {}),
           chiusi: avvisiChiusi,
-          ...(cassaforte !== undefined ? { cassaforte } : {})
+          ...(cassaforte !== undefined ? { cassaforte } : {}),
+          ...(accessoClaude !== undefined ? { accessoClaude } : {})
         })}
         onChiudi={chiudiAvviso}
         onAzione={(azione) => {
@@ -1807,6 +1811,7 @@ export function App(): React.JSX.Element {
           else if (azione === 'apriAccesso') setModale('accesso')
           else if (azione === 'apriPreparazione') setModale('preparazione')
           else if (azione === 'apriAccount') window.dispatchEvent(new Event('sierradeck:apri-account'))
+          else if (azione === 'rinnovaAccessoClaude') void rinnovaAccessoClaude()
           // «apriDomanda» non ha bisogno di niente: la finestra della domanda
           // compare da sé, e il tasto serve solo a chi l'aveva rimandata.
           else setAperto(undefined)

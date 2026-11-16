@@ -1,6 +1,8 @@
 import { chiaveFermo, eFermo, type Autopilota } from '@shared/autopilota'
 import type { StatoAccesso } from '../main/accesso'
 import type { StatoPreparazione } from '../main/preparazione'
+import type { StatoAccesso as StatoAccessoClaude } from '@shared/accesso-claude'
+import { avvisoAccesso } from '@shared/accesso-claude-vista'
 
 export type Avviso = {
   id: string
@@ -21,6 +23,7 @@ export type Avviso = {
     | 'apriPreparazione'
     | 'apriFinestra'
     | 'apriAccount'
+    | 'rinnovaAccessoClaude'
   etichettaAzione?: string
   /**
    * Le chiavi che «Chiudi» ricorda (0.37.0). Presente solo per gli avvisi che
@@ -62,6 +65,11 @@ export type FontiAvvisi = {
    * collegato. Assente = non lo sappiamo ancora.
    */
   cassaforte?: { serve: boolean; aperta: boolean }
+  /**
+   * L'accesso a Claude di un anno (16/11): avvisa quando sta per scadere, è
+   * scaduto o Claude l'ha rifiutato. Assente = non lo sappiamo ancora.
+   */
+  accessoClaude?: StatoAccessoClaude
 }
 
 /**
@@ -138,6 +146,22 @@ export function componiAvvisi(fonti: FontiAvvisi): Avviso[] {
       testo: 'Cassaforte chiusa: gli altri PC e il telefono non entrano qui.',
       azione: 'apriAccount',
       etichettaAzione: 'Aprila'
+    })
+  }
+
+  // L'accesso di un anno (16/11): scaduto o rifiutato, le chat tornano al login
+  // normale, che è quello che il 16/11 le aveva fermate tutte. «Sta per
+  // scadere» si può chiudere: torna negli ultimi tre giorni.
+  const chiusiAccesso = new Set(fonti.chiusi ?? [])
+  const accessoClaude = avvisoAccesso(fonti.accessoClaude)
+  if (accessoClaude !== undefined && (accessoClaude.chiave === undefined || !chiusiAccesso.has(accessoClaude.chiave))) {
+    avvisi.push({
+      id: 'accesso-claude',
+      gravita: accessoClaude.gravita,
+      testo: accessoClaude.testo,
+      azione: 'rinnovaAccessoClaude',
+      etichettaAzione: 'Rinnova l’accesso a Claude',
+      ...(accessoClaude.chiave !== undefined ? { chiavi: [accessoClaude.chiave] } : {})
     })
   }
 

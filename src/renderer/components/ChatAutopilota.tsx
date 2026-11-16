@@ -12,6 +12,8 @@ import { useAutopilotaIntero } from '../state/autopilota-intero'
 import { useSorgente } from '../sorgente-autopilota'
 import { VoceAutopilota, type RichiestaRiassunto } from './VoceAutopilota'
 import type { ComandoVocale } from '@shared/voce-autopilota'
+import { chiedeRinnovoAccesso } from '@shared/accesso-claude-vista'
+import { TastoRinnovaAccesso } from './AccessoClaude'
 
 /**
  * La chat con l'autopilota del workspace (30/10: uno solo per workspace,
@@ -100,6 +102,7 @@ export function ChatAutopilota({
                 <div key={`${b.quando}-${i}`} className="chatap__evento" title={b.dettaglio !== undefined ? `${b.testo} — ${b.dettaglio}` : b.testo}>
                   <span className="chatap__quando">{orario(b.quando)}</span>
                   <span className="chatap__evento-testo">{b.testo}{b.volte !== undefined ? ` ×${b.volte}` : ''}</span>
+                  {sorgente.remoto === undefined && (chiedeRinnovoAccesso(b.testo) || chiedeRinnovoAccesso(b.dettaglio)) ? <TastoRinnovaAccesso /> : null}
                 </div>
               ))}
               {eventi.length > 50 ? <div className="chatap__evento">… e {eventi.length - 50} più vecchi</div> : null}
@@ -107,7 +110,7 @@ export function ChatAutopilota({
           ) : null}
         </div>
       ) : null}
-      <FlussoChat battute={battute} nome={autopilota.nome} pensa={pensa} domanda={domanda} onCambiato={onCambiato} flusso={flusso} rispondi={sorgente.rispondi} />
+      <FlussoChat battute={battute} nome={autopilota.nome} pensa={pensa} domanda={domanda} onCambiato={onCambiato} flusso={flusso} rispondi={sorgente.rispondi} rinnovoQui={sorgente.remoto === undefined} />
 
       <CampoChatAutopilota
         autopilotaId={sorgente.remoto !== undefined ? `${sorgente.remoto.pcId}:${autopilota.id}` : autopilota.id}
@@ -124,7 +127,7 @@ export function ChatAutopilota({
  * Le battute della conversazione, con i tasti delle sue domande: le stesse per
  * l'autopilota di qui e per quello di un altro PC (k-60).
  */
-export function FlussoChat({ battute, nome, pensa, domanda, onCambiato, flusso, rispondi, doveLeDomande = 'è nella colonna Domande' }: {
+export function FlussoChat({ battute, nome, pensa, domanda, onCambiato, flusso, rispondi, doveLeDomande = 'è nella colonna Domande', rinnovoQui = false }: {
   battute: ReturnType<typeof conversazione>
   nome: string
   pensa: boolean
@@ -134,6 +137,12 @@ export function FlussoChat({ battute, nome, pensa, domanda, onCambiato, flusso, 
   /** Come si risponde a una sua domanda; senza, dal programma di qui. */
   rispondi?: (idDomanda: string, risposta: string) => Promise<unknown>
   doveLeDomande?: string
+  /**
+   * 16/11: accanto a una riga che chiede «Rinnova l’accesso a Claude», il
+   * tasto che apre la finestra. Solo per l'autopilota di questo PC: il
+   * gettone di un altro PC si rinnova su quel PC.
+   */
+  rinnovoQui?: boolean
 }): React.JSX.Element {
   return (
     <div className="chatap__flusso" ref={flusso} aria-live="polite">
@@ -149,6 +158,7 @@ export function FlussoChat({ battute, nome, pensa, domanda, onCambiato, flusso, 
                 {b.testo}
                 {b.volte !== undefined ? <span className="chatap__volte"> ×{b.volte}</span> : null}
                 {b.dettaglio !== undefined ? <span className="chatap__nota-dettaglio"> — {b.dettaglio}</span> : null}
+                {rinnovoQui && (chiedeRinnovoAccesso(b.testo) || chiedeRinnovoAccesso(b.dettaglio)) ? <> <TastoRinnovaAccesso primario /></> : null}
               </span>
             </>
           ) : (
@@ -159,6 +169,7 @@ export function FlussoChat({ battute, nome, pensa, domanda, onCambiato, flusso, 
               <span className="chatap__testo">{b.testo}</span>
               {b.domanda !== undefined ? <ScelteInChat idDomanda={b.domanda.id} scelte={b.domanda.scelte} onCambiato={onCambiato} {...(rispondi !== undefined ? { rispondi } : {})} /> : null}
               {b.dettaglio !== undefined ? <span className="chatap__esito">{b.dettaglio}</span> : null}
+              {rinnovoQui && (chiedeRinnovoAccesso(b.testo) || chiedeRinnovoAccesso(b.dettaglio)) ? <span className="chatap__scelte"><TastoRinnovaAccesso primario /></span> : null}
             </div>
           )}
         </div>

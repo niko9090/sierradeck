@@ -208,7 +208,7 @@ describe('autopilota unico nel servizio', () => {
     const fallisce = (): void => { processi.at(-1)!.emetti({ type: 'result', is_error: true, result: 'Login expired · Please run /login', total_cost_usd: 0, session_id: 'sess-1', usage: { input_tokens: 5 } }) }
     fallisce()
     expect(eventi()).toHaveLength(1)
-    expect(eventi()[0]).toBe('turno non riuscito: l’accesso a Claude è scaduto: va rifatto da te (in una chat qualsiasi scrivi /login). Appena torna riparto da solo')
+    expect(eventi()[0]).toBe('turno non riuscito: l’accesso a Claude è scaduto: rinnovalo con «Rinnova l’accesso a Claude» (vale un anno) o rifai il login. Appena torna riparto da solo, subito')
     // Nel registro resta il motivo com'è, per chi cerca il guasto.
     expect(vi.mocked(console.error).mock.calls.some((c) => String(c[0]).includes('turno non riuscito') && String(c[0]).includes('Login expired'))).toBe(true)
     // Il primo guasto riprova subito: il turno riparte, fallisce uguale, e la riga non si riscrive.

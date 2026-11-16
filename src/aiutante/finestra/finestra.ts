@@ -20,6 +20,8 @@ type Stato = {
   requisiti: Voce[]
   aggiornamento: { riga?: string; nonLetto: boolean; errore?: string }
   claude: { stato: string; testo: string; estratto?: string; il?: number; da?: string; inControllo: boolean }
+  /** 16/11: il gettone di un anno (`@shared/accesso-claude`, `statoAccesso`). Assente nelle versioni di prima. */
+  accesso?: { stato: string; scadeIl?: number; giorniRimasti?: number }
   ultimoFallito?: { il: number; perPc?: string; causa: string; motivo: string }
   preferenze: { postiChat: number; postiScelti: number | null; scaricaAggiornamentiAutomatico: boolean; avvioAlLogin: boolean; inPausa: boolean; portaClient: number; pcSviluppo: string | null }
 }
@@ -34,6 +36,20 @@ type Api = {
   ricontrollaClaude: () => Promise<Stato>
   collegaClaude: () => Promise<{ ok: boolean; messaggio?: string }>
   apriAggiornamenti: () => Promise<unknown>
+}
+
+/** La riga del gettone di un anno, corta. */
+function testoAccessoAnno(a: Stato['accesso']): string {
+  if (a === undefined) return ''
+  const il = a.scadeIl !== undefined ? new Date(a.scadeIl).toLocaleDateString('it-IT') : ''
+  switch (a.stato) {
+    case 'valido': return `Accesso per un anno: vale fino al ${il}`
+    case 'in-scadenza': return `Accesso per un anno: scade fra ${a.giorniRimasti ?? 0} giorni (${il}), rinnovalo`
+    case 'scaduto': return 'Accesso per un anno: scaduto, rinnovalo'
+    case 'rifiutato': return 'Accesso per un anno: rifiutato da Claude, rinnovalo'
+    case 'illeggibile': return 'Accesso per un anno: non si legge, rinnovalo'
+    default: return 'Accesso per un anno: non impostato (si usa il login normale, che scade)'
+  }
 }
 
 const api = (window as unknown as { aiutante: Api }).aiutante
@@ -98,8 +114,11 @@ function mostra(s: Stato): void {
   const quando = c.il !== undefined ? `prova delle ${ora(c.il)}${c.da === 'lavoro' ? ' (da un lavoro fallito)' : ''}` : ''
   testo('claude-dettaglio', [c.stato === 'ok' || c.stato === 'controllo' ? '' : c.stato === 'limite' ? 'Si riprova da solo; intanto niente lavori.' : 'Niente lavori finché non lo sistemi.', quando, c.estratto ?? ''].filter((x) => x !== '').join(' · '))
   const tasto = el<HTMLButtonElement>('collega-claude')
-  tasto.style.display = c.stato === 'accesso' || c.stato === 'altro' ? 'inline-block' : 'none'
-  tasto.textContent = c.da === 'lavoro' || c.estratto?.includes('expired') === true ? 'Rifai l’accesso' : 'Collega Claude'
+  const acc = s.accesso
+  const annoOk = acc !== undefined && acc.stato === 'valido'
+  tasto.style.display = c.stato === 'accesso' || c.stato === 'altro' || !annoOk ? 'inline-block' : 'none'
+  tasto.textContent = acc !== undefined && acc.stato !== 'assente' ? 'Rinnova per un anno' : 'Collega Claude per un anno'
+  testo('claude-anno', testoAccessoAnno(acc))
   el<HTMLButtonElement>('ricontrolla-claude').disabled = c.inControllo
   const f = s.ultimoFallito
   testo('ultimo-fallito', f !== undefined ? `Ultimo lavoro non riuscito (${ora(f.il)}${f.perPc !== undefined ? `, per ${f.perPc}` : ''}): ${f.motivo}` : '')
@@ -161,7 +180,7 @@ el('ricontrolla-claude').addEventListener('click', () => {
   void api.ricontrollaClaude().then(mostra).catch(() => undefined)
 })
 el('collega-claude').addEventListener('click', () => {
-  void api.collegaClaude().then((e) => testo('claude-dettaglio', e.ok ? 'Si è aperto un terminale: fai l’accesso nel browser, poi chiudi il terminale.' : `Terminale non aperto: ${e.messaggio ?? ''}`))
+  void api.collegaClaude().then((e) => testo('claude-dettaglio', e.ok ? 'Si è aperta una finestra: approva nel browser, al resto pensa lei (vale un anno).' : `Terminale non aperto: ${e.messaggio ?? ''}`))
 })
 el('manda-errori').addEventListener('click', () => { void api.mandaErrori().then((e) => testo('esito-azioni', e.messaggio)) })
 el('registro').addEventListener('click', () => { void api.apriRegistro() })

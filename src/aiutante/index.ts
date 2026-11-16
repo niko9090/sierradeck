@@ -12,10 +12,13 @@ import { apriRegistro } from '../main/registro'
 import { gitPerLeChat } from '../main/git-nel-path'
 import { creaMisuratore } from '../autopilot-host/misura-pc'
 import { avviaProcessoReale, claudeCmd } from '../autopilot-host/processo-claude'
+import { conAccessoClaude, fileAccesso, statoAccesso } from '@shared/accesso-claude'
+import { avviaRinnovaAccesso } from '@shared/rinnova-accesso'
+import { sorvegliaAccesso } from '../autopilot-host/sorveglia-accesso'
 import versioneJson from './versione.json'
 import { avviaAggiornamenti, type StatoAggiornamento } from './aggiornamento'
 import {
-  bloccoDaClaude, comandoAccesso, CONTROLLO_CLAUDE_MS, controllaClaude, esitoDaLavoro, serveProvaPiena, testoStatoClaude, type EsitoClaude
+  bloccoDaClaude, CONTROLLO_CLAUDE_MS, controllaClaude, esitoDaLavoro, serveProvaPiena, testoStatoClaude, type EsitoClaude
 } from './controllo-claude'
 import { creaFinestraAggiornamenti } from './finestra-aggiornamenti'
 import { NOVITA_AIUTANTE_URL, noteAiutante } from './novita-aiutante'
@@ -145,7 +148,8 @@ function avvia(): void {
         const piena = serveProvaPiena({ prima, forzata, inCorso: nucleo.lavoratore.inCorso(), tetto: nucleo.posti().tetto })
         const nuovo = await controllaClaude({
           claude: claudeCmd(),
-          env: { ...ambientePulito(process.env), ...gitPerLeChat() },
+          // 16/11: con il gettone di un anno, se c'è: la prova deve usare lo stesso accesso dei lavori.
+          env: conAccessoClaude({ ...ambientePulito(process.env), ...gitPerLeChat() }).env,
           cartella: cartellaProva,
           prima,
           piena,
@@ -311,6 +315,7 @@ function avvia(): void {
         lavori: nucleo.ospitati(),
         requisiti: requisiti?.voci ?? [],
         claude: { ...claude, testo: testoStatoClaude(claude.stato), inControllo: claudeInControllo },
+        accesso: statoAccesso(),
         ultimoFallito: nucleo.ultimoFallito(),
         aggiornamento: { riga: rigaAggiornamento(statoAgg()), nonLetto: finestraAgg.stato().nonLetto, errore: statoAgg().errore },
         preferenze: {
@@ -356,19 +361,15 @@ function avvia(): void {
     ipcMain.handle('aiutante:cercaAggiornamenti', () => { aggiornamenti?.cerca(); finestraAgg.apri(true); return true })
     ipcMain.handle('aiutante:apriAggiornamenti', () => { finestraAgg.apri(true); return true })
     ipcMain.handle('aiutante:ricontrollaClaude', async () => { await ricontrollaClaude(true); return statoCompleto() })
-    // «Collega Claude»: una finestra di PowerShell visibile con `claude auth login`; chiusa, si ricontrolla da soli.
+    // «Collega Claude per un anno» (16/11): una finestra di PowerShell visibile con `claude setup-token`;
+    // il gettone si salva cifrato e vale un anno (prima: `claude auth login`, che scade). Chiusa, si ricontrolla da soli.
     ipcMain.handle('aiutante:collegaClaude', () => {
-      try {
-        const c = comandoAccesso(claudeCmd())
-        const figlio = spawn(c.comando, c.args, { detached: true, stdio: 'ignore', windowsHide: false, env: ambientePulito(process.env), cwd: cartellaProva })
-        figlio.on('error', (err) => registro.info(`[claude] terminale per l'accesso non aperto: ${String(err)}`))
-        figlio.on('exit', () => { void ricontrollaClaude(true) })
-        registro.info('[claude] aperto il terminale per rifare l\'accesso a Claude')
-        return { ok: true }
-      } catch (err) {
-        return { ok: false, messaggio: err instanceof Error ? err.message : String(err) }
-      }
+      const e = avviaRinnovaAccesso(claudeCmd(), fileAccesso(), { titolo: 'SierraDeck Aiutante - Collega Claude per un anno', env: ambientePulito(process.env) })
+      registro.info(e.ok ? '[claude] aperta la finestra per collegare Claude per un anno (claude setup-token)' : `[claude] finestra per collegare Claude non aperta: ${e.messaggio}`)
+      return e
     })
+    // 16/11: gettone salvato (dalla finestra qui sopra) o login rifatto: si ricontrolla subito, non fra mezz'ora.
+    sorvegliaAccesso((c) => { registro.info(`[claude] ${c.perche}: ricontrollo`); void ricontrollaClaude(true) })
     ipcMain.handle('aiutante:apriRegistro', () => shell.openPath(registro.cartella()))
 
     // ── L'icona vicino all'orologio ──

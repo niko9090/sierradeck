@@ -11,6 +11,8 @@
  * con la riga di prima. Quando riprovare lo decide `orchestratore.ts`.
  */
 
+import { eErroreAccesso } from '@shared/accesso-claude'
+
 /** La coda che cambia a ogni tentativo: «— riprovo fra 30 s». */
 const RIPROVO = /\s+—\s+riprovo fra\s+.+$/u
 
@@ -47,9 +49,11 @@ export function motivoInItaliano(motivo: string): string {
     detto = alle !== undefined
       ? `${quale} di Claude raggiunto, si sblocca alle ${alle}: fino ad allora non posso lavorare, poi riparto da solo`
       : `${quale} di Claude raggiunto: riparto da solo appena si sblocca`
-  } else if (/login expired|please run \/login|not logged in|oauth token (?:has )?expired|invalid api key|authentication_error/iu.test(m)) {
+  } else if (/login expired|please run \/login|not logged in|oauth token (?:has )?expired|invalid api key|authentication_error/iu.test(m) || eErroreAccesso(m)) {
     // L'account è di Nicholas: è l'unica cosa che deve fare lui, e si dice una volta.
-    detto = 'l’accesso a Claude è scaduto: va rifatto da te (in una chat qualsiasi scrivi /login). Appena torna riparto da solo'
+    // 16/11: anche «Failed to authenticate: this login reached its time limit» (restava in inglese),
+    // e la strada che dura un anno: «Rinnova l'accesso» (claude setup-token) invece di /login.
+    detto = 'l’accesso a Claude è scaduto: rinnovalo con «Rinnova l’accesso a Claude» (vale un anno) o rifai il login. Appena torna riparto da solo, subito'
   } else if (/overloaded|(?<!\d)529(?!\d)/iu.test(m)) {
     detto = 'i server di Claude sono sovraccarichi: non dipende da te, riparto da solo'
   }

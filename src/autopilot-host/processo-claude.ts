@@ -4,6 +4,23 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline'
 import { uccidiAlberi } from '@shared/uccidi-alberi'
+import { conAccessoClaude, eErroreAccesso, rigaDiAccessoRifiutato, segnaRifiutato } from '@shared/accesso-claude'
+
+/**
+ * Il gettone di un anno (16/11, `@shared/accesso-claude`): messo nell'ambiente
+ * di ogni `claude` avviato da qui, e segnato «rifiutato» se Claude dice di no.
+ * Sostituibile nelle prove.
+ */
+export type AccessoProcesso = {
+  ambiente: (env: Record<string, string>) => { env: Record<string, string>; conGettone: boolean }
+  rifiutato: (perche: string) => void
+}
+export const accessoReale: AccessoProcesso = {
+  ambiente: (env) => conAccessoClaude(env),
+  rifiutato: (perche) => {
+    if (segnaRifiutato(perche)) console.error(`[accesso-claude] Claude ha rifiutato il gettone di un anno: torno all'accesso normale (${perche.slice(0, 160)})`)
+  }
+}
 
 /**
  * Il processo `claude -p` (righe JSON in entrata e in uscita).
@@ -40,8 +57,11 @@ export function claudeCmd(env: NodeJS.ProcessEnv = process.env, esiste: (p: stri
  * `claude` davvero, lungo: righe JSON in entrata e in uscita. Non solleva:
  * una cartella che non c'è o un avvio fallito tornano come uscita.
  */
-export function avviaProcessoReale(claudeCmd: string, uccidi: (pids: number[]) => Promise<void> = (p) => uccidiAlberi(p)): AvviaProcesso {
-  return ({ args, cwd, env }) => {
+export function avviaProcessoReale(claudeCmd: string, uccidi: (pids: number[]) => Promise<void> = (p) => uccidiAlberi(p), accesso: AccessoProcesso = accessoReale): AvviaProcesso {
+  return ({ args, cwd, env: envDato }) => {
+    const { env, conGettone } = accesso.ambiente(envDato)
+    let rifiutoDetto = false
+    const rifiuto = (perche: string): void => { if (!conGettone || rifiutoDetto) return; rifiutoDetto = true; accesso.rifiutato(perche) }
     const righe: ((r: string) => void)[] = []
     const uscite: ((c: number | null, e: string) => void)[] = []
     let stderr = ''
@@ -56,11 +76,14 @@ export function avviaProcessoReale(claudeCmd: string, uccidi: (pids: number[]) =
       return { scrivi: () => {}, uccidi: () => {}, suRiga: (f) => { righe.push(f) }, suUscita: (f) => { uscite.push(f) } }
     }
     const figlio = spawn(claudeCmd, args, { cwd, env, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
-    createInterface({ input: figlio.stdout }).on('line', (r) => { for (const f of righe) f(r) })
+    createInterface({ input: figlio.stdout }).on('line', (r) => {
+      if (conGettone) { const no = rigaDiAccessoRifiutato(r); if (no !== undefined) rifiuto(no) }
+      for (const f of righe) f(r)
+    })
     figlio.stderr.setEncoding('utf8')
     figlio.stderr.on('data', (b: string) => { stderr = (stderr + b).slice(-4000) })
     figlio.on('error', (err) => esci(1, `${stderr}\n${err.message}`))
-    figlio.on('close', (codice) => esci(codice, stderr))
+    figlio.on('close', (codice) => { if (codice !== 0 && eErroreAccesso(stderr)) rifiuto(stderr.slice(-300)); esci(codice, stderr) })
     figlio.stdin.on('error', () => { /* lo dice l'uscita */ })
     return {
       scrivi: (r) => { figlio.stdin.write(r, 'utf8') },

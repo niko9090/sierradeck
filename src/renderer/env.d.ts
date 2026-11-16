@@ -345,6 +345,10 @@ declare global {
       accesso: {
         stato: () => Promise<StatoAccesso>
       }
+      accessoClaude: {
+        stato: () => Promise<import('@shared/accesso-claude').StatoAccesso>
+        rinnova: () => Promise<{ ok: true } | { ok: false; messaggio: string }>
+      }
       posta: {
         io: () => Promise<string>
         pc: () => Promise<import('../shared/posta').BattitoPc[]>

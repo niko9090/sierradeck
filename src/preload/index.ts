@@ -15,6 +15,8 @@ import type {
   NuovoAutopilota, DomandaAperta, RicevutaDialogo
 } from '../main/autopilot-client'
 import type { StatoAccesso } from '../main/accesso'
+import type { StatoAccesso as StatoAccessoClaude } from '@shared/accesso-claude'
+import type { EsitoRinnovo } from '../main/accesso-claude-ipc'
 import type { StatoPreparazione } from '../main/preparazione'
 import type { NoteAggiornamento } from '@shared/note-aggiornamento'
 import type { StatoLavoro } from '../main/cassaforte/lavoro-in-corso'
@@ -894,6 +896,12 @@ contextBridge.exposeInMainWorld('gestore', {
   },
   accesso: {
     stato: (): Promise<StatoAccesso> => ipcRenderer.invoke('accesso:stato')
+  },
+  /** L'accesso a Claude di un anno (16/11): lo stato del gettone e la finestra per rinnovarlo. */
+  accessoClaude: {
+    stato: (): Promise<StatoAccessoClaude> => ipcRenderer.invoke('accessoClaude:stato'),
+    /** Apre la finestra di PowerShell che fa `claude setup-token` e salva il gettone. */
+    rinnova: (): Promise<EsitoRinnovo> => ipcRenderer.invoke('accessoClaude:rinnova')
   },
 
   preparazione: {

@@ -281,6 +281,37 @@ describe('il motore', () => {
     expect(processi[0]!.scritte).toHaveLength(n + 1)
   })
 
+  it('16/11: accesso a Claude cambiato (login rifatto, gettone di un anno): chi aspettava riprova subito, non fra 5 minuti', () => {
+    vi.useFakeTimers()
+    const { o, processi, errori } = motore()
+    const fallito = { type: 'result', is_error: true, result: 'Failed to authenticate: this login reached its time limit', total_cost_usd: 0, session_id: 'sess-x', usage: { input_tokens: 10, output_tokens: 0 } }
+    o.messaggio('ws', { quando: '2026-11-16T12:51:59.000Z', testo: 'riquadri attivi e in coda nell’Aiutante' })
+    processi[0]!.emetti(fallito)
+    processi[0]!.emetti(fallito)
+    expect(errori.at(-1)).toMatch(/riprovo fra/)
+    const scritte = processi[0]!.scritte.length
+    // Login rifatto: niente riavvio del processo, il turno riparte adesso.
+    expect(o.accessoCambiato({ riavvia: false })).toBe(1)
+    expect(processi).toHaveLength(1)
+    expect(processi[0]!.scritte).toHaveLength(scritte + 1)
+    expect(testoScritto(processi[0]!.scritte.at(-1)!)).toContain('riquadri attivi e in coda')
+    // Niente in attesa: non fa niente.
+    processi[0]!.emetti(result(1000, 'fatto'))
+    expect(o.accessoCambiato({ riavvia: false })).toBe(0)
+  })
+
+  it('16/11: gettone di un anno salvato: il processo fermo si spegne e il turno dopo parte col nuovo ambiente', () => {
+    vi.useFakeTimers()
+    const { o, processi } = motore()
+    o.messaggio('ws', { quando: '2026-11-16T13:00:00.000Z', testo: 'primo' })
+    processi[0]!.emetti(result(1000, 'ok'))
+    expect(o.vivo('ws')).toBe(true)
+    o.accessoCambiato({ riavvia: true })
+    expect(o.vivo('ws')).toBe(false)
+    o.messaggio('ws', { quando: '2026-11-16T13:01:00.000Z', testo: 'secondo' })
+    expect(processi).toHaveLength(2)
+  })
+
   it('uscita inattesa ripetuta: attesa iniettabile, riparte da sola', () => {
     vi.useFakeTimers()
     const { o, processi, errori } = motore({ riprovaGuastoMs: (n) => 1000 * (n - 1) })

@@ -16,8 +16,8 @@ describe('«turno non riuscito» in italiano', () => {
 
   it('l’accesso scaduto: è l’unica cosa che deve fare Nicholas, detta in chiaro', () => {
     const t = motivoInItaliano('Login expired · Please run /login')
-    expect(t).toMatch(/l’accesso a Claude è scaduto: va rifatto da te/)
-    expect(t).toMatch(/\/login/)
+    expect(t).toMatch(/l’accesso a Claude è scaduto: rinnovalo con «Rinnova l’accesso a Claude»/)
+    expect(t).toMatch(/login/)
     expect(t).toMatch(/riparto da solo/)
     expect(motivoInItaliano('Invalid API key · Please run /login')).toBe(t)
   })

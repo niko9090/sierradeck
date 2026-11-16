@@ -327,6 +327,13 @@ export type Orchestratore = {
   specialistiSulPc: (escludi?: string) => number
   /** Per i test e lo spegnimento: si risolve quando nessun turno è in corso né pronto. */
   quiete: () => Promise<void>
+  /**
+   * 16/11: l'accesso a Claude è cambiato (rifatto il login, salvato o rifiutato il gettone di un anno).
+   * Chi aspettava un nuovo tentativo riprova subito invece che fra 5 minuti. Con `riavvia` i processi
+   * fermi (non in un turno, senza specialisti) si spengono: ripartono col nuovo ambiente al prossimo turno.
+   * Restituisce quanti workspace riprovano.
+   */
+  accessoCambiato: (p: { riavvia: boolean }) => number
   /** Interruttore spento: spegne il processo e dimentica quello che aspettava. */
   dimentica: (ws: string) => void
   /** Spegne tutto (uscita del servizio). */
@@ -661,6 +668,20 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
     stato: (ws) => stati.get(ws)?.flusso ?? flussoVuoto(),
     specialistiSulPc: (escludi) => [...stati.values()].reduce((n, s) => n + (s.proc !== undefined ? specialistiAlLavoro(s.flusso).filter((x) => x.id !== escludi).length : 0), 0),
     quiete: () => new Promise<void>((r) => { attese.push(r); forseQuiete() }),
+    accessoCambiato: ({ riavvia }) => {
+      let quanti = 0
+      for (const [ws, s] of stati) {
+        if (riavvia && s.proc !== undefined && !inTurno(s) && specialistiAlLavoro(s.flusso).length === 0) spegniSe(ws, s, 'accesso a Claude cambiato: riparte col nuovo')
+        if (s.riprova === undefined || s.limite === true) continue
+        clearTimeout(s.riprova)
+        s.riprova = undefined
+        s.tentativi = 0
+        quanti += 1
+        if (!fila.includes(ws)) fila.push(ws)
+      }
+      if (quanti > 0) avanza()
+      return quanti
+    },
     dimentica(ws) {
       const s = stati.get(ws)
       if (s === undefined) return

@@ -144,6 +144,7 @@ import { claudeDaAggiornare, notaClaude } from './claude-versione'
 import { contatoreDrive, cpuRamDa } from './risorse'
 import { risorseValide, riassuntoGpu, type RisorsePc } from '@shared/risorse'
 import { resolveClaudeCommand } from './config'
+import { registraAccessoClaudeIpc } from './accesso-claude-ipc'
 import { leggiAccesso } from './accesso'
 import { apriContoDrive } from './cassaforte/conto-drive'
 import type { Portachiavi } from './segreti-su-file'
@@ -4567,6 +4568,8 @@ if (!app.requestSingleInstanceLock()) {
       // L'accesso si legge dai file di Claude Code, senza lanciarlo: una
       // risposta immediata a una domanda che blocca tutto il resto.
       ipcMain.handle('accesso:stato', () => leggiAccesso())
+      // L'accesso di un anno (16/11): lo stato del gettone e la finestra per rinnovarlo.
+      registraAccessoClaudeIpc((riga) => registro.info(riga))
       // La cartella dell'utente arriva dal sistema: una chat nuova aperta in un
       // percorso scritto nel codice funziona su una macchina sola.
       ipcMain.handle('sistema:cartellaUtente', () => homedir())

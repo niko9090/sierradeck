@@ -174,6 +174,8 @@ export type Dipendenze = {
 export type ServerAutopiloti = Server & {
   /** Spegne i processi `claude` degli orchestratori (uscita del servizio). */
   spegniOrchestratori: () => void
+  /** 16/11: l'accesso a Claude è cambiato: chi aspettava riprova subito (vedi `sorveglia-accesso.ts`). */
+  accessoCambiato: (p: { riavvia: boolean }) => number
   /** Il giro di guardia, ogni minuto: posti, chat finite, messaggi alle chat ferme, silenzi. */
   controllaChatFerme: () => void
   /** Rimette al lavoro le chat adottate che un'interruzione ha spento. Torna quanti autopiloti ha ripreso. */
@@ -1747,6 +1749,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   server.on('close', () => { unico?.spegni() })
   return Object.assign(server, {
     spegniOrchestratori: () => { unico?.spegni() },
+    accessoCambiato: (p: { riavvia: boolean }) => unico?.orchestratore.accessoCambiato(p) ?? 0,
     controllaChatFerme,
     riprendiLavori,
     riportaInCoda,

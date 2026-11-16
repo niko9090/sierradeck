@@ -16,6 +16,7 @@ import { SezioneErrori } from './SezioneErrori'
 import { SezioneNotifiche } from './SezioneNotifiche'
 import { SezioneLimiti } from './SezioneLimiti'
 import { Aiuto } from './Aiuto'
+import { RigaAccessoClaude } from './AccessoClaude'
 import { NomeQuestoPc } from './PannelloAccount'
 import { cercaImpostazioni, SEZIONI, sezioneInVista, type IdSezione } from '@shared/impostazioni-struttura'
 import { statoCassaforte, statoDrive, statoTelefoni, statoVersione } from '@shared/stato-sistema'
@@ -308,6 +309,7 @@ function SchedaGenerali({ onAccount }: { onAccount: () => void }): React.JSX.Ele
   const [q, setQ] = useState('')
   const visibili = new Set(cercaImpostazioni(q, 'pc').map((v) => v.id))
   const vede = (...id: string[]): boolean => id.some((x) => visibili.has(x))
+  const vedeAccesso = q.trim() === '' || /accesso|claude|login|gettone|token|scad/iu.test(q)
   const [versione, setVersione] = useState('')
   useEffect(() => { void window.gestore.sistema.versione().then(setVersione).catch(() => undefined) }, [])
   const [nota, setNota] = useState<string | undefined>(undefined)
@@ -439,9 +441,11 @@ Le porte cambiate valgono al prossimo avvio: un servizio in ascolto non
         ) : null}
         {vede('accoppiamento') ? <SezioneClient /> : null}
 
-        {vede('pin', 'iberna', 'posti-chat', 'attesa-chat', 'fiducia-cartelle', 'posto-autopilota') ? (
+        {vede('pin', 'iberna', 'posti-chat', 'attesa-chat', 'fiducia-cartelle', 'posto-autopilota') || vedeAccesso ? (
           <section className="impostazioni__gruppo">
             <Testa id="chat" />
+            {/* 16/11: l’accesso di un anno; non è una voce della ricerca, che l’app Android legge uguale. */}
+            {vedeAccesso ? <RigaAccessoClaude /> : null}
             {vede('iberna') ? <RigaMigrazione /> : null}
             {vede('iberna') ? <RigaRiparazione /> : null}
             {vede('iberna') ? <>

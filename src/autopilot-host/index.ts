@@ -33,6 +33,7 @@ import { AUTOPULIZIA_OGNI_MS, cartelleProgettiDelServizio, creaAutopulizia } fro
 import { apriCode } from './coda-store'
 import { apriOrchestratori } from './orchestratore-store'
 import { avviaProcessoReale, claudeCmd } from './processo-claude'
+import { sorvegliaAccesso } from './sorveglia-accesso'
 import { aggiungiRuntimeAlPath } from '@shared/runtime-noti'
 
 /** Ogni quanto si passa a vedere se qualche chat ha smesso di parlare. */
@@ -407,6 +408,11 @@ export function avviaServizio(): void {
   serverAgenti = server
   // P3: i processi `claude` degli orchestratori se ne vanno con il servizio.
   process.on('exit', () => { server.spegniOrchestratori() })
+  // 16/11: login rifatto o gettone di un anno salvato: le chat ferme per l'accesso ripartono subito, non fra 5 minuti.
+  sorvegliaAccesso((c) => {
+    const quanti = server.accessoCambiato({ riavvia: c.riavvia })
+    console.info(`[accesso-claude] ${c.perche}: ${quanti > 0 ? `riprovano subito ${quanti} chat` : 'nessuna chat aspettava'}`)
+  })
   server.on('error', (err: NodeJS.ErrnoException) => {
     // Istanza unica: porta occupata = caso atteso, avviso e non ERRORE (0.56.2:
     // una riga nel registro, o un doppione che esce sembra un riavvio).
