@@ -6,6 +6,7 @@ import {
   SILENZIO_MAX_MS, type Aiutante, type LavoroAffidato, type VistaLavoroAiutato
 } from '@shared/aiuto-rete'
 import { causaDelMotivo, fraseCausa, type CausaFallimento } from '@shared/aiuto-esito'
+import { ricavaRisorse } from '@shared/aiuto-risorse'
 
 /**
  * **Lo spedizioniere** (0.103.0): il pezzo del programma che porta a un altro
@@ -148,9 +149,12 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): { giro: () => Pro
         nome: (await git(['config', 'user.name'], l.cwd).catch(() => '')).trim(),
         email: (await git(['config', 'user.email'], l.cwd).catch(() => '')).trim()
       })
+      const risorse = ricavaRisorse(l.prompt, l.risorse ?? [], [l.cwd])
       await d.chiama(l.pcId, '/api/aiuto/avvia', {
         lavoro: l.id, progetto: basename(l.cwd), ramoBase, base,
         prompt: l.prompt, sistema: l.sistema, modello: l.modello, strumenti: l.strumenti, ruolo: l.ruolo, descrizione: l.descrizione,
+        // 16/11: le risorse (dichiarate + nominate nel messaggio) che là vanno verificate prima di partire; la cartella del progetto non serve, arriva col pacchetto.
+        ...(risorse.length > 0 ? { risorse } : {}),
         ...(autore !== undefined ? { autore } : {})
       })
       log(`${l.id} (${l.compito ?? l.ruolo}): progetto spedito a ${l.pcNome} (${pesoInParole(byte)}), parte lo specialista`)

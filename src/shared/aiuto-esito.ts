@@ -21,7 +21,7 @@ import type { LavoroAffidato } from './aiuto-rete'
 
 /** Le cause riconosciute. `compito` = colpa del lavoro stesso (prove rosse…): il PC che aiuta non c'entra. */
 export type CausaFallimento =
-  | 'accesso' | 'limite' | 'modello' | 'turni' | 'permesso' | 'git' | 'npm' | 'strumenti' | 'api' | 'pc' | 'progetto' | 'fermato' | 'compito' | 'sconosciuta'
+  | 'accesso' | 'limite' | 'modello' | 'turni' | 'permesso' | 'git' | 'npm' | 'strumenti' | 'risorsa' | 'api' | 'pc' | 'progetto' | 'fermato' | 'compito' | 'sconosciuta'
 
 const FRASI: Record<CausaFallimento, string> = {
   accesso: 'su quel PC Claude Code non ha l’accesso fatto (o è scaduto): là va aperto un terminale, scritto «claude» e rifatto l’accesso',
@@ -32,6 +32,7 @@ const FRASI: Record<CausaFallimento, string> = {
   git: 'su quel PC git non è riuscito ad aprire il progetto arrivato',
   npm: 'su quel PC l’installazione dei pacchetti (npm ci) non è riuscita',
   strumenti: 'su quel PC manca un programma che serve (Claude Code, git o Node.js)',
+  risorsa: 'su quel PC manca una risorsa indispensabile al lavoro (cartella, percorso di rete, programma o variabile)',
   api: 'il servizio di Claude non ha risposto (sovraccarico o guasto passeggero)',
   pc: 'quel PC non risponde più o ha perso il lavoro',
   progetto: 'il progetto di qui non si può spedire (niente commit sul ramo principale, o ramo staccato)',

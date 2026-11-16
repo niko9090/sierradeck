@@ -1,4 +1,5 @@
 import { causaValida, type CausaFallimento } from './aiuto-esito'
+import { risorseValide, type Risorsa } from './aiuto-risorse'
 
 /**
  * **I posti liberi degli altri PC** (0.103.0, tappa 3 del lavoro a distanza).
@@ -191,6 +192,8 @@ export type LavoroAffidato = {
   sistema: string
   modello: string
   strumenti: string[]
+  /** 16/11: risorse dichiarate esplicitamente (cartelle, percorsi di rete, programmi, variabili); quelle nominate nel messaggio si ricavano alla spedizione. */
+  risorse?: Risorsa[]
   /** da-spedire → spedito (là lavora) → finito / fallito. */
   stato: 'da-spedire' | 'spedito' | 'finito' | 'fallito'
   inizio: string
@@ -224,6 +227,7 @@ export function lavoroAffidatoValido(x: unknown): LavoroAffidato | undefined {
     sistema: t('sistema') ?? '',
     modello: modelloAiuto(o.modello),
     strumenti: strumentiAmmessi(o.strumenti),
+    ...(risorseValide(o.risorse).length > 0 ? { risorse: risorseValide(o.risorse) } : {}),
     stato,
     inizio: t('inizio') ?? new Date(0).toISOString(),
     ...(t('fine') !== undefined ? { fine: t('fine')! } : {}),
