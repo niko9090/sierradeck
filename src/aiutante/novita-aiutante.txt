@@ -3,6 +3,8 @@ cima). Dal 13/11 l'Aiutante esce allegato alla release del programma
 completo (scripts/allega-aiutante.mjs, dentro npm run pubblica).
 Ogni riga fra apici singoli; dentro, un apice si scrive \'.
 
+versione: '1.2.1'
+  'Se Claude non è collegato o l\'accesso è scaduto, l\'Aiutante lo mostra come avviso nella sua finestra e non lo manda più fra gli errori agli altri PC: si sistema da «Collega Claude».'
 versione: '1.2.0'
   'Gli aggiornamenti si installano davanti a te: invece di chiudersi e riaprirsi in silenzio, l\'Aiutante mostra chiusura, installazione e riapertura nella finestra in basso a destra, con le novità.'
 versione: '1.1.0'

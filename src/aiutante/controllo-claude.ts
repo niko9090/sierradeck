@@ -76,6 +76,27 @@ export function livelloControlloClaude(prima: EsitoClaude | undefined, nuovo: Es
   return nuovo.stato === 'accesso' ? 'avviso' : 'errore'
 }
 
+/**
+ * Scrive nel registro la riga del controllo di Claude, al livello giusto: solo `errore`
+ * passa da `registro.errore` (e quindi dagli errori mandati agli altri PC); l'accesso
+ * mancante è una riga info con `[avviso]`.
+ */
+export function scriviControlloClaude(
+  registro: { info: (m: string) => void; errore: (m: string) => void },
+  prima: EsitoClaude | undefined,
+  nuovo: EsitoClaude,
+  piena: boolean
+): void {
+  const livello = livelloControlloClaude(prima, nuovo)
+  if (livello === 'errore' || livello === 'avviso') {
+    const riga = `[claude] ${testoStatoClaude(nuovo.stato)} su questo Aiutante: niente lavori finché non si sistema dalla sua finestra («Collega Claude»)${nuovo.estratto !== undefined ? ` (${nuovo.estratto})` : ''}`
+    if (livello === 'errore') registro.errore(riga)
+    else registro.info(`[avviso] ${riga}`)
+  } else if (livello === 'info') {
+    registro.info(prima === undefined ? `[claude] Claude collegato (${piena ? 'prova piena' : 'stato'})` : '[claude] Claude di nuovo collegato: l\'Aiutante riprende i lavori')
+  }
+}
+
 /** Il risultato grezzo di un comando: codice d'uscita, uscite, e il codice dell'errore di avvio (ENOENT…). */
 export type Uscita = { codice: number | null; stdout: string; stderr: string; errore?: string; scaduto?: boolean }
 
