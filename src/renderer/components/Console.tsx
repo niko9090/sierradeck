@@ -50,7 +50,7 @@ import { MENU_PRINCIPALE, VOCE_SPECIALISTI, type IdMenu, type VoceMenu } from '@
  * (0.61.0): le sue funzioni stanno in Progetti. «chat» è il pannello «Chat e
  * workspace» del menu principale.
  */
-export type PannelloAperto = 'impostazioni' | 'quaderno' | 'workspace' | 'autopiloti' | 'negozio' | 'salute' | 'chat' | 'specialisti' | undefined
+export type PannelloAperto = 'impostazioni' | 'quaderno' | 'workspace' | 'autopiloti' | 'negozio' | 'salute' | 'chat' | 'specialisti' | 'rete' | undefined
 
 type Props = {
   onApriSessioni: () => void

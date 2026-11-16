@@ -5274,3 +5274,33 @@ body.divisore-in-mano { cursor: col-resize; user-select: none; }
 .console .altri-pc { flex: 0 1000 auto; min-width: 104px; }
 .altri-pc__tasto { min-width: 0; max-width: 100%; overflow: hidden; }
 .ws-menu__nome--scegli { font-style: italic; color: var(--testo-quieto); }
+
+/* ── La rete dei PC, ad albero (16/11) ── */
+.rete-pc__corpo { flex: 1; min-height: 0; overflow: auto; padding: 18px 22px 28px; }
+.rete-albero, .rete-albero ul { list-style: none; margin: 0; padding: 0; }
+.rete-albero ul { position: relative; margin-left: 22px; padding-left: 22px; }
+.rete-albero ul::before { content: ''; position: absolute; left: 0; top: 0; bottom: 18px; border-left: 1px solid var(--incisione-chiara, #2c3036); }
+.rete-albero ul > li { position: relative; padding-top: 12px; }
+.rete-albero ul > li::before { content: ''; position: absolute; left: -22px; top: 30px; width: 20px; border-top: 1px solid var(--incisione-chiara, #2c3036); }
+.rete-albero__titolo { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; color: var(--testo); font: inherit; font-weight: 600; font-size: 13px; padding: 10px 0 0; cursor: pointer; }
+.rete-albero__vuoto { padding: 8px 0 0 4px; }
+.rete-nodo { max-width: 520px; padding: 10px 12px; border-radius: 8px; background: var(--chassis); border: 1px solid var(--incisione); border-left: 3px solid var(--verde); }
+.rete-nodo--io { border-left-color: var(--remoto, #a77bf3); max-width: 520px; }
+.rete-nodo--aiutante { border-left-color: var(--accento, #4aa3ff); }
+.rete-nodo--spento { border-left-color: var(--spento); opacity: 0.72; }
+.rete-nodo__testa { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rete-nodo__nome { font-size: 14px; }
+.rete-nodo__targa { font-size: 11px; padding: 1px 6px; border-radius: 9px; background: var(--chassis-acceso); color: var(--testo-quieto); }
+.rete-nodo__righe { margin: 8px 0 0; display: grid; gap: 3px; font-size: 12px; }
+.rete-nodo__riga { display: grid; grid-template-columns: 96px 1fr; gap: 8px; }
+.rete-nodo__riga dt { color: var(--testo-quieto); }
+.rete-nodo__riga dd { margin: 0; overflow-wrap: anywhere; }
+.rete-nodo__agg { margin-top: 8px; padding: 6px 8px; border-radius: 6px; background: var(--fondo-cupo); font-size: 12px; display: flex; flex-direction: column; gap: 5px; }
+.rete-nodo__barra { display: block; height: 6px; border-radius: 3px; background: var(--chassis-acceso); overflow: hidden; }
+.rete-nodo__barra > span { display: block; height: 100%; background: var(--accento, #4aa3ff); }
+.rete-nodo__azioni { margin-top: 8px; display: flex; justify-content: flex-end; }
+.rete-tono--ok { color: var(--verde); }
+.rete-tono--attenzione { color: var(--ambra); }
+.rete-tono--errore { color: var(--rosso); }
+.rete-tono--lavoro { color: var(--accento, #4aa3ff); }
+.rete-tono--quieto { color: var(--testo-quieto); }

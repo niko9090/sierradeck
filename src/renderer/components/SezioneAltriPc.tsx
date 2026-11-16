@@ -224,6 +224,7 @@ export function SezioneAltriPc({ attivo, nomi, onCambia }: {
             <div className="altri-pc__testa">
               <b>Altri PC</b>
               <span className="altri-pc__conta">{r.accesi} accesi su {r.totale}</span>
+              <button type="button" className="tasto tasto--mini" onClick={() => { chiudi(); window.dispatchEvent(new Event('sierradeck:rete-pc')) }} title="Tutti i PC e gli Aiutanti ad albero: stato, versione, collegamento, aggiornamento a distanza">Rete ad albero ▸</button>
               <Aiuto di="la sezione Altri PC">I workspace che vivono sugli altri PC. Si aprono qui come là: con il loro autopilota, che lavora su quel PC. Le chat si guardano e non si scrivono: si parla con l’autopilota. Quelli già aperti qui hanno il punto. I workspace del PC che stai usando sono a sinistra, in «Questo PC»; gli Aiutanti, che non hanno workspace, in Salute → «Altri computer». Frecce per muoversi, → e ← per aprire e chiudere un PC, Esc per chiudere.</Aiuto>
             </div>
             {r.attenzione !== undefined ? <div className="altri-pc__avviso">{r.attenzione}</div> : null}

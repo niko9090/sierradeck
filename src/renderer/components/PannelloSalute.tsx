@@ -147,6 +147,7 @@ export function PannelloSalute({ onChiudi, onApriDrive, onInstalla, onApriAutopi
           <button className="tasto tasto--mini" aria-expanded={menu} onClick={() => setMenu(!menu)}>Strumenti ▾</button>
           {menu ? (
             <TendinaMenu onChiudi={() => setMenu(false)}>
+              <button className="progetti__voce" title="Tutti i PC e gli Aiutanti ad albero, con versione, collegamento e aggiornamento a distanza" onClick={() => { setMenu(false); window.dispatchEvent(new Event('sierradeck:rete-pc')) }}>Rete dei PC (albero)</button>
               <button className="progetti__voce" title="I PC che usano lo stesso Drive: acceso o spento, versione, le chat che hanno aperte (da guardare dal vivo) e la cassetta" onClick={() => { setMenu(false); setScelta(undefined); setMappa(false); setParte('altri-pc') }}>Gli altri computer</button>
               <button className="progetti__voce" title="La mappa dei PC, con la strada di ognuno" onClick={() => { setMenu(false); setScelta(undefined); setParte(undefined); setMappa(true) }}>Mappa dei PC</button>
               <button className="progetti__voce" title="I token per giorno e per chat, i limiti del piano e le regole del freno" onClick={() => { setMenu(false); setScelta(undefined); setMappa(false); setParte('consumi') }}>Consumi per esteso</button>

@@ -66,6 +66,7 @@ import { salvaPreferenze } from './salva-preferenze'
 import { decidiFumettiDrive, FUMETTO_ARRIVO_MS, FUMETTO_ESITO_OK_MS } from './fumetti-sync'
 import { PannelloChat } from './components/PannelloChat'
 import { PannelloSalute } from './components/PannelloSalute'
+import { PaginaRete } from './components/PaginaRete'
 import { PannelloDomande } from './components/PannelloDomande'
 import { PannelloSpecialisti, useAttesaSpecialisti } from './components/PannelloSpecialisti'
 import { MISURE, MISURE_LIBERE, MOSAICO_MINIMO_PX, limita } from '@shared/misure-pannelli'
@@ -694,6 +695,12 @@ export function App(): React.JSX.Element {
     const apri = (): void => setPannelloDrive(true)
     window.addEventListener('sierradeck:pannello-drive', apri)
     return () => window.removeEventListener('sierradeck:pannello-drive', apri)
+  }, [])
+  // La rete dei PC ad albero (16/11): si apre da «Altri PC» e da Salute.
+  useEffect(() => {
+    const apri = (): void => setAperto('rete')
+    window.addEventListener('sierradeck:rete-pc', apri)
+    return () => window.removeEventListener('sierradeck:rete-pc', apri)
   }, [])
   // La cassaforte per la banda (0.65.0): riletta ogni 30 secondi, si riapre anche da sola dal portachiavi.
   const [cassaforte, setCassaforte] = useState<{ serve: boolean; aperta: boolean } | undefined>(undefined)
@@ -1856,6 +1863,9 @@ export function App(): React.JSX.Element {
             onApriAutopiloti={() => setAperto('autopiloti')}
             suiConsumi={saluteSuConsumi}
           />
+        ) : null}
+        {aperto === 'rete' ? (
+          <PaginaRete onChiudi={() => setAperto(undefined)} aggiornamento={{ fase: aggiornamento.fase, ...(aggiornamento.versione !== undefined ? { versione: aggiornamento.versione } : {}), ...(aggiornamento.percento !== undefined ? { percento: aggiornamento.percento } : {}) }} />
         ) : null}
         {aperto === 'negozio' ? (
           // Skill e MCP sono legati alla cartella della chat davanti: le mostri
