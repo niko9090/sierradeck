@@ -50,6 +50,8 @@
 - `StatoScheda` usa 'lavora', `ChatGovernata` usa 'lavoro': nei test del Piano usare `as const` sulla forma giusta o il typecheck rifiuta. _(2026-11-16)_
 - aiuto-riassegna.test.ts confronta l'elenco esatto degli eventi del registro: ogni nuovo tipo di evento richiede di filtrare il finto `registra` o aggiornare le asserzioni. _(2026-11-16)_
 - coda-aiutante.test.ts («parte appena si libera un posto») può fallire a vuoto con il PC carico: rilanciarlo da solo prima di indagare. _(2026-11-16)_
+- `vi.waitFor` ha 1 s di default: nei test che aspettano la preparazione con git, col PC carico serve un `timeout` esplicito largo (qui 60 s) e un limite largo anche per il test. _(2026-11-16)_
+- Il test che falliva a vuoto in `coda-aiutante.test.ts` era «con un posto libero il lavoro parte subito», non «parte appena si libera un posto»: non fidarsi del nome nel quaderno, rilanciare e leggere. _(2026-11-16)_
 
 ## worktree
 
