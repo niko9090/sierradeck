@@ -55,6 +55,7 @@ import it.ferrariconsulenze.sierradeck.nucleo.SceltaLavoro
 import it.ferrariconsulenze.sierradeck.nucleo.TipoDomanda
 import it.ferrariconsulenze.sierradeck.nucleo.Tono
 import it.ferrariconsulenze.sierradeck.schermate.tema.Banco
+import it.ferrariconsulenze.sierradeck.schermate.tema.ColoreStato
 import it.ferrariconsulenze.sierradeck.schermate.tema.leggibile
 
 /** I pezzi che «Lavoro» e «Workspace» hanno in comune (app 11/11). */
@@ -63,6 +64,7 @@ fun coloreTono(t: Tono): Color = when (t) {
     Tono.FERMO -> Banco.rosso
     Tono.ASPETTA -> Banco.ambra
     Tono.LAVORA -> Banco.verde
+    Tono.ATTESA -> ColoreStato.blu
     Tono.RIPOSO -> Banco.testoQuieto
 }
 

@@ -17,6 +17,14 @@ import java.time.Instant
 class RegoleSchermateTest {
     private val ora = Instant.parse("2026-11-11T10:00:00Z").toEpochMilli()
 
+    @Test fun tonoAttesaRiconosciutoEFraQuelliAlLavoro() {
+        assertEquals(Tono.ATTESA, Tono.di("attesa"))
+        assertTrue(Tono.di("attesa").alLavoro)
+        assertTrue(Tono.di("lavora").alLavoro)
+        assertTrue(!Tono.di("riposo").alLavoro)
+        assertTrue(Tono.LAVORA.ordinal < Tono.ATTESA.ordinal && Tono.ATTESA.ordinal < Tono.RIPOSO.ordinal)
+    }
+
     @Test fun consensoRiconosciutoEInOrdine() {
         val s = listOf("Sì, sempre", "No", "Sì, questa volta")
         assertTrue(RegoleSchermate.eConsenso(s))
