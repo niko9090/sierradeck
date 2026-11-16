@@ -23,7 +23,7 @@ import { creaInvioErrori, registroConStorico } from './errori-aiutante'
 import { creaNucleo } from './nucleo'
 import { apriPreferenzeAiutante } from './preferenze-aiutante'
 import { blocchiRete, inScarico, perLaFinestra, requisitiPersi, rigaAggiornamento, tooltipIcona, valutaRequisiti, type StatoRete, type VoceRequisito } from './regole'
-import { misuraRequisiti } from './requisiti'
+import { MOTIVO_TIMEOUT, misuraRequisiti } from './requisiti'
 import { colleghiRete, erroreConRisposta, nomeDi, type ReteAiutante } from './rete'
 
 /**
@@ -127,7 +127,9 @@ function avvia(): void {
       for (const c of aggiungiRuntimeAlPath(process.env, existsSync)) registro.info(`[requisiti] nel PATH: ${c}`)
       const nuovi = valutaRequisiti(await misuraRequisiti({ claude: claudeCmd(), cartellaLavoro: radiceLavoroAiuto(cartellaAiuto) }))
       // Un requisito che manca è un blocco: nello storico degli errori, una volta (non a ogni controllo).
-      for (const v of requisitiPersi(requisiti?.voci, nuovi.voci)) registro.errore(`[requisiti] all'Aiutante manca: ${v.nome} (${v.dettaglio}); niente lavori finché non c'è`)
+      for (const v of requisitiPersi(requisiti?.voci, nuovi.voci)) registro.errore(`[requisiti] all'Aiutante manca: ${v.nome} (${v.dettaglio}); niente lavori finché non è a posto`)
+      // Un timeout non toglie i posti per sempre: si rimisura presto, non fra 10 minuti.
+      if (nuovi.voci.some((v) => !v.ok && v.dettaglio === MOTIVO_TIMEOUT)) setTimeout(() => { void controllaRequisiti() }, 60_000).unref?.()
       if (requisiti !== undefined && !requisiti.pronto && nuovi.pronto) registro.info('[requisiti] adesso c\'è tutto: l\'Aiutante prende lavori')
       requisiti = nuovi
     }
