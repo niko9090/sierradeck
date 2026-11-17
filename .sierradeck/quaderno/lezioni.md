@@ -240,6 +240,7 @@
 - I criteri del piano girano in bash (criterio.sh): niente backslash nei percorsi. Per l'app Android: `/e/Programs/Gradle/gradle-8.11.1/bin/gradle -p android testDebugUnitTest --rerun --offline`. _(2026-11-14)_
 - Mai criteri «versione === X» per un compito di versione: il cancello li rimisura e blocca ogni versione dopo. Usare «almeno X» (confronto numerico >=) o `gh release view vX`. _(2026-11-15)_
 - un criterio con versione fissa passa sul principale ma cade su ogni ramo che alza la versione: va escluso dalla prova prima/dopo (`fissaLaVersione`), non rimisurato. _(2026-11-15)_
+- Mai criterio `grep -q '"version": "X"' package.json`: fissaLaVersione ≤0.109.1 non lo riconosce e il cancello respinge ogni bump dopo (0.109.2). Usare `git rev-parse vX`. _(2026-11-17)_
 
 ## processo
 
@@ -669,3 +670,7 @@
 ## metodo
 
 - se un criterio rosso nel principale è verde in un worktree pulito, confrontare lo stato non committato del principale prima di toccare i tempi dei test. _(2026-11-16)_
+
+## prova
+
+- fissaLaVersione deve coprire anche grep/findstr/Select-String/rg, non solo ===/!=: i criteri di versione scritti come ricerca di testo facevano respingere i rami che alzano la versione. _(2026-11-17)_
