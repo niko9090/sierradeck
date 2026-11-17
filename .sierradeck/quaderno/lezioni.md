@@ -444,6 +444,7 @@
 - Cancello bloccato e specialisti sempre sulla rete: lo specialista di rete fa il cherry-pick sopra il main del PC e un push normale su GitHub; poi il programma riallinea la cartella principale. _(2026-11-17)_
 - il push verso GitHub dalla copia può essere negato dai permessi; il ramo `porta-0109-2` (aa30211d) resta pronto in locale per essere pubblicato da chi ha il permesso. _(2026-11-17)_
 - Prima di rifare un cherry-pick controllare con `git cat-file -t <sha>`: il commit del collega può già essere nella copia. _(2026-11-17)_
+- Dai PC della rete il git push è negato dai permessi di Bash (non da GitHub): portare in main un commit già pronto va affidato al «rilascio», che lavora nella cartella principale. _(2026-11-17)_
 
 ## cancello
 
@@ -566,6 +567,7 @@
 - le note di versione stanno in src/shared/novita.ts (non in un changelog); il tag v0.109.0 punta a un commit qualsiasi, non al bump _(2026-11-16)_
 - nelle copie di lavoro «origin» può puntare a un bundle sparito: git fetch fallisce e l'esistenza del tag va controllata dalla cartella principale _(2026-11-17)_
 - il ruolo di rilascio non fa merge nemmeno su richiesta dell'autopilota: le unioni fuori dal cancello vanno assegnate a chi può cambiare la storia di git. _(2026-11-17)_
+- Lo specialista di rilascio non può fare cherry-pick o merge in main: il hook lo rifiuta. Un commit che il cancello respinge va unito dall'autopilota, non dal rilascio. _(2026-11-17)_
 
 ## build
 
