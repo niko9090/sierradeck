@@ -94,6 +94,12 @@ export function fissaLaVersione(comando: string): boolean {
   if (new RegExp(`\\b(?:${nome})\\b\\s*${uguale}\\s*${valore}`, 'i').test(comando)) return true
   if (new RegExp(`${valore}\\s*${uguale}\\s*[^\\s;&|<>]*?\\b(?:${nome})\\b`, 'i').test(comando)) return true
   if (new RegExp(`\\b(?:${nome})\\b[^\\n]*\\.equals\\(`, 'i').test(comando)) return true
+  // Ricerca di testo (grep, findstr, Select-String, rg) di una versione fissa nel file.
+  if (/(?:^|[\s;&|(])(?:e?grep|fgrep|findstr|select-string|rg)(?=\s)/i.test(comando)) {
+    const cifra = `\\\\?["']?\\d`
+    if (leggePackage && new RegExp(`\\\\?["']version\\\\?["']\\s*:\\s*${cifra}`, 'i').test(comando)) return true
+    if (leggeGradle && new RegExp(`\\b(?:versionName|versionCode)\\b\\s*=?\\s*${cifra}`, 'i').test(comando)) return true
+  }
   return false
 }
 
