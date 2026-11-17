@@ -304,3 +304,8 @@ Difetto vero, corretto nella versione 0.109.1. Causa: la finestra chiedeva la co
 Non è un difetto vero: è un caso atteso. Senza accesso a Claude l'Aiutante deve dare solo un avviso nella sua finestra. La correzione 0cc5bac4 è arrivata dopo la 1.2.0, ed è per questo che l'errore si è ripresentato. Corretto nella versione 0.109.1: con l'Aiutante 1.2.1 (k-f2) è solo un avviso e non arriva più fra gli errori; se Claude non è installato resta invece un errore, come deve essere.
 Sempre con k-f2 è stato corretto un difetto vero, a parte: i git dell'Aiutante non reggevano i percorsi oltre i 260 caratteri. Ora usano `-c core.longpaths=true` e non perdono più il lavoro consegnato. Tutto questo entra nella 0.109.1 con l'Aiutante 1.2.1.
 A mano: se su quel PC Claude non è collegato, «Collega Claude» dalla finestra dell'Aiutante.
+
+# Errori arrivati (lotto 20261117074117)
+
+## Gruppo 1: «[aiuto] lavoro r1d069f21bebc (sviluppatore) per DESKTOP-G24D499 non riuscito: ha superato le 3 ore» (NB-PROBOOK-TEC, Aiutante 1.2.1)
+Difetto vero, corretto nella versione 0.109.2 (con l'Aiutante 1.2.2). Causa: la scadenza delle 3 ore era a orologio da muro, quindi il sonno notturno del portatile contava e al risveglio il lavoro veniva ucciso. In più la colpa andava sempre al «compito», così il lavoro non passava a un altro PC. I commit già fatti non si perdevano. Ora la scadenza conta solo il tempo a PC sveglio; dopo un sonno o col silenzio la colpa è del PC e il lavoro può passare a un altro (src/shared/aiuto-scadenza.ts, src/autopilot-host/aiuto-lavoratore.ts, test tests/autopilot-host/aiuto-scadenza.test.ts). Il lavoro r1d069f21bebc va riproposto.
