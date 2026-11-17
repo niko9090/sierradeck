@@ -550,6 +550,7 @@
 - Nella copia di un ramo `pubblica` chiede anche le credenziali Drive: bastano `SD_GOOGLE_CLIENT_ID` e `SD_GOOGLE_CLIENT_SECRET`, lette da `google-oauth.json` della cartella principale. _(2026-11-15)_
 - le note di versione stanno in src/shared/novita.ts (non in un changelog); il tag v0.109.0 punta a un commit qualsiasi, non al bump _(2026-11-16)_
 - nelle copie di lavoro «origin» può puntare a un bundle sparito: git fetch fallisce e l'esistenza del tag va controllata dalla cartella principale _(2026-11-17)_
+- il ruolo di rilascio non fa merge nemmeno su richiesta dell'autopilota: le unioni fuori dal cancello vanno assegnate a chi può cambiare la storia di git. _(2026-11-17)_
 
 ## build
 
