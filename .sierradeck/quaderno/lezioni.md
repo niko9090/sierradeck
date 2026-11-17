@@ -439,6 +439,8 @@
 - NB-PROBOOK ha più posti: occuparne uno con un altro compito non tiene qui lo specialista. Ogni Agent va alla rete finché c'è un posto libero là, qualunque cosa dica il prompt. _(2026-11-17)_
 - il compito k-g2 va lanciato sul PC con E:\Users\nikof\Documents\SierraDeck; il controllo iniziale lo ha riconosciuto come sbagliato. _(2026-11-17)_
 - i compiti con percorsi assoluti di un PC specifico (E:\Users\nikof\...) vanno assegnati solo a quel PC; gli altri PC della rete devono fermarsi al controllo iniziale. _(2026-11-17)_
+- Unione fuori dal cancello: general-purpose è rifiutato (lavorerebbe nella cartella principale), k-v1 non si chiude (già unito). Resta solo uno sviluppatore quando la rete non ha posti liberi. _(2026-11-17)_
+- i compiti che nominano percorsi assoluti del PC di Nicholas (E:\Users\nikof\...) non si possono eseguire sui PC della rete: il controllo `Test-Path` del primo passo li ferma subito. _(2026-11-17)_
 
 ## cancello
 
