@@ -171,6 +171,7 @@
 - il ramo worktree-agent-r45a1013a982d non era nella copia di destinazione: per unire basta il commit d611b967 se l'oggetto è presente. _(2026-11-16)_
 - `core.longpaths=true` risolve «Filename too long» ma non `$GIT_DIR too big`: sotto Temp profonde nella prova tenere nomi corti (`p`, `a`). _(2026-11-16)_
 - Prima del push `git rev-list --left-right --count main...origin/main` conferma che il remoto non è più avanti. _(2026-11-16)_
+- il ramo worktree-agent-r8b9c35b5a04b parte da 881cd23f, indietro rispetto a main: il fast-forward da HEAD fallisce, serve cherry-pick. _(2026-11-17)_
 
 ## autopilota
 
