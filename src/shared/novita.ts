@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.109.2',
+    righe: [
+      '**Lavori dell’Aiutante:** le 3 ore di tempo contano solo a PC sveglio, così il sonno notturno di un portatile non fa più uccidere un lavoro al risveglio.',
+      '**Il lavoro passa a un altro PC:** se si ferma per un sonno o per il silenzio, la colpa è del PC e non del compito, quindi viene riprovato altrove. Il lavoro già fatto non si perde.',
+      '**Aiutante 1.2.2:** porta la stessa correzione.',
+    ],
+  },
+  {
     versione: '0.109.1',
     righe: [
       '**Lavori ospitati:** quelli in arrivo o in preparazione non risultano più «al lavoro» con una percentuale finta.',
