@@ -168,6 +168,7 @@
 - in questa copia `git fetch` può fallire se il bundle di arrivo è già stato cancellato: `git merge --ff-only main` basta, main è già locale. _(2026-11-16)_
 - il ramo worktree-agent-r45a1013a982d non era nella copia di destinazione: per unire basta il commit d611b967 se l'oggetto è presente. _(2026-11-16)_
 - `core.longpaths=true` risolve «Filename too long» ma non `$GIT_DIR too big`: sotto Temp profonde nella prova tenere nomi corti (`p`, `a`). _(2026-11-16)_
+- Prima del push `git rev-list --left-right --count main...origin/main` conferma che il remoto non è più avanti. _(2026-11-16)_
 
 ## autopilota
 
@@ -349,6 +350,7 @@
 - Un agente lanciato in worktree isolato non può eseguire git nella cartella principale: la pubblicazione dalla cartella principale va affidata a un agente senza isolamento. _(2026-11-08)_
 - `npm run pubblica-app` esige la voce `versione: 'X'` in `android/novita-app.txt` per il `versionName` corrente: va preparata insieme al bump Android, o l'app resta indietro. _(2026-11-16)_
 - `gh release create --draft --verify-tag` seguito da `npm run pubblica` con `GH_TOKEN` carica tutti e 7 i file senza 422; poi `--draft=false --latest` a mano. _(2026-11-16)_
+- `npm run pubblica-app` copia da solo app-android.json anche sulla release del PC (v0.109.1): non serve altro per le app vecchie. _(2026-11-16)_
 
 ## tsconfig
 
@@ -583,6 +585,8 @@
 - creaSpedizioniere ha ora `avviso` oltre a `errore`: solo ProgettoNonSpedibile e i fallimenti dichiarati dal PC restano errori. _(2026-11-14)_
 - `eventi-aiuto.json` non era scritto da nessuno: `registraEventoAiuto` ora si chiama solo per `riassegnato` e `arreso`; mancano ancora `affidato`, `risorsa-mancante` e `rifiutato`. _(2026-11-16)_
 - nel registro `daPc` non ha un significato unico: negli eventi di riassegnazione è il PC che ha fallito, nei nuovi è «questo PC»; lo spedizioniere non conosce il nome di chi affida. _(2026-11-16)_
+- la scadenza delle 3 ore non va a orologio da muro: un portatile che dorme la fa scattare al risveglio. Ora conta il tempo da sveglio (src/shared/aiuto-scadenza.ts). _(2026-11-17)_
+- una scadenza dopo un sonno o con lo specialista muto va con causa 'pc': solo così il lavoro passa a un altro PC. 'compito' non si riassegna. _(2026-11-17)_
 
 ## aiutante
 
