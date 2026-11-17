@@ -20,6 +20,22 @@ describe('la versione fissa nei criteri', () => {
     expect(fissaLaVersione(`node -e "if(require('./package.json').version=='1.2.3')process.exit(1)"`)).toBe(true)
     expect(fissaLaVersione(`node -e "if('1.2.3'===require('./package.json').version)process.exit(1)"`)).toBe(true)
   })
+  it('la ricerca di testo di una versione fissa è esclusa', () => {
+    expect(fissaLaVersione(`grep -q '"version": "0.109.1"' package.json`)).toBe(true)
+    expect(fissaLaVersione(`grep -q "\\"version\\": \\"0.109.1\\"" package.json`)).toBe(true)
+    expect(fissaLaVersione(`grep -qF '"version":"0.109.1"' package.json`)).toBe(true)
+    expect(fissaLaVersione(`grep -E -q '"version": "0\\.109\\.1"' package.json`)).toBe(true)
+    expect(fissaLaVersione(`findstr /c:"\\"version\\": \\"1.2.3\\"" package.json`)).toBe(true)
+    expect(fissaLaVersione(`Select-String -Quiet -Pattern '"version": "1.2.3"' package.json`)).toBe(true)
+    expect(fissaLaVersione(`rg -q '"version": "1.2.3"' package.json`)).toBe(true)
+    expect(fissaLaVersione(`grep -q 'versionName = "3.1.1"' android/app/build.gradle.kts`)).toBe(true)
+    expect(fissaLaVersione(`grep -q 'versionCode = 311' android/app/build.gradle`)).toBe(true)
+  })
+  it('le ricerche che non riguardano la versione restano', () => {
+    expect(fissaLaVersione('grep -q 20261117074117 .sierradeck/quaderno/errori-arrivati.md')).toBe(false)
+    expect(fissaLaVersione(`grep -q '"typecheck"' package.json`)).toBe(false)
+    expect(fissaLaVersione(`grep -q '"scripts"' package.json`)).toBe(false)
+  })
   it('«almeno questa versione» e i criteri normali restano', () => {
     expect(fissaLaVersione(almeno)).toBe(false)
     expect(fissaLaVersione(almenoGte)).toBe(false)
