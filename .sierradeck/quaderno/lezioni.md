@@ -432,6 +432,7 @@
 - Se un PC è raggiunto da tutti ma non raggiunge nessuno (anche la posta fa `fetch failed`), la causa è la sua rete in uscita o Tailscale, non gli indirizzi pubblicati. _(2026-11-15)_
 - il registro eventi-aiuto.json lo scrive il PC che affida: sull'Aiutante resta vuoto finché qualcuno non registra lì i passaggi. _(2026-11-16)_
 - I file in .sierradeck/errori-arrivati/ non viaggiano con la copia mandata a un altro PC: nel prompt di un compito sul quaderno errori scrivere il contenuto del lotto, non solo il percorso. _(2026-11-16)_
+- i compiti che citano percorsi assoluti della cartella principale non funzionano sui PC della rete: lì esiste solo la copia di lavoro, senza i rami degli altri worktree. _(2026-11-17)_
 
 ## cancello
 
@@ -445,6 +446,7 @@
 - `motivoProveRotte` in `src/autopilot-host/ambiente-copia.ts` compone l'esito del ramo respinto; il suo test vecchio vive in `tests/autopilot-host`, non in `tests/main`. _(2026-11-14)_
 - la prova prima/dopo dell'unione deve misurare solo il codice: i criteri su release o remoto passano sul principale e cadono sul ramo che alza la versione _(2026-11-14)_
 - Il cancello che unisce gira col SierraDeck INSTALLATO: una correzione al cancello unita in main non vale finché Nicholas non installa la versione che la contiene. _(2026-11-15)_
+- Una correzione al cancello (criteri-prova.ts) vale solo dalla versione installata: unita in main non sblocca subito i rami respinti dal cancello che gira; serve un'unione fuori dal cancello. _(2026-11-17)_
 
 ## consenso
 
