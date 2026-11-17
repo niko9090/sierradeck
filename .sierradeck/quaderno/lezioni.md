@@ -441,6 +441,8 @@
 - i compiti con percorsi assoluti di un PC specifico (E:\Users\nikof\...) vanno assegnati solo a quel PC; gli altri PC della rete devono fermarsi al controllo iniziale. _(2026-11-17)_
 - Unione fuori dal cancello: general-purpose è rifiutato (lavorerebbe nella cartella principale), k-v1 non si chiude (già unito). Resta solo uno sviluppatore quando la rete non ha posti liberi. _(2026-11-17)_
 - i compiti che nominano percorsi assoluti del PC di Nicholas (E:\Users\nikof\...) non si possono eseguire sui PC della rete: il controllo `Test-Path` del primo passo li ferma subito. _(2026-11-17)_
+- Cancello bloccato e specialisti sempre sulla rete: lo specialista di rete fa il cherry-pick sopra il main del PC e un push normale su GitHub; poi il programma riallinea la cartella principale. _(2026-11-17)_
+- il push verso GitHub dalla copia può essere negato dai permessi; il ramo `porta-0109-2` (aa30211d) resta pronto in locale per essere pubblicato da chi ha il permesso. _(2026-11-17)_
 
 ## cancello
 
