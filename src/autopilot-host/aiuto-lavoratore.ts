@@ -7,6 +7,7 @@ import {
   quantiPezzi, ramoDiRitorno, ramoValido, STRUMENTI_AIUTO, autoreValido, type AutoreGit, strumentiAmmessi, VIETATI_AIUTO, type LavoroOspitato, type StatoAiuto, type VistaLavoroAiutato
 } from '@shared/aiuto-rete'
 import { causaDalTesto, fraseCausa, motivoDelRisultato, type CausaFallimento } from '@shared/aiuto-esito'
+import { causaScadenza, scadenzaIniziale, scadenzaRaggiunta, scadenzaSegno, scadenzaTick, TICK_SCADENZA_MS } from '@shared/aiuto-scadenza'
 import { motivoRisorsa, risorseValide, risorsaMancante, sezioneRisorse, verificaRisorse, type Risorsa, type StrumentiVerifica } from '@shared/aiuto-risorse'
 import type { AvviaProcesso } from './processo-claude'
 import { cancellaSicuraAsincrona } from '@shared/cancella-sicura'
@@ -459,12 +460,24 @@ export function creaLavoratoreAiuto(x: {
     for (const [k, v] of Object.entries(process.env)) if (typeof v === 'string' && !k.startsWith('SIERRADECK_HOOK')) env[k] = v
     const proc = x.avvia({ args, cwd: copia, env })
     let finale: { testo: string; errore: boolean; tipo?: string } | undefined
-    const scadenza = setTimeout(() => { if (finale === undefined) { cambia(l, { motivo: 'ha superato le 3 ore', causa: 'compito' }); proc.uccidi() } }, LAVORO_MAX_MS)
+    // 17/11: le 3 ore contano solo col PC sveglio (un portatile addormentato di notte non fa scadere il lavoro),
+    // e se la scadenza arriva dopo un sonno o con lo specialista muto la colpa è del PC (il lavoro passa a un altro).
+    let tempo = scadenzaIniziale(adesso())
+    const scadenza = setInterval(() => {
+      if (finale !== undefined) return
+      const ora = adesso()
+      tempo = scadenzaTick(tempo, ora)
+      if (!scadenzaRaggiunta(tempo, LAVORO_MAX_MS)) return
+      clearInterval(scadenza)
+      cambia(l, causaScadenza(tempo, ora))
+      proc.uccidi()
+    }, TICK_SCADENZA_MS)
     scadenza.unref?.()
     l.ferma = () => proc.uccidi()
     proc.suRiga((riga) => {
       let o: Record<string, unknown>
       try { o = JSON.parse(riga) as Record<string, unknown> } catch { return }
+      tempo = scadenzaSegno(tempo, adesso())
       if (o.type === 'assistant') {
         const m = o.message as { content?: unknown } | undefined
         const pezzi = Array.isArray(m?.content) ? m!.content as Record<string, unknown>[] : []
@@ -482,7 +495,7 @@ export function creaLavoratoreAiuto(x: {
     })
     proc.scrivi(`${JSON.stringify({ type: 'user', message: { role: 'user', content: r.prompt } })}\n`)
     const uscita = await new Promise<{ codice: number | null; e: string }>((ok) => proc.suUscita((codice, e) => ok({ codice, e })))
-    clearTimeout(scadenza)
+    clearInterval(scadenza)
     l.ferma = undefined
     if ((l.stato as StatoAiuto) === 'fermato') { await pulisciCopia(l); return }
     // Il ramo: solo i commit nuovi rispetto alla base, che l'altro PC ha già.
