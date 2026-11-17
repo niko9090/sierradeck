@@ -172,6 +172,7 @@
 - `core.longpaths=true` risolve «Filename too long» ma non `$GIT_DIR too big`: sotto Temp profonde nella prova tenere nomi corti (`p`, `a`). _(2026-11-16)_
 - Prima del push `git rev-list --left-right --count main...origin/main` conferma che il remoto non è più avanti. _(2026-11-16)_
 - il ramo worktree-agent-r8b9c35b5a04b parte da 881cd23f, indietro rispetto a main: il fast-forward da HEAD fallisce, serve cherry-pick. _(2026-11-17)_
+- il controllo dei comandi scambia `git -C <copia> cherry-pick` per un cherry-pick nella cartella principale; il rifiuto arriva sull'intera riga, anche se contiene altri comandi. _(2026-11-17)_
 
 ## autopilota
 
@@ -568,6 +569,8 @@
 - nelle copie di lavoro «origin» può puntare a un bundle sparito: git fetch fallisce e l'esistenza del tag va controllata dalla cartella principale _(2026-11-17)_
 - il ruolo di rilascio non fa merge nemmeno su richiesta dell'autopilota: le unioni fuori dal cancello vanno assegnate a chi può cambiare la storia di git. _(2026-11-17)_
 - Lo specialista di rilascio non può fare cherry-pick o merge in main: il hook lo rifiuta. Un commit che il cancello respinge va unito dall'autopilota, non dal rilascio. _(2026-11-17)_
+- Il rilascio non può fare cherry-pick o merge nella cartella principale: un commit respinto per errore dal cancello va portato da una copia temporanea (git worktree) con push normale. _(2026-11-17)_
+- il numero di commit "avanti" di main può cambiare tra la richiesta e l'esecuzione: il programma continua a scrivere note nel quaderno. Contare di nuovo dopo il fetch. _(2026-11-17)_
 
 ## build
 
