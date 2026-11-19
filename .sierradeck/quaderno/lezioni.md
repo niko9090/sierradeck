@@ -65,6 +65,7 @@
 - Il ramo di lavoro può essere indietro a main (manca spazio-drive-pieno): prima di correggere, rebase su main. _(2026-11-10)_
 - con l'harness, ogni comando git che nomina la cartella principale viene rifiutato anche con `git -C` o in una pipe: per leggerla usare percorsi assoluti e comandi non-git. _(2026-11-10)_
 - Una copia con `android/app/build` non si toglie con `git worktree remove` («Filename too long»): staccare la junction di `node_modules`, controllare che dentro non ci siano altri collegamenti, poi `Remove-Item -LiteralPath '\\?\<percorso>' -Recurse -Force` e `git worktree prune`. _(2026-11-11)_
+- per togliere un worktree con giunzione node_modules: verificare LinkType, `cmd /c rmdir` sulla giunzione, poi `git worktree remove` e `prune`; il node_modules principale resta intatto. _(2026-11-17)_
 
 ## android
 
@@ -494,6 +495,7 @@
 
 - `npm run pubblica` da una copia: serve `google-oauth.json` (ignorato da git) e una `node_modules` vera, non una junction. Con la release già creata non carica nulla: caricare a mano. _(2026-11-11)_
 - Con bozza già creata, collegata al tag con `gh release edit --tag` e note, `npm run pubblica` ha caricato tutti e 7 i file (Aiutante compreso); poi `--draft=false --latest`. _(2026-11-14)_
+- `npm run pubblica` (test + build + Aiutante) supera i 10 minuti: va in sottofondo da solo; la release resta in bozza e i 7 file compaiono a poco a poco, si pubblica solo a exit 0. _(2026-11-17)_
 
 ## quaderno
 
@@ -573,6 +575,7 @@
 - Il rilascio non può fare cherry-pick o merge nella cartella principale: un commit respinto per errore dal cancello va portato da una copia temporanea (git worktree) con push normale. _(2026-11-17)_
 - il numero di commit "avanti" di main può cambiare tra la richiesta e l'esecuzione: il programma continua a scrivere note nel quaderno. Contare di nuovo dopo il fetch. _(2026-11-17)_
 - Per le copie temporanee conviene metterle sotto `E:\Users\nikof\Documents\SierraDeck.sierradeck-wt`, così la pulizia non chiede il consenso di Nicholas. _(2026-11-17)_
+- Il link della bozza creata con `gh release create --draft --verify-tag` ha forma `untagged-…`: è normale, il tag esiste già sul remoto. _(2026-11-17)_
 
 ## build
 
@@ -699,3 +702,17 @@
 ## push
 
 - Dal worktree il `git push` verso GitHub è negato dai permessi dello strumento Bash, prima di arrivare alla rete: va fatto dallo specialista «rilascio». _(2026-11-17)_
+
+## pc
+
+- «Dismetti questo PC» esiste già (7 giorni, solo `pc-<id>` dal Drive, `src/main/progetti/posta.ts:558`): la scadenza dei 30 giorni va costruita sopra questo, non accanto. _(2026-11-19)_
+- La soglia di 7 giorni è scritta due volte, `posta.ts:116` e `salute.ts:273`: cambiarne una sola lascia la Salute e la logica in disaccordo. _(2026-11-19)_
+- Il rapporto del controllo elenca anche i PC spenti, e ognuno porta il paragrafo di Salute con «Accendi X»: se si toglie un PC dalla lista va tolto anche da `testoRapporto` (`controllo-pc.ts:152`). _(2026-11-19)_
+
+## posta
+
+- Le voci nelle cassette `posta-*-da-*` restano 'attesa' per sempre nel file: lo stato vero sta in `posta-<dest>-esiti`, quindi «in coda» va deciso incrociando i due. _(2026-11-19)_
+
+## stato-pc
+
+- Un battito nel futuro conta «acceso» (come pcVivo) e uno illeggibile «spento» ma mai da rimuovere: con un orologio sbagliato la rimozione automatica non deve scattare. _(2026-11-19)_
