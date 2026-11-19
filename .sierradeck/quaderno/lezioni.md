@@ -67,6 +67,8 @@
 - `servizio-orchestratore.test.ts` («PreToolUse dell'unico», riga 330) fallisce in modo deterministico nella copia del worktree; da verificare se è rosso anche su main. _(2026-11-19)_
 - Diversi test leggono i sorgenti .tsx (Console, App) come testo: togliere una voce o una prop rompe anche pannello-specialisti.test.tsx, non solo i test del menu. _(2026-11-19)_
 - giornoEOra/oggi-ieri: nei test costruire le date con new Date(y,m,d,h) locale a mezzogiorno, non con UTC, per non dipendere dal fuso. _(2026-11-19)_
+- Nel progetto non c'è un ambiente DOM: i test dei riquadri usano renderToStaticMarkup e leggono i .tsx come testo, quindi la logica da provare va in funzioni pure. _(2026-11-19)_
+- gradle testDebugUnitTest --rerun impiega circa 7 minuti a freddo: da lanciare in foreground con timeout di 10 minuti. _(2026-11-19)_
 
 ## worktree
 
@@ -111,6 +113,7 @@
 - In `android/` manca il wrapper `gradlew`: la compilazione si lancia con `gradle` di sistema (`gradle :app:compileReleaseKotlin --no-daemon`). _(2026-11-19)_
 - `/api/pc` passa il battito grezzo (`...resto`): l'app legge `aggiornando` da lì senza toccare il PC. _(2026-11-19)_
 - `SuPc.corrente` e `FasciaLinea` non sono letti da nessuna schermata; la chat remota passa da `Api.ponte` in `SchermataDettaglioChat`. _(2026-11-19)_
+- L'app prende le voci del menu da assets/menu.json (scritto dal test TS con AGGIORNA=1): un cambio di menu sul PC rompe solo l'enum Scheda in Apertura.kt e il `when` in Navigazione.kt. _(2026-11-19)_
 
 ## release
 
@@ -430,6 +433,7 @@
 ## pagina
 
 - una funzione condivisa che arriva nella pagina con toString() non può avere funzioni annidate né costanti di modulo: i dati le arrivano come parametri. _(2026-11-09)_
+- La pagina del telefono è una stringa gigante: i testi condivisi vanno iniettati con `${JSON.stringify(...)}` e le funzioni si provano estraendole dallo script, come in tests/main/client-pagina-domand… _(2026-11-19)_
 
 ## merge
 
@@ -770,3 +774,7 @@
 ## aggiornamento
 
 - il battito Drive (`shared/posta.ts` riga 61) non porta nessun campo di aggiornamento: chi guarda da un altro PC non sa che quel PC si sta installando. _(2026-11-19)_
+
+## tipi
+
+- Non chiamare `aggiornando` il campo nuovo di `PcRemoto`: in `RiquadroRemoto` quell'oggetto passa a `pcVivo` (tipo `BattitoPc`) e il tipo non combacia. Ho usato `inAggiornamento`. _(2026-11-19)_
