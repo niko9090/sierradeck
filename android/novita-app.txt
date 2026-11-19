@@ -3,6 +3,14 @@ per le note della pubblicazione e della notifica sul telefono).
 La più recente in cima. Ogni riga fra apici, come in src/shared/novita.ts.
 
   {
+    versione: '3.2.0',
+    righe: [
+      'Nella schermata «Altri computer» lo stato di ogni PC arriva dal PC stesso, con la stessa frase delle altre schermate, per esempio «spento da 3 giorni · si toglie fra 27 giorni».',
+      'Un PC spento da più di 30 giorni non compare più nella lista.',
+      'Se il servizio sul computer è di una versione vecchia, resta il testo di prima.',
+    ],
+  },
+  {
     versione: '3.1.1',
     righe: [
       'Un nuovo colore blu mostra i computer che aspettano unioni in fila: il lavoro va avanti da solo, quindi sono contati fra quelli al lavoro.',
