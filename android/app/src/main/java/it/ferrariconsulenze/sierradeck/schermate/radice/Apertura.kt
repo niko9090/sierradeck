@@ -96,6 +96,7 @@ enum class Scheda(val id: String, val breve: String) {
     AUTOPILOTI("autopiloti", "Auto\u00adpiloti"),
     DOMANDE("domande", "Domande"),
     CHAT("chat", "Chat"),
+    COMPUTER("computer", "Computer"),
     FILE("file", "File"),
     SALUTE("salute", "Salute"),
     IMPOSTAZIONI("impostazioni", "Imposta\u00adzioni")

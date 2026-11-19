@@ -25,11 +25,11 @@ export type SezioneAltro = { id: string; titolo: string; sotto: string; impostaz
 /** Le sezioni di Altro, nell'ordine dell'app (`SezioneAltro` in `Navigazione.kt`). */
 export const SEZIONI_ALTRO: readonly SezioneAltro[] = [
   // 0.95.1 (app 2.90.0): prima il sistema, poi le preferenze, poi l'aiuto — come nell'app.
-  { id: 'salute', titolo: 'Salute del sistema', sotto: 'Da sistemare, computer, Drive, errori', impostazioni: false },
-  { id: 'pc', titolo: 'Computer', sotto: 'Accesi o spenti, chat dal vivo, cassetta', impostazioni: false },
+  { id: 'salute', titolo: 'Salute del sistema', sotto: 'Da sistemare, Drive, errori', impostazioni: false },
+  { id: 'pc', titolo: 'Computer', sotto: 'Accesi o spenti, guarda dal vivo, cassetta', impostazioni: false },
   { id: 'aggiornamenti', titolo: 'Aggiornamenti', sotto: 'La versione e l’aggiornamento del computer', impostazioni: true },
   { id: 'consumi', titolo: 'Consumi', sotto: 'Token, limiti del piano, contesto', impostazioni: false },
-  // k-49: chi lavora e chi è in fila per un posto. Solo pagina e PC; l'app Android non ce l'ha ancora (le prime quattro restano quelle dell'app).
+  // k-49: chi lavora e chi è in fila per un posto. Sul PC sta dentro Autopiloti (k-u0); la pagina lo tiene qui finché non lo sposta il compito sulla pagina. L'app Android non ce l'ha.
   { id: 'specialisti', titolo: 'Specialisti', sotto: 'Chi lavora e chi è in fila per un posto', impostazioni: false },
   { id: 'notifiche', titolo: 'Avvisi', sotto: 'Quali notifiche', impostazioni: true },
   { id: 'aspetto', titolo: 'Aspetto', sotto: 'Banco o Foglio, chiarore', impostazioni: true },
@@ -100,6 +100,7 @@ export function versoDestinazione(p: PostoTelefono, nome: string): PostoTelefono
   if (nome === 'chat') return { voce: 'chat', linguette: senza('chat'), sezione: null }
   if (nome === 'progetti') return { voce: 'progetti', linguette: senza('progetti'), sezione: null }
   if (nome === 'file') { const l = senza('progetti'); l.progetti = 1; return { voce: 'progetti', linguette: l, sezione: null } }
+  if (nome === 'computer') return { voce: 'altro', linguette: p.linguette, sezione: 'pc' }
   if (nome === 'salute') return { voce: 'altro', linguette: p.linguette, sezione: 'salute' }
   if (nome === 'impostazioni') return { voce: 'altro', linguette: p.linguette, sezione: null }
   // domande, autopiloti e tutto quello che non si conosce: Adesso.

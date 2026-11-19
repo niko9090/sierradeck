@@ -22,7 +22,7 @@ class MenuPrincipaleTest {
     @Test
     fun `la fascia ha le voci del PC, nello stesso ordine`() {
         assertEquals(voci.map { it["id"]!!.jsonPrimitive.content }, Scheda.entries.map { it.id })
-        assertEquals(listOf("progetti", "autopiloti", "domande", "chat", "file", "salute", "impostazioni"), Scheda.entries.map { it.id })
+        assertEquals(listOf("progetti", "autopiloti", "domande", "chat", "computer", "file", "salute", "impostazioni"), Scheda.entries.map { it.id })
     }
 
     @Test
@@ -34,7 +34,7 @@ class MenuPrincipaleTest {
     @Test
     fun `le voci di prima non ci sono piu`() {
         val nomi = Scheda.entries.map { it.name }
-        for (via in listOf("LAVORI", "NEGOZIO", "COMPUTER")) assertFalse(via, via in nomi)
+        for (via in listOf("LAVORI", "NEGOZIO", "SPECIALISTI", "RETE")) assertFalse(via, via in nomi)
         // Dalla 2.83.0 la barra ha quattro voci (`NavigazioneTest`); le sette restano destinazioni.
     }
 }
