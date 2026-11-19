@@ -140,8 +140,9 @@ export function alberoRete(d: DatiAlbero): AlberoRete {
       const viva = d.vive?.[b.pcId]
       const ver = versionePcInBreve({ versione: b.versione, battito: b.battito, ...(viva !== undefined ? { viva } : {}) }, d.io.versione, d.adesso)
       righe.push({ etichetta: 'Versione', valore: ver.testo.replace(' · più vecchia, aggiorna', ''), ...(ver.indietro ? { tono: 'attenzione' as const } : {}) })
-      const aspettano = b.chat.filter((c) => c.aspetta).length
-      righe.push({ etichetta: 'Chat', valore: `${b.chat.length} aperte${aspettano > 0 ? `, ${aspettano} aspettano te` : ''}`, ...(aspettano > 0 ? { tono: 'attenzione' as const } : {}) })
+      const chat = Array.isArray(b.chat) ? b.chat : []
+      const aspettano = chat.filter((c) => c.aspetta).length
+      righe.push({ etichetta: 'Chat', valore: `${chat.length} aperte${aspettano > 0 ? `, ${aspettano} aspettano te` : ''}`, ...(aspettano > 0 ? { tono: 'attenzione' as const } : {}) })
     }
     const s = acceso ? strada(d.mappa, b.pcId) : undefined
     if (s !== undefined) righe.push(s)

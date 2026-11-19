@@ -181,6 +181,33 @@ export function gruppiAltriPc(p: {
   return fuori.sort((a, b) => (a.vivo === b.vivo ? a.nome.localeCompare(b.nome) : a.vivo ? -1 : 1))
 }
 
+/**
+ * I gruppi come arrivano dal ponte (IPC), che il renderer non può dare per
+ * scontati: una risposta mancante o un gruppo senza `voci` fanno cadere
+ * l'interfaccia con «Cannot read properties of undefined (reading 'length')».
+ * Un gruppo senza `pcId` si scarta; gli altri campi mancanti si riempiono.
+ */
+export function gruppiValidi(x: unknown): GruppoAltroPc[] {
+  if (!Array.isArray(x)) return []
+  const fuori: GruppoAltroPc[] = []
+  for (const g of x as unknown[]) {
+    if (typeof g !== 'object' || g === null) continue
+    const r = g as Partial<GruppoAltroPc>
+    if (typeof r.pcId !== 'string') continue
+    const voci = Array.isArray(r.voci) ? r.voci.filter((v): v is VoceAltroPc => typeof v === 'object' && v !== null && typeof v.nome === 'string') : []
+    const vivo = r.vivo === true
+    fuori.push({
+      ...r,
+      pcId: r.pcId,
+      nome: typeof r.nome === 'string' ? r.nome : r.pcId.slice(0, 8),
+      vivo,
+      frase: typeof r.frase === 'string' ? r.frase : vivo ? 'acceso' : 'spento',
+      voci
+    })
+  }
+  return fuori
+}
+
 /** Da quanti PC in su la tendina «Altri PC» mostra la casella per cercare. */
 export const ALTRI_PC_CON_RICERCA = 6
 

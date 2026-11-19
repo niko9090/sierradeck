@@ -588,17 +588,19 @@ export function AltriComputer(): React.JSX.Element | null {
                 </li>
               )
             }
-            const aspettano = b.chat.filter((c) => c.aspetta).length
+            const chatPc = Array.isArray(b.chat) ? b.chat : []
+            const cartellePc = Array.isArray(b.cartelle) ? b.cartelle : []
+            const aspettano = chatPc.filter((c) => c.aspetta).length
             const ver = versionePcInBreve({ versione: b.versione, battito: b.battito, ...(vive[b.pcId] !== undefined ? { viva: vive[b.pcId] } : {}) }, mia === '' ? '0.0.0' : mia, adesso)
             return (
               <li key={b.pcId} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <strong><NomePc id={b.pcId} nome={nomeDaMostrare(b)} /></strong>
                   <span className="account__nota" style={{ margin: 0 }}>
-                    {' '}· {vivo ? 'acceso' : `spento, ultimo segno ${quando(b.battito)}`} · {ver.testo} · {b.chat.length} chat aperte{aspettano > 0 ? ` (${aspettano} aspettano)` : ''} · {b.cartelle.length} cartelle
+                    {' '}· {vivo ? 'acceso' : `spento, ultimo segno ${quando(b.battito)}`} · {ver.testo} · {chatPc.length} chat aperte{aspettano > 0 ? ` (${aspettano} aspettano)` : ''} · {cartellePc.length} cartelle
                   </span>
                 </span>
-                {b.chat.length > 0 ? (
+                {chatPc.length > 0 ? (
                   <button className="tasto tasto--mini" onClick={() => setEspanso(espanso === b.pcId ? undefined : b.pcId)} title="Le chat che quel PC ha aperte adesso, da guardare dal vivo" aria-expanded={espanso === b.pcId}>
                     Chat aperte {espanso === b.pcId ? '▾' : '▸'}
                   </button>
@@ -613,7 +615,7 @@ export function AltriComputer(): React.JSX.Element | null {
         const vivo = pcVivo(b, adesso) === true
         return (
           <ul key={`chat-${b.pcId}`} style={{ listStyle: 'none', margin: '6px 0 0 12px', padding: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {b.chat.map((c, i) => (
+            {(Array.isArray(b.chat) ? b.chat : []).map((c, i) => (
               <li key={`${c.sessione ?? c.cwd}-${i}`} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.cwd}>
                   {c.titolo}{c.aspetta ? <span className="account__nota" style={{ margin: 0 }}> · aspetta te</span> : null}

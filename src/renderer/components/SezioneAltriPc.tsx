@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { postoTendina, type PostoTendina } from '@shared/menu-workspace'
-import { ALTRI_PC_CON_RICERCA, filtraAltriPc, riassuntoAltriPc, statoPcBreve, type GruppoAltroPc, type VoceAltroPc } from '@shared/workspace-remoti'
+import { ALTRI_PC_CON_RICERCA, filtraAltriPc, gruppiValidi, riassuntoAltriPc, statoPcBreve, type GruppoAltroPc, type VoceAltroPc } from '@shared/workspace-remoti'
 import { EVENTO_REMOTI } from '../workspace-remoti'
 import { Aiuto } from './Aiuto'
 import { apriMenuContestuale } from '../menu-contestuale'
@@ -60,7 +60,7 @@ export function SezioneAltriPc({ attivo, nomi, onCambia }: {
     const leggi = (): void => {
       const p = window.gestore.workspace.sezioneAltriPc?.()
       if (p === undefined) return
-      void p.then((g) => { if (vivo) setGruppi(g) }).catch(() => undefined)
+      void p.then((g) => { if (vivo) setGruppi(gruppiValidi(g)) }).catch(() => undefined)
     }
     leggi()
     const t = setInterval(leggi, RILEGGI_MS)
