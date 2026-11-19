@@ -60,6 +60,8 @@
 - I criteri del servizio girano con TEMP/TMP su una sottocartella sierradeck-criterio-…: i percorsi dei test possono superare 260 caratteri. I git dell'Aiutante usano -c core.longpaths=true (16/11) _(2026-11-16)_
 - tests/autopilot-host/servizio-orchestratore.test.ts («PreToolUse dell'unico», git -C … merge) fallisce se il test gira in una copia di lavoro: usa process.cwd() come principale _(2026-11-17)_
 - `criticitaDi` ha bisogno di `adesso` per escludere i PC spenti; senza, un PC spento torna tra le criticità «non risponde». _(2026-11-19)_
+- `vistaAutopilota` vuole `ora` e un autopilota con `dialogo`/`decisioni`: una fixture minima fa cadere `statoAutopilotaDalVivo` per un motivo diverso da `chats`. _(2026-11-19)_
+- Alcuni test leggono `src/main/index.ts` come testo con regex: se ci si aggiungono righe fra `senzaAiutanti` e il suo contesto, vanno allargati. _(2026-11-19)_
 
 ## worktree
 
@@ -546,6 +548,7 @@
 
 - `chiama` ora porta stato e motivo nell'errore: riconoscere i 404 dal motivo, non dal testo del messaggio. _(2026-11-13)_
 - Il registro dell'errore di render (ConfineErrori) è per-PC: la pila di un altro PC non si vede da qui, serve il suo registro. _(2026-11-19)_
+- Specialisti «Aiuta la rete» girano su un altro PC e non vedono il registro di qui: la pila la legge l'autopilota in AppData\Roaming\SierraDeck\log e la mette nel prompt. _(2026-11-19)_
 
 ## voce
 
@@ -640,6 +643,7 @@
 - la finestra dell'Aiutante è HTML+TS senza React: la logica va in moduli puri sotto src/aiutante/, testabili senza DOM; lo stato passa da statoCompleto() in index.ts. _(2026-11-16)_
 - a ogni avvio il primo controllo di Claude non ha uno stato precedente, quindi un accesso mancante diventa errore a ogni aggiornamento: uno stato che si risolve a mano è un avviso. _(2026-11-16)_
 - la versione dell'Aiutante sta in src/aiutante/versione.json e va alzata insieme alla voce in novita-aiutante.txt; novita.ts e package.json sono del programma completo. _(2026-11-16)_
+- L'Aiutante è una registrazione `pc-<id>` a parte, con `aiutante:true` e lo stesso `host` di SierraDeck: per legare i due si usa `host`, non il pcId. _(2026-11-19)_
 
 ## blocco
 
@@ -662,6 +666,7 @@
 ## shared
 
 - `statoVero` in specialisti.ts restituisce una stringa libera, quindi `PAROLE` va indicizzata con stringhe e deve avere la voce 'ferma'. _(2026-11-16)_
+- Per leggere `a.chats` in src/shared usare `chatsDi` (chats-di.ts), non `a.chats` diretto: gli autopiloti da altri PC o di formato vecchio possono non averlo. _(2026-11-19)_
 
 ## viste
 
