@@ -66,6 +66,7 @@
 - I test sul tempo reale con server HTTP vero (tetti da 400 ms) slittano sotto `--maxWorkers=4`: i limiti superiori vanno larghi (secondi), solo il minimo (≥ tetto) prova l'attesa. _(2026-11-19)_
 - `servizio-orchestratore.test.ts` («PreToolUse dell'unico», riga 330) fallisce in modo deterministico nella copia del worktree; da verificare se è rosso anche su main. _(2026-11-19)_
 - Diversi test leggono i sorgenti .tsx (Console, App) come testo: togliere una voce o una prop rompe anche pannello-specialisti.test.tsx, non solo i test del menu. _(2026-11-19)_
+- giornoEOra/oggi-ieri: nei test costruire le date con new Date(y,m,d,h) locale a mezzogiorno, non con UTC, per non dipendere dal fuso. _(2026-11-19)_
 
 ## worktree
 
@@ -682,6 +683,7 @@
 
 - `statoVero` in specialisti.ts restituisce una stringa libera, quindi `PAROLE` va indicizzata con stringhe e deve avere la voce 'ferma'. _(2026-11-16)_
 - Per leggere `a.chats` in src/shared usare `chatsDi` (chats-di.ts), non `a.chats` diretto: gli autopiloti da altri PC o di formato vecchio possono non averlo. _(2026-11-19)_
+- statoPc (stato-pc.ts, dal battito) e titoloDopoIlBussare (scoperta-pc.ts, dopo il ping) sono due livelli diversi; il vocabolario in vocabolario-stati-pc.ts li copre entrambi. _(2026-11-19)_
 
 ## viste
 
