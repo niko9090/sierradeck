@@ -718,3 +718,8 @@
 ## stato-pc
 
 - Un battito nel futuro conta «acceso» (come pcVivo) e uno illeggibile «spento» ma mai da rimuovere: con un orologio sbagliato la rimozione automatica non deve scattare. _(2026-11-19)_
+- `gruppiAltriPc` ora vuole `adesso` e non più `vivo`: stato e frase si ricavano da `visto` con `statoPc`. _(2026-11-19)_
+
+## rotte
+
+- `/api/pc` esclude i PC da rimuovere; l'app Android può contare su `stato`, `frase` e `giorniAllaRimozione`. _(2026-11-19)_
