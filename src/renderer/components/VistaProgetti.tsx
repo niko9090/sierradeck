@@ -17,6 +17,7 @@ import { ogni } from '../state/sondaggio'
 import { apriMenuContestuale } from '../menu-contestuale'
 import { vociProgetto } from '@shared/menu-contestuale'
 import { BordoDettaglio } from './BordoDettaglio'
+import { catalogoDiProgetto, parolaProprietario, vociStrumenti } from '@shared/progetti-unificata'
 
 /**
  * «Progetti» a piena pagina (0.69.0). Nicholas, 12/10: «rifai il menu
@@ -34,7 +35,7 @@ const COLORE: Record<Colore, string> = { verde: 'var(--verde)', ambra: 'var(--am
 const quando = (iso: string | undefined): string => (iso === undefined ? 'mai' : dataBreve(iso))
 const CHAT_IN_VISTA = 8
 
-type Foglio = 'chat' | 'salvataggio' | 'contenuto' | 'spazio' | 'recupero'
+type Foglio = 'chat' | 'workspace' | 'spazio' | 'recupero'
 
 export function VistaProgetti({ onChiudi }: { onChiudi: () => void }): React.JSX.Element {
   const [d, setD] = useState<Pannello | undefined>(undefined)
@@ -168,17 +169,8 @@ export function VistaProgetti({ onChiudi }: { onChiudi: () => void }): React.JSX
           <button className="tasto tasto--mini" aria-expanded={menu} onClick={() => setMenu(!menu)}>Strumenti ▾</button>
           {menu ? (
             <TendinaMenu onChiudi={() => setMenu(false)}>
-              {window.gestore.gestione !== undefined ? (
-                <button className="progetti__voce" title="Proprietario, doppioni, nomi, copie rimaste, elimina: tutte le scelte in una finestra a parte." onClick={() => { setMenu(false); void window.gestore.gestione?.apri() }}>Gestione progetti</button>
-              ) : null}
-              {([
-                ['chat', 'Tutte le chat', 'Ogni chat con il PC dove vive il suo progetto.'],
-                ['salvataggio', 'Salvataggio e arrivo', 'Salva ora, Ripristina, salvataggio automatico.'],
-                ['contenuto', 'Il contenuto del Drive', 'Il catalogo per progetto e workspace. Leggerlo richiede qualche secondo.'],
-                ['spazio', 'Spazio sul Drive', 'Quanto occupa ogni cosa, e le pulizie (sempre annullabili).'],
-                ...(inRecupero.length > 0 ? [['recupero', `Cartelle in recupero (${inRecupero.length})`, 'Le cartelle tolte da questo PC, ripristinabili per 30 giorni.']] : [])
-              ] as [Foglio, string, string][]).map(([id, testo, spiega]) => (
-                <button key={id} className="progetti__voce" title={spiega} onClick={() => { setFoglio(id); setScelto(undefined); setMenu(false) }}>{testo}</button>
+              {vociStrumenti(inRecupero.length).map((v) => (
+                <button key={v.id} className="progetti__voce" title={v.spiega} onClick={() => { setFoglio(v.id as Foglio); setScelto(undefined); setMenu(false) }}>{v.testo}</button>
               ))}
             </TendinaMenu>
           ) : null}
@@ -260,7 +252,7 @@ export function VistaProgetti({ onChiudi }: { onChiudi: () => void }): React.JSX
 
         {(sel !== undefined || foglio !== undefined) && d !== undefined ? <BordoDettaglio chiave="progettiDettaglio" /> : null}
         {sel !== undefined && foglio === undefined && d !== undefined ? (
-          <Dettaglio r={sel} d={d} rim={rim} occupato={occupato} tutteLeChat={tutteLeChat} setTutteLeChat={setTutteLeChat}
+          <Dettaglio key={sel.id} r={sel} d={d} onChiudiPagina={onChiudi} rim={rim} occupato={occupato} tutteLeChat={tutteLeChat} setTutteLeChat={setTutteLeChat}
             onChiudi={() => setScelto(undefined)} onAzione={(a) => faiAzione(sel.id, a)} onApriChat={apriChat}
             onQuaderno={(cwd) => { onChiudi(); window.dispatchEvent(new CustomEvent('sierradeck:apri-quaderno', { detail: { cwd } })) }} />
         ) : null}
@@ -268,14 +260,13 @@ export function VistaProgetti({ onChiudi }: { onChiudi: () => void }): React.JSX
         {foglio !== undefined && d !== undefined ? (
           <div className="progetti__dettaglio progetti__dettaglio--foglio">
             <div className="progetti__dtesta">
-              <span className="progetti__dtitolo">{foglio === 'chat' ? 'Tutte le chat' : foglio === 'salvataggio' ? 'Salvataggio e arrivo' : foglio === 'contenuto' ? 'Il contenuto del Drive' : foglio === 'spazio' ? 'Spazio sul Drive' : 'Cartelle in recupero'}</span>
+              <span className="progetti__dtitolo">{foglio === 'chat' ? 'Tutte le chat' : foglio === 'workspace' ? 'Workspace sul Drive' : foglio === 'spazio' ? 'Spazio sul Drive' : 'Cartelle in recupero'}</span>
               <span style={{ flex: 1 }} />
               <button className="tasto tasto--mini" onClick={() => setFoglio(undefined)} aria-label="Chiudi">×</button>
             </div>
             <div className="progetti__dcorpo">
               {foglio === 'chat' ? <TutteLeChat d={d} /> : null}
-              {foglio === 'salvataggio' ? <SalvataggioDrive /> : null}
-              {foglio === 'contenuto' ? <ContenutoDrive onChiudi={onChiudi} /> : null}
+              {foglio === 'workspace' ? <ContenutoDrive modo="workspace" onChiudi={onChiudi} /> : null}
               {foglio === 'spazio' ? <SpazioDrive spazio={d.spazio} occupato={occupato} onAzione={(corpo) => esegui(window.gestore.casa.azione(corpo))} /> : null}
               {foglio === 'recupero' ? inRecupero.map((c) => (
                 <div key={c.id} className="progetti__voceelenco" title={c.dove}>
@@ -299,11 +290,12 @@ export function VistaProgetti({ onChiudi }: { onChiudi: () => void }): React.JSX
 }
 
 /** Il dettaglio di un progetto, a destra: azioni in vista, poi problemi, spostamento, chat, cartelle, spazio, storia. */
-function Dettaglio(p: {
-  r: RigaProgetto; d: Pannello; rim: { stati: StatoRimozione[] }; occupato: boolean
+export function Dettaglio(p: {
+  r: RigaProgetto; d: Pannello; rim: { stati: StatoRimozione[] }; occupato: boolean; onChiudiPagina: () => void
   tutteLeChat: boolean; setTutteLeChat: (x: boolean) => void
   onChiudi: () => void; onAzione: (a: AzioneProgetto) => void; onApriChat: (c: RigaChat, come: NonNullable<ReturnType<typeof comeAprireChat>>) => void
   onQuaderno: (cwd: string) => void
+  adesso?: number
 }): React.JSX.Element {
   const { r, d, occupato } = p
   const v = r.vista ?? vistaDi(r)
@@ -328,8 +320,8 @@ function Dettaglio(p: {
         <span className="serigrafia">Dove vive</span>
         <b style={v.doveQui ? undefined : { color: r.residente === undefined ? 'var(--ambra)' : undefined }}>{v.dove}</b>
         {r.residente !== undefined && !r.residente.qui ? (
-          <span className="progetti__pillola" title={r.proprietarioAcceso === true ? 'acceso adesso' : 'non risponde adesso: si scrive nella sua posta'}
-            style={{ color: r.proprietarioAcceso === true ? 'var(--verde)' : 'var(--testo-spento)' }}>su {r.residente.nome}</span>
+          <span className="progetti__pillola" title={r.proprietarioAcceso === true ? '' : 'Se non risponde, quello che scrivi aspetta nella sua posta.'}
+            style={{ color: r.proprietarioAcceso === true ? 'var(--verde)' : 'var(--testo-spento)' }}>{r.residente.nome}: {parolaProprietario(r.proprietarioAcceso, p.adesso ?? Date.now())}</span>
         ) : null}
         <Aiuto di="Dove vive">Un progetto vive su un PC solo: lì girano le sue chat, e il Drive ne tiene la copia. Dagli altri PC si apre dal vivo; per portarlo qui c’è «Sposta su questo PC», che controlla file per file prima di cambiare PC e non cancella niente.</Aiuto>
       </div>
@@ -371,7 +363,7 @@ function Dettaglio(p: {
           })}
           {chat.length > CHAT_IN_VISTA && !p.tutteLeChat ? <button className="account__link" onClick={() => p.setTutteLeChat(true)}>Mostra tutte ({chat.length})</button> : null}
         </Sezione>
-        <Sezione titolo="Cartella" aiuto="Dove sta la cartella del progetto, sul PC dove vive.">
+        <Sezione titolo="Cartella e quaderno" aiuto="Dove sta la cartella del progetto, sul PC dove vive.">
           {r.cartelle.length === 0 && r.cartellaTrovata === undefined ? <div className="progetti__quieto">Su nessun PC.</div> : null}
           {r.cartelle.map((c) => (
             <div key={`${c.pc}:${c.percorso}`} className="progetti__voceelenco"><b style={{ whiteSpace: 'nowrap' }}>{c.nome}{c.pc === d.io.id ? ' (qui)' : ''}</b> <span className="progetti__quieto progetti__percorso">{c.percorso}</span></div>
@@ -395,9 +387,25 @@ function Dettaglio(p: {
             </>
           )}
         </Sezione>
+        <Sezione titolo="Sul Drive" aiuto="Le chat e i file di questo progetto sul Drive, e se qui sono allineati. Un progetto vive su un PC solo: per portarlo qui c’è «Sposta su questo PC». Leggere il Drive richiede qualche secondo.">
+          <Apribile tasto="Leggi il Drive">
+            <ContenutoDrive modo="progetto" solo={(g) => catalogoDiProgetto(g, r)} onChiudi={p.onChiudiPagina} />
+          </Apribile>
+        </Sezione>
+        <Sezione titolo="Salvataggio e sincronizzazione" aiuto="Salva ora manda sul Drive le chat di questo PC; Ripristina le riprende. Il salvataggio automatico lo fa da solo. Vale per tutto il PC, non solo per questo progetto.">
+          <Apribile tasto="Mostra il salvataggio">
+            <SalvataggioDrive />
+          </Apribile>
+        </Sezione>
       </div>
     </div>
   )
+}
+
+/** Mostra il contenuto solo dopo il tasto: non si legge il Drive a ogni progetto scelto. */
+function Apribile({ tasto, children }: { tasto: string; children: React.ReactNode }): React.JSX.Element {
+  const [aperto, setAperto] = useState(false)
+  return aperto ? <>{children}</> : <button className="tasto tasto--mini" style={{ alignSelf: 'flex-start' }} onClick={() => setAperto(true)}>{tasto}</button>
 }
 
 function Sezione({ titolo, aiuto, children }: { titolo: string; aiuto: string; children: React.ReactNode }): React.JSX.Element {

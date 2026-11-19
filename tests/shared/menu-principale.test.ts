@@ -52,11 +52,11 @@ describe('sul PC: ogni voce dell’inventario si raggiunge', () => {
     const p = leggi('src/renderer/components/VistaProgetti.tsx')
     expect(existsSync('src/renderer/components/ModalePannelloDrive.tsx')).toBe(false)
     expect(p).toContain('Strumenti ▾')
-    for (const t of ['Sposta su questo PC', 'Quaderno del progetto', 'Salvataggio e arrivo', 'Il contenuto del Drive', '<SalvataggioDrive />', '<ContenutoDrive']) expect(p, t).toContain(t)
+    for (const t of ['Sposta su questo PC', 'Quaderno del progetto', 'Salvataggio e sincronizzazione', 'Sul Drive', '<SalvataggioDrive />', '<ContenutoDrive']) expect(p, t).toContain(t)
     const a = leggi('src/renderer/components/PannelloAccount.tsx')
     for (const t of ['Salva ora', 'Ripristina', 'Salvataggio automatico', '<SezioneProgetti', 'export function SalvataggioDrive']) expect(a, t).toContain(t)
     const d = leggi('src/renderer/components/ContenutoDrive.tsx')
-    for (const t of ['Per progetto (cartella)', 'Togli la cartella dal Drive', 'Rimetti sul Drive', 'Togli dal Drive']) expect(d, t).toContain(t)
+    for (const t of ['Togli la cartella dal Drive', 'Rimetti sul Drive', 'Togli dal Drive']) expect(d, t).toContain(t)
     // Il rimando a se stesso non c'è più.
     expect(d).not.toContain('Chat e progetti del Drive…')
   })
