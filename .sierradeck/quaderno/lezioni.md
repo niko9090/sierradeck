@@ -222,6 +222,7 @@
 ## versioni
 
 - le versioni dei PC nel rapporto vengono dall'ultimo battito, che non si scrive con il Drive pieno: prima di dire «vecchio» si controlla il PC. _(2026-11-09)_
+- Le voci di versione del quaderno sono file datati (`AAAA-MM-GG-...md`). `errori-arrivati.md` è solo per gli errori arrivati. _(2026-11-19)_
 
 ## drive
 
@@ -579,6 +580,7 @@
 - il numero di commit "avanti" di main può cambiare tra la richiesta e l'esecuzione: il programma continua a scrivere note nel quaderno. Contare di nuovo dopo il fetch. _(2026-11-17)_
 - Per le copie temporanee conviene metterle sotto `E:\Users\nikof\Documents\SierraDeck.sierradeck-wt`, così la pulizia non chiede il consenso di Nicholas. _(2026-11-17)_
 - Il link della bozza creata con `gh release create --draft --verify-tag` ha forma `untagged-…`: è normale, il tag esiste già sul remoto. _(2026-11-17)_
+- In questa copia `git fetch` fallisce se il bundle di arrivo è sparito. Il controllo su `origin/main` va fatto dalla cartella principale. _(2026-11-19)_
 
 ## build
 
