@@ -55,7 +55,7 @@ describe('il menu unificato', () => {
     // Nella fascia restano «+ Nuova chat» e il modello; il resto è in «Chat e workspace».
     expect(c).toContain('+ Nuova chat')
     for (const t of ['↺ Riprendi', 'Usate da altri PC…', 'finestre.nuova', 'Negozio…', 'Panoramica di questo workspace', 'Strumenti ▾']) expect(c, t).not.toContain(t)
-    const pc = leggi('src/renderer/components/PannelloChat.tsx')
+    const pc = leggi('src/renderer/components/PannelloChat.tsx') + leggi('src/shared/chat-workspace.ts')
     for (const t of ['↺ Riprendi una conversazione', 'Nuova finestra', 'Negozio…', 'Panoramica di questo workspace']) expect(pc, t).toContain(t)
   })
 })
