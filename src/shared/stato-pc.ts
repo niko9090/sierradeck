@@ -89,6 +89,22 @@ export function vistoConAiutante<T extends { pcId: string; host?: string | undef
   return out
 }
 
+/**
+ * Il PC `pcId` visto da SierraDeck e dall'Aiutante insieme (stesso `host`): il
+ * battito più recente dei due (`visto`) e `soloAiutante`, vero quando quel PC
+ * è acceso solo grazie all'Aiutante: il battito di SierraDeck è vecchio (o
+ * manca) e quello dell'Aiutante è recente, con la soglia di `statoPc`. Con
+ * tutti e due vecchi, o con SierraDeck vivo, è falso.
+ */
+export function vistoDelPc<T extends { pcId: string; host?: string | undefined; aiutante?: unknown; battito?: string | undefined }>(
+  lista: readonly T[], pcId: string, adesso: number
+): { visto: string | undefined; soloAiutante: boolean } {
+  const visto = vistoConAiutante(lista, (b) => b.battito).get(pcId)
+  const suo = lista.find((x) => x.pcId === pcId)?.battito
+  const soloAiutante = statoPc(suo, adesso).stato !== 'acceso' && statoPc(visto, adesso).stato === 'acceso'
+  return { visto, soloAiutante }
+}
+
 /** Un PC che tace da più di `RIMUOVI_DOPO_MS`: da togliere dalla lista. */
 export function daRimuovere(battitoIso: string | undefined, adesso: number): boolean {
   return statoPc(battitoIso, adesso).stato === 'da-rimuovere'

@@ -33,7 +33,7 @@ export async function versioneDalVivo(chiama: (pcId: string, percorso: string) =
 export const CONTROLLO_PC_OGNI_MS = 6 * 60 * 60_000
 export const PRIMO_CONTROLLO_MS = 15 * 60_000
 
-export type SaluteDiPc = { pcId: string; nome: string; salute?: Salute; errore?: string; battito?: string; /** Risponde, ma non ha finito in tempo (anche al secondo tentativo): lento, non spento. */ lento?: boolean }
+export type SaluteDiPc = { pcId: string; nome: string; salute?: Salute; errore?: string; battito?: string; /** Risponde, ma non ha finito in tempo (anche al secondo tentativo): lento, non spento. */ lento?: boolean; /** Il battito è dell'Aiutante: SierraDeck là è chiuso (`vistoDelPc`). */ soloAiutante?: boolean }
 
 /**
  * 0.94.1: un PC spento non è una criticità. Nicholas, 05/11: «lascia perdere il
@@ -42,6 +42,11 @@ export type SaluteDiPc = { pcId: string; nome: string; salute?: Salute; errore?:
  * battito è fresco (acceso) e non si raggiunge, perché quello è un guasto vero.
  */
 export { SPENTO_DOPO_MS }
+
+/** 19/11: non risponde, ma l'Aiutante di quel PC batte (SierraDeck là è chiuso): acceso, non una criticità. */
+function soloAiutante(s: SaluteDiPc): boolean {
+  return s.salute === undefined && s.soloAiutante === true
+}
 
 /** Non risponde e ha un battito sul Drive che non è fresco (o è illeggibile): spento. */
 function pcSpento(s: SaluteDiPc, adesso: number): boolean {
@@ -64,7 +69,7 @@ export function criticitaDi(saluti: readonly SaluteDiPc[], autopiloti: readonly 
   const spenti = new Set(saluti.filter((s) => adesso !== undefined && pcSpento(s, adesso)).map((s) => s.pcId))
   for (const s of saluti) {
     if (s.salute === undefined) {
-      if (spenti.has(s.pcId)) continue
+      if (spenti.has(s.pcId) || soloAiutante(s)) continue
       // Risponde ma è lento: non è «non risponde». Il prossimo giro riprova.
       if (s.lento === true) continue
       // Una riga per PC: due PC che non rispondono hanno due motivi, non uno.
@@ -78,6 +83,8 @@ export function criticitaDi(saluti: readonly SaluteDiPc[], autopiloti: readonly 
       // automatici (a lotti): qui sarebbero doppie, e spesso di una sessione già finita.
       if (v.tono === 'ok' || v.gruppo === 'errori') continue
       if (v.chiave.startsWith('pc:') && spenti.has(v.chiave.slice(3))) continue
+      // Quel PC è acceso con il solo Aiutante: un altro PC che lo dice «non si raggiunge» parla di SierraDeck, chiuso là.
+      if (v.chiave.startsWith('pc:') && saluti.some((x) => x.pcId === v.chiave.slice(3) && soloAiutante(x))) continue
       // Scheda video di un PC spento (voce di un PC con una versione vecchia): dato vecchio, non criticità.
       if (v.chiave.startsWith('gpu:') && spenti.has(v.chiave.slice(4))) continue
       // «Non risponde a nessuna strada» detto da un PC, ma quel PC ha risposto a chi controlla: è la strada
@@ -165,8 +172,8 @@ export function testoRapporto(p: { quando: string; saluti: readonly SaluteDiPc[]
     const quali = voci.length > 0 ? ` (${voci.slice(0, 6).join('; ')}${voci.length > 6 ? `; e altre ${voci.length - 6}` : ''})` : ''
     // k-191: la versione di chi risponde è quella che dice lui adesso; per chi non risponde, il battito, segnato come vecchio.
     const versione = s.salute?.versione !== undefined ? ` · versione ${s.salute.versione} (detta dal PC adesso)`
-      : s.battito !== undefined ? ` · versione ignota adesso (ultimo battito sul Drive: ${s.battito}, dato vecchio)` : ''
-    righe.push(`- **${s.nome}**${versione}: ${s.salute !== undefined ? `${s.salute.tono} — ${s.salute.riassunto}${quali}` : s.lento === true ? `lento, riprovo (${s.errore ?? '?'})` : `non risponde (${s.errore ?? '?'})`}`)
+      : s.battito !== undefined ? ` · versione ignota adesso (ultimo battito sul Drive: ${s.battito}, ${statoPc(s.battito, adesso).stato === 'acceso' ? statoPc(s.battito, adesso).frase : 'dato vecchio'})` : ''
+    righe.push(`- **${s.nome}**${versione}: ${s.salute !== undefined ? `${s.salute.tono} — ${s.salute.riassunto}${quali}` : soloAiutante(s) ? 'acceso, lavora solo l’Aiutante (SierraDeck non è aperto)' : s.lento === true ? `lento, riprovo (${s.errore ?? '?'})` : `non risponde (${s.errore ?? '?'})`}`)
   }
   if (spentiRiga.length > 0) {
     righe.push('', `## PC spenti (${spentiRiga.length})`, '')
@@ -191,7 +198,7 @@ type StatoControllo = { firma?: string; il?: string }
 export async function giroControlloPc(d: {
   radice: () => string | undefined
   io: () => { id: string; nome: string }
-  altri: () => Array<{ pcId: string; nome: string; battito?: string }>
+  altri: () => Array<{ pcId: string; nome: string; battito?: string; soloAiutante?: boolean }>
   saluteQui: () => Promise<Salute>
   saluteDi: (pcId: string) => Promise<Salute>
   autopiloti: () => Promise<AutopilotiDiPc[]>

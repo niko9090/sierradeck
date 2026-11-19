@@ -190,7 +190,7 @@ import { testoConsegnato, type StatoSottofondo } from '@shared/sottofondo'
 import { azioneDelPonte } from '@shared/ponte-telefono'
 import { workspaceDiApertura } from '@shared/workspace-apertura'
 import { autopilotiDaStato, erroreAltroPc, rottaAutopilotaAltroPc, unBattitoPerNome, type AutopilotiDiPc } from '@shared/autopiloti-altri'
-import { vistoConAiutante } from '@shared/stato-pc'
+import { vistoConAiutante, vistoDelPc } from '@shared/stato-pc'
 import { eAiutante, pcCheHaLaCartella, pcVivo, senzaAiutanti, tagliaIntero, TAGLIO_OPZIONE_BATTITO, type BattitoPc } from '@shared/posta'
 import type { EsitoLavoro } from './cassaforte/lavoro-in-corso'
 import { pathToSlug } from './indexer/project-scanner'
@@ -679,7 +679,7 @@ let installaLaGlobale: { avvia: (pcId: string) => AvanzamentoInstallaLa; stato: 
 let guardianoPin: GuardianoPin | undefined
 /** Il ponte del telefono (0.48.0): si accende quando c'e' il client verso gli altri PC. */
 /** Il controllo di tutti i PC (0.88.9): gli altri PC e la salute di ognuno, chiesta là. */
-let altriPcGlobale: (() => Promise<Array<{ pcId: string; nome: string; battito?: string }>>) | undefined
+let altriPcGlobale: (() => Promise<Array<{ pcId: string; nome: string; battito?: string; soloAiutante?: boolean }>>) | undefined
 let saluteAltroPcGlobale: ((pcId: string) => Promise<import('@shared/salute').Salute>) | undefined
 let ponteVersoPc: ((pc: string, percorso: string, corpo?: Record<string, unknown>, dispositivo?: string, richiesta?: string) => Promise<{ stato: number; corpo: unknown }>) | undefined
 /** Gli autopiloti degli altri PC della stessa chiave di casa (0.59.0). */
@@ -2567,7 +2567,13 @@ if (!app.requestSingleInstanceLock()) {
         // 19/11: il battito che conta è il più recente fra SierraDeck e l'Aiutante dello stesso PC (un PC con il solo Aiutante non è «spento»).
         const tutti = await postino.pcSubito().catch(() => postino.altrui())
         const visti = vistoConAiutante(tutti, (b) => b.battito)
-        return unBattitoPerNome(senzaAiutanti(tutti).filter((b) => b.pcId !== io.id), nomeDaMostrare).map((b) => ({ pcId: b.pcId, nome: nomeDaMostrare(b), ...(visti.get(b.pcId) !== undefined ? { battito: visti.get(b.pcId) as string } : {}) }))
+        const adessoMs = Date.now()
+        return unBattitoPerNome(senzaAiutanti(tutti).filter((b) => b.pcId !== io.id), nomeDaMostrare).map((b) => ({
+          pcId: b.pcId, nome: nomeDaMostrare(b),
+          ...(visti.get(b.pcId) !== undefined ? { battito: visti.get(b.pcId) as string } : {}),
+          // Acceso solo grazie all'Aiutante: SierraDeck là è chiuso, non è un «non risponde».
+          ...(vistoDelPc(tutti, b.pcId, adessoMs).soloAiutante ? { soloAiutante: true } : {})
+        }))
       }
       saluteAltroPcGlobale = async (pcId) => (await remoto.chiama(pcId, '/api/salute')) as import('@shared/salute').Salute
       autopilotiAltri = async () => {
@@ -2744,7 +2750,10 @@ if (!app.requestSingleInstanceLock()) {
         const statoSync = await sincronia.stato().catch(() => undefined)
         // Subito (0.68.0): la Salute aspettava fino a 20 s di rilettura dal Drive.
         // 12/11: senza gli Aiutanti, che non hanno la Salute del programma completo (stanno in «Altri computer»).
-        const battiti = senzaAiutanti(await postino.pcSubito().catch(() => postino.altrui()))
+        const tuttiIBattiti = await postino.pcSubito().catch(() => postino.altrui())
+        const battiti = senzaAiutanti(tuttiIBattiti)
+        // 19/11: il battito che conta è il più recente fra SierraDeck e l'Aiutante dello stesso PC.
+        const vistiDelleSalute = vistoConAiutante(tuttiIBattiti, (b) => b.battito)
         const pc = await Promise.all(battiti.map(async (b) => {
           const s = await remoto.statoDi(b.pcId, b.nome).catch(() => undefined)
           const strada = remoto.stradaDi(b.pcId)
@@ -2752,7 +2761,7 @@ if (!app.requestSingleInstanceLock()) {
           // può essere fermo da giorni (Drive pieno) e non dice cosa c'è installato.
           const dalVivo = s?.stato === 'acceso' ? await versioneDalVivo((id, perc) => remoto.chiama(id, perc), b.pcId) : undefined
           return {
-            pcId: b.pcId, nome: nomeDaMostrare(b), versione: dalVivo ?? b.versione, battito: b.battito,
+            pcId: b.pcId, nome: nomeDaMostrare(b), versione: dalVivo ?? b.versione, battito: vistiDelleSalute.get(b.pcId) ?? b.battito,
             ...(dalVivo !== undefined ? { versioneDalVivo: true } : {}),
             // Dal Drive: solo se ha la forma giusta.
             ...(risorseValide(b.risorse) ? { risorse: b.risorse } : {}),
