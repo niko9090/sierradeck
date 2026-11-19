@@ -2,7 +2,7 @@ import { pcVivo, type BattitoPc } from '@shared/posta'
 import { aggiornamentoInCorsoDi } from '@shared/aggiornamento-remoto'
 import { vistoDelPc } from '@shared/stato-pc'
 import { descriviIndirizzo, PORTA_CLIENT_PREDEFINITA } from '@shared/pc-remoto'
-import { indirizziDaProvare, messaggioErroreRemoto, motivoDaStatoHttp, statoPc, testoProva, type PingPc, type ProvaIndirizzo, type StatoPc } from '@shared/scoperta-pc'
+import { indirizziDaProvare, messaggioErroreRemoto, motivoDaStatoHttp, titoloDopoIlBussare, testoProva, type PingPc, type ProvaIndirizzo, type StatoPc } from '@shared/scoperta-pc'
 import { improntaPc } from './casa-firma'
 import { indirizzoPreferito, stradaDiIndirizzo, type InfoStrada, type Strada } from '@shared/strada-pc'
 import { GIU_DOPO_MS } from '@shared/collegamento'
@@ -400,7 +400,7 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
     const { visto, soloAiutante } = vistoDelPc(deps.battiti(), pcId, adesso())
     // k-agg1: il suo battito dice «mi aggiorno», o l'installazione l'ho avviata io con «Installa là».
     const aggiornando = aggiornandoDi(pcId)
-    return statoPc({
+    return titoloDopoIlBussare({
       ...(aggiornando !== null ? { aggiornando } : {}),
       nome: b?.nome ?? nomeNoto ?? 'quel PC',
       ping: p,

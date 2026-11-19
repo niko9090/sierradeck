@@ -4,6 +4,7 @@ import { SchermoRemoto } from './SchermoRemoto'
 import { BARRA_TASTI, tastoDaEvento, type TastoRemoto } from '@shared/tasti-remoti'
 import { pcVivo } from '@shared/posta'
 import { parolaPcSenzaRisposta } from '@shared/salute'
+import { dataBreve } from '@shared/tempo-it'
 import {
   trovaChatRemota, storiaRemotaSicura, descriviIndirizzo, descriviSilenzio, RILEGGI_REMOTO_OGNI_MS, RIGHE_REMOTE,
   type ChatRemota, type ChatSuPc, type PcRemoto, type StoriaRemota
@@ -47,11 +48,6 @@ type Fase =
 
 /** Ogni quanto si rilegge il battito di quel PC (acceso/spento, indirizzo buono). */
 const RILEGGI_PC_OGNI_MS = 15_000
-
-function quando(iso: string): string {
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' })
-}
 
 /**
  * Una chat di un altro PC, **dal vivo**.
@@ -443,7 +439,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
               ? `acceso${via !== undefined ? '' : pc.buono !== undefined ? ` · risponde su ${descriviIndirizzo(pc.buono)}` : ''}`
               : pc.stato !== undefined
                 ? pc.stato.titolo
-                : `${parolaPcSenzaRisposta(pc.battito, Date.now())} · ultimo segno sul Drive ${quando(pc.battito)}`}
+                : `${parolaPcSenzaRisposta(pc.battito, Date.now())} · ultimo segno sul Drive ${dataBreve(pc.battito)}`}
           {fase.tipo === 'viva' && fase.chat.aspetta === true ? <span className="remoto__aspetta"> · aspetta te</span> : null}
         </span>
         {/* La strada usata, sempre in vista (0.40.0). */}
@@ -470,7 +466,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
           inizio={inizioRef.current}
           adesso={orologioTent}
           {...(pc?.versione !== undefined && pc.versione !== '' ? { versione: pc.versione } : {})}
-          {...(pc?.battito !== undefined && pc.battito !== '' ? { ultimoSegno: `battito sul Drive ${quando(pc.battito)}` } : {})}
+          {...(pc?.battito !== undefined && pc.battito !== '' ? { ultimoSegno: `battito sul Drive ${dataBreve(pc.battito)}` } : {})}
           onRiprova={riprova}
           onChiudi={() => setTentChiusi(true)}
         />

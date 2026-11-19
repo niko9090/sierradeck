@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { TESTI_AZIONI, type IdAzioneGestione, type RigaGestione, type VistaGestione } from '@shared/gestione-progetti'
 import { byteLeggibili } from '@shared/spazio-drive'
+import { dataBreve } from '@shared/tempo-it'
 import { Aiuto } from './Aiuto'
 import { ModaleConferma } from './ModaleConferma'
 import '../gestione-progetti.css'
@@ -17,7 +18,7 @@ type Filtro = 'tutti' | 'da-sistemare' | 'qui'
 type Conferma = { titolo: string; testo: string; etichetta: string; corpo: Corpo }
 type Corpo = { azione: IdAzioneGestione | 'ritira'; id?: string; ids?: string[]; tieni?: string; pc?: string; percorso?: string; nome?: string; ws?: string }
 
-const quando = (iso: string | undefined): string => (iso === undefined ? '—' : new Date(iso).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' }))
+const quando = (iso: string | undefined): string => (iso === undefined ? '—' : dataBreve(iso))
 
 function Titolo({ id, testo }: { id: IdAzioneGestione; testo?: string }): React.JSX.Element {
   return <span className="gp__etichetta">{testo ?? TESTI_AZIONI[id].titolo} <Aiuto di={TESTI_AZIONI[id].titolo}>{TESTI_AZIONI[id].spiega}</Aiuto></span>

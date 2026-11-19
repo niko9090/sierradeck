@@ -1,4 +1,5 @@
 import { TESTO_IN_AGGIORNAMENTO, testoAggiornamentoRemoto } from './aggiornamento-remoto'
+import { dataBreve } from './tempo-it'
 
 /**
  * Trovare gli altri PC **senza il Drive** (0.39.3).
@@ -149,19 +150,14 @@ export type StatoPc = {
   aggiornando?: { versione: string }
 }
 
-function quando(iso: string | undefined): string {
-  if (iso === undefined || iso === '') return ''
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' })
-}
-
 /**
- * Com'e' quel PC, dopo il bussare. La regola di Nicholas: **mai «spento»**
- * quando non lo si sa. Se il battito e' vecchio e nessun indirizzo risponde,
- * il PC puo' essere spento, su un'altra rete, o con il firewall chiuso: si dice
- * «non so se e' acceso» e cosa fare.
+ * Com'e' quel PC, dopo il bussare (i titoli del riquadro). La regola di Nicholas:
+ * **mai «spento»** quando non lo si sa. Se il battito e' vecchio e nessun
+ * indirizzo risponde, il PC puo' essere spento, su un'altra rete, o con il
+ * firewall chiuso: si dice «non so se e' acceso» e cosa fare.
+ * Lo stato dal battito (soglie, tempo) è `statoPc` in `stato-pc.ts`: qui no.
  */
-export function statoPc(p: {
+export function titoloDopoIlBussare(p: {
   nome: string
   ping: PingPc | undefined
   /** Il battito sul Drive e' recente (meno di 5 minuti). */
@@ -207,7 +203,7 @@ export function statoPc(p: {
   }
   // 19/11: l'Aiutante di quel PC ha un battito recente e SierraDeck là non è aperto: il PC è acceso, non è un guasto.
   if (p.soloAiutante === true) return { stato: 'solo-aiutante', titolo: `${n} è acceso, lavora solo l’Aiutante (SierraDeck non è aperto)`, cosaFare: '' }
-  const segno = quando(p.ultimoSegno)
+  const segno = dataBreve(p.ultimoSegno)
   const perche = p.driveCollegato
     ? (segno !== '' ? `l’ultimo segno sul Drive è del ${segno}` : 'sul Drive non ha mai lasciato un segno')
     : `il Drive di questo PC è scollegato, quindi i segni di vita degli altri PC non arrivano più${segno !== '' ? ` (l’ultimo che ho è del ${segno})` : ''}`
@@ -265,7 +261,7 @@ export function messaggioErroreRemoto(motivo: string, nome: string, dettaglio?: 
     case 'cartella':
       return `${nome} risponde, ma lì la cartella del progetto non c’è. Controlla che non sia stata spostata o rinominata su ${nome}; se il progetto è sul Drive, «Sposta su questo PC» lo porta qui.`
     case 'chiave':
-      return statoPc({ nome, ping: { esito: 'chiave', indirizzo: '' }, battitoVivo: true, driveCollegato: true, porta: 0 }).cosaFare
+      return titoloDopoIlBussare({ nome, ping: { esito: 'chiave', indirizzo: '' }, battitoVivo: true, driveCollegato: true, porta: 0 }).cosaFare
     case 'rifiutato':
       // Il 403 della rete («solo dalla rete locale») ha la sua spiegazione;
       // ogni altro 403 ha un motivo suo, detto da quel PC (0.60.5: «cartella
@@ -273,7 +269,7 @@ export function messaggioErroreRemoto(motivo: string, nome: string, dettaglio?: 
       if (dettaglio !== undefined && dettaglio !== '' && dettaglio !== RIFIUTO_DI_RETE && !/^errore \d+$/.test(dettaglio)) {
         return `${nome} rifiuta la richiesta: «${dettaglio}».`
       }
-      return statoPc({ nome, ping: { esito: 'rifiutato', indirizzo: '' }, battitoVivo: true, driveCollegato: true, porta: 0 }).cosaFare
+      return titoloDopoIlBussare({ nome, ping: { esito: 'rifiutato', indirizzo: '' }, battitoVivo: true, driveCollegato: true, porta: 0 }).cosaFare
     case 'pin':
       return `Questa chat su ${nome} è protetta dal PIN: inseriscilo qui per vederla e scriverle. Lo controlla ${nome}, e si richiude dopo il tempo di inattività impostato là.`
     case 'cassaforte':
@@ -360,11 +356,11 @@ export function avvisoDriveScollegato(p: { configurato: boolean; connesso: boole
   const t = p.dal !== undefined ? Date.parse(p.dal.quando) : Number.NaN
   const giorni = Number.isNaN(t) ? undefined : Math.max(0, Math.floor((p.adesso - t) / 86_400_000))
   const da = giorni === undefined ? '' : giorni === 0 ? ' da oggi' : giorni === 1 ? ' da 1 giorno' : ` da ${giorni} giorni`
-  const data = Number.isNaN(t) ? '' : new Date(t).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' })
+  const data = dataBreve(p.dal.quando)
   const durata = p.dal?.collegatoIl !== undefined ? t - Date.parse(p.dal.collegatoIl) : Number.NaN
   const setteGiorni = !Number.isNaN(durata) && Math.abs(durata - 7 * 86_400_000) < 6 * 3_600_000
   const perche = p.dal?.motivo === 'revocata' && setteGiorni
-    ? `Il ${data} Google ha smesso di riconoscere l’autorizzazione di SierraDeck al tuo Drive, sette giorni esatti dopo il collegamento (${new Date(Date.parse(p.dal.collegatoIl ?? '')).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' })}). È il limite che Google mette alle app OAuth ancora «in prova» (Testing): il permesso dura una settimana. Ricollegarlo funziona per altri sette giorni; per non doverlo più rifare, l’app OAuth di SierraDeck va messa «In produzione» nella console di Google Cloud (schermata di consenso OAuth).`
+    ? `Il ${data} Google ha smesso di riconoscere l’autorizzazione di SierraDeck al tuo Drive, sette giorni esatti dopo il collegamento (${dataBreve(p.dal.collegatoIl)}). È il limite che Google mette alle app OAuth ancora «in prova» (Testing): il permesso dura una settimana. Ricollegarlo funziona per altri sette giorni; per non doverlo più rifare, l’app OAuth di SierraDeck va messa «In produzione» nella console di Google Cloud (schermata di consenso OAuth).`
     : p.dal?.motivo === 'revocata'
     ? `Il ${data} Google ha rifiutato l’autorizzazione di SierraDeck al tuo Drive (risposta «invalid_grant» al rinnovo, e un secondo rinnovo di prova ha dato lo stesso): non è un guasto di questo PC, è Google che non riconosce più il collegamento. Succede se l’accesso è stato revocato dall’account Google, se è cambiata la password, o se l’app OAuth è ancora «in prova» (lì il permesso dura sette giorni).`
     : p.dal?.motivo === 'a-mano'

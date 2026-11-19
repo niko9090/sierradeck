@@ -2,6 +2,8 @@ import { createPortal } from 'react-dom'
 import { useEffect, useState } from 'react'
 import { Aiuto } from './Aiuto'
 import type { BattitoPc, VocePosta } from '@shared/posta'
+import { dataBreve } from '@shared/tempo-it'
+import { etichettaStatoPc } from '@shared/vocabolario-stati-pc'
 
 type Props = {
   pc: BattitoPc
@@ -9,12 +11,6 @@ type Props = {
   onChiudi: () => void
   /** Da un riquadro «chat di un altro PC»: la cartella e la conversazione gia' scelte. */
   presel?: { cwd?: string; sessione?: string }
-}
-
-function quando(iso: string | undefined): string {
-  if (iso === undefined) return ''
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' })
 }
 
 function nomeCartella(p: string): string {
@@ -79,7 +75,7 @@ export function ModalePosta({ pc, vivo, onChiudi, presel }: Props): React.JSX.El
     <div className="velo" onMouseDown={(e) => { if (e.target === e.currentTarget) onChiudi() }}>
       <div className="dialogo dialogo--largo" onMouseDown={(e) => e.stopPropagation()}>
         <div className="dialogo__testa">
-          <span className="serigrafia">Azioni su {pc.nome} · {vivo ? 'acceso' : `spento (ultimo segno ${quando(pc.battito)})`}</span>
+          <span className="serigrafia">Azioni su {pc.nome} · {vivo ? etichettaStatoPc('acceso') : `${etichettaStatoPc('spento')} (ultimo segno ${dataBreve(pc.battito)})`}</span>
           <Aiuto di="Azioni su un altro PC">
           Quello che scrivi qui si esegue <b>solo su {pc.nome}</b>, in una sua chat, nella cartella che scegli: è la strada per
           una cartella che sta là (un disco di rete montato solo su quel PC, un progetto che non viaggia sul Drive). La voce
@@ -103,7 +99,7 @@ export function ModalePosta({ pc, vivo, onChiudi, presel }: Props): React.JSX.El
               <div>
                 <div style={{ whiteSpace: 'pre-wrap' }}>{v.testo}</div>
                 <div className="account__nota" style={{ margin: 0 }}>
-                  in {nomeCartella(v.cwd)}{v.sessione !== undefined ? ' · a una chat precisa' : ''} · da {v.daNome} il {quando(v.creataIl)}
+                  in {nomeCartella(v.cwd)}{v.sessione !== undefined ? ' · a una chat precisa' : ''} · da {v.daNome} il {dataBreve(v.creataIl)}
                   {v.apertaIl !== undefined ? ' · ho aperto una chat, aspetto che sia pronta' : ''}
                 </div>
               </div>
@@ -117,7 +113,7 @@ export function ModalePosta({ pc, vivo, onChiudi, presel }: Props): React.JSX.El
               </summary>
               {finite.map((v) => (
                 <div key={v.id} className="account__nota" style={{ margin: '4px 0', color: v.stato === 'fallita' ? 'var(--ambra)' : undefined }}>
-                  {v.stato === 'fallita' ? '✗' : '✓'} {v.testo.slice(0, 80)} — {v.esito ?? v.stato} · {quando(v.consegnataIl)}
+                  {v.stato === 'fallita' ? '✗' : '✓'} {v.testo.slice(0, 80)} — {v.esito ?? v.stato} · {dataBreve(v.consegnataIl)}
                 </div>
               ))}
               <button className="tasto tasto--mini" disabled={occupato} onClick={() => con(window.gestore.posta.pulisci(pc.pcId))}>Pulisci le chiuse</button>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { statoPc } from '../../src/shared/scoperta-pc'
+import { titoloDopoIlBussare } from '../../src/shared/scoperta-pc'
 import { vistoDelPc } from '../../src/shared/stato-pc'
 
 const ADESSO = Date.parse('2026-11-19T21:59:43Z')
@@ -12,9 +12,9 @@ const sierra = (battito: string, host = 'PC-FINTO-A'): B => ({ pcId: 'sd', host,
 const aiutante = (battito: string, host = 'PC-FINTO-A'): B => ({ pcId: 'ai', host, aiutante: true, battito })
 
 /** Come fa `statoDa` di pc-remoto: il battito più recente dei due, il flag, poi il bussare andato a vuoto. */
-function stato(lista: B[]): ReturnType<typeof statoPc> {
+function stato(lista: B[]): ReturnType<typeof titoloDopoIlBussare> {
   const { visto, soloAiutante } = vistoDelPc(lista, 'sd', ADESSO)
-  return statoPc({
+  return titoloDopoIlBussare({
     nome: 'PC-FINTO-A',
     ping: { esito: 'muto', provati: ['10.0.0.1:47640'] },
     battitoVivo: soloAiutante,
@@ -50,7 +50,7 @@ describe('scoperta del PC con l’Aiutante', () => {
     expect(vistoDelPc(lista, 'sd', ADESSO).soloAiutante).toBe(false)
     // Se bussando non risponde, è il caso di sempre: acceso secondo il Drive ma non si raggiunge.
     const { visto } = vistoDelPc(lista, 'sd', ADESSO)
-    const s = statoPc({ nome: 'PC-FINTO-A', ping: { esito: 'muto', provati: ['10.0.0.1:47640'] }, battitoVivo: true, ultimoSegno: visto as string, driveCollegato: true, porta: 47640 })
+    const s = titoloDopoIlBussare({ nome: 'PC-FINTO-A', ping: { esito: 'muto', provati: ['10.0.0.1:47640'] }, battitoVivo: true, ultimoSegno: visto as string, driveCollegato: true, porta: 47640 })
     expect(s.stato).toBe('irraggiungibile')
   })
 
@@ -66,7 +66,7 @@ describe('scoperta del PC con l’Aiutante', () => {
   })
 
   it('un PC che risponde resta «acceso e risponde», anche con il solo Aiutante vivo', () => {
-    const s = statoPc({ nome: 'PC-FINTO-A', ping: { esito: 'risponde', indirizzo: '10.0.0.1' }, battitoVivo: true, soloAiutante: true, driveCollegato: true, porta: 47640 })
+    const s = titoloDopoIlBussare({ nome: 'PC-FINTO-A', ping: { esito: 'risponde', indirizzo: '10.0.0.1' }, battitoVivo: true, soloAiutante: true, driveCollegato: true, porta: 47640 })
     expect(s.stato).toBe('acceso')
   })
 })

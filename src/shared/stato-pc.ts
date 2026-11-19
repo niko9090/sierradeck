@@ -13,6 +13,8 @@
  * Puro: nessun orologio, nessun Drive.
  */
 
+import { TESTO_IN_AGGIORNAMENTO } from './aggiornamento-remoto'
+
 const MINUTO = 60_000
 const ORA = 60 * MINUTO
 const GIORNO = 24 * ORA
@@ -25,7 +27,10 @@ export const DISMETTI_DOPO_MS = 7 * GIORNO
 export const RIMUOVI_DOPO_MS = 30 * GIORNO
 
 export type StatoPc = {
-  stato: 'acceso' | 'spento' | 'da-rimuovere'
+  /** `in-aggiornamento` (k-agg1): il PC tace perché si sta aggiornando; mai «spento» né «non risponde». */
+  stato: 'acceso' | 'spento' | 'in-aggiornamento' | 'da-rimuovere'
+  /** Presente solo con `in-aggiornamento`: la versione che installa. */
+  aggiornando?: { versione: string }
   /** Da quanto tace; 0 se acceso, o se il battito è nel futuro (orologio sbagliato) o illeggibile. */
   spentoDaMs: number
   /** Quanti giorni (interi, per eccesso) mancano alla rimozione automatica; `null` se non si sa (battito illeggibile) o se è acceso. */
@@ -46,7 +51,16 @@ function durata(ms: number): string {
  * un PC sbagliato) o illeggibile non fa mai «da-rimuovere»: nel dubbio il PC
  * resta; il futuro conta come acceso, come ha sempre fatto `pcVivo`.
  */
-export function statoPc(battitoIso: string | undefined, adesso: number): StatoPc {
+export function statoPc(battitoIso: string | undefined, adesso: number, aggiornando?: { versione: string } | null): StatoPc {
+  const st = statoDalBattito(battitoIso, adesso)
+  // k-agg1: un PC che tace perché si aggiorna non è spento. Se il battito è fresco resta acceso.
+  if (aggiornando != null && st.stato !== 'acceso') {
+    return { stato: 'in-aggiornamento', spentoDaMs: st.spentoDaMs, giorniAllaRimozione: null, frase: TESTO_IN_AGGIORNAMENTO, aggiornando: { versione: aggiornando.versione } }
+  }
+  return st
+}
+
+function statoDalBattito(battitoIso: string | undefined, adesso: number): StatoPc {
   const t = battitoIso === undefined ? Number.NaN : Date.parse(battitoIso)
   if (Number.isNaN(t)) return { stato: 'spento', spentoDaMs: 0, giorniAllaRimozione: null, frase: 'spento, non so da quanto' }
   const da = adesso - t
