@@ -727,15 +727,19 @@ describe('la posta per un PC, dal telefono', () => {
       pcIo: () => 'B',
       pc: () => Promise.resolve([
         { pcId: 'A', nome: 'Torre', versione: '0.27.0', battito: '2026-09-14T08:09:00.000Z', cartelle: ['Z:\\gest'], chat: [{ sessione: 's1', titolo: 'g', cwd: 'Z:\\gest', aspetta: true }] },
-        { pcId: 'C', nome: 'Vecchio', versione: '0.27.0', battito: '2026-09-14T07:00:00.000Z', cartelle: [], chat: [] }
+        { pcId: 'C', nome: 'Vecchio', versione: '0.27.0', battito: '2026-09-14T07:00:00.000Z', cartelle: [], chat: [] },
+        { pcId: 'D', nome: 'Dimenticato', versione: '0.27.0', battito: '2026-08-01T07:00:00.000Z', cartelle: [], chat: [] }
       ]),
       posta: () => Promise.resolve({ voci }),
       postaAggiungi: (_pc, v) => { voci = [...voci, { id: 'a2', testo: v.testo, cwd: v.cwd, creataIl: 'y', daPc: 'B', daNome: 'Portatile', stato: 'attesa' as const }]; return Promise.resolve({ voci }) },
       postaTogli: (_pc, voce) => { voci = voci.filter((v) => v.id !== voce); return Promise.resolve({ voci }) }
     })
-    const elenco = (await rotteClient(d)({ metodo: 'GET', percorso: '/api/pc', corpo: undefined })).corpo as { io: string; pc: { pcId: string; vivo: boolean }[] }
+    const elenco = (await rotteClient(d)({ metodo: 'GET', percorso: '/api/pc', corpo: undefined })).corpo as { io: string; pc: { pcId: string; vivo: boolean; stato: string; frase: string; giorniAllaRimozione: number | null }[] }
     expect(elenco.io).toBe('B')
-    expect(elenco.pc.map((p) => [p.pcId, p.vivo])).toEqual([['A', true], ['C', false]])
+    // Il PC fermo da oltre 30 giorni non c'e' piu'; gli altri portano i campi di statoPc.
+    expect(elenco.pc.map((p) => [p.pcId, p.vivo, p.stato])).toEqual([['A', true, 'acceso'], ['C', false, 'spento']])
+    expect(elenco.pc[0]).toMatchObject({ frase: 'acceso', giorniAllaRimozione: null })
+    expect(elenco.pc[1]).toMatchObject({ frase: 'spento da 1 ora · si toglie fra 30 giorni', giorniAllaRimozione: 30 })
     const lettura = await rotteClient(d)({ metodo: 'POST', percorso: '/api/posta', corpo: { pc: 'A' } })
     expect((lettura.corpo as { voci: unknown[] }).voci).toHaveLength(1)
     const messa = await rotteClient(d)({ metodo: 'POST', percorso: '/api/posta/aggiungi', corpo: { pc: 'A', cwd: ' Z:\\gest ', testo: '  poi il changelog ' } })

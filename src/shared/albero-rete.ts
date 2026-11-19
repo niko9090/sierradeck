@@ -1,4 +1,5 @@
-import { eAiutante, bloccoDiAiutante, pcVivo, type BattitoPc } from './posta'
+import { eAiutante, bloccoDiAiutante, type BattitoPc } from './posta'
+import { statoPc } from './stato-pc'
 import { nomeDaMostrare } from './nome-pc'
 import { quantoFa, versionePcInBreve, prima } from './salute'
 import { inCorso, type AvanzamentoInstallaLa } from './installa-la'
@@ -26,7 +27,7 @@ export type NodoRete = {
   nome: string
   tipo: 'io' | 'pc' | 'aiutante'
   acceso: boolean
-  /** «PC di sviluppo», «spento da 2 h»…: le targhette accanto al nome. */
+  /** «PC di sviluppo», la frase di `statoPc` se è spento…: le targhette accanto al nome. */
   targhette: string[]
   righe: RigaNodo[]
   /** L'aggiornamento a distanza o di questo PC, se c'è qualcosa da dire. */
@@ -119,12 +120,14 @@ export function alberoRete(d: DatiAlbero): AlberoRete {
   const aiutanti: NodoRete[] = []
   for (const b of d.pc) {
     if (b.pcId === d.io.id) continue
-    const acceso = pcVivo(b, d.adesso)
+    const st = statoPc(b.battito, d.adesso)
+    if (st.stato === 'da-rimuovere') continue
+    const acceso = st.stato === 'acceso'
     const nome = nomeDaMostrare(b)
     const segno = quantoFa(b.battito, d.adesso).replace(/^1 minuti fa$/u, '1 minuto fa')
     const righe: RigaNodo[] = []
     const targhette: string[] = []
-    if (!acceso) targhette.push('spento')
+    if (!acceso) targhette.push(st.frase)
     if (eAiutante(b)) {
       targhette.unshift('Aiutante')
       righe.push({ etichetta: 'Versione', valore: `Aiutante ${b.versione}` })

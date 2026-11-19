@@ -2,7 +2,6 @@ import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 
 import { createPortal } from 'react-dom'
 import { postoTendina, type PostoTendina } from '@shared/menu-workspace'
 import { ALTRI_PC_CON_RICERCA, filtraAltriPc, riassuntoAltriPc, statoPcBreve, type GruppoAltroPc, type VoceAltroPc } from '@shared/workspace-remoti'
-import { quantoFa } from '@shared/salute'
 import { EVENTO_REMOTI } from '../workspace-remoti'
 import { Aiuto } from './Aiuto'
 import { apriMenuContestuale } from '../menu-contestuale'
@@ -103,7 +102,6 @@ export function SezioneAltriPc({ attivo, nomi, onCambia }: {
   if (gruppi.length === 0) return null
   const r = riassuntoAltriPc(gruppi, attivo)
   const conRicerca = gruppi.length > ALTRI_PC_CON_RICERCA
-  const fa = (iso: string): string => quantoFa(iso, Date.now())
   const chiudi = (): void => { setAperta(false); setCerca('') }
   const espanso = (pcId: string): boolean => espansi.has(pcId) || filtrati.trovatiDentro.has(pcId)
   const commuta = (pcId: string, si?: boolean): void => setEspansi((prima) => {
@@ -183,7 +181,7 @@ export function SezioneAltriPc({ attivo, nomi, onCambia }: {
           <span className="altri-pc__freccia" aria-hidden="true">{su ? '▾' : '▸'}</span>
           <span className={`led ${g.vivo ? 'led--lavoro' : 'led--finito'}`} aria-hidden="true" />
           <span className="altri-pc__nome">{g.nome}</span>
-          <span className="altri-pc__stato">{statoPcBreve(g, fa)}</span>
+          <span className="altri-pc__stato">{statoPcBreve(g)}</span>
           <span className="altri-pc__quanti" title={`${g.voci.length} workspace${aperti > 0 ? `, ${aperti} aperti qui` : ''}`}>
             {aperti > 0 ? <b>{aperti}/</b> : null}{g.voci.length}
           </span>

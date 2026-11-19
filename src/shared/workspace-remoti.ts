@@ -1,3 +1,5 @@
+import { statoPc, daRimuovere } from './stato-pc'
+
 /**
  * **I workspace degli altri PC** (sezione «Altri PC»), le regole pure.
  *
@@ -121,17 +123,16 @@ export type VoceAltroPc = { nome: string; aperto: boolean; davanti: boolean; spa
  * Un PC della sezione, con i suoi workspace. `versione` e `visto` (l'ultimo
  * battito, ISO) ci sono solo se il battito li porta.
  */
-export type GruppoAltroPc = { pcId: string; nome: string; vivo: boolean; voci: VoceAltroPc[]; versione?: string; visto?: string }
+export type GruppoAltroPc = { pcId: string; nome: string; vivo: boolean; /** La frase di `statoPc`: «acceso», «spento da 3 ore · si toglie fra 29 giorni». */ frase: string; voci: VoceAltroPc[]; versione?: string; visto?: string }
 
 /** Un PC come lo dà il battito, per la sezione. `aiutante`: SierraDeck Aiutante, che qui non compare. */
 export type PcPerSezione = {
   pcId: string
   nome: string
-  vivo: boolean
   workspace?: readonly string[] | undefined
   aiutante?: boolean | undefined
   versione?: string | undefined
-  /** L'ultimo battito (ISO). */
+  /** L'ultimo battito (ISO): da lì `statoPc` dice se è acceso, spento o da togliere. */
   visto?: string | undefined
 }
 
@@ -147,22 +148,25 @@ export function gruppiAltriPc(p: {
   remoti: Readonly<Record<string, WorkspaceRemoto>>
   pc: readonly PcPerSezione[]
   attivo: string
+  adesso: number
 }): GruppoAltroPc[] {
   const qui = new Set(p.nomiQui.map((n) => n.toLowerCase()))
   const gruppi = new Map<string, GruppoAltroPc>()
   // Gli Aiutanti (13/11, Nicholas: «non elencare gli Aiutanti») non hanno workspace: stanno in «Altri computer».
-  const pcs = p.pc.filter((pc) => pc.aiutante !== true)
+  // Un PC da rimuovere (oltre 30 giorni muto) non si elenca più; i suoi workspace già aperti restano nel gruppo.
+  const pcs = p.pc.filter((pc) => pc.aiutante !== true && !daRimuovere(pc.visto, p.adesso))
   for (const pc of pcs) {
     if (gruppi.has(pc.pcId)) continue
+    const st = statoPc(pc.visto, p.adesso)
     gruppi.set(pc.pcId, {
-      pcId: pc.pcId, nome: pc.nome, vivo: pc.vivo, voci: [],
+      pcId: pc.pcId, nome: pc.nome, vivo: st.stato === 'acceso', frase: st.frase, voci: [],
       ...(pc.versione !== undefined && pc.versione !== '' ? { versione: pc.versione } : {}),
       ...(pc.visto !== undefined && pc.visto !== '' ? { visto: pc.visto } : {})
     })
   }
   for (const [nome, r] of Object.entries(p.remoti)) {
     let g = gruppi.get(r.pcId)
-    if (g === undefined) { g = { pcId: r.pcId, nome: r.pcNome, vivo: false, voci: [] }; gruppi.set(r.pcId, g) }
+    if (g === undefined) { g = { pcId: r.pcId, nome: r.pcNome, vivo: false, frase: statoPc(undefined, p.adesso).frase, voci: [] }; gruppi.set(r.pcId, g) }
     g.voci.push({ nome, aperto: true, davanti: nome === p.attivo, ...(r.sparito === true ? { sparito: true } : {}) })
   }
   for (const pc of pcs) {
@@ -235,12 +239,11 @@ export function filtraAltriPc(gruppi: readonly GruppoAltroPc[], testo: string): 
 }
 
 /**
- * La riga di stato di un PC nella tendina: «acceso», «spento · visto 3 ore fa»,
- * con la versione se c'è. `quantoFa` è quello della Salute.
+ * La riga di stato di un PC nella tendina: la frase di `statoPc` («acceso»,
+ * «spento da 3 ore · si toglie fra 29 giorni»), con la versione se c'è.
  */
-export function statoPcBreve(g: Pick<GruppoAltroPc, 'vivo' | 'visto' | 'versione'>, quantoFa: (iso: string) => string): string {
-  const stato = g.vivo ? 'acceso' : g.visto !== undefined ? `spento · visto ${quantoFa(g.visto)}` : 'spento'
-  return g.versione !== undefined ? `${stato} · v${g.versione}` : stato
+export function statoPcBreve(g: Pick<GruppoAltroPc, 'frase' | 'versione'>): string {
+  return g.versione !== undefined ? `${g.frase} · v${g.versione}` : g.frase
 }
 
 /**

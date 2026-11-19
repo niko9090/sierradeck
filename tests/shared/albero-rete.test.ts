@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { alberoRete } from '../../src/shared/albero-rete'
+import { statoPc } from '../../src/shared/stato-pc'
 import type { BattitoPc } from '../../src/shared/posta'
 import type { AvanzamentoInstallaLa } from '../../src/shared/installa-la'
 
@@ -45,9 +46,21 @@ describe('alberoRete', () => {
   it('un PC spento non si aggiorna da remoto e dice da quando tace', () => {
     const casa = alberoRete(dati).rami[0]!.nodi[1]!
     expect(casa.acceso).toBe(false)
-    expect(casa.targhette).toContain('spento')
+    expect(casa.targhette).toContain(statoPc(fa(600), ADESSO).frase)
     expect(casa.aggiornabile).toBe(false)
     expect(casa.righe.find((r) => r.etichetta === 'Ultimo segno')?.valore).toBe('10 ore fa')
+  })
+
+  it('un PC da rimuovere (oltre 30 giorni) non compare, né fra i PC né fra gli Aiutanti', () => {
+    const trenta = 31 * 24 * 60
+    const a = alberoRete({ ...dati, pc: [...dati.pc, pc({ pcId: 'x', nome: 'Dimenticato', battito: fa(trenta) }), pc({ pcId: 'y', nome: 'Dimenticato2', aiutante: true, battito: fa(trenta) })] })
+    expect(a.rami[0]!.nodi.map((n) => n.nome)).toEqual(['Portatile', 'Casa'])
+    expect(a.rami[1]!.nodi.map((n) => n.nome)).toEqual(['Muletto', 'Vecchio'])
+  })
+
+  it('i PC spenti portano la frase di statoPc con i giorni alla rimozione', () => {
+    const a = alberoRete({ ...dati, pc: [pc({ pcId: 'z', nome: 'Fermo', battito: fa(5 * 24 * 60) })] })
+    expect(a.rami[0]!.nodi[0]!.targhette).toEqual(['spento da 5 giorni · si toglie fra 25 giorni'])
   })
 
   it('un Aiutante fermo lo dice in rosso e non è mai «aggiornabile» da qui', () => {
