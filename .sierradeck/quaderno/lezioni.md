@@ -309,6 +309,7 @@
 - pausa-aggiornamento.json era sempre `sessioni: []`: chi parte dopo la quiete (consegna dell'autopilota durante il salvataggio) non si annotava; ora si ricontrolla dopo `prepara` e all'uscita. _(2026-11-09)_
 - Il servizio parte dopo che il Gestore ha letto e cancellato pausa-aggiornamento.json e aggiornamento-in-corso.json: per capire se c'è stato un update servono i segni nell'archivio o il payload di /ge… _(2026-11-09)_
 - il 504 di GitHub passa solo se l'errore ha statusCode o inizia con il codice seguito da Headers; l'HttpError con descrizione o frase vuota non è coperto dai test _(2026-11-10)_
+- `creaAggiornamenti` prende parametri posizionali in coda: un nuovo aggancio (come `annunciaAgliAltri`) va aggiunto per ultimo, senza toccare l'ordine. _(2026-11-19)_
 
 ## installa-la
 
@@ -420,6 +421,7 @@
 
 - per i 404 di rotte che non riguardano chat, il motivo si decide dal testo dell'errore in `datiDa`; `motivoDaStatoHttp(404)` dà sempre 'chat' _(2026-11-09)_
 - ROTTE_LENTE deve combaciare con Api.kt dell'app (test android): le rotte lente solo fra PC vanno in ROTTE_LENTE_FRA_PC, così non serve un APK nuovo. _(2026-11-11)_
+- due funzioni si chiamano `statoPc` (`shared/stato-pc.ts` e `shared/scoperta-pc.ts`): i titoli del riquadro vengono dalla seconda, il tempo dal battito della prima. _(2026-11-19)_
 
 ## pagina
 
@@ -596,6 +598,8 @@
 - Prima della release controllare che android/novita-app.txt abbia la voce della versione app: pubblica-app si ferma se manca, e la 0.110.0 è uscita senza APK 3.2.0. _(2026-11-19)_
 - `npm run pubblica` supera i 10 minuti (prove, build, Aiutante): va in sottofondo da solo. Si controlla con `gh release view --json assets` finché i file sono 7, senza lanciarlo due volte. _(2026-11-19)_
 - se `pubblica` fallisce sui test, tag e bozza restano senza file: va rilanciato lo stesso comando, non ricreati. _(2026-11-19)_
+- Se `npm run pubblica` si ferma a metà, la bozza resta con i primi 3 file. Rilanciarlo sulla stessa bozza completa gli altri file, compresi quelli dell'Aiutante, senza crearne una seconda. _(2026-11-19)_
+- `gh release view --json` non ha il campo isLatest: per sapere se è Latest usare `gh release list`. _(2026-11-19)_
 
 ## build
 
@@ -665,6 +669,7 @@
 
 - Gli affidati ad altri PC stanno solo in `aiuti-affidati.json` (non in `orchestratore.stato`): ogni vista che filtra `s.pc === undefined` li perde. _(2026-11-16)_
 - menu-specialisti.ts finisce nello script della pagina con .toString(): niente helper importati dentro, testi italiani scritti nella funzione stessa. _(2026-11-16)_
+- Il telefono ha tre strutture diverse (PC 7+1 voci, pagina `MENU_TELEFONO` 4 voci, app `Navigazione.kt` 3 voci). Cambiare `MENU_PRINCIPALE` non basta: l'app legge `assets/menu.json` e l'enum va ritocc… _(2026-11-19)_
 
 ## panoramica
 
@@ -683,6 +688,7 @@
 ## stato
 
 - il tono `riposo` di `fraseStatoOrchestratore` vale sia per «a riposo» sia per «in attesa di unioni»: `autopiloti-vista` lo legge come finito. Serve distinguere dal testo. _(2026-11-16)_
+- Esistono due funzioni `statoPc`: `shared/stato-pc.ts` (battito, soglia 35 min) e `shared/scoperta-pc.ts` (ping). Importare quella sbagliata cambia la soglia senza errori. _(2026-11-19)_
 
 ## chat
 
@@ -741,6 +747,7 @@
 
 - Un battito nel futuro conta «acceso» (come pcVivo) e uno illeggibile «spento» ma mai da rimuovere: con un orologio sbagliato la rimozione automatica non deve scattare. _(2026-11-19)_
 - `gruppiAltriPc` ora vuole `adesso` e non più `vivo`: stato e frase si ricavano da `visto` con `statoPc`. _(2026-11-19)_
+- Due `statoPc`: shared/stato-pc.ts (sul battito) e shared/scoperta-pc.ts (sul ping). Lo stato `in-aggiornamento` è solo nel secondo; aggiungere un valore all'unione richiede di controllare gli switch … _(2026-11-19)_
 
 ## rotte
 
@@ -753,3 +760,7 @@
 ## versione
 
 - Una versione tocca package.json, package-lock.json (2 punti), novita.ts e una nota nel quaderno. Android si alza solo se android/ cambia oltre a novita-app.txt, che è solo testo. _(2026-11-19)_
+
+## aggiornamento
+
+- il battito Drive (`shared/posta.ts` riga 61) non porta nessun campo di aggiornamento: chi guarda da un altro PC non sa che quel PC si sta installando. _(2026-11-19)_
