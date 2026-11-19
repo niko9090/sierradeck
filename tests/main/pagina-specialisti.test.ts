@@ -57,11 +57,10 @@ describe('la pagina: Specialisti', () => {
     expect(() => new Function(script)).not.toThrow()
   })
 
-  it('sta in Altro, dopo le prime quattro sezioni (quelle dell’app), e il suo posto è «aperto»', () => {
-    const i = SEZIONI_ALTRO.findIndex((s) => s.id === 'specialisti')
-    expect(i).toBeGreaterThanOrEqual(4)
-    expect(SEZIONI_ALTRO[i]).toMatchObject({ titolo: 'Specialisti', impostazioni: false })
-    expect(pannelliDelPosto(apriSezioneAltro(postoIniziale(), 'specialisti'))).toEqual(['specialisti'])
+  it('k-u6: non è più una sezione di Altro, sta dentro Autopiloti e il suo posto è «aperto» lì', () => {
+    expect(SEZIONI_ALTRO.some((s) => s.id === 'specialisti')).toBe(false)
+    expect(pannelliDelPosto(postoIniziale())).toEqual(['specialisti'])
+    expect(pannelliDelPosto(apriSezioneAltro(postoIniziale(), 'pc'))).toEqual(['pc'])
   })
 
   it('mostra i posti, chi lavora e chi è in fila, con i tasti', () => {
