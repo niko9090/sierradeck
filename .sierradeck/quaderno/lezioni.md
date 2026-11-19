@@ -365,6 +365,8 @@
 - `npm run pubblica-app` esige la voce `versione: 'X'` in `android/novita-app.txt` per il `versionName` corrente: va preparata insieme al bump Android, o l'app resta indietro. _(2026-11-16)_
 - `gh release create --draft --verify-tag` seguito da `npm run pubblica` con `GH_TOKEN` carica tutti e 7 i file senza 422; poi `--draft=false --latest` a mano. _(2026-11-16)_
 - `npm run pubblica-app` copia da solo app-android.json anche sulla release del PC (v0.109.1): non serve altro per le app vecchie. _(2026-11-16)_
+- L'hook rifiuta run_in_background per `npm run pubblica`: lanciarlo davanti; dopo 600 s passa da solo in sottofondo (non rilanciarlo) e un `until [ -s output ]` attende la fine. _(2026-11-19)_
+- `pubblica` allega da solo json e Aiutante e lascia la release in bozza: alla fine servono `gh release edit --draft=false --latest` e il controllo dei 7 file. _(2026-11-19)_
 
 ## tsconfig
 
@@ -644,6 +646,7 @@
 - a ogni avvio il primo controllo di Claude non ha uno stato precedente, quindi un accesso mancante diventa errore a ogni aggiornamento: uno stato che si risolve a mano è un avviso. _(2026-11-16)_
 - la versione dell'Aiutante sta in src/aiutante/versione.json e va alzata insieme alla voce in novita-aiutante.txt; novita.ts e package.json sono del programma completo. _(2026-11-16)_
 - L'Aiutante è una registrazione `pc-<id>` a parte, con `aiutante:true` e lo stesso `host` di SierraDeck: per legare i due si usa `host`, non il pcId. _(2026-11-19)_
+- Per sapere se un PC è acceso solo grazie all'Aiutante usa `vistoDelPc` (stato-pc.ts); se serve una nuova vista sul battito, passa da lì invece di rifare l'abbinamento per host. _(2026-11-19)_
 
 ## blocco
 
@@ -723,6 +726,7 @@
 - «Dismetti questo PC» esiste già (7 giorni, solo `pc-<id>` dal Drive, `src/main/progetti/posta.ts:558`): la scadenza dei 30 giorni va costruita sopra questo, non accanto. _(2026-11-19)_
 - La soglia di 7 giorni è scritta due volte, `posta.ts:116` e `salute.ts:273`: cambiarne una sola lascia la Salute e la logica in disaccordo. _(2026-11-19)_
 - Il rapporto del controllo elenca anche i PC spenti, e ognuno porta il paragrafo di Salute con «Accendi X»: se si toglie un PC dalla lista va tolto anche da `testoRapporto` (`controllo-pc.ts:152`). _(2026-11-19)_
+- `statoPc` di scoperta-pc.ts e `statoPc` di stato-pc.ts sono due funzioni diverse (stessa parola): la prima è il bussare, la seconda la soglia del battito. _(2026-11-19)_
 
 ## posta
 
