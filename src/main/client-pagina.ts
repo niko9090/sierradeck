@@ -2525,7 +2525,7 @@ function pannello(s) {
         (pcVisti !== null && pc.length === 0 ? '<div class="sotto" style="margin-top:8px">Nessun altro PC ha ancora lasciato un segno sul Drive: serve SierraDeck 0.27.0 o più nuovo su quel PC, con la cassaforte sbloccata e il Drive collegato.</div>' : '') +
         pc.map((b) =>
           '<button class="cartella" data-pc="' + esc(b.pcId) + '" onclick="apriPc(this.dataset.pc)">' + esc(nomeDaMostrare(b)) + hostPiccolo(b) +
-          '<br><span class="sotto">' + (b.vivo ? 'acceso' : 'spento, ultimo segno ' + esc(String(b.battito || '').slice(0, 16).replace('T', ' '))) +
+          '<br><span class="sotto">' + esc(b.frase || (b.vivo ? 'acceso' : 'spento')) +
           ' · ' + (b.chat || []).length + ' chat aperte · ' + (b.cartelle || []).length + ' cartelle</span>' +
           (b.chat || []).slice(0, 8).map((c) =>
             '<span class="sotto" style="display:flex;gap:6px;align-items:center"><span class="led ' + (!b.vivo ? 'spenta' : c.aspetta ? 'ferma' : 'lavoro') + '"></span>' +
@@ -2538,7 +2538,7 @@ function pannello(s) {
     const attesa = voci.filter((v) => v.stato === 'attesa')
     const chiuse = voci.filter((v) => v.stato !== 'attesa')
     const cartelle = (b.cartelle || [])
-    return '<div class="piastrella"><div class="titolo">Azioni su ' + esc(nomeDaMostrare(b)) + hostPiccolo(b) + ' · ' + (b.vivo ? 'acceso' : 'spento') + aiuto('posta', 'Quello che scrivi qui si esegue solo su ' + esc(nomeDaMostrare(b)) + ', nella cartella scelta, quando e\\' acceso: alla prima chat di quella cartella che aspetta, o a una nuova. Se la cartella la\\' non esiste, la voce fallisce e lo leggi qui.') + '</div>' +
+    return '<div class="piastrella"><div class="titolo">Azioni su ' + esc(nomeDaMostrare(b)) + hostPiccolo(b) + ' · ' + esc(b.frase || (b.vivo ? 'acceso' : 'spento')) + aiuto('posta', 'Quello che scrivi qui si esegue solo su ' + esc(nomeDaMostrare(b)) + ', nella cartella scelta, quando e\\' acceso: alla prima chat di quella cartella che aspetta, o a una nuova. Se la cartella la\\' non esiste, la voce fallisce e lo leggi qui.') + '</div>' +
       (postaErrore ? '<div class="errore" style="margin-top:6px">' + esc(postaErrore) + '</div>' : '') +
       (attesa.length === 0 ? '<div class="sotto" style="margin-top:8px">Nessuna azione in attesa.</div>' : '') +
       attesa.map((v, i) =>

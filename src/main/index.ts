@@ -3132,11 +3132,12 @@ if (!app.requestSingleInstanceLock()) {
           nomiQui: (a?.workspace ?? []).map((w) => w.nome).filter((n) => remoti[n] === undefined),
           remoti,
           pc: battiti.map((b) => ({
-            pcId: b.pcId, nome: nomeDaMostrare(b), vivo: battitoVivo(b.battito, ora), visto: b.battito, versione: b.versione,
+            pcId: b.pcId, nome: nomeDaMostrare(b), visto: b.battito, versione: b.versione,
             ...(eAiutante(b) ? { aiutante: true } : {}),
             ...(b.workspace !== undefined ? { workspace: b.workspace } : {})
           })),
-          attivo: a?.attivo ?? ''
+          attivo: a?.attivo ?? '',
+          adesso: ora
         })
       })
       ipcMain.handle('workspace:apriDaAltroPc', async (e, pcId: unknown, nome: unknown) => {

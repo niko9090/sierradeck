@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { statoPc } from '../../src/shared/stato-pc'
 import {
   ALTRI_PC_CON_RICERCA, filtraAltriPc, gruppiAltriPc, riassuntoAltriPc, statoPcBreve, type GruppoAltroPc
 } from '../../src/shared/workspace-remoti'
@@ -8,19 +9,23 @@ import {
  * sistemali in modo che stiano bene anche quando sono tanti»): un tasto solo
  * nella fascia e una tendina ordinata, con la casella per cercare.
  */
+const ADESSO = Date.parse('2026-11-19T12:00:00Z')
+const fa = (min: number): string => new Date(ADESSO - min * 60_000).toISOString()
+const GIORNO_MIN = 24 * 60
+/** `vivo` = battito di un minuto fa; altrimenti 3 ore fa. Un `visto` esplicito vince. */
 const pc = (pcId: string, nome: string, vivo: boolean, workspace: string[] = [], altro: Record<string, unknown> = {}): Parameters<typeof gruppiAltriPc>[0]['pc'][number] =>
-  ({ pcId, nome, vivo, workspace, ...altro })
+  ({ pcId, nome, visto: vivo ? fa(1) : fa(180), workspace, ...altro })
 
 describe('gli Aiutanti non stanno fra gli Altri PC', () => {
   it('un battito con aiutante: true non fa un gruppo, anche acceso', () => {
     const g = gruppiAltriPc({
-      nomiQui: [], remoti: {}, attivo: '',
+      nomiQui: [], remoti: {}, attivo: '', adesso: ADESSO,
       pc: [pc('a1', 'Muletto Aiutante', true, [], { aiutante: true }), pc('b', 'Portatile', true, ['Fionda']), pc('a2', 'Vecchio Aiutante', false, [], { aiutante: true })]
     })
     expect(g.map((x) => x.nome)).toEqual(['Portatile'])
   })
   it('solo true vale: aiutante assente o false è un PC normale', () => {
-    const g = gruppiAltriPc({ nomiQui: [], remoti: {}, attivo: '', pc: [pc('b', 'Portatile', true, [], { aiutante: false }), pc('c', 'Ufficio', true)] })
+    const g = gruppiAltriPc({ nomiQui: [], remoti: {}, attivo: '', adesso: ADESSO, pc: [pc('b', 'Portatile', true, [], { aiutante: false }), pc('c', 'Ufficio', true)] })
     expect(g.map((x) => x.nome)).toEqual(['Portatile', 'Ufficio'])
   })
 })
@@ -28,11 +33,11 @@ describe('gli Aiutanti non stanno fra gli Altri PC', () => {
 describe('ordine, versione e ultimo battito', () => {
   it('prima gli accesi poi gli spenti, ognuno per nome; versione e visto passano', () => {
     const g = gruppiAltriPc({
-      nomiQui: [], remoti: {}, attivo: '',
+      nomiQui: [], remoti: {}, attivo: '', adesso: ADESSO,
       pc: [
         pc('z', 'Zeta', false, [], { visto: '2026-11-13T08:00:00.000Z', versione: '0.105.0' }),
         pc('b', 'beta', true, [], { versione: '0.106.2' }),
-        pc('a', 'Alfa', false),
+        pc('a', 'Alfa', false, [], { visto: undefined }),
         pc('c', 'Gamma', true, [], { versione: '' })
       ]
     })
@@ -44,7 +49,7 @@ describe('ordine, versione e ultimo battito', () => {
   })
 })
 
-const G = (pcId: string, nome: string, vivo: boolean, voci: GruppoAltroPc['voci']): GruppoAltroPc => ({ pcId, nome, vivo, voci })
+const G = (pcId: string, nome: string, vivo: boolean, voci: GruppoAltroPc['voci']): GruppoAltroPc => ({ pcId, nome, vivo, frase: vivo ? 'acceso' : 'spento', voci })
 
 describe('il tasto «Altri PC · N»', () => {
   it('conta i PC e gli accesi, e dice quale workspace di un altro PC è davanti', () => {
@@ -100,10 +105,30 @@ describe('la casella per cercare', () => {
 })
 
 describe('la riga di stato di un PC', () => {
-  const fa = (): string => '3 ore fa'
-  it('acceso con versione, spento con l’ultimo battito, spento senza', () => {
-    expect(statoPcBreve({ vivo: true, versione: '0.106.2' }, fa)).toBe('acceso · v0.106.2')
-    expect(statoPcBreve({ vivo: false, visto: '2026-11-13T08:00:00.000Z' }, fa)).toBe('spento · visto 3 ore fa')
-    expect(statoPcBreve({ vivo: false }, fa)).toBe('spento')
+  it('è la frase di statoPc, con la versione se c’è', () => {
+    expect(statoPcBreve({ frase: 'acceso', versione: '0.106.2' })).toBe('acceso · v0.106.2')
+    expect(statoPcBreve({ frase: 'spento da 3 ore · si toglie fra 30 giorni' })).toBe('spento da 3 ore · si toglie fra 30 giorni')
+  })
+})
+
+describe('stato e frase dei PC vengono solo da statoPc', () => {
+  it('ogni gruppo porta frase e vivo di statoPc, con i giorni alla rimozione per gli spenti', () => {
+    const g = gruppiAltriPc({
+      nomiQui: [], remoti: {}, attivo: '', adesso: ADESSO,
+      pc: [pc('a', 'Alfa', true), pc('b', 'Beta', false), pc('c', 'Gamma', false, [], { visto: fa(10 * GIORNO_MIN) })]
+    })
+    for (const x of g) {
+      const st = statoPc(x.visto, ADESSO)
+      expect(x.frase).toBe(st.frase)
+      expect(x.vivo).toBe(st.stato === 'acceso')
+    }
+    expect(g.map((x) => x.frase)).toEqual(['acceso', 'spento da 3 ore · si toglie fra 30 giorni', 'spento da 10 giorni · si toglie fra 20 giorni'])
+  })
+  it('un PC da rimuovere (oltre 30 giorni) non compare', () => {
+    const g = gruppiAltriPc({
+      nomiQui: [], remoti: {}, attivo: '', adesso: ADESSO,
+      pc: [pc('a', 'Alfa', true), pc('v', 'Vecchio', false, ['Zeta'], { visto: fa(31 * GIORNO_MIN) })]
+    })
+    expect(g.map((x) => x.nome)).toEqual(['Alfa'])
   })
 })

@@ -3,6 +3,10 @@ import {
   cartellaAutopilotaLocale, chatRemotaScrivibile, gruppiAltriPc, registroSuPcValido, remotiDaMigrare, remotiDiQui,
   rinominaInRegistro, separaWorkspace, statoAutopilotaRemoto, togliDaRegistro
 } from '../../src/shared/workspace-remoti'
+import { statoPc } from '../../src/shared/stato-pc'
+
+const ADESSO = Date.parse('2026-11-19T12:00:00Z')
+const fa = (min: number): string => new Date(ADESSO - min * 60_000).toISOString()
 
 /**
  * Sezione «Altri PC» (13/11): i workspace degli altri PC stanno a parte, si
@@ -97,11 +101,11 @@ describe('la sezione «Altri PC»', () => {
       nomiQui: ['Locale', 'sierradeck'],
       remoti: { Fionda: PC_B, Vecchio: { ...PC_C, sparito: true } },
       pc: [
-        { pcId: 'pc-c', nome: 'Ufficio', vivo: false, workspace: ['Zeta'] },
-        { pcId: 'pc-b', nome: 'Portatile', vivo: true, workspace: ['Fionda', 'Bozza', 'SierraDeck', 'Bozza'] },
-        { pcId: 'pc-d', nome: 'Muletto', vivo: true }
+        { pcId: 'pc-c', nome: 'Ufficio', visto: fa(180), workspace: ['Zeta'] },
+        { pcId: 'pc-b', nome: 'Portatile', visto: fa(1), workspace: ['Fionda', 'Bozza', 'SierraDeck', 'Bozza'] },
+        { pcId: 'pc-d', nome: 'Muletto', visto: fa(1) }
       ],
-      attivo: 'Fionda'
+      attivo: 'Fionda', adesso: ADESSO
     })
     expect(g.map((x) => [x.nome, x.vivo])).toEqual([['Muletto', true], ['Portatile', true], ['Ufficio', false]])
     expect(g[1]!.voci).toEqual([
@@ -115,7 +119,7 @@ describe('la sezione «Altri PC»', () => {
     expect(g[0]!.voci).toEqual([])
   })
   it('un workspace aperto da un PC che non manda più battiti ha comunque il suo gruppo, spento', () => {
-    expect(gruppiAltriPc({ nomiQui: [], remoti: { Fionda: PC_B }, pc: [], attivo: '' }))
-      .toEqual([{ pcId: 'pc-b', nome: 'Portatile', vivo: false, voci: [{ nome: 'Fionda', aperto: true, davanti: false }] }])
+    expect(gruppiAltriPc({ nomiQui: [], remoti: { Fionda: PC_B }, pc: [], attivo: '', adesso: ADESSO }))
+      .toEqual([{ pcId: 'pc-b', nome: 'Portatile', vivo: false, frase: statoPc(undefined, ADESSO).frase, voci: [{ nome: 'Fionda', aperto: true, davanti: false }] }])
   })
 })

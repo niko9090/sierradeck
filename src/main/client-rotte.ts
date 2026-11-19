@@ -32,7 +32,7 @@ import { pathToSlug } from './indexer/project-scanner'
 import { firmaScelte, rispostaDaTesto, scelteDiTerminale, tastiPerRisposta, type Risposta, type Scelta } from '@shared/scelte-terminale'
 import { fraseEsito, premiEVerifica, type EsitoAltroPc, type EsitoPressione } from './risposta-verificata'
 import { TAGLIO_OPZIONE_BATTITO, tagliaIntero, type OpzioneBattito } from '@shared/posta'
-import { statoPc } from '@shared/stato-pc'
+import { statoPc, daRimuovere } from '@shared/stato-pc'
 import { leggiIdChatAltroPc, raccogliDomande, vociPerLeApp, type DomandaRisolta } from '@shared/domande-telefono'
 import { domandeScheda } from '@shared/domande-autopilota'
 import { conversazioniDomande, quanteAspettano, type Inviato } from '@shared/domande-conversazioni'
@@ -2343,7 +2343,12 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       return OK({
         io: deps.pcIo?.() ?? '',
         disponibile: deps.pc !== undefined,
-        pc: (pc ?? []).map((b) => ({ ...b, vivo: battitoVivo(b.battito, ora) }))
+        // Stato, frase e giorni alla rimozione vengono tutti da `statoPc`: la pagina e l'app li mostrano cosi' come sono.
+        // Un PC da rimuovere non si elenca piu'.
+        pc: (pc ?? []).filter((b) => !daRimuovere(b.battito, ora)).map((b) => {
+          const s = statoPc(b.battito, ora)
+          return { ...b, vivo: s.stato === 'acceso', stato: s.stato, frase: s.frase, giorniAllaRimozione: s.giorniAllaRimozione }
+        })
       })
     }
     if (r.metodo === 'POST' && r.percorso === '/api/posta') {
