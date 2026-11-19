@@ -1,5 +1,6 @@
 import type { Autopilota, ChatAdottata, MessaggioAdottata } from './autopilota'
 import { RUOLI, type Ruolo } from './ruoli-agenti'
+import { chatsDi } from './chats-di'
 
 /**
  * Le chat già avviate adottate dall'autopilota del loro workspace (0.78.0).
@@ -53,7 +54,7 @@ export function ruoloDaContenuto(titolo: string): Ruolo | undefined {
 export function sessioniProprie(a: Autopilota): Set<string> {
   const s = new Set<string>()
   if (a.sessionId !== undefined) s.add(a.sessionId)
-  for (const c of a.chats) if (c.sessionId !== undefined) s.add(c.sessionId)
+  for (const c of chatsDi(a)) if (c.sessionId !== undefined) s.add(c.sessionId)
   return s
 }
 

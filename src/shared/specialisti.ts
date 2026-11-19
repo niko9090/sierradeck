@@ -2,6 +2,7 @@ import type { Autopilota, ChatGovernata } from './autopilota'
 import { RUOLI, RUOLI_ORDINE, type Ruolo, type SchedaRuolo } from './ruoli-agenti'
 import { attivitaDi, type Attivita } from './colori-attivita'
 import { cosaFaChat, daQuanto } from './panoramica'
+import { chatsDi } from './chats-di'
 
 /**
  * Gli specialisti di un autopilota, visibili (0.73.0).
@@ -85,7 +86,7 @@ export function rigaChatSola(perche: 'piccolo' | 'senza-git' | 'limiti' | 'illeg
 
 const postoRuolo = (r: Ruolo | undefined): number => (r === undefined ? RUOLI_ORDINE.length : RUOLI_ORDINE.indexOf(r))
 const numeroChat = (id: string): number => { const n = Number(/(\d+)$/.exec(id)?.[1] ?? NaN); return Number.isFinite(n) ? n : 0 }
-const ruoliDi = (a: Autopilota): Ruolo[] => a.chats.map((c) => c.ruolo).filter((r): r is Ruolo => r !== undefined)
+const ruoliDi = (a: Autopilota): Ruolo[] => chatsDi(a).map((c) => c.ruolo).filter((r): r is Ruolo => r !== undefined)
 
 /** Lo stato che conta per il colore: con l'autopilota finito sono finite tutte; fermo l'autopilota, è ferma anche chi «lavorava». */
 function statoVero(a: Autopilota, c: ChatGovernata): string {
@@ -97,12 +98,13 @@ function statoVero(a: Autopilota, c: ChatGovernata): string {
 export function specialistiDi(a: Autopilota, ora?: number): Specialisti {
   const quanto = (dal: string | undefined): string => (ora === undefined || dal === undefined ? '' : daQuanto(Date.parse(dal), ora))
   const nome = a.nome !== '' ? a.nome : a.obiettivo.slice(0, 40)
-  if (a.chats.length > 0) {
+  const chats = chatsDi(a)
+  if (chats.length > 0) {
     return {
       riga: rigaFlotta(ruoliDi(a)),
       // Lo stesso ordine in ogni workspace (0.76.0, Nicholas: «ordine e coerenza»):
       // per ruolo (Sviluppo, Interfaccia, Collaudo, Revisione, Rilascio), poi come sono nati.
-      elenco: [...a.chats].sort((x, y) => postoRuolo(x.ruolo) - postoRuolo(y.ruolo) || numeroChat(x.id) - numeroChat(y.id)).map((c) => ({
+      elenco: [...chats].sort((x, y) => postoRuolo(x.ruolo) - postoRuolo(y.ruolo) || numeroChat(x.id) - numeroChat(y.id)).map((c) => ({
         id: c.id,
         ruolo: c.ruolo !== undefined ? RUOLI[c.ruolo].nome : 'Chat',
         colore: c.ruolo !== undefined ? RUOLI[c.ruolo].colore : 'quieto',
@@ -111,7 +113,7 @@ export function specialistiDi(a: Autopilota, ora?: number): Specialisti {
         attivo: statoVero(a, c) === 'lavoro',
         ultimaAzione: c.ultimaAzione ?? '',
         attivita: attivitaDi(c.ruolo, statoVero(a, c)),
-        cosa: cosaFaChat(c, a.chats, c.stato === 'finita' || a.stato === 'finito'),
+        cosa: cosaFaChat(c, chats,c.stato === 'finita' || a.stato === 'finito'),
         quanto: quanto(c.dal),
         ...(c.sessionId !== undefined ? { sessionId: c.sessionId } : {}),
         ...(a.workspace !== undefined ? { workspace: a.workspace } : {}),

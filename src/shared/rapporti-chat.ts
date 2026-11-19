@@ -1,5 +1,6 @@
 import type { Autopilota, ChatGovernata } from './autopilota'
 import type { SegnaleChat } from './segnali-flotta'
+import { chatsDi } from './chats-di'
 
 /**
  * **Le chat riferiscono sempre all'autopilota** (0.85.1).
@@ -196,11 +197,12 @@ export function rigaQuadro(q: QuadroChat, compitoMax = 80): string {
  * chiuse si contano e basta.
  */
 export function righeQuadroChat(a: Autopilota & { segniVeri?: Record<string, SegnoVero> }, ora: number): string[] {
-  if (a.chats.length === 0) return []
-  const aperte = a.chats.filter((c) => c.stato !== 'finita')
+  const chats = chatsDi(a)
+  if (chats.length === 0) return []
+  const aperte = chats.filter((c) => c.stato !== 'finita')
   const righe = ['', '## Le tue chat, una per una (il quadro intero)']
   for (const c of aperte) righe.push(`- ${rigaQuadro(quadroDellaChat(c, ora, a.segniVeri?.[c.id]), 200)}`)
-  const chiuse = a.chats.length - aperte.length
+  const chiuse = chats.length - aperte.length
   if (aperte.length === 0) righe.push('- Nessuna chat aperta.')
   if (chiuse > 0) righe.push(`- Chiuse: ${chiuse}.`)
   righe.push('Rispondi da questo quadro: per ogni chat sai cosa fa, l’ultimo passo e perché è ferma. «Ultimo segnale vero» viene dai fatti (commit, test, file), non da quello che la chat dice di sé.')
