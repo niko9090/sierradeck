@@ -88,6 +88,11 @@ export function prossimaDaConsegnare(p: Posta): VocePosta | undefined {
 export type Postino = {
   /** Un giro: il battito, poi la prima voce in attesa della mia cassetta. */
   giro: () => Promise<void>
+  /**
+   * k-agg1: scrive subito un battito con `aggiornando` (versione + ora), con un tempo limite
+   * breve (5 s): non deve bloccare l'installazione. Non lancia mai.
+   */
+  annunciaAggiornamento?: (versione: string, tettoMs?: number) => Promise<void>
   /** Il mio id: per non elencarmi fra «gli altri PC». */
   io: () => string
   /** Gli altri PC sul Drive, con il battito. */
@@ -232,6 +237,8 @@ export function creaPostino(deps: {
   let ultimoBattito = ''
   let ultimoBattitoIl = 0
   let inErrore = false
+  /** k-agg1: questo PC sta installando (va nel battito finché il processo vive: al ritorno non c'è più). */
+  let aggiornando: { versione: string; da: number } | undefined
   const freno = deps.freno ?? frenoDrive
   /**
    * k-65: la posta in arrivo si guarda ogni mezzo minuto solo se di recente e'
@@ -356,6 +363,7 @@ export function creaPostino(deps: {
       ...(() => { const r = deps.risorse?.(); return r === undefined ? {} : { risorse: r } })(),
       ...(() => { const dal = deps.sviluppo?.(); return dal === undefined ? {} : { sviluppo: true as const, sviluppoDal: dal } })(),
       ...(deps.aiutante?.() === true ? { aiutante: true } : {}),
+      ...(aggiornando !== undefined ? { aggiornando } : {}),
       ...(() => { const b = deps.aiutante?.() === true ? deps.bloccoAiutante?.() : undefined; return b !== undefined ? { bloccoAiutante: b } : {} })()
     }
   }
@@ -571,6 +579,25 @@ export function creaPostino(deps: {
   }
 
   return {
+    async annunciaAggiornamento(versione, tettoMs = 5000) {
+      aggiornando = { versione, da: adesso() }
+      const s = deps.scatola()
+      if (s === undefined) return
+      // Il freno non conta: e' una scrittura sola, e l'ultima. Ma non deve trattenere l'installazione.
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const limite = new Promise<void>((ok) => { timer = setTimeout(ok, tettoMs) })
+      try {
+        await Promise.race([(async () => {
+          const b = mioBattito()
+          await s.scrivi(nomeBattitoPc(b.pcId), b)
+          log(`[posta] battito «in aggiornamento alla ${versione}» scritto sul Drive`)
+        })(), limite])
+      } catch (err) {
+        log(`[posta] battito di aggiornamento non scritto: ${String(err)}`)
+      } finally {
+        if (timer !== undefined) clearTimeout(timer)
+      }
+    },
     async giro() {
       if (inGiro) return
       const s = deps.scatola()

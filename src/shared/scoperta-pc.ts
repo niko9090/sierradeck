@@ -1,3 +1,5 @@
+import { TESTO_IN_AGGIORNAMENTO, testoAggiornamentoRemoto } from './aggiornamento-remoto'
+
 /**
  * Trovare gli altri PC **senza il Drive** (0.39.3).
  *
@@ -140,9 +142,11 @@ export function indirizziDaProvare(p: { buono?: string; ricordati?: string[]; ta
 
 /** Lo stato di quel PC come lo dicono il riquadro e il riquadro d'attesa. */
 export type StatoPc = {
-  stato: 'acceso' | 'non-so' | 'irraggiungibile' | 'chiave' | 'rifiutato' | 'altro' | 'senza-indirizzi' | 'versione-vecchia' | 'solo-aiutante'
+  stato: 'acceso' | 'non-so' | 'irraggiungibile' | 'chiave' | 'rifiutato' | 'altro' | 'senza-indirizzi' | 'versione-vecchia' | 'solo-aiutante' | 'in-aggiornamento'
   titolo: string
   cosaFare: string
+  /** k-agg1: presente solo se quel PC si sta aggiornando (stato `in-aggiornamento`): la versione che installa. */
+  aggiornando?: { versione: string }
 }
 
 function quando(iso: string | undefined): string {
@@ -169,10 +173,16 @@ export function statoPc(p: {
   /** Il Drive di questo PC e' collegato: senza, i battiti non arrivano piu'. */
   driveCollegato: boolean
   porta: number
+  /**
+   * k-agg1: quel PC si sta aggiornando (dal suo battito, o da «Installa là» avviato da qui):
+   * il silenzio è quello giusto, non è «non risponde» né «non so se è acceso».
+   */
+  aggiornando?: { versione: string } | null
 }): StatoPc {
   const n = p.nome
   const ping = p.ping
   if (ping?.esito === 'risponde') return { stato: 'acceso', titolo: `${n} è acceso e risponde`, cosaFare: '' }
+  if (p.aggiornando != null) return { stato: 'in-aggiornamento', titolo: TESTO_IN_AGGIORNAMENTO, cosaFare: testoAggiornamentoRemoto(n, p.aggiornando.versione), aggiornando: { versione: p.aggiornando.versione } }
   if (ping?.esito === 'chiave') {
     return {
       stato: 'chiave',
@@ -244,7 +254,11 @@ export function motivoDaStatoHttp(stato: number): 'chiave' | 'rifiutato' | 'chat
 /** Il corpo del 403 di un PC che rifiuta chi arriva da fuori la sua rete locale (client-server). */
 export const RIFIUTO_DI_RETE = 'solo dalla rete locale'
 
-export function messaggioErroreRemoto(motivo: string, nome: string, dettaglio?: string): string {
+export function messaggioErroreRemoto(motivo: string, nome: string, dettaglio?: string, aggiornando?: { versione: string } | null): string {
+  // k-agg1: se quel PC si aggiorna, il silenzio ha una frase sola, mai «non risponde».
+  if (aggiornando != null && ['non-so', 'spento', 'irraggiungibile', 'senza-indirizzi', 'collegando', 'altro', 'solo-aiutante'].includes(motivo)) {
+    return testoAggiornamentoRemoto(nome, aggiornando.versione)
+  }
   switch (motivo) {
     case 'chat':
       return `${nome} risponde, ma questa chat là non è aperta (è stata chiusa, o non c’è più)${dettaglio !== undefined && dettaglio !== '' ? `: «${dettaglio}»` : ''}. Puoi chiedergli di riaprirla da qui.`

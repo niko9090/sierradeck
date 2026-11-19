@@ -1,4 +1,5 @@
 import { pcVivo, type BattitoPc } from '@shared/posta'
+import { aggiornamentoInCorsoDi } from '@shared/aggiornamento-remoto'
 import { vistoDelPc } from '@shared/stato-pc'
 import { descriviIndirizzo, PORTA_CLIENT_PREDEFINITA } from '@shared/pc-remoto'
 import { indirizziDaProvare, messaggioErroreRemoto, motivoDaStatoHttp, statoPc, testoProva, type PingPc, type ProvaIndirizzo, type StatoPc } from '@shared/scoperta-pc'
@@ -88,6 +89,8 @@ export type ClientPcRemoto = {
   stradaDi: (pcId: string) => InfoStrada | undefined
   /** Da quanti ms quel PC ha risposto l'ultima volta a qualcosa (0.56.0); `undefined` = mai. */
   vivoDa: (pcId: string) => number | undefined
+  /** k-agg1: `{ versione }` se quel PC si sta aggiornando (battito o «Installa là» da qui), altrimenti `null`. */
+  aggiornandoDi: (pcId: string) => { versione: string } | null
   /** Prova a bussare: torna com'e' andata, senza lanciare. */
   prova: (pcId: string) => Promise<{ ok: true; indirizzo: string; ms: number; versione?: string } | { ok: false; motivo: MotivoRemoto; messaggio: string }>
 }
@@ -136,7 +139,11 @@ export type DipendenzeRemoto = {
    * risposto senza saperla fare in modo chiaro (30/10). Predefinita 400 ms.
    */
   riprovaCasaMs?: number
-
+  /**
+   * k-agg1: le installazioni avviate da questo PC con «Installa là» ancora in corso:
+   * la versione che quel PC sta installando, o `undefined`. Vale come «in aggiornamento» per quel PC.
+   */
+  aggiornandoDa?: (pcId: string) => { versione: string } | undefined
 }
 
 const ATTESA_PREDEFINITA_MS = 4000
@@ -383,11 +390,18 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
     return p
   }
 
+  /** k-agg1: il suo battito dice «mi aggiorno», o l'installazione l'ho avviata io con «Installa là». */
+  const aggiornandoDi = (pcId: string): { versione: string } | null =>
+    aggiornamentoInCorsoDi(battitoDi(pcId), adesso()) ?? deps.aggiornandoDa?.(pcId) ?? null
+
   const statoDa = (pcId: string, p: PingPc | undefined, nomeNoto?: string): StatoPc => {
     const b = battitoDi(pcId)
     // 19/11: conta anche il battito dell'Aiutante dello stesso PC (stesso aiuto della rimozione dei 30 giorni).
     const { visto, soloAiutante } = vistoDelPc(deps.battiti(), pcId, adesso())
+    // k-agg1: il suo battito dice «mi aggiorno», o l'installazione l'ho avviata io con «Installa là».
+    const aggiornando = aggiornandoDi(pcId)
     return statoPc({
+      ...(aggiornando !== null ? { aggiornando } : {}),
       nome: b?.nome ?? nomeNoto ?? 'quel PC',
       ping: p,
       battitoVivo: (b !== undefined && pcVivo(b, adesso())) || soloAiutante,
@@ -404,9 +418,9 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
     const motivo: MotivoRemoto = s.stato === 'chiave' ? 'chiave'
       : s.stato === 'rifiutato' ? 'rifiutato'
       : s.stato === 'senza-indirizzi' ? 'senza-indirizzi'
-      : s.stato === 'irraggiungibile' || s.stato === 'altro' || s.stato === 'solo-aiutante' ? 'irraggiungibile'
+      : s.stato === 'irraggiungibile' || s.stato === 'altro' || s.stato === 'solo-aiutante' || s.stato === 'in-aggiornamento' ? 'irraggiungibile'
       : 'non-so'
-    const m = `${s.titolo}. ${s.cosaFare}`
+    const m = s.stato === 'in-aggiornamento' ? s.cosaFare : `${s.titolo}. ${s.cosaFare}`
     racconta(pcId, m)
     return new ErroreRemoto(motivo, m, p.esito === 'chiave' ? 401 : p.esito === 'rifiutato' ? 403 : undefined)
   }
@@ -548,6 +562,7 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
       if (vivo !== undefined && ind !== undefined && adesso() - vivo < GIU_DOPO_MS) return statoDa(pcId, { esito: 'risponde', indirizzo: ind }, nome)
       return statoDa(pcId, await bussa(pcId, nome), nome)
     },
+    aggiornandoDi,
     vivoDa: (pcId) => { const v = vivoIl.get(pcId); return v === undefined ? undefined : adesso() - v },
     async prova(pcId) {
       const da = adesso()
