@@ -1,5 +1,6 @@
 import type { RisorsePc } from './risorse'
 import type { InvioErrori } from './storico-errori'
+import { SPENTO_DOPO_MS, statoPc } from './stato-pc'
 /**
  * La posta per un PC: i tipi e le due cose pure che servono anche al
  * pannello del PC (`PannelloAccount`, `ModalePosta`) e alla pagina del
@@ -242,7 +243,7 @@ export function nomeUscita(destinatario: string, mittente: string): string { ret
 export function nomeEsiti(destinatario: string): string { return `posta-${destinatario}-esiti` }
 
 /** Un battito piu' vecchio di cosi' e' un PC spento, o senza rete. */
-export const PC_SPENTO_DOPO_MS = 35 * 60_000
+export const PC_SPENTO_DOPO_MS = SPENTO_DOPO_MS
 /** Ogni quanto si rileggono i battiti degli altri PC. */
 export const BATTITO_PC_OGNI_MS = 5 * 60_000
 /**
@@ -259,8 +260,7 @@ export const TESTO_POSTA_MAX = 4000
 
 export function pcVivo(b: BattitoPc | undefined, adesso: number): boolean {
   if (b === undefined) return false
-  const t = Date.parse(b.battito)
-  return !Number.isNaN(t) && adesso - t < PC_SPENTO_DOPO_MS
+  return statoPc(b.battito, adesso).stato === 'acceso'
 }
 
 /** `C:\\a\\b` sta sotto `c:/a/`? Percorsi di Windows: maiuscole e barre non contano. */

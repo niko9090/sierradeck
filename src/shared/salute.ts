@@ -11,6 +11,7 @@
 
 import { mappaPc, type MappaPc } from './collegamento'
 import { PC_SPENTO_DOPO_MS } from './posta'
+import { DISMETTI_DOPO_MS } from './stato-pc'
 import { rigaRisorse, risorseAlte, type GpuPc, type RisorsePc } from './risorse'
 
 export type Tono = 'ok' | 'attenzione' | 'guasto'
@@ -270,7 +271,7 @@ export function componiSalute(i: IngressiSalute): Salute {
     const vecchio = p.battito === undefined || i.adesso - Date.parse(p.battito) > PC_SPENTO_DOPO_MS
     const raggiungibile = p.stato === 'acceso'
     // 0.89.1: muto da più di una settimana: si può dismettere.
-    const dismettibile = !raggiungibile && p.battito !== undefined && i.adesso - Date.parse(p.battito) > 7 * 24 * 60 * 60_000
+    const dismettibile = !raggiungibile && p.battito !== undefined && i.adesso - Date.parse(p.battito) > DISMETTI_DOPO_MS
     // k-191: «Aggiorna» solo se la versione è attendibile: detta dal PC adesso, o dal battito di poco fa.
     // Un battito vecchio (Drive fermo) non dice cosa c'è installato, e non fa dire a nessuno di installare.
     const dalVivo = p.versioneDalVivo === true

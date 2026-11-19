@@ -4,7 +4,7 @@ import type { StatoSpazio } from './spazio-drive'
 import { dentroCartella, eNomeDiSistema, eSenzaNome } from './progetti-unificati'
 import { chiaveProgetto } from './progetti-identita'
 import type { VistaSposta } from './sposta'
-import { PC_SPENTO_DOPO_MS } from './posta'
+import { RIMUOVI_DOPO_MS, SPENTO_DOPO_MS } from './stato-pc'
 
 /**
  * Il pannello dei progetti e delle chat (0.58.0; modello semplice dalla 0.88.0).
@@ -139,9 +139,9 @@ export type Pannello = {
 }
 
 /** Oltre questo un PC senza battito si considera assente. */
-export const ASSENTE_DOPO_MS = 30 * 86_400_000
+export const ASSENTE_DOPO_MS = RIMUOVI_DOPO_MS
 /** Un PC si dice acceso se il suo ultimo battito è più recente di così. */
-export const ACCESO_ENTRO_MS = PC_SPENTO_DOPO_MS
+export const ACCESO_ENTRO_MS = SPENTO_DOPO_MS
 
 const iso = (ms: number | undefined): string | undefined => (ms === undefined || !Number.isFinite(ms) ? undefined : new Date(ms).toISOString())
 const giorni = (ms: number): number => Math.floor(ms / 86_400_000)

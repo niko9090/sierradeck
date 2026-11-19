@@ -46,6 +46,7 @@ import {
   ESITO_PROTETTA, type ChatDiPc, type BattitoPc, type LocaliBattito, type VocePosta, type Posta,
   type UscitaPosta, type EsitoVoce, type EsitiPosta
 } from '@shared/posta'
+import { DISMETTI_DOPO_MS, RIMUOVI_DOPO_MS, daRimuovere, statoPc } from '@shared/stato-pc'
 import {
   nomeBattitoPc, nomePosta, nomeUscita, nomeEsiti, pcVivo, POSTA_PER_MITTENTE,
   PC_SPENTO_DOPO_MS, BATTITO_PC_OGNI_MS, BATTITO_RISCRIVI_MS, RIAPRI_DOPO_MS, VOCI_MAX, TESTO_POSTA_MAX,
@@ -112,8 +113,9 @@ export type Postino = {
  * Da quanto un PC deve tacere per poterlo dismettere (0.89.1). Nicholas (31/10):
  * «NB-PROBOOK dismesso». Un PC dismesso esce dalla Salute e dal controllo di
  * tutti i PC; se si riaccende, il suo battito lo riporta da solo.
+ * Le soglie vivono in `@shared/stato-pc`.
  */
-export const DISMETTI_DOPO_MS = 7 * 24 * 60 * 60_000
+export { DISMETTI_DOPO_MS, RIMUOVI_DOPO_MS }
 
 /** Quanto valgono i battiti già letti per chi li chiede (0.68.0). */
 export const MEMORIA_BATTITI_MS = 60_000
@@ -213,6 +215,8 @@ export function creaPostino(deps: {
    * chiave contro i doppioni, anche dopo un riavvio.
    */
   consegnate?: { leggi: () => string[]; scrivi: (ids: string[]) => void }
+  /** Un PC tolto per i 30 giorni di silenzio: da dimenticare i suoi indirizzi ricordati (solo quelli: mai progetti o cartelle). */
+  dimenticaPc?: (pcId: string) => void
   /** Dove ricordare i battiti degli altri PC fra un avvio e l'altro. */
   memoria?: { leggi: () => BattitoPc[]; scrivi: (b: BattitoPc[]) => void }
 }): Postino {
@@ -487,6 +491,65 @@ export function creaPostino(deps: {
       }))
       .sort((a, b) => b.battito.localeCompare(a.battito))
   }
+  /**
+   * La rimozione automatica (30 giorni di silenzio): toglie dal Drive la
+   * registrazione (`pc-<id>`) e le cassette `posta-*` di quel PC, queste solo
+   * se non hanno comandi in coda; dimentica i suoi indirizzi. MAI i progetti,
+   * le cartelle, `progetti-drive.json`. Idempotente: il battito si rilegge
+   * subito prima, e un PC già tolto non si tocca né si racconta di nuovo.
+   * Un battito nel futuro (orologio sbagliato) non toglie nessuno. Ritorna i
+   * PC rimasti.
+   */
+  const rimuoviScaduti = async (s: Scatola, letti: BattitoPc[]): Promise<BattitoPc[]> => {
+    const me = deps.pcId()
+    const scaduti = letti.filter((b) => b.pcId !== me && daRimuovere(b.battito, adesso()))
+    if (scaduti.length === 0) return letti
+    const tolti = new Set<string>()
+    for (const b of scaduti) {
+      try {
+        // Riletto ora: se nel frattempo si è riacceso (o l'hanno già tolto), non si tocca.
+        const ora = await s.leggi<BattitoPc>(nomeBattitoPc(b.pcId))
+        if (ora === undefined || ora === null) { tolti.add(b.pcId); continue }
+        if (!daRimuovere(ora.battito, adesso())) continue
+        const stato = statoPc(ora.battito, adesso())
+        await s.cancella(nomeBattitoPc(b.pcId))
+        const rimaste = await cancellaCassette(s, b.pcId)
+        try { deps.dimenticaPc?.(b.pcId) } catch { /* gli indirizzi ricordati sono un comodo */ }
+        tolti.add(b.pcId)
+        log(`[posta] ${ora.nome} tolto dalla lista: spento da ${Math.floor(stato.spentoDaMs / 86_400_000)} giorni (più di ${Math.round(RIMUOVI_DOPO_MS / 86_400_000)}); cancellata la sua registrazione sul Drive, non i suoi progetti${rimaste > 0 ? `; ${rimaste} cassette di posta tenute perché hanno comandi in coda` : ''}; se si riaccende ricompare da solo`)
+      } catch (err) {
+        log(`[posta] ${b.nome} da togliere (spento da più di 30 giorni) ma non ci sono riuscito, riprovo al prossimo giro: ${String(err)}`)
+      }
+    }
+    return letti.filter((b) => !tolti.has(b.pcId))
+  }
+  /** Cancella le cassette di posta di un PC che non hanno comandi in coda; ritorna quante ne restano. */
+  const cancellaCassette = async (s: Scatola, pcId: string): Promise<number> => {
+    if (s.elenca === undefined) return 0
+    const sue = (await s.elenca('posta-')).filter((n) =>
+      n === nomePosta(pcId) || n === nomeEsiti(pcId) || n.startsWith(`${nomePosta(pcId)}-da-`) || n.endsWith(`-da-${pcId}`))
+    const esitiDi = new Map<string, Record<string, EsitoVoce>>()
+    const esitiPer = async (dest: string): Promise<Record<string, EsitoVoce>> => {
+      const c = esitiDi.get(dest)
+      if (c !== undefined) return c
+      const e = await leggiEsiti(s, dest)
+      esitiDi.set(dest, e)
+      return e
+    }
+    let rimaste = 0
+    let conComandi = false
+    for (const nome of sue.filter((n) => n !== nomeEsiti(pcId))) {
+      const dest = nome.endsWith(`-da-${pcId}`) && !nome.startsWith(`${nomePosta(pcId)}-da-`) ? nome.slice('posta-'.length, nome.length - `-da-${pcId}`.length) : pcId
+      const f = await s.leggi<Posta>(nome)
+      const esiti = await esitiPer(dest)
+      const inCoda = vociValide(f?.voci).some((v) => v.comando !== undefined && (esiti[v.id]?.stato ?? v.stato) === 'attesa')
+      if (inCoda) { rimaste++; if (dest === pcId) conComandi = true; continue }
+      await s.cancella(nome)
+    }
+    // Gli esiti servono a chi ha ancora comandi in coda per quel PC: senza, non servono a nessuno.
+    if (sue.includes(nomeEsiti(pcId)) && !conComandi) await s.cancella(nomeEsiti(pcId))
+    return rimaste
+  }
   let altruiVisti = ''
   let altruiScritti = ''
   const ricorda = (b: BattitoPc[]): void => {
@@ -515,7 +578,11 @@ export function creaPostino(deps: {
         await batti(s)
         // Gli altri PC si rileggono con calma: le loro cartelle non cambiano
         // ogni mezzo minuto, e ogni lettura e' una richiesta al Drive.
-        if (adesso() - altruiLettiIl >= BATTITO_PC_OGNI_MS) ricorda(await leggiAltrui(s))
+        if (adesso() - altruiLettiIl >= BATTITO_PC_OGNI_MS) {
+          const letti = await leggiAltrui(s)
+          // Chi tace da più di 30 giorni esce dalla lista (solo la sua registrazione).
+          ricorda(s.elenca === undefined ? letti : await rimuoviScaduti(s, letti))
+        }
         const ora = adesso()
         if (ora - ultimaAttivita < POSTA_ATTIVA_MS || ora - ultimaLetturaPosta >= POSTA_QUIETA_OGNI_MS) {
           ultimaLetturaPosta = ora
