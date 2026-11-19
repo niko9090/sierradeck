@@ -101,6 +101,7 @@
 - Il blu degli stati sta in `ColoreStato.blu` (tema/Attivita.kt), non in `Banco`: i colori di stato vanno presi dalla tabella unica del PC. _(2026-11-16)_
 - `Tono` è ordinato per `ordinal` nelle schede workspace: un tono nuovo va messo nella posizione giusta dell'enum, non in fondo. _(2026-11-16)_
 - versionCode/versionName dell'app sono in android/app/build.gradle.kts e vanno alzati a parte rispetto a package.json _(2026-11-16)_
+- In `android/` manca il wrapper `gradlew`: la compilazione si lancia con `gradle` di sistema (`gradle :app:compileReleaseKotlin --no-daemon`). _(2026-11-19)_
 
 ## release
 
