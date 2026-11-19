@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
 import { prima, type Salute } from '@shared/salute'
-import { SPENTO_DOPO_MS } from '@shared/stato-pc'
+import { SPENTO_DOPO_MS, statoPc } from '@shared/stato-pc'
 import type { AutopilotiDiPc } from '@shared/autopiloti-altri'
 
 /**
@@ -43,7 +43,12 @@ export type SaluteDiPc = { pcId: string; nome: string; salute?: Salute; errore?:
  */
 export { SPENTO_DOPO_MS }
 
-export type Criticita = { pc: string; cosa: string; dettaglio: string }
+/** Non risponde e ha un battito sul Drive che non è fresco (o è illeggibile): spento. */
+function pcSpento(s: SaluteDiPc, adesso: number): boolean {
+  return s.salute === undefined && s.battito !== undefined && statoPc(s.battito, adesso).stato !== 'acceso'
+}
+
+export type Criticita ={ pc: string; cosa: string; dettaglio: string }
 
 /** Gli stati di un autopilota che vogliono uno sguardo. */
 const STATI_CRITICI = new Set(['bloccata', 'bloccato', 'errore', 'fallito'])
@@ -56,7 +61,7 @@ export function criticitaDi(saluti: readonly SaluteDiPc[], autopiloti: readonly 
   const out: Voce[] = []
   // I PC spenti: non rispondono e il loro battito sul Drive è vecchio. Né la riga di
   // qui né quelle che ne danno gli altri PC (`pc:<id>`).
-  const spenti = new Set(saluti.filter((s) => s.salute === undefined && adesso !== undefined && s.battito !== undefined && adesso - Date.parse(s.battito) > SPENTO_DOPO_MS).map((s) => s.pcId))
+  const spenti = new Set(saluti.filter((s) => adesso !== undefined && pcSpento(s, adesso)).map((s) => s.pcId))
   for (const s of saluti) {
     if (s.salute === undefined) {
       if (spenti.has(s.pcId)) continue
@@ -115,7 +120,7 @@ export function criticitaDi(saluti: readonly SaluteDiPc[], autopiloti: readonly 
 function unisci(c: readonly Voce[]): Criticita[] {
   const per = new Map<string, { riga: Criticita; pcs: string[]; locale?: Voce }>()
   // La diagnosi generica «non so se è acceso» cede a quella che viene dal bussare (chiave, rifiutato, altro).
-  const generica = (cosa: string): boolean => cosa.includes('non so se è acceso') || cosa.includes('acceso secondo il Drive, ma non si raggiunge')
+  const generica = (cosa: string): boolean => cosa.includes('non so se è acceso') || cosa.includes(' · spento') ||cosa.includes('acceso secondo il Drive, ma non si raggiunge')
   for (const x of c) {
     const k = x.chiave ?? x.cosa
     const g = per.get(k)
@@ -146,17 +151,26 @@ export function firmaCriticita(c: readonly Criticita[]): string {
   return createHash('sha256').update(c.map((x) => `${x.pc.split(', ').sort().join(', ')}|${x.cosa}`).sort().join('\n')).digest('hex').slice(0, 16)
 }
 
-export function testoRapporto(p: { quando: string; saluti: readonly SaluteDiPc[]; criticita: readonly Criticita[] }): string {
+export function testoRapporto(p: { quando: string; saluti: readonly SaluteDiPc[]; criticita: readonly Criticita[]; adesso?: number }): string {
   const righe = [`# Controllo di tutti i PC (${p.quando})`, '']
+  const adesso = p.adesso ?? Date.parse(p.quando)
+  // I PC spenti: una riga corta ciascuno, con la frase di `statoPc` (da quanto, fra quanto si toglie).
+  const spentiRiga = p.saluti.filter((s) => pcSpento(s, adesso))
+  const idSpenti = new Set(spentiRiga.map((s) => s.pcId))
   righe.push('## I PC', '')
   for (const s of p.saluti) {
+    if (idSpenti.has(s.pcId)) continue
     // 0.94.0: quali sono le voci da guardare, non solo quante (05/11: «Z2-TECNICO: 9 da guardare» e basta).
-    const voci = (Array.isArray(s.salute?.voci) ? s.salute.voci : []).filter((v) => v.tono !== 'ok').map((v) => v.titolo) ?? []
+    const voci = (Array.isArray(s.salute?.voci) ? s.salute.voci : []).filter((v) => v.tono !== 'ok' && !(v.chiave.startsWith('pc:') && idSpenti.has(v.chiave.slice(3)))).map((v) => v.titolo) ?? []
     const quali = voci.length > 0 ? ` (${voci.slice(0, 6).join('; ')}${voci.length > 6 ? `; e altre ${voci.length - 6}` : ''})` : ''
     // k-191: la versione di chi risponde è quella che dice lui adesso; per chi non risponde, il battito, segnato come vecchio.
     const versione = s.salute?.versione !== undefined ? ` · versione ${s.salute.versione} (detta dal PC adesso)`
       : s.battito !== undefined ? ` · versione ignota adesso (ultimo battito sul Drive: ${s.battito}, dato vecchio)` : ''
     righe.push(`- **${s.nome}**${versione}: ${s.salute !== undefined ? `${s.salute.tono} — ${s.salute.riassunto}${quali}` : s.lento === true ? `lento, riprovo (${s.errore ?? '?'})` : `non risponde (${s.errore ?? '?'})`}`)
+  }
+  if (spentiRiga.length > 0) {
+    righe.push('', `## PC spenti (${spentiRiga.length})`, '')
+    for (const s of spentiRiga) righe.push(`- **${s.nome}**: ${statoPc(s.battito, adesso).frase}`)
   }
   righe.push('', `## Criticità (${p.criticita.length})`, '')
   for (const c of p.criticita) righe.push(`- **${c.pc}** · ${c.cosa}${c.dettaglio !== '' ? `\n  ${c.dettaglio.replace(/\s+/g, ' ').slice(0, 600)}` : ''}`)
@@ -230,7 +244,7 @@ export async function giroControlloPc(d: {
   const quando = new Date(d.adesso()).toISOString()
   const file = join(cartella, `controllo-${quando.replace(/[-:]/g, '').slice(0, 15)}.md`)
   mkdirSync(cartella, { recursive: true })
-  writeFileSync(file, testoRapporto({ quando, saluti, criticita }))
+  writeFileSync(file, testoRapporto({ quando, saluti, criticita, adesso: d.adesso() }))
   await d.affida({ testo: richiestaControllo(file, criticita.length), cwd: radice })
   writeFileSync(fileStato, JSON.stringify({ firma, il: quando }))
   return { criticita: criticita.length, affidato: true }

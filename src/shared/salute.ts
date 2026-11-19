@@ -10,8 +10,7 @@
  */
 
 import { mappaPc, type MappaPc } from './collegamento'
-import { PC_SPENTO_DOPO_MS } from './posta'
-import { DISMETTI_DOPO_MS } from './stato-pc'
+import { DISMETTI_DOPO_MS, statoPc } from './stato-pc'
 import { rigaRisorse, risorseAlte, type GpuPc, type RisorsePc } from './risorse'
 
 export type Tono = 'ok' | 'attenzione' | 'guasto'
@@ -100,11 +99,10 @@ export type IngressiSalute = {
 /** «3 ore fa», «2 giorni fa», «adesso». */
 /**
  * Un PC che non risponde adesso a nessuna strada: se il battito sul Drive è fresco
- * (sotto PC_SPENTO_DOPO_MS) è acceso ma non si raggiunge; se è vecchio, non si sa.
+ * (secondo `statoPc`) è acceso ma non si raggiunge; se è vecchio, non si sa.
  */
 export function parolaPcSenzaRisposta(battito: string | undefined, adesso: number): string {
-  const t = Date.parse(battito ?? '')
-  return !Number.isNaN(t) && adesso - t < PC_SPENTO_DOPO_MS ? 'acceso secondo il Drive, ma non si raggiunge' : 'non so se è acceso'
+  return statoPc(battito, adesso).stato === 'acceso' ?'acceso secondo il Drive, ma non si raggiunge' : 'non so se è acceso'
 }
 
 export function quantoFa(iso: string | undefined, adesso: number): string {
@@ -145,7 +143,7 @@ export function versionePcInBreve(p: { versione: string; battito?: string; viva?
     return { testo: `v${p.viva}${indietro ? ' · più vecchia, aggiorna' : ''}`, indietro }
   }
   const t = p.battito === undefined ? Number.NaN : Date.parse(p.battito)
-  if (!Number.isNaN(t) && adesso - t <= PC_SPENTO_DOPO_MS) return { testo: `v${p.versione}`, indietro: prima(p.versione, mia) }
+  if (statoPc(p.battito, adesso).stato === 'acceso') return { testo: `v${p.versione}`, indietro: prima(p.versione, mia) }
   const g = Number.isNaN(t) ? undefined : Math.floor((adesso - t) / 86_400_000)
   const eta = g === undefined ? 'dato vecchio' : g >= 1 ? `dato di ${g} g fa` : `dato di ${Math.max(1, Math.round((adesso - t) / 3_600_000))} h fa`
   return { testo: `v${p.versione} (${eta})`, indietro: false }
@@ -268,7 +266,8 @@ export function componiSalute(i: IngressiSalute): Salute {
   }
   for (const p of i.pc) {
     const eta = quantoFa(p.battito, i.adesso)
-    const vecchio = p.battito === undefined || i.adesso - Date.parse(p.battito) > PC_SPENTO_DOPO_MS
+    const st = statoPc(p.battito, i.adesso)
+    const vecchio = st.stato !== 'acceso'
     const raggiungibile = p.stato === 'acceso'
     // 0.89.1: muto da più di una settimana: si può dismettere.
     const dismettibile = !raggiungibile && p.battito !== undefined && i.adesso - Date.parse(p.battito) > DISMETTI_DOPO_MS
@@ -280,7 +279,7 @@ export function componiSalute(i: IngressiSalute): Salute {
     const origineVersione = dalVivo ? 'Versione detta dal PC adesso.'
       : vecchio ? `Versione dal battito di ${eta}: dato vecchio, il PC non ha risposto adesso con la sua versione.`
       : ''
-    // 0.94.1: spento da più di 35 minuti (PC_SPENTO_DOPO_MS) è normale (un PC del lavoro acceso di rado), non «da guardare».
+    // 0.94.1: spento (oltre la soglia di `stato-pc`) è normale (un PC del lavoro acceso di rado), non «da guardare».
     const tono: Tono = raggiungibile ? (indietro ? 'attenzione' : 'ok') : vecchio ? 'ok' : 'guasto'
     // Lo stato vero dell'ultimo bussare (0.93.1): un indirizzo che risponde non è «nessuna strada».
     const rispostaDiversa = p.stato === 'chiave' ? 'risponde ma non riconosce la chiave di casa'
@@ -294,7 +293,7 @@ export function componiSalute(i: IngressiSalute): Salute {
     const strada = p.strada !== undefined ? `si raggiunge via ${p.strada}` : raggiungibile ? 'risponde' : rispostaDiversa ?? 'non risponde a nessuna strada'
     voci.push({
       chiave: `pc:${p.pcId}`, gruppo: 'pc', tono,
-      titolo: `${p.nome} · ${raggiungibile ? 'acceso' : p.stato === 'chiave' || p.stato === 'rifiutato' ? 'risponde ma non entra' : p.stato === 'altro' ? 'non lo trovo a quell’indirizzo' : vecchio ? 'non so se è acceso' : 'acceso secondo il Drive, ma non si raggiunge'} · ${p.versione}`,
+      titolo: `${p.nome} · ${raggiungibile ? 'acceso' : p.stato === 'chiave' || p.stato === 'rifiutato' ? 'risponde ma non entra' : p.stato === 'altro' ? 'non lo trovo a quell’indirizzo' : vecchio ? st.frase : 'acceso secondo il Drive, ma non si raggiunge'} · ${p.versione}`,
       spiegazione: `Ultimo battito sul Drive: ${eta}.${battitoFermoPerDrivePieno ? ' Il battito non si aggiorna perché il Drive è pieno (un account solo per tutti i PC): il PC risponde, ma la versione del battito può essere vecchia.' : ''} Adesso ${strada}. ${indietro ? `Ha la ${p.versione}, ${nomeQui} ha la ${i.versione}: ${stessoMinor(p.versione, i.versione) ? 'solo correzioni: aggiornarlo non è urgente.' : `là mancano le novità della ${i.versione}.`}` : attendibile ? 'Ha la stessa versione di questo PC, o più nuova.' : 'Se sia aggiornato non si sa finché non risponde.'}${origineVersione !== '' ? ` ${origineVersione}` : ''}`,
       ...(rispostaDiversa !== undefined
         ? { cosaFare: p.stato === 'chiave' ? `Su ${p.nome} apri la cassaforte (Account → Cassaforte) con la stessa passphrase di qui.` : p.stato === 'rifiutato' ? `Su ${p.nome}, in Impostazioni → Client, accetta anche da fuori la rete locale, oppure usate la stessa rete o Tailscale.` : `Controlla che ${p.nome} sia acceso, sulla stessa rete o con Tailscale: l’indirizzo che avevo ora è di un altro.` }
@@ -314,7 +313,7 @@ export function componiSalute(i: IngressiSalute): Salute {
 
   // ── La scheda video, per ogni PC che la manda (k-168): informativa, attenzione leggera se spenta ──
   // Come per i consumi: la scheda di un PC senza battito recente è un dato vecchio, non una criticità di adesso.
-  const schede = [...(i.risorse?.gpu !== undefined ? [{ nome: 'Questo PC', chiave: 'qui', gpu: i.risorse.gpu }] : []), ...i.pc.filter((p) => p.risorse?.gpu !== undefined && p.battito !== undefined && i.adesso - Date.parse(p.battito) <= PC_SPENTO_DOPO_MS).map((p) => ({ nome: p.nome, chiave: p.pcId, gpu: (p.risorse as RisorsePc).gpu as GpuPc }))]
+  const schede = [...(i.risorse?.gpu !== undefined ? [{ nome: 'Questo PC', chiave: 'qui', gpu: i.risorse.gpu }] : []), ...i.pc.filter((p) => p.risorse?.gpu !== undefined && statoPc(p.battito, i.adesso).stato === 'acceso').map((p) => ({ nome: p.nome, chiave: p.pcId, gpu: (p.risorse as RisorsePc).gpu as GpuPc }))]
   for (const s of schede) {
     voci.push({
       chiave: `gpu:${s.chiave}`, gruppo: 'pc', tono: s.gpu.spenta ? 'attenzione' : 'ok',
@@ -341,7 +340,7 @@ export function componiSalute(i: IngressiSalute): Salute {
   if (i.risorse !== undefined) {
     // Il battito di un altro PC vale solo se e' recente (stesso criterio di «PC spento»): se e' vecchio
     // i suoi consumi non sono di adesso, quindi non si mostrano ne' fanno dire «rifiutate da Google».
-    const recente = (p: PcPerSalute): boolean => p.battito !== undefined && i.adesso - Date.parse(p.battito) <= PC_SPENTO_DOPO_MS
+    const recente = (p: PcPerSalute): boolean => statoPc(p.battito, i.adesso).stato === 'acceso'
     const altri = i.pc.filter((p) => p.risorse !== undefined)
     const righe = [`Questo PC: ${rigaRisorse(i.risorse)}`, ...altri.map((p) => recente(p) ? `${p.nome}: ${rigaRisorse(p.risorse as RisorsePc)}` : `${p.nome}: nessun dato di adesso (ultimo battito ${quantoFa(p.battito, i.adesso)})`)]
     // Criticita solo sopra soglie vere e solo per i consumi di questo PC: ogni PC dice i suoi,

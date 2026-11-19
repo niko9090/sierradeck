@@ -93,9 +93,19 @@ describe('le voci del pannello', () => {
     expect(lap?.azioni[0]).toMatchObject({ id: 'installa-la', pc: 'lap', versione: '0.44.0' })
     expect(lap?.cosaFare).toContain('Installa là')
     const uff = s.voci.find((v) => v.chiave === 'pc:uff')
-    expect(uff?.titolo).toContain('non so se è acceso')
+    expect(uff?.titolo).toContain('spento da 9 giorni · si toglie fra 21 giorni')
     expect(uff?.spiegazione).toContain('9 giorni fa')
     expect(uff?.azioni[0]).toMatchObject({ id: 'riprova-pc', pc: 'uff' })
+  })
+  it('PC spento: la frase è quella di stato-pc; battito illeggibile → spento, senza giorni alla rimozione', () => {
+    const voce = (battito: string | undefined) => componiSalute({ ...base, pc: [{ pcId: 'x', nome: 'PROVA', versione: '0.44.0', ...(battito !== undefined ? { battito } : {}) }] }).voci.find((v) => v.chiave === 'pc:x')
+    const tre = voce('2026-09-29T15:00:00.000Z')
+    expect(tre?.titolo).toBe('PROVA · spento da 3 giorni · si toglie fra 27 giorni · 0.44.0')
+    expect(tre?.tono).toBe('ok')
+    const rotto = voce('non-una-data')
+    expect(rotto?.titolo).toContain('spento, non so da quanto')
+    expect(rotto?.titolo).not.toContain('si toglie')
+    expect(rotto?.tono).toBe('ok')
   })
   it('k-144: la frase sulla versione dipende dalla differenza vera, senza elenco di funzioni', () => {
     const spiega = (versione: string, mia: string): string | undefined => componiSalute({
