@@ -12,7 +12,7 @@
       "nome": "Autopiloti",
       "breve": "Auto­piloti",
       "icona": "◉",
-      "spiega": "Gli autopiloti di questo PC e quelli degli altri PC: cosa stanno facendo, cosa aspettano da te, e i comandi per crearli, fermarli, farli ripartire e archiviarli."
+      "spiega": "Gli autopiloti di questo PC e quelli degli altri PC: cosa stanno facendo, cosa aspettano da te, i comandi per crearli, fermarli, farli ripartire e archiviarli, e i loro specialisti: chi lavora e chi è in fila per un posto."
     },
     {
       "id": "domande",
@@ -26,7 +26,14 @@
       "nome": "Chat e workspace",
       "breve": "Chat",
       "icona": "▭",
-      "spiega": "Le chat e i workspace: nuova chat, riprendi una conversazione, crea, rinomina ed elimina i workspace, le chat usate da altri PC, una nuova finestra, e il Negozio con gli strumenti delle chat (plugin, skill, MCP)."
+      "spiega": "Le chat e i workspace: nuova chat, riprendi una conversazione, lo spazio delle chat, crea, rinomina ed elimina i workspace, le chat usate da altri PC, una nuova finestra, e il Negozio con gli strumenti delle chat (plugin, skill, MCP)."
+    },
+    {
+      "id": "computer",
+      "nome": "Computer",
+      "breve": "Computer",
+      "icona": "⌂",
+      "spiega": "Tutti i tuoi computer ad albero, in elenco e su una mappa: acceso o spento, strada, versione, chat aperte, guarda dal vivo, cassetta e installa là."
     },
     {
       "id": "file",
@@ -40,7 +47,7 @@
       "nome": "Salute",
       "breve": "Salute",
       "icona": "♥",
-      "spiega": "Come sta il sistema: il Drive, gli altri computer (acceso o spento, strada, versione, chat aperte, guarda dal vivo, cassetta), gli aggiornamenti, gli errori delle ultime ore e i consumi del piano, con cosa fare per ognuno."
+      "spiega": "Come sta il sistema: cosa c’è da sistemare, il Drive, gli errori delle ultime ore e i consumi del piano, con cosa fare per ognuno. I computer hanno la loro voce."
     },
     {
       "id": "impostazioni",
@@ -84,6 +91,7 @@
       "id": "altro",
       "nome": "Altro",
       "contiene": [
+        "computer",
         "salute",
         "impostazioni"
       ],

@@ -24,7 +24,7 @@ import { salvaPreferenze } from '../salva-preferenze'
 import { azioniDiFinestra } from '../azioni-finestra'
 import { ModaleConferma } from './ModaleConferma'
 import { PostiChat } from './PostiChat'
-import { MENU_PRINCIPALE, VOCE_SPECIALISTI, type IdMenu, type VoceMenu } from '@shared/menu-principale'
+import { MENU_PRINCIPALE, type IdMenu, type VoceMenu } from '@shared/menu-principale'
 
 /**
  * I modelli che si possono scegliere.
@@ -50,7 +50,7 @@ import { MENU_PRINCIPALE, VOCE_SPECIALISTI, type IdMenu, type VoceMenu } from '@
  * (0.61.0): le sue funzioni stanno in Progetti. «chat» è il pannello «Chat e
  * workspace» del menu principale.
  */
-export type PannelloAperto = 'impostazioni' | 'quaderno' | 'workspace' | 'autopiloti' | 'negozio' | 'salute' | 'chat' | 'rete' | 'specialisti' | undefined
+export type PannelloAperto = 'impostazioni' | 'quaderno' | 'workspace' | 'autopiloti' | 'negozio' | 'salute' | 'chat' | 'computer' | undefined
 
 type Props = {
   onApriSessioni: () => void
@@ -86,20 +86,11 @@ type Props = {
   progettiAperti?: boolean
   /** Apre o chiude il pannello Progetti. */
   onProgetti?: () => void
-  /** Quanti specialisti sono in fila per un posto (k-49): il numero accanto a «Specialisti». */
-  specialistiInFila?: number
-  /** k-160: Specialisti è aperto sul lato destro, accanto al workspace. */
-  specialistiAperti?: boolean
-  /** Apre o chiude Specialisti sul lato destro. */
-  onSpecialisti?: () => void
 }
 
-/** Le voci della fascia: quelle del menu principale e «Specialisti», subito dopo Domande (k-49). */
-type VoceFascia = Omit<VoceMenu, 'id'> & { id: IdVoceFascia }
-type IdVoceFascia = IdMenu | typeof VOCE_SPECIALISTI.id
-function vociDellaFascia(voci: readonly VoceMenu[]): VoceFascia[] {
-  const dopo = voci.findIndex((v) => v.id === 'domande') + 1
-  return [...voci.slice(0, dopo), VOCE_SPECIALISTI, ...voci.slice(dopo)]
+/** Le voci della fascia: esattamente quelle del menu principale (k-u0: gli specialisti stanno dentro Autopiloti). */
+function vociDellaFascia(voci: readonly VoceMenu[]): VoceMenu[] {
+  return [...voci]
 }
 
 /**
@@ -124,9 +115,6 @@ export function Console({
   onDomande,
   progettiAperti = false,
   onProgetti,
-  specialistiInFila = 0,
-  specialistiAperti = false,
-  onSpecialisti,
   aggiornamento,
   onStatoWorkspace,
   workspaceCheChiamano,
@@ -267,12 +255,14 @@ export function Console({
       // Il vecchio «drive» (0.61.0) è Progetti; «domande» è la colonna.
       if (quale === 'drive' || quale === 'progetti') { if (!progettiAperti) onProgetti?.() }
       else if (quale === 'domande') { if (!domandeAperte) onDomande?.() }
-      else if (quale === 'specialisti') { if (!specialistiAperti) onSpecialisti?.() }
-      else if (quale === 'salute' || quale === 'workspace' || quale === 'autopiloti' || quale === 'chat' || quale === 'negozio' || quale === 'quaderno' || quale === 'impostazioni') onApri(quale)
+      // Gli specialisti stanno dentro Autopiloti (k-u0); la vecchia «rete» è Computer.
+      else if (quale === 'specialisti') onApri('autopiloti')
+      else if (quale === 'rete') onApri('computer')
+      else if (quale === 'salute' || quale === 'workspace' || quale === 'autopiloti' || quale === 'chat' || quale === 'computer' || quale === 'negozio' || quale === 'quaderno' || quale === 'impostazioni') onApri(quale)
     }
     window.addEventListener('sierradeck:apri-pannello', suRichiesta)
     return () => window.removeEventListener('sierradeck:apri-pannello', suRichiesta)
-  }, [onApri, onProgetti, onDomande, onSpecialisti, progettiAperti, domandeAperte, specialistiAperti])
+  }, [onApri, onProgetti, onDomande, progettiAperti, domandeAperte])
   // «+ Nuova chat» dal pannello «Chat e workspace» (0.61.0): la stessa finestra della chat nuova.
   useEffect(() => {
     const suNuova = (): void => setNuovaChat(proponiNuovaChat(Object.values(useLayoutStore.getState().panes), useSessionStore.getState().sessions, casa))
@@ -336,13 +326,12 @@ export function Console({
 
   const inAttesa = ledAutopiloti.some((l) => l.classe === 'led--attesa')
   /** Il pannello di quella voce è aperto: il suo tasto resta acceso. */
-  const statoVoce = (id: IdVoceFascia): boolean =>
-    id === 'progetti' ? progettiAperti : id === 'domande' ? domandeAperte : id === 'specialisti' ? specialistiAperti : aperto === id
+  const statoVoce = (id: IdMenu): boolean =>
+    id === 'progetti' ? progettiAperti : id === 'domande' ? domandeAperte : aperto === id
   /** Cosa fa ogni voce del menu principale. */
-  const premi = (id: IdVoceFascia): void => {
+  const premi = (id: IdMenu): void => {
     if (id === 'progetti') onProgetti?.()
     else if (id === 'domande') onDomande?.()
-    else if (id === 'specialisti') onSpecialisti?.()
     else if (id !== 'file') commuta(id)
   }
 
@@ -372,7 +361,7 @@ export function Console({
     <nav className="console console--principale" aria-label="Menu principale">
       {vociDellaFascia(MENU_PRINCIPALE.filter((v) => v.soloTelefono !== true)).map((v) => {
         const acceso = statoVoce(v.id)
-        const numero = v.id === 'autopiloti' ? ledAutopiloti.length : v.id === 'domande' ? domandeInAttesa : v.id === 'specialisti' ? specialistiInFila : 0
+        const numero = v.id === 'autopiloti' ? ledAutopiloti.length : v.id === 'domande' ? domandeInAttesa : 0
         const chiama = (v.id === 'domande' && domandeInAttesa > 0 && !domandeAperte) || (v.id === 'autopiloti' && inAttesa && aperto !== 'autopiloti')
         return (
           <button
@@ -389,17 +378,9 @@ export function Console({
         )
       })}
       {/* 0.95.3 (Nicholas, 06/11): la riga delle chat sta nella stessa fascia del menu, una riga in meno. */}
-      {/* La riga delle chat: i gesti di ogni minuto (riprendere, aprire una
-          chat, cambiare workspace) senza aprire un pannello. Tutto il resto di
-          «Chat e workspace» sta nel suo pannello. */}
+      {/* k-u0: nella fascia resta solo «+ Nuova chat» (il gesto di ogni minuto, con il suo modello);
+          Riprendi, Spazio delle chat, workspace, Nuova finestra e Negozio stanno solo in «Chat e workspace». */}
       <div className="sezione">
-        <button
-          className="tasto"
-          onClick={onApriSessioni}
-          title="Riprendi una conversazione già esistente: l’elenco di tutte le chat, per cartella, anche quelle chiuse"
-        >
-          ↺ Riprendi
-        </button>
         <button
           className="tasto tasto--primario"
           onClick={() => setNuovaChat(proponiNuovaChat(Object.values(riquadri), sessioni, casa))}
@@ -407,10 +388,10 @@ export function Console({
         >
           + Nuova chat
         </button>
-        {/* Le cose rare (0.70.0): il modello delle prossime chat, i workspace, la finestra nuova, il negozio. */}
+        {/* Il modello delle prossime chat: una preferenza di «+ Nuova chat», per questo sta qui accanto. */}
         <span style={{ position: 'relative' }}>
-          <button className="tasto" aria-expanded={strumenti} onClick={() => setStrumenti(!strumenti)} title="Il modello delle prossime chat, i workspace, una finestra nuova, il negozio">
-            Strumenti ▾{modello !== 'default' ? ` · ${MODELLI.find((m) => m.valore === modello)?.etichetta.split(' (')[0] ?? modello}` : ''}
+          <button className="tasto" aria-expanded={strumenti} onClick={() => setStrumenti(!strumenti)} title="Con quale modello partiranno le prossime chat">
+            Modello ▾{modello !== 'default' ? ` · ${MODELLI.find((m) => m.valore === modello)?.etichetta.split(' (')[0] ?? modello}` : ''}
           </button>
           {strumenti ? (
             <TendinaMenu onChiudi={() => setStrumenti(false)}>
@@ -422,12 +403,6 @@ export function Console({
                   ))}
                 </select>
               </label>
-              <button className="progetti__voce" onClick={() => { setStrumenti(false); onApri('chat') }} title="Chat usate da altri PC, e tutto «Chat e workspace»">Usate da altri PC…</button>
-              <button className="progetti__voce" onClick={() => { setStrumenti(false); commuta('workspace') }}>Crea, rinomina, elimina workspace…</button>
-              {/* 0.74.0: la vista a elenco si accende solo da qui, un workspace alla volta (decisione di Nicholas). */}
-              <button className="progetti__voce" onClick={() => { setStrumenti(false); window.dispatchEvent(new CustomEvent('sierradeck:vista-elenco', { detail: { nome: workspaceAttivo } })) }} title="Tutto il workspace in una vista. Per vedere tutte le chat una accanto all’altra c’è l’interruttore in alto a destra.">Panoramica di questo workspace</button>
-              <button className="progetti__voce" onClick={() => { setStrumenti(false); void window.gestore.finestre.nuova() }}>Nuova finestra</button>
-              <button className="progetti__voce" onClick={() => { setStrumenti(false); commuta('negozio') }}>Negozio…</button>
             </TendinaMenu>
           ) : null}
         </span>

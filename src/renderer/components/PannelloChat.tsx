@@ -65,6 +65,10 @@ export function PannelloChat({ workspace, onApriSessioni, onApri, onChiudi }: Pr
             'Un workspace è una disposizione di chat da riprendere quando vuoi: cambiarlo non chiude le chat di quello che lasci. Per passare da uno all’altro basta un clic sul suo nome nella riga sotto il menu. Eliminarlo toglie la disposizione, non le conversazioni.'
           )}
           {voce(
+            <button className="tasto" onClick={() => { onChiudi(); window.dispatchEvent(new CustomEvent('sierradeck:vista-elenco', { detail: { nome: workspace.attivo } })) }}>Panoramica di questo workspace</button>,
+            'Tutto il workspace in una vista. Per vedere tutte le chat una accanto all’altra c’è l’interruttore in alto a destra.'
+          )}
+          {voce(
             <button className="tasto" onClick={() => window.gestore.finestre.nuova()}>Nuova finestra</button>,
             'Apre un’altra finestra di SierraDeck sul primo monitor libero, con un workspace suo: utile con due schermi. Le chat restano una sola: una chat aperta in una finestra non si apre anche nell’altra.'
           )}

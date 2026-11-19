@@ -6,7 +6,7 @@
  * «☁ Drive», che trovava incomprensibile), e le impostazioni rimandavano a
  * pannelli che avevano già il loro tasto in alto.
  *
- * Qui stanno le sette voci, nell'ordine, con il nome, l'icona e cosa c'è
+ * Qui stanno le voci (sette sul PC, più File sul telefono), nell'ordine, con il nome, l'icona e cosa c'è
  * dentro. Il PC le disegna in `Console.tsx`, la pagina in `client-pagina.ts`
  * (fascia), l'app le legge da `assets/menu.json` (scritto dal test con
  * `AGGIORNA=1`) e le controlla in `MenuPrincipaleTest.kt`.
@@ -15,7 +15,7 @@
  * trova adesso. Il test controlla che nessuna resti senza casa. L'inventario
  * per esteso, con il perché, sta nel quaderno: `menu-rifatti-0-61-0-inventario.md`.
  */
-export type IdMenu = 'progetti' | 'autopiloti' | 'domande' | 'chat' | 'file' | 'salute' | 'impostazioni'
+export type IdMenu = 'progetti' | 'autopiloti' | 'domande' | 'chat' | 'computer' | 'file' | 'salute' | 'impostazioni'
 
 export type VoceMenu = {
   id: IdMenu
@@ -45,7 +45,7 @@ export const MENU_PRINCIPALE: readonly VoceMenu[] = [
   },
   {
     id: 'autopiloti', nome: 'Autopiloti', icona: '◉', breve: 'Auto\u00adpiloti',
-    spiega: 'Gli autopiloti di questo PC e quelli degli altri PC: cosa stanno facendo, cosa aspettano da te, e i comandi per crearli, fermarli, farli ripartire e archiviarli.'
+    spiega: 'Gli autopiloti di questo PC e quelli degli altri PC: cosa stanno facendo, cosa aspettano da te, i comandi per crearli, fermarli, farli ripartire e archiviarli, e i loro specialisti: chi lavora e chi è in fila per un posto.'
   },
   {
     id: 'domande', nome: 'Domande', icona: '?', breve: 'Domande',
@@ -53,7 +53,11 @@ export const MENU_PRINCIPALE: readonly VoceMenu[] = [
   },
   {
     id: 'chat', nome: 'Chat e workspace', icona: '▭', breve: 'Chat',
-    spiega: 'Le chat e i workspace: nuova chat, riprendi una conversazione, crea, rinomina ed elimina i workspace, le chat usate da altri PC, una nuova finestra, e il Negozio con gli strumenti delle chat (plugin, skill, MCP).'
+    spiega: 'Le chat e i workspace: nuova chat, riprendi una conversazione, lo spazio delle chat, crea, rinomina ed elimina i workspace, le chat usate da altri PC, una nuova finestra, e il Negozio con gli strumenti delle chat (plugin, skill, MCP).'
+  },
+  {
+    id: 'computer', nome: 'Computer', icona: '⌂', breve: 'Computer',
+    spiega: 'Tutti i tuoi computer ad albero, in elenco e su una mappa: acceso o spento, strada, versione, chat aperte, guarda dal vivo, cassetta e installa là.'
   },
   {
     id: 'file', nome: 'File', icona: '⇅', breve: 'File', soloTelefono: true,
@@ -61,7 +65,7 @@ export const MENU_PRINCIPALE: readonly VoceMenu[] = [
   },
   {
     id: 'salute', nome: 'Salute', icona: '♥', breve: 'Salute',
-    spiega: 'Come sta il sistema: il Drive, gli altri computer (acceso o spento, strada, versione, chat aperte, guarda dal vivo, cassetta), gli aggiornamenti, gli errori delle ultime ore e i consumi del piano, con cosa fare per ognuno.'
+    spiega: 'Come sta il sistema: cosa c’è da sistemare, il Drive, gli errori delle ultime ore e i consumi del piano, con cosa fare per ognuno. I computer hanno la loro voce.'
   },
   {
     id: 'impostazioni', nome: 'Impostazioni', icona: '⚙', breve: 'Imposta\u00adzioni',
@@ -89,6 +93,7 @@ export const FUNZIONI: readonly Funzione[] = [
   { funzione: 'Quaderno del progetto', dove: 'progetti', prima: '▤ Quaderno' },
   // Autopiloti
   { funzione: 'Autopiloti di questo PC e degli altri PC', dove: 'autopiloti', prima: 'Autopiloti ▾, pagina Lavori, app Lavori' },
+  { funzione: 'Specialisti: chi lavora e chi è in fila, ordine della fila', dove: 'autopiloti', prima: '☰ Specialisti (voce e colonna a parte, k-49)' },
   // Domande
   { funzione: 'Domande in attesa', dove: 'domande', prima: 'Domande' },
   { funzione: 'Quello che è in moto adesso', dove: 'domande', prima: 'pagina: Adesso' },
@@ -100,12 +105,14 @@ export const FUNZIONI: readonly Funzione[] = [
   { funzione: 'Usate da altri PC', dove: 'chat', prima: '⧉ Usate da altri PC' },
   { funzione: 'Nuova finestra', dove: 'chat', prima: '⧉ Finestra' },
   { funzione: 'Negozio (plugin, skill, MCP)', dove: 'chat', prima: '▣ Negozio, pagina Computer, app Negozio' },
+  // Computer (k-u0): l'albero, l'elenco e la mappa, al posto di «Rete dei PC», «Altri computer» e delle liste PC sparse
+  { funzione: 'Computer: albero, elenco e mappa, acceso o spento, chat aperte, guarda dal vivo, cassetta, installa là', dove: 'computer', prima: 'Rete dei PC, Gli altri computer in Salute e Impostazioni → Account' },
   // File
   { funzione: 'File dei progetti, dal telefono', dove: 'file', prima: '⇅ File' },
   { funzione: 'File mandati al telefono', dove: 'file', prima: '⇅ File' },
   // Salute
   { funzione: 'Salute del sistema', dove: 'salute', prima: '♥ Salute, Impostazioni → Info' },
-  { funzione: 'Altri computer: chat aperte, guarda dal vivo, cassetta', dove: 'salute', prima: 'Impostazioni → Account, pagina e app: Computer' },
+  { funzione: 'Da sistemare, Drive, errori', dove: 'salute', prima: '♥ Salute' },
   { funzione: 'Consumi del piano e del contesto', dove: 'salute', prima: 'Consumi, Impostazioni → Consumi' },
   // Impostazioni
   { funzione: 'Aggiornamenti', dove: 'impostazioni', prima: 'Impostazioni' },
@@ -114,21 +121,6 @@ export const FUNZIONI: readonly Funzione[] = [
   { funzione: 'Aspetto, scorciatoie, notifiche', dove: 'impostazioni', prima: 'Impostazioni' },
   { funzione: 'Registro e Copia i dettagli', dove: 'impostazioni', prima: 'Impostazioni → Info, Account' }
 ]
-
-/**
- * **Specialisti** (k-49, 06/11): la lista d'attesa degli specialisti, chi
- * lavora e chi è in fila per un posto. Per ora è solo del PC (nella fascia, dopo
- * Domande) e della pagina (Altro → Specialisti): sta **fuori** da
- * `MENU_PRINCIPALE` perché quella lista la legge anche l'app Android
- * (`assets/menu.json`, `Scheda`), che non ha ancora questa sezione.
- */
-export const VOCE_SPECIALISTI = {
-  id: 'specialisti' as const,
-  nome: 'Specialisti',
-  icona: '☰',
-  breve: 'Specialisti',
-  spiega: 'Gli specialisti che lavorano adesso e quelli in fila per un posto, con le mosse per cambiare l’ordine: più in alto, più in basso, in cima, o toglierli dalla fila.'
-}
 
 export function voceMenu(id: IdMenu): VoceMenu {
   const v = MENU_PRINCIPALE.find((x) => x.id === id)
@@ -159,5 +151,5 @@ export const MENU_TELEFONO: readonly VoceTelefono[] = [
   { id: 'adesso', nome: 'Workspace', contiene: ['domande', 'autopiloti'], linguette: [] },
   { id: 'chat', nome: 'Chat', contiene: ['chat'], linguette: [] },
   { id: 'progetti', nome: 'Progetti', contiene: ['progetti', 'file'], linguette: ['Progetti', 'File'] },
-  { id: 'altro', nome: 'Altro', contiene: ['salute', 'impostazioni'], linguette: [] }
+  { id: 'altro', nome: 'Altro', contiene: ['computer', 'salute', 'impostazioni'], linguette: [] }
 ]

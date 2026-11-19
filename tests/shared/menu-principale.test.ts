@@ -12,8 +12,8 @@ import { paginaClient } from '../../src/main/client-pagina'
 const leggi = (p: string): string => readFileSync(p, 'utf8')
 
 describe('il menu principale', () => {
-  it('sette voci, in ordine d’importanza', () => {
-    expect(MENU_PRINCIPALE.map((v) => v.nome)).toEqual(['Progetti', 'Autopiloti', 'Domande', 'Chat e workspace', 'File', 'Salute', 'Impostazioni'])
+  it('otto voci (File solo sul telefono), in ordine d’importanza', () => {
+    expect(MENU_PRINCIPALE.map((v) => v.nome)).toEqual(['Progetti', 'Autopiloti', 'Domande', 'Chat e workspace', 'Computer', 'File', 'Salute', 'Impostazioni'])
     for (const v of MENU_PRINCIPALE) {
       expect(v.spiega.length, v.id).toBeGreaterThan(80)
       expect(v.icona, v.id).not.toBe('')
@@ -21,7 +21,7 @@ describe('il menu principale', () => {
       expect(v.nome.startsWith(v.breve.replace(/­/g, '')), v.id).toBe(true)
     }
     // Le icone non si ripetono (prima ▣ voleva dire due cose, ⧉ altre due).
-    expect(new Set(MENU_PRINCIPALE.map((v) => v.icona)).size).toBe(7)
+    expect(new Set(MENU_PRINCIPALE.map((v) => v.icona)).size).toBe(8)
   })
   it('nessuna funzione di prima resta senza casa, e ogni voce ha qualcosa dentro', () => {
     const id = new Set(MENU_PRINCIPALE.map((v) => v.id))
@@ -37,7 +37,7 @@ describe('sul PC: ogni voce dell’inventario si raggiunge', () => {
   const console_ = leggi('src/renderer/components/Console.tsx')
   const app = leggi('src/renderer/App.tsx')
   it('la barra è il menu principale; il vecchio «☁ Drive» non c’è più', () => {
-    // k-49: la fascia ha in più «Specialisti», solo PC e pagina (l'app non la ha ancora).
+    // k-u0: la fascia è esattamente il menu principale; gli specialisti stanno dentro Autopiloti.
     expect(console_).toContain('vociDellaFascia(MENU_PRINCIPALE.filter((v) => v.soloTelefono !== true)).map((v) =>')
     expect(console_).toContain('className="console console--principale"')
     expect(console_).not.toContain('☁ Drive')
@@ -65,7 +65,7 @@ describe('sul PC: ogni voce dell’inventario si raggiunge', () => {
     for (const t of ['+ Nuova chat', 'Riprendi una conversazione', 'Crea, rinomina, elimina…', 'Nuova finestra', 'Negozio…']) expect(c, t).toContain(t)
     expect(app).toContain("aperto === 'chat' ? (")
     const s = leggi('src/renderer/components/PannelloSalute.tsx')
-    for (const t of ['<AltriComputer />', "suiConsumi ? 'consumi'", '<PannelloConsumi incorporato />']) expect(s, t).toContain(t)
+    for (const t of ["suiConsumi ? 'consumi'", '<PannelloConsumi incorporato />']) expect(s, t).toContain(t)
     const imp = leggi('src/renderer/components/PannelloImpostazioni.tsx')
     expect(imp).not.toContain("bottone('consumi'")
     expect(imp).not.toContain("detail: 'salute'")
@@ -84,7 +84,7 @@ describe('nella pagina e nell’app: la stessa struttura', () => {
       domande: ['vistaDomande(s)', 'vistaConversazioni()'], autopiloti: ['autopiloti ||', 'delega', 'postiChatHtml(s)'],
       chat: ['paneWorkspace', 'negozioHtml()', "apriPannello(\\'sessioni\\')", "apriPannello(\\'chatgestione\\')"],
       progetti: ['pannelloDriveHtml()', 'vistaDrive', 'elencoCode', "apriPannello(\\'quaderno\\')"], file: ['fileHtml()'],
-      salute: ['vistaSalute', 'elencoPc', 'vistaConsumi'], impostazioni: ['sezioneImpostazioni(']
+      computer: ['elencoPc'], salute: ['vistaSalute', 'vistaConsumi'], impostazioni: ['sezioneImpostazioni(']
     }
     for (const v of MENU_TELEFONO) {
       const da = corpo.indexOf(`${v.id}:`)
