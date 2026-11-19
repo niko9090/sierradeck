@@ -86,6 +86,9 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
     /** Lo stesso PC accoppiato, ma ogni chiamata va a `pcId` attraverso il ponte (PC 0.48.0). */
     fun suPc(pcId: String): Api = Api(indirizzo, chiave, pcId)
 
+    /** Il PC accoppiato, senza ponte (k-agg3): serve a leggere `/api/pc` da dentro una chat vista dal ponte. */
+    fun accoppiato(): Api = Api(indirizzo, chiave)
+
     class Errore(val codice: Int, val corpo: String) :
         Exception("HTTP $codice: ${corpo.take(200)}") {
         /** La chiave non è (più) riconosciuta: serve un nuovo accoppiamento. */

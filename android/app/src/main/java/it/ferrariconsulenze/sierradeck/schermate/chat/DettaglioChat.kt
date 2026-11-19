@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import it.ferrariconsulenze.sierradeck.nucleo.AggiornamentoRemoto
 import it.ferrariconsulenze.sierradeck.nucleo.Chat
 import it.ferrariconsulenze.sierradeck.nucleo.Davanti
 import it.ferrariconsulenze.sierradeck.nucleo.RigheChat
@@ -110,6 +111,18 @@ fun SchermataDettaglioChat(
             delay(if (vuoti < 3) 1_500 else 5_000)
         }
     }
+    // k-agg3: la chat è di un PC visto dal ponte e quel PC si sta aggiornando (dal suo battito sul Drive,
+    // letto da `/api/pc` del PC accoppiato). Si controlla solo quando la chat tace o l'aggiornamento è già noto.
+    val pcRemoto = api?.ponte
+    var aggiornando by remember(id) { mutableStateOf<String?>(null) }
+    LaunchedEffect(id, pcRemoto, giu, aggiornando != null) {
+        if (pcRemoto == null || api == null || (!giu && aggiornando == null)) return@LaunchedEffect
+        while (true) {
+            val elenco = try { api.accoppiato().pc() } catch (e: CancellationException) { throw e } catch (_: Exception) { null }
+            if (elenco != null) aggiornando = elenco.pc.firstOrNull { it.pcId == pcRemoto }?.inAggiornamento(System.currentTimeMillis())
+            delay(15_000)
+        }
+    }
     val titolo = chat?.nome ?: chat?.titolo?.ifBlank { null } ?: "Chat"
     val elenco = rememberLazyListState()
     LaunchedEffect(righe.ultima) {
@@ -134,12 +147,13 @@ fun SchermataDettaglioChat(
             Column(Modifier.weight(1f)) {
                 Text(titolo, style = MaterialTheme.typography.titleMedium, color = Banco.testo, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val sotto = when {
+                    aggiornando != null -> AggiornamentoRemoto.TESTO
                     giu -> "Il computer non risponde: riprovo da solo."
                     chat?.chiede == true -> "Aspetta te"
                     chat?.governata == true -> "La guida l’autopilota"
                     else -> nota
                 }
-                sotto?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = if (giu || chat?.chiede == true) Banco.ambra else Banco.testoQuieto) }
+                sotto?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = if (giu || aggiornando != null || chat?.chiede == true) Banco.ambra else Banco.testoQuieto) }
             }
             TastoAzioniChat(api, id, titolo, onEsito = { nota = it }, onChiusa = onIndietro)
         }
@@ -149,7 +163,7 @@ fun SchermataDettaglioChat(
         }
         androidx.compose.foundation.layout.Box(Modifier.weight(1f)) { SelectionContainer {
             LazyColumn(Modifier.fillMaxSize(), state = elenco, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)) {
-                if (righe.righe.isEmpty()) item { Text(if (giu) "Non riesco a leggere la chat." else "Leggo la chat…", color = Banco.testoQuieto) }
+                if (righe.righe.isEmpty()) item { Text(if (aggiornando != null) AggiornamentoRemoto.TESTO else if (giu) "Non riesco a leggere la chat." else "Leggo la chat…", color = Banco.testoQuieto) }
                 items(righe.righe, key = { it.first }) { (_, t) ->
                     Text(t.ifEmpty { " " }, fontFamily = FontTerminale, fontSize = 13.sp, lineHeight = 17.sp, color = Banco.testo)
                 }
@@ -159,6 +173,8 @@ fun SchermataDettaglioChat(
         scelte?.let { s ->
             Column(Modifier.fillMaxWidth().background(Banco.chassis).padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 for (o in s.opzioni.filter { !it.libera }) TastoScelta(SceltaLavoro(o.numero.toString(), o.testo, consigliata = false), largo = true) {
+                    // Con il PC in aggiornamento la scelta resta lì: si preme al ritorno.
+                    if (aggiornando != null) return@TastoScelta
                     // Sparisce subito: un secondo tocco finirebbe nella domanda dopo.
                     scelte = null
                     val corpo = buildJsonObject { put("chat", id); put("opzione", senzaMezziCaratteri(o.testo)) }.toString()
@@ -166,7 +182,8 @@ fun SchermataDettaglioChat(
                 }
             }
         }
-        val manda = { t: String -> mettiInCoda(pc, "/api/scrivi", buildJsonObject { put("chat", id); put("testo", t) }.toString(), "chat:$id", t) }
+        // Invio sospeso mentre il PC si aggiorna: il testo resta nella casella e si manda al ritorno.
+        val manda = { t: String -> aggiornando == null && mettiInCoda(pc, "/api/scrivi", buildJsonObject { put("chat", id); put("testo", t) }.toString(), "chat:$id", t) }
         BarraConversazione(frasiLette.toList(), manda)
         CasellaScrivi(casella = "chat:$id", segnaposto = "Scrivi alla chat…", onManda = manda, modifier = Modifier.imePadding())
     }
