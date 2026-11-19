@@ -740,3 +740,7 @@
 ## novita
 
 - in `android/novita-app.txt` la voce app va aggiunta a mano a ogni salita di versionName, altrimenti `pubblica-app` si ferma; verificarla con `noteDi` di `scripts/note-novita.mjs`. _(2026-11-19)_
+
+## versione
+
+- Una versione tocca package.json, package-lock.json (2 punti), novita.ts e una nota nel quaderno. Android si alza solo se android/ cambia oltre a novita-app.txt, che è solo testo. _(2026-11-19)_
