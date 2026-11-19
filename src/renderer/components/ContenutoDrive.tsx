@@ -10,6 +10,10 @@ import { Aiuto } from './Aiuto'
 type Props = {
   /** Chiude il pannello Progetti (dopo «Apri» su una chat). */
   onChiudi: () => void
+  /** Cosa mostra (k-u2): i progetti stanno nel dettaglio di ognuno, i workspace in uno strumento. */
+  modo?: 'progetto' | 'workspace'
+  /** Con `modo: 'progetto'`: tiene solo il progetto di cui si guarda il dettaglio. */
+  solo?: (g: ProgettoCatalogo) => boolean
 }
 
 /**
@@ -31,7 +35,7 @@ type Props = {
  * scarica la cartella se viaggia con le chat, le chat che mancano, le mette
  * nel loro workspace, e poi il programma si riavvia da solo per mostrarle.
  */
-export function ContenutoDrive({ onChiudi }: Props): React.JSX.Element {
+export function ContenutoDrive({ onChiudi, modo = 'progetto', solo }: Props): React.JSX.Element {
   const [catalogo, setCatalogo] = useState<Catalogo | undefined>(undefined)
   const [messaggio, setMessaggio] = useState<string | undefined>(undefined)
   // Parte gia' «leggo»: la finestra di attesa c'e' dal primo disegno, non
@@ -44,7 +48,6 @@ export function ContenutoDrive({ onChiudi }: Props): React.JSX.Element {
   const [lavoro, setLavoro] = useState<StatoLavoro>({})
   const [adesso, setAdesso] = useState(Date.now())
   const [cassaforteDiversa, setCassaforteDiversa] = useState(false)
-  const [filtro, setFiltro] = useState<'tutti' | 'daPortare' | 'soloQui'>('tutti')
   const [daTogliere, setDaTogliere] = useState<ProgettoCatalogo | undefined>(undefined)
 
   const leggi = (): void => {
@@ -64,7 +67,7 @@ export function ContenutoDrive({ onChiudi }: Props): React.JSX.Element {
   useEffect(() => { const t = setInterval(() => setAdesso(Date.now()), 1000); return () => clearInterval(t) }, [])
 
   const commuta = (k: string): void => setAperti((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n })
-  const [vista, setVista] = useState<'progetti' | 'workspace'>('progetti')
+  const vista = modo === 'workspace' ? 'workspace' : 'progetti'
   const [wsDaTogliere, setWsDaTogliere] = useState<WorkspaceCatalogo | undefined>(undefined)
   // «Togli dal Drive» e «Rimetti»: una lapide sul Drive. Qui non cambia niente,
   // e nemmeno sugli altri PC: cambia cosa viaggia.
@@ -122,8 +125,7 @@ export function ContenutoDrive({ onChiudi }: Props): React.JSX.Element {
     }
   }
   const daPortare = (g: ProgettoCatalogo): number => g.conti.soloDrive + g.conti.indietro + g.file.soloDrive + g.file.indietro
-  const visibili = (catalogo?.progetti ?? []).filter((g) =>
-    filtro === 'tutti' ? true : filtro === 'daPortare' ? daPortare(g) > 0 : g.stato === 'soloQui' || g.conti.soloQui > 0)
+  const visibili = (catalogo?.progetti ?? []).filter((g) => solo === undefined || solo(g))
 
   return (
     <div className="contenuto-drive">
@@ -149,30 +151,6 @@ export function ContenutoDrive({ onChiudi }: Props): React.JSX.Element {
 
       {catalogo !== undefined ? (
         <>
-          <div className="drive__riassunto">
-            <span><strong>{catalogo.totali.progetti}</strong> progetti · <strong>{catalogo.totali.chat}</strong> chat</span>
-            <span className="drive__stato drive__stato--attesa">{catalogo.totali.daPortare} da portare qui</span>
-            <span className="drive__stato drive__stato--attesa">{catalogo.totali.daAggiornare} da aggiornare qui</span>
-            <span className="drive__stato drive__stato--ok">{catalogo.totali.soloQui} solo qui (saliranno)</span>
-            <span className="drive__stato drive__stato--ok">{catalogo.totali.uguali} uguali</span>
-            <span style={{ flex: 1 }} />
-            <select className="account__campo" style={{ fontSize: 12 }} value={filtro} onChange={(e) => setFiltro(e.target.value as typeof filtro)}>
-              <option value="tutti">tutti i progetti</option>
-              <option value="daPortare">solo quelli con qualcosa da portare qui</option>
-              <option value="soloQui">solo quelli con qualcosa solo qui</option>
-            </select>
-          </div>
-          <div className="drive__viste">
-            <button className={`tasto tasto--mini${vista === 'progetti' ? ' tasto--acceso' : ''}`} aria-pressed={vista === 'progetti'} onClick={() => setVista('progetti')}>Per progetto (cartella)</button>
-            <button className={`tasto tasto--mini${vista === 'workspace' ? ' tasto--acceso' : ''}`} aria-pressed={vista === 'workspace'} onClick={() => setVista('workspace')}>Per workspace ({catalogo.workspace.length})</button>
-            <span style={{ marginLeft: 6 }}>
-              <Aiuto di={vista === 'progetti' ? 'Per progetto' : 'Per workspace'}>
-                {vista === 'progetti'
-                  ? 'Un progetto è la cartella in cui le chat lavorano. «Porta qui» prende cartella e chat.'
-                  : 'Un workspace è una disposizione di chat, anche di progetti diversi. Le chat di un altro PC non si copiano qui: si guardano dal vivo, o il loro progetto si porta qui con «Sposta su questo PC».'}
-              </Aiuto>
-            </span>
-          </div>
           {vista === 'workspace' ? (
             <div className="drive__elenco">
               {catalogo.workspace.length === 0 ? <p className="account__nota">Sul Drive non ci sono workspace salvati.</p> : null}
