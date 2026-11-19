@@ -26,6 +26,17 @@ import { testoAvvio, testoConsegnato, type FaseSottofondo } from '@shared/sottof
 import { workspaceCorrente } from '../workspace-corrente'
 import { chiusaDopo, giudicaRiquadroRemoto } from '@shared/chiuse'
 import { useRegolaChatRemote } from '../workspace-remoti'
+import { invioSospeso, passoAggiornamento, rileggiPcOgniMs, TESTO_IN_AGGIORNAMENTO, testoAggiornamentoRemoto } from '../aggiornamento-riquadro'
+
+/** k-agg2: l'avviso al posto di errori, «non risponde» e chat ferma, mentre quel PC si aggiorna. */
+export function AvvisoAggiornamentoRemoto({ nomePc, versione }: { nomePc: string; versione: string }): React.JSX.Element {
+  return (
+    <div className="remoto__avviso remoto__avviso--aggiornamento" role="status">
+      <div className="remoto__avviso-titolo">{TESTO_IN_AGGIORNAMENTO}</div>
+      <div className="remoto__avviso-testo">{testoAggiornamentoRemoto(nomePc, versione)}</div>
+    </div>
+  )
+}
 
 type Props = {
   paneId: string
@@ -71,6 +82,10 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
   const regola = useRegolaChatRemote()
   const soloLettura = !regola.scrivibile
   const [pc, setPc] = useState<PcRemoto | undefined>(undefined)
+  /** k-agg2: quel PC si sta aggiornando (dal suo battito sul Drive, o da «Installa là»). */
+  const inAgg = pc?.inAggiornamento !== undefined
+  const versioneAgg = pc?.inAggiornamento?.versione ?? ''
+  const eraInAgg = useRef(false)
   const [cassaforteAperta, setCassaforteAperta] = useState(true)
   const [driveCollegato, setDriveCollegato] = useState(true)
   const [fase, setFase] = useState<Fase>({ tipo: 'cerco' })
@@ -188,9 +203,22 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
       }).catch(() => undefined)
     }
     leggi()
-    const t = setInterval(leggi, RILEGGI_PC_OGNI_MS)
+    const t = setInterval(leggi, rileggiPcOgniMs(inAgg, RILEGGI_PC_OGNI_MS))
     return () => { vivo = false; clearInterval(t) }
-  }, [remoto.pcId])
+  }, [remoto.pcId, inAgg])
+
+  // k-agg2: quel PC è tornato con il battito nuovo: la chat riprende da sola, si ricollega e ricarica lo schermo.
+  useEffect(() => {
+    const passo = passoAggiornamento(eraInAgg.current, inAgg)
+    eraInAgg.current = inAgg
+    if (passo !== 'riprendi') return
+    setSilenzio(undefined)
+    setFase({ tipo: 'cerco' })
+    setStoria(undefined)
+    ultimaIl.current = 0
+    avanzaLineaPc(remoto.pcId, { tipo: 'riprova-adesso', il: Date.now() })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inAgg])
 
   // **All'apertura** (0.58.2): il Core ricontrolla dove vive davvero la chat
   // (casa, copie, cartelle), corregge una casa sbagliata della regola, e scrive
@@ -314,7 +342,8 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
    */
   const manda = (): void => {
     const t = testo.trim()
-    if (t === '' || soloLettura) return
+    // k-agg2: mentre quel PC si aggiorna l'invio sta fermo, senza errori: il testo resta nel campo.
+    if (t === '' || soloLettura || invioSospeso(inAgg)) return
     ultimaAzioneRef.current = Date.now()
     // La chat là è chiusa (0.58.4): il testo la avvia in sottofondo e parte appena è pronta.
     if (chatId === undefined) {
@@ -327,7 +356,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
     setTesto('')
   }
   useEffect(() => {
-    if (linea.fase === 'ricollego' || linea.fase === 'cerco' || chatId === undefined) return
+    if (linea.fase === 'ricollego' || linea.fase === 'cerco' || chatId === undefined || invioSospeso(inAgg)) return
     const v = prossimoDaMandare(coda)
     if (v === undefined) return
     setCoda((c) => inInvio(c, v.id))
@@ -349,7 +378,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
       }
     }).catch(() => setCoda((c) => nonPartito(c, v.id)))
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [linea.fase, coda, chatId])
+  }, [linea.fase, coda, chatId, inAgg])
   const scegli = (opzione: string): void => {
     if (chatId === undefined || invio || soloLettura) return
     setInvio(true)
@@ -435,6 +464,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
         <span className="remoto__stato">
           {pc === undefined
             ? 'leggo il Drive…'
+            : inAgg ? TESTO_IN_AGGIORNAMENTO
             : via !== undefined || pc.stato?.stato === 'acceso'
               ? `acceso${via !== undefined ? '' : pc.buono !== undefined ? ` · risponde su ${descriviIndirizzo(pc.buono)}` : ''}`
               : pc.stato !== undefined
@@ -455,7 +485,8 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
         >?</span>
       </div>
       {/* Il collegamento a schermo pieno nel riquadro, passo per passo (0.52.3). */}
-      {tentVisibili && !tentChiusi ? (
+      {inAgg ? <AvvisoAggiornamentoRemoto nomePc={nomePc} versione={versioneAgg} /> : null}
+      {tentVisibili && !tentChiusi && !inAgg ? (
         <SchermoCollegamento
           nomePc={nomePc}
           passi={passiDettagliati({
@@ -471,7 +502,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
           onChiudi={() => setTentChiusi(true)}
         />
       ) : null}
-      <FasciaLinea linea={linea} nomePc={nomePc} adesso={adesso} onRiprova={riprova} />
+      {!inAgg ? <FasciaLinea linea={linea} nomePc={nomePc} adesso={adesso} onRiprova={riprova} /> : null}
       {lento ? (
         <div className="remoto__lento" role="status">
           <strong>Collegamento lento via Drive.</strong> {via?.testo}
@@ -521,11 +552,11 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
         </div>
       ) : null}
 
-      {fase.tipo === 'cerco' && storia === undefined ? (
+      {fase.tipo === 'cerco' && storia === undefined && !inAgg ? (
         <div className="remoto__attesa">Chiedo a {nomePc} quali chat ha aperte…</div>
       ) : null}
 
-      {fase.tipo === 'non-aperta' ? (
+      {fase.tipo === 'non-aperta' && !inAgg ? (
         <div className="remoto__avviso">
           <div className="remoto__avviso-titolo">Su {nomePc} questa chat non è aperta adesso</div>
           <div className="remoto__avviso-testo">
@@ -557,7 +588,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
         </div>
       ) : null}
 
-      {fase.tipo === 'errore' ? (
+      {fase.tipo === 'errore' && !inAgg ? (
         <div className="remoto__avviso">
           <div className="remoto__avviso-titolo">
             {statoSilenzio?.titolo ?? descriviSilenzio(fase.motivo, nomePc, 0).titolo}
@@ -637,7 +668,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
           rows={1}
           value={testo}
           disabled={chiusaPin || (chatId === undefined && remoto.sessione === undefined)}
-          placeholder={chatId === undefined ? (remoto.sessione !== undefined ? `Scrivi qui: la avvio su ${nomePc} in sottofondo (là non si apre niente) e il messaggio parte appena è pronta — Invio manda` : `Quando una chat è viva su ${nomePc} in questa cartella, qui le scrivi.`) : linea.fase === 'ricollego' ? 'Linea giù: quello che scrivi resta in coda e parte al ritorno, una volta sola — Invio mette in coda' : lento ? `Via Drive: il messaggio arriva a ${nomePc} al suo prossimo giro — Invio manda` : `Scrivi a questa chat su ${nomePc} — Invio manda, Maiusc+Invio va a capo`}
+          placeholder={inAgg ? `${TESTO_IN_AGGIORNAMENTO}: puoi scrivere, ma Manda si sblocca da solo quando ${nomePc} torna` : chatId === undefined ? (remoto.sessione !== undefined ? `Scrivi qui: la avvio su ${nomePc} in sottofondo (là non si apre niente) e il messaggio parte appena è pronta — Invio manda` : `Quando una chat è viva su ${nomePc} in questa cartella, qui le scrivi.`) : linea.fase === 'ricollego' ? 'Linea giù: quello che scrivi resta in coda e parte al ritorno, una volta sola — Invio mette in coda' : lento ? `Via Drive: il messaggio arriva a ${nomePc} al suo prossimo giro — Invio manda` : `Scrivi a questa chat su ${nomePc} — Invio manda, Maiusc+Invio va a capo`}
           onChange={(e) => {
             setTesto(e.target.value)
             // Cresce con quello che scrivi, fino a sei righe: come la casella di una chat.
@@ -647,7 +678,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
           }}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); manda() } }}
         />
-        <button className="tasto tasto--primario" disabled={chiusaPin || (chatId === undefined && remoto.sessione === undefined) || testo.trim() === ''} onClick={manda} title="Manda il testo e Invio nel terminale di quella chat, su quel PC">
+        <button className="tasto tasto--primario" disabled={invioSospeso(inAgg) || chiusaPin || (chatId === undefined && remoto.sessione === undefined) || testo.trim() === ''} onClick={manda} title="Manda il testo e Invio nel terminale di quella chat, su quel PC">
           Manda
         </button>
       </div>

@@ -21,6 +21,7 @@ import { ansiInHtml } from '@shared/ansi-html'
 import { avvisiDaMostrare, sceltaDaAnnunciare } from '@shared/avvisi-raggruppati'
 import { ricomponiSchermo } from '@shared/ricomponi-schermo'
 import { testoAvvio } from '@shared/sottofondo'
+import { TESTO_IN_AGGIORNAMENTO } from '@shared/aggiornamento-remoto'
 import { INIZI_PASSI_SPOSTA, MOTIVO_DRIVE_PIENO_SPOSTA, PASSI_SPOSTA, avanzamentoSposta } from '@shared/sposta'
 import {
   AIUTO_ELIMINA_WORKSPACE, ULTIMO_WORKSPACE, rigaEliminato, confermaChiudi, confermaDormi, confermaEliminaAutopilota, confermaEliminaWorkspace, confermaSposta
@@ -753,6 +754,13 @@ ${gruppiMenuWorkspace.toString()}
 ${azioniMenuWorkspace.toString()}
 var REGOLE = ${JSON.stringify(REGOLE_PUBBLICAZIONE)}
 var ULTIMO_WORKSPACE = ${JSON.stringify(ULTIMO_WORKSPACE)}
+// k-agg2: un PC remoto in aggiornamento. Il testo è lo stesso del PC (src/shared/aggiornamento-remoto.ts); aggRemoto = { pc } finché le chiamate a quel PC non tornano a rispondere.
+var TESTO_AGG = ${JSON.stringify(TESTO_IN_AGGIORNAMENTO)}
+var aggRemoto = null
+function aggiornandoHtml() {
+  if (!aggRemoto) return ''
+  return '<div class="piastrella"><div class="sotto" role="status"><b>' + esc(TESTO_AGG) + '</b>' + (aggRemoto.nome ? ' · ' + esc(aggRemoto.nome) : '') + '. Riprende da solo, non serve fare niente.</div></div>'
+}
 // La gestione delle chat (0.79.0): i testi del PC, da src/shared/gestione-chat-vista.ts. §N è il nome, §B lo spazio.
 var GC = ${JSON.stringify({
   testi: TESTI_AZIONI_CHAT, frase: FRASE_SVUOTA, ordini: ORDINI_SPAZIO, nonAperta: motivoNonChiude({ sessione: '', titolo: '§N' }), spiegaDrive: { elimina: SPIEGA_ELIMINA_DRIVE, svuota: SPIEGA_SVUOTA_DRIVE },
@@ -1211,6 +1219,7 @@ window.mostraSenzaNome = async () => { sessioniSenzaNome = !sessioniSenzaNome; a
 var sfScelta = -1
 var sfStato = null
 var sfGiro = null
+var sfRitenta = null
 /** La coda condivisa aperta dal telefono: quale progetto, e le sue voci. */
 var codaProgetto = null
 var codaVoci = null
@@ -1653,6 +1662,8 @@ async function chiedi(percorso, corpo, conEtag) {
     throw new Error('il computer non riconosce questo dispositivo (401)')
   }
   rifiuti401 = 0
+  // k-agg2: quel PC ha risposto: l'avviso «in aggiornamento» sparisce da solo.
+  if (r.ok && percorso === '/api/ponte' && corpo && aggRemoto && aggRemoto.pc === corpo.pc) aggRemoto = null
   // Ogni risposta del computer è un segno di vita (0.56.0): la storia della
   // chat, lo scrivere, i file. Lo stato lo conta già il giro di «aggiorna».
   if (percorso !== '/api/stato' && typeof linea !== 'undefined' && linea.fase !== 'cerco') {
@@ -1669,6 +1680,9 @@ async function chiedi(percorso, corpo, conEtag) {
     const err = new Error(motivo || ('il computer ha risposto ' + r.status))
     err.stato = r.status
     err.corpo = corpoErr
+    // k-agg2: quel PC si sta aggiornando: non è un errore, si aspetta (la pagina riprova da sola).
+    if (percorso === '/api/ponte' && corpo && corpoErr.aggiornando) { err.aggiornando = true; aggRemoto = { pc: corpo.pc, nome: corpoErr.su || '' } }
+    else if (percorso === '/api/ponte' && corpo && aggRemoto && aggRemoto.pc === corpo.pc) aggRemoto = null
     throw err
   }
   if (!conEtag) return r.json()
@@ -1953,7 +1967,7 @@ function impronta(s) {
     apTab,
     // Salute e Impostazioni sono destinazioni (0.61.0): quello che leggono entrando ridisegna la pagina.
     saluteVista ? saluteVista.riassunto + '/' + (saluteVista.voci || []).length : '', saluteErrore || '', saluteGruppo, saluteMappa,
-    notaDialogo || '', notaGlobale || '',
+    notaDialogo || '', notaGlobale || '', aggRemoto ? aggRemoto.pc : '',
     cartelle ? cartelle.length : '',
     codaProgetto || '', codaErrore || '',
     pcVisti ? pcVisti.map((b) => b.pcId + b.vivo + b.battito).join(',') : '', pcAperto || '', postaErrore || '',
@@ -2921,6 +2935,7 @@ function pannello(s) {
   app.innerHTML = \`
     <main class="schermata\${linea.fase === 'ricollego' ? ' schermata--giu' : ''}">
       \${lineaHtml()}
+      \${aggiornandoHtml()}
       \${notaGlobale ? '<div class="piastrella"><div class="errore">' + esc(notaGlobale) + '</div><div class="riga"><button onclick="chiudiNota()">Ok</button></div></div>' : ''}
       \${linguetteHtml()}
       \${schermate[posto.voce] || schermate.adesso}
@@ -3189,7 +3204,7 @@ window.guardaAp = async (id, pc, nomePc) => {
   const alLavoro = document.getElementById('al-lavoro-ap')
   if (alLavoro && alLavoro.scrollIntoView) alLavoro.scrollIntoView({ block: 'start' })
 }
-window.chiudiAp = () => { attesaRemota = null; attesaGiu = false; apRiassunto = false; menuSpecAperto = false; menuSpecConferma = ''; apIntera = null; apPc = null; apPcNome = ''; dentroAp = null; apDettaglio = null; apDomandeViste = null; apFile = null; apAvanzamento = null; apFileScelto = null; apDiff = null; pannello(ultimoStato) }
+window.chiudiAp = () => { aggRemoto = null; attesaRemota = null; attesaGiu = false; apRiassunto = false; menuSpecAperto = false; menuSpecConferma = ''; apIntera = null; apPc = null; apPcNome = ''; dentroAp = null; apDettaglio = null; apDomandeViste = null; apFile = null; apAvanzamento = null; apFileScelto = null; apDiff = null; pannello(ultimoStato) }
 
 async function leggiAp() {
   if (!dentroAp) return
@@ -3221,7 +3236,8 @@ async function leggiAp() {
   } catch (e) {
     // Un autopilota di un altro PC (0.59.0): quel PC non risponde. Lo si dice,
     // con il perché e le strade provate, e la scheda resta: riprova da sola.
-    if (apPc) { notaGlobale = (e && e.message) ? e.message : (apPcNome + ' non risponde'); return }
+    // In aggiornamento (k-agg2): niente errore, l'avviso lo mostra aggiornandoHtml e il prossimo giro riprova.
+    if (apPc) { if (e && e.aggiornando) return; notaGlobale = (e && e.message) ? e.message : (apPcNome + ' non risponde'); return }
     // Eliminato mentre lo si guardava: si torna all'elenco invece di restare
     // su un pannello che non descrive piu' niente.
     dentroAp = null
@@ -4103,7 +4119,8 @@ function sottofondoHtml() {
   const fase = st.fase || ''
   return '<div class="piastrella" style="margin-top:8px">' +
     '<div class="titolo">Scrivi a «' + esc(s.titolo) + '» su ' + esc(s.altrove) + aiuto('sottofondo', 'Quel PC la avvia in sottofondo (claude --resume nella sua cartella, senza riquadro e senza finestre: là non si vede niente e non cambia il workspace). Il messaggio aspetta in coda e parte appena la chat è pronta; poi la trovi fra le chat di ' + esc(s.altrove) + ' e la segui da lì.') + '</div>' +
-    (fase ? '<div class="' + (fase === 'errore' ? 'errore' : 'sotto') + '" style="margin-top:6px">' + esc(testoAvvio(fase, s.altrove, !!st.testo)) + (st.messaggio ? ' — ' + esc(fase === 'errore' ? 'Perché: ' + st.messaggio : 'Da ' + s.altrove + ': ' + st.messaggio) : '') + '</div>' : '') +
+    (fase === 'aggiorna' ? '<div class="sotto" style="margin-top:6px"><b>' + esc(TESTO_AGG) + '</b>. Il messaggio parte da solo appena ' + esc(s.altrove) + ' torna acceso.</div>' : '') +
+    (fase && fase !== 'aggiorna' ? '<div class="' + (fase === 'errore' ? 'errore' : 'sotto') + '" style="margin-top:6px">' + esc(testoAvvio(fase, s.altrove, !!st.testo)) + (st.messaggio ? ' — ' + esc(fase === 'errore' ? 'Perché: ' + st.messaggio : 'Da ' + s.altrove + ': ' + st.messaggio) : '') + '</div>' : '') +
     (st.testo && fase && fase !== 'fatto' ? '<div class="sotto">Il tuo messaggio, in attesa: «' + esc(st.testo.slice(0, 160)) + '». Non si perde: Riprova lo rimanda una volta sola.</div>' : '') +
     (fase === 'fatto' ? '<div class="sotto">Messaggio consegnato: la chat gira su ' + esc(s.altrove) + ' in sottofondo.</div>' : '') +
     '<div class="riga"><textarea id="sf-testo" rows="3" placeholder="Il messaggio per questa chat: parte appena è pronta là"></textarea></div>' +
@@ -4115,7 +4132,7 @@ function sottofondoHtml() {
     '</div></div>'
 }
 
-window.sfChiudi = () => { sfScelta = -1; sfStato = null; if (sfGiro) { clearInterval(sfGiro); sfGiro = null } pannello(ultimoStato) }
+window.sfChiudi = () => { sfScelta = -1; sfStato = null; if (sfRitenta) { clearTimeout(sfRitenta); sfRitenta = null } if (sfGiro) { clearInterval(sfGiro); sfGiro = null } pannello(ultimoStato) }
 
 async function sfChiedi(s, corpo) {
   return chiedi('/api/ponte', { pc: s.altrovePc, percorso: '/api/sottofondo/avvia', corpo: corpo })
@@ -4149,6 +4166,14 @@ async function sfInvia(s) {
     sfStato = { ...st, fase: r.fase || 'avvio', messaggio: r.messaggio || '' }
     if (st.id && (r.consegnati || []).includes(st.id)) sfStato.fase = 'fatto'
   } catch (e) {
+    // k-agg2: quel PC si sta aggiornando: il messaggio resta in attesa (stesso id: mai due volte) e riparte da solo.
+    if (e && e.aggiornando) {
+      sfStato = { ...st, fase: 'aggiorna', messaggio: '' }
+      pannello(ultimoStato)
+      if (sfRitenta) clearTimeout(sfRitenta)
+      sfRitenta = setTimeout(() => { sfRitenta = null; if (sfStato && sfStato.fase === 'aggiorna' && sfScelta >= 0 && (sessioniViste || [])[sfScelta] === s) sfInvia(s) }, 5000)
+      return
+    }
     const m = e && e.message ? e.message : 'quel PC non risponde'
     sfStato = { ...st, fase: 'errore', messaggio: /404|non trovat/.test(m) ? s.altrove + ' va aggiornato alla 0.58.4 per avviare le chat in sottofondo' : m }
   }
@@ -5823,7 +5848,7 @@ async function leggiAttesaRemota() {
     attesaGiu = false
   } catch (e) {
     if (pc !== apPc) return
-    if (e && (e.stato === 404 || e.stato === 403 || e.stato === 409)) { attesaRemota = 'vecchio'; attesaGiu = false } else attesaGiu = true
+    if (e && (e.stato === 404 || e.stato === 403 || e.stato === 409)) { attesaRemota = 'vecchio'; attesaGiu = false } else attesaGiu = !(e && e.aggiornando)
   }
 }
 async function leggiAttesa() {
