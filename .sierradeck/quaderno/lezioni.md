@@ -457,6 +457,7 @@
 - il push verso GitHub dalla copia può essere negato dai permessi; il ramo `porta-0109-2` (aa30211d) resta pronto in locale per essere pubblicato da chi ha il permesso. _(2026-11-17)_
 - Prima di rifare un cherry-pick controllare con `git cat-file -t <sha>`: il commit del collega può già essere nella copia. _(2026-11-17)_
 - Dai PC della rete il git push è negato dai permessi di Bash (non da GitHub): portare in main un commit già pronto va affidato al «rilascio», che lavora nella cartella principale. _(2026-11-17)_
+- Dai PC dell'Aiutante la cartella principale e origin non sono raggiungibili: il controllo versione su origin/main va fatto dall'autopilota. _(2026-11-19)_
 
 ## cancello
 
