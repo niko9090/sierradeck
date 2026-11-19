@@ -110,6 +110,8 @@ import { leggiErroriDelTelefono, leggiInvioErrori, type InvioErrori, type VoceEr
 
 export type BattitoPcTelefono = {
   pcId: string; nome: string; host?: string; nomeScelto?: string; versione: string; battito: string
+  /** Il più recente fra il battito di SierraDeck e quello dell'Aiutante dello stesso PC (solo per lo stato). */
+  visto?: string
   cartelle: string[]
   chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean; scelte?: OpzioneBattito[]; domanda?: string; contesto?: string[] }[]
 }
@@ -2345,9 +2347,11 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         disponibile: deps.pc !== undefined,
         // Stato, frase e giorni alla rimozione vengono tutti da `statoPc`: la pagina e l'app li mostrano cosi' come sono.
         // Un PC da rimuovere non si elenca piu'.
-        pc: (pc ?? []).filter((b) => !daRimuovere(b.battito, ora)).map((b) => {
-          const s = statoPc(b.battito, ora)
-          return { ...b, vivo: s.stato === 'acceso', stato: s.stato, frase: s.frase, giorniAllaRimozione: s.giorniAllaRimozione }
+        // `visto` (19/11): il battito più recente fra SierraDeck e l'Aiutante dello stesso PC, messo da chi dà l'elenco.
+        pc: (pc ?? []).filter((b) => !daRimuovere(b.visto ?? b.battito, ora)).map((b) => {
+          const { visto, ...resto } = b
+          const s = statoPc(visto ?? b.battito, ora)
+          return { ...resto, vivo: s.stato === 'acceso', stato: s.stato, frase: s.frase, giorniAllaRimozione: s.giorniAllaRimozione }
         })
       })
     }

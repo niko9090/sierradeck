@@ -190,6 +190,7 @@ import { testoConsegnato, type StatoSottofondo } from '@shared/sottofondo'
 import { azioneDelPonte } from '@shared/ponte-telefono'
 import { workspaceDiApertura } from '@shared/workspace-apertura'
 import { autopilotiDaStato, erroreAltroPc, rottaAutopilotaAltroPc, unBattitoPerNome, type AutopilotiDiPc } from '@shared/autopiloti-altri'
+import { vistoConAiutante } from '@shared/stato-pc'
 import { eAiutante, pcCheHaLaCartella, pcVivo, senzaAiutanti, tagliaIntero, TAGLIO_OPZIONE_BATTITO, type BattitoPc } from '@shared/posta'
 import type { EsitoLavoro } from './cassaforte/lavoro-in-corso'
 import { pathToSlug } from './indexer/project-scanner'
@@ -2563,7 +2564,10 @@ if (!app.requestSingleInstanceLock()) {
       altriPcGlobale = async () => {
         const io = identitaPc.leggi()
         // 12/11: senza gli Aiutanti (niente autopiloti né chat da elencare).
-        return unBattitoPerNome(senzaAiutanti(await postino.pcSubito().catch(() => postino.altrui())).filter((b) => b.pcId !== io.id), nomeDaMostrare).map((b) => ({ pcId: b.pcId, nome: nomeDaMostrare(b), ...(b.battito !== undefined ? { battito: b.battito } : {}) }))
+        // 19/11: il battito che conta è il più recente fra SierraDeck e l'Aiutante dello stesso PC (un PC con il solo Aiutante non è «spento»).
+        const tutti = await postino.pcSubito().catch(() => postino.altrui())
+        const visti = vistoConAiutante(tutti, (b) => b.battito)
+        return unBattitoPerNome(senzaAiutanti(tutti).filter((b) => b.pcId !== io.id), nomeDaMostrare).map((b) => ({ pcId: b.pcId, nome: nomeDaMostrare(b), ...(visti.get(b.pcId) !== undefined ? { battito: visti.get(b.pcId) as string } : {}) }))
       }
       saluteAltroPcGlobale = async (pcId) => (await remoto.chiama(pcId, '/api/salute')) as import('@shared/salute').Salute
       autopilotiAltri = async () => {
@@ -3127,12 +3131,15 @@ if (!app.requestSingleInstanceLock()) {
         const remoti = remotiAdesso()
         const ora = Date.now()
         // Gli Aiutanti fuori due volte (13/11): qui e in gruppiAltriPc, che li scarta da sé.
-        const battiti = unBattitoPerNome(senzaAiutanti(postino.altrui()).filter((b) => b.pcId !== io.id), nomeDaMostrare)
+        const tutti = postino.altrui()
+        // 19/11: «visto» è il più recente fra il battito di SierraDeck e quello dell'Aiutante dello stesso PC.
+        const visti = vistoConAiutante(tutti, (b) => b.battito)
+        const battiti = unBattitoPerNome(senzaAiutanti(tutti).filter((b) => b.pcId !== io.id), nomeDaMostrare)
         return gruppiAltriPc({
           nomiQui: (a?.workspace ?? []).map((w) => w.nome).filter((n) => remoti[n] === undefined),
           remoti,
           pc: battiti.map((b) => ({
-            pcId: b.pcId, nome: nomeDaMostrare(b), visto: b.battito, versione: b.versione,
+            pcId: b.pcId, nome: nomeDaMostrare(b), visto: visti.get(b.pcId) ?? b.battito, versione: b.versione,
             ...(eAiutante(b) ? { aiutante: true } : {}),
             ...(b.workspace !== undefined ? { workspace: b.workspace } : {})
           })),
@@ -5213,7 +5220,11 @@ if (!app.requestSingleInstanceLock()) {
         pcIo: () => identitaPc.leggi().id,
         // Subito (0.68.0): rileggere dal Drive a ogni domanda del telefono costava 20 s.
         // 12/11: senza gli Aiutanti: dal telefono non si mandano azioni a un PC che non apre chat.
-        pc: () => postinoGlobale?.pcSubito().then(senzaAiutanti) ?? Promise.resolve([]),
+        // `visto`: il battito più recente fra SierraDeck e l'Aiutante di quel PC, per lo stato («spento», «si toglie fra»).
+        pc: () => postinoGlobale?.pcSubito().then((tutti) => {
+          const visti = vistoConAiutante(tutti, (b) => b.battito)
+          return senzaAiutanti(tutti).map((b) => ({ ...b, visto: visti.get(b.pcId) ?? b.battito }))
+        }) ?? Promise.resolve([]),
         posta: (pc: string) => postinoGlobale?.posta(pc) ?? Promise.resolve(undefined),
         postaAggiungi: (pc: string, voce: { cwd: string; testo: string; sessione?: string; origine?: 'umano' | 'autopilota'; daVisore?: string }) =>
           postinoGlobale?.aggiungi(pc, voce) ?? Promise.resolve(undefined),

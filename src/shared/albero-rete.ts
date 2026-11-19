@@ -1,5 +1,5 @@
 import { eAiutante, bloccoDiAiutante, type BattitoPc } from './posta'
-import { statoPc } from './stato-pc'
+import { statoPc, vistoConAiutante } from './stato-pc'
 import { nomeDaMostrare } from './nome-pc'
 import { quantoFa, versionePcInBreve, prima } from './salute'
 import { inCorso, type AvanzamentoInstallaLa } from './installa-la'
@@ -118,9 +118,11 @@ export function alberoRete(d: DatiAlbero): AlberoRete {
 
   const pc: NodoRete[] = []
   const aiutanti: NodoRete[] = []
+  // 19/11: un PC che lavora solo con l'Aiutante non è spento: vale il battito più recente dei due.
+  const visti = vistoConAiutante(d.pc, (b) => b.battito)
   for (const b of d.pc) {
     if (b.pcId === d.io.id) continue
-    const st = statoPc(b.battito, d.adesso)
+    const st = statoPc(visti.get(b.pcId), d.adesso)
     if (st.stato === 'da-rimuovere') continue
     const acceso = st.stato === 'acceso'
     const nome = nomeDaMostrare(b)

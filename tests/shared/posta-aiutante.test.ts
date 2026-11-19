@@ -66,10 +66,10 @@ describe('dove il programma completo sceglie un PC per chat e progetti', () => {
   const indice = readFileSync('src/main/index.ts', 'utf8')
   it('i riquadri remoti e il telefono non vedono gli Aiutanti come PC per le chat', () => {
     expect(indice).toMatch(/ipcMain\.handle\('remoto:pc'[\s\S]{0,400}senzaAiutanti\(await postino\.pcSubito\(\)/u)
-    expect(indice).toMatch(/pc: \(\) => postinoGlobale\?\.pcSubito\(\)\.then\(senzaAiutanti\)/u)
+    expect(indice).toMatch(/pc: \(\) => postinoGlobale\?\.pcSubito\(\)\.then\(\(tutti\) => \{[\s\S]{0,300}senzaAiutanti\(tutti\)/u)
   })
   it('gli autopiloti degli altri PC e le versioni: senza Aiutanti', () => {
-    expect(indice).toMatch(/altriPcGlobale = async \(\) => \{[\s\S]{0,300}senzaAiutanti/u)
+    expect(indice).toMatch(/altriPcGlobale = async \(\) => \{[\s\S]{0,600}senzaAiutanti/u)
     expect(indice).toMatch(/const altre = senzaAiutanti\(postinoGlobale\?\.altrui\(\)/u)
   })
   it('lo spedizioniere sa chi è un Aiutante (per sceglierlo per primo)', () => {
