@@ -140,7 +140,7 @@ export function indirizziDaProvare(p: { buono?: string; ricordati?: string[]; ta
 
 /** Lo stato di quel PC come lo dicono il riquadro e il riquadro d'attesa. */
 export type StatoPc = {
-  stato: 'acceso' | 'non-so' | 'irraggiungibile' | 'chiave' | 'rifiutato' | 'altro' | 'senza-indirizzi' | 'versione-vecchia'
+  stato: 'acceso' | 'non-so' | 'irraggiungibile' | 'chiave' | 'rifiutato' | 'altro' | 'senza-indirizzi' | 'versione-vecchia' | 'solo-aiutante'
   titolo: string
   cosaFare: string
 }
@@ -162,7 +162,10 @@ export function statoPc(p: {
   ping: PingPc | undefined
   /** Il battito sul Drive e' recente (meno di 5 minuti). */
   battitoVivo: boolean
+  /** L'ultimo segno sul Drive: il più recente fra SierraDeck e l'Aiutante di quel PC (`vistoDelPc`). */
   ultimoSegno?: string
+  /** Acceso solo grazie all'Aiutante: SierraDeck là non è aperto (`vistoDelPc`). */
+  soloAiutante?: boolean
   /** Il Drive di questo PC e' collegato: senza, i battiti non arrivano piu'. */
   driveCollegato: boolean
   porta: number
@@ -192,6 +195,8 @@ export function statoPc(p: {
       cosaFare: `Gli indirizzi che ho di ${n} ora sono di altri. Controlla che sia acceso e sulla stessa rete (o con Tailscale), poi riprova.${(ping.prove ?? []).length > 0 ? ` Cosa ho provato: ${(ping.prove ?? []).map(testoProva).join('; ')}.` : ''}`
     }
   }
+  // 19/11: l'Aiutante di quel PC ha un battito recente e SierraDeck là non è aperto: il PC è acceso, non è un guasto.
+  if (p.soloAiutante === true) return { stato: 'solo-aiutante', titolo: `${n} è acceso, lavora solo l’Aiutante (SierraDeck non è aperto)`, cosaFare: '' }
   const segno = quando(p.ultimoSegno)
   const perche = p.driveCollegato
     ? (segno !== '' ? `l’ultimo segno sul Drive è del ${segno}` : 'sul Drive non ha mai lasciato un segno')

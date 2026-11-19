@@ -231,6 +231,50 @@ describe('k-p2: i PC spenti nel rapporto', () => {
   })
 })
 
+describe('19/11: un PC con il solo Aiutante vivo', () => {
+  const ora = Date.parse('2026-11-19T21:59:43.000Z')
+  const quando = new Date(ora).toISOString()
+  const battitoFa = (min: number): string => new Date(ora - min * 60_000).toISOString()
+
+  it('non è fra le criticità «non risponde», e nel rapporto è una riga informativa', () => {
+    const saluti: SaluteDiPc[] = [
+      { pcId: 'a', nome: 'PC-Fisso', salute: salute() },
+      { pcId: 'b', nome: 'PC-Banco', errore: 'nessuna risposta', battito: battitoFa(24), soloAiutante: true }
+    ]
+    const criticita = criticitaDi(saluti, [], ora)
+    expect(criticita).toEqual([])
+    const t = testoRapporto({ quando, saluti, criticita, adesso: ora })
+    expect(t).toContain('- **PC-Banco**')
+    expect(t).toContain('acceso, lavora solo l’Aiutante (SierraDeck non è aperto)')
+    expect(t).not.toContain('dato vecchio')
+    expect(t).not.toContain('non risponde (')
+  })
+
+  it('la riga «pc:<id>» detta da un altro PC non diventa una criticità', () => {
+    const remota: Salute['voci'][number] = { ...voce('guasto', 'PC-Banco · acceso secondo il Drive, ma non si raggiunge'), chiave: 'pc:b' }
+    const saluti: SaluteDiPc[] = [
+      { pcId: 'a', nome: 'PC-Fisso', salute: salute([remota]) },
+      { pcId: 'b', nome: 'PC-Banco', errore: 'nessuna risposta', battito: battitoFa(24), soloAiutante: true }
+    ]
+    expect(criticitaDi(saluti, [], ora)).toEqual([])
+  })
+
+  it('un battito di pochi minuti fa non è scritto «dato vecchio» ma con la frase di statoPc', () => {
+    const saluti: SaluteDiPc[] = [{ pcId: 'b', nome: 'PC-Banco', errore: 'nessuna risposta', battito: battitoFa(24) }]
+    const t = testoRapporto({ quando, saluti, criticita: criticitaDi(saluti, [], ora), adesso: ora })
+    expect(t).toContain(`ultimo battito sul Drive: ${battitoFa(24)}, acceso`)
+    expect(t).not.toContain('dato vecchio')
+    // Con SierraDeck vivo e senza risposta resta una criticità vera.
+    expect(criticitaDi(saluti, [], ora).map((c) => c.pc)).toEqual(['PC-Banco'])
+  })
+
+  it('tutti e due vecchi: spento, come prima', () => {
+    const saluti: SaluteDiPc[] = [{ pcId: 'b', nome: 'PC-Banco', errore: 'nessuna risposta', battito: battitoFa(3 * 24 * 60) }]
+    expect(criticitaDi(saluti, [], ora)).toEqual([])
+    expect(testoRapporto({ quando, saluti, criticita: [], adesso: ora })).toContain('spento da 3 giorni')
+  })
+})
+
 describe('0.94.1: anche le righe degli altri PC su un PC spento', () => {
   it('pc:<id> di un PC spento non entra; di un PC acceso sì', () => {
     const ora = Date.parse('2026-11-05T12:00:00.000Z')

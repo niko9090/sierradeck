@@ -1,4 +1,5 @@
 import { pcVivo, type BattitoPc } from '@shared/posta'
+import { vistoDelPc } from '@shared/stato-pc'
 import { descriviIndirizzo, PORTA_CLIENT_PREDEFINITA } from '@shared/pc-remoto'
 import { indirizziDaProvare, messaggioErroreRemoto, motivoDaStatoHttp, statoPc, testoProva, type PingPc, type ProvaIndirizzo, type StatoPc } from '@shared/scoperta-pc'
 import { improntaPc } from './casa-firma'
@@ -384,11 +385,14 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
 
   const statoDa = (pcId: string, p: PingPc | undefined, nomeNoto?: string): StatoPc => {
     const b = battitoDi(pcId)
+    // 19/11: conta anche il battito dell'Aiutante dello stesso PC (stesso aiuto della rimozione dei 30 giorni).
+    const { visto, soloAiutante } = vistoDelPc(deps.battiti(), pcId, adesso())
     return statoPc({
       nome: b?.nome ?? nomeNoto ?? 'quel PC',
       ping: p,
-      battitoVivo: b !== undefined && pcVivo(b, adesso()),
-      ...(b?.battito !== undefined ? { ultimoSegno: b.battito } : {}),
+      battitoVivo: (b !== undefined && pcVivo(b, adesso())) || soloAiutante,
+      ...(visto !== undefined ? { ultimoSegno: visto } : {}),
+      ...(soloAiutante ? { soloAiutante } : {}),
       driveCollegato: deps.driveCollegato?.() ?? true,
       porta: b?.porta ?? PORTA_CLIENT_PREDEFINITA
     })
@@ -400,7 +404,7 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
     const motivo: MotivoRemoto = s.stato === 'chiave' ? 'chiave'
       : s.stato === 'rifiutato' ? 'rifiutato'
       : s.stato === 'senza-indirizzi' ? 'senza-indirizzi'
-      : s.stato === 'irraggiungibile' || s.stato === 'altro' ? 'irraggiungibile'
+      : s.stato === 'irraggiungibile' || s.stato === 'altro' || s.stato === 'solo-aiutante' ? 'irraggiungibile'
       : 'non-so'
     const m = `${s.titolo}. ${s.cosaFare}`
     racconta(pcId, m)
