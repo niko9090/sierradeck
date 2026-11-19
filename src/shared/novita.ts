@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.110.2',
+    righe: [
+      '**Un PC che lavora solo con l’Aiutante non risulta più «non risponde»** (SierraDeck chiuso) nel controllo dei PC e nella Salute: adesso è scritto «acceso, lavora solo l’Aiutante».',
+      '**Non conta più fra le criticità.**',
+    ],
+  },
+  {
     versione: '0.110.1',
     righe: [
       '**La schermata non si blocca più** quando da un altro PC arriva un autopilota senza l’elenco delle sue chat.',
