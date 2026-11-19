@@ -137,7 +137,8 @@ object Navigazione {
     fun verso(p: Posto, s: Scheda): Posto = when (s) {
         Scheda.DOMANDE, Scheda.AUTOPILOTI, Scheda.CHAT, Scheda.PROGETTI -> p.copy(voce = VoceBarra.LAVORO, pile = p.pile - VoceBarra.LAVORO)
         Scheda.FILE -> p.copy(voce = VoceBarra.FILE, pile = p.pile - VoceBarra.FILE)
-        Scheda.SALUTE -> apri(p.copy(pile = p.pile - VoceBarra.ALTRO), Dettaglio.Sezione(SezioneAltro.SALUTE))
+        // Nell'app Computer e Salute sono ancora una sezione sola di Altro (riallineo completo: compito a parte).
+        Scheda.COMPUTER, Scheda.SALUTE -> apri(p.copy(pile = p.pile - VoceBarra.ALTRO), Dettaglio.Sezione(SezioneAltro.SALUTE))
         Scheda.IMPOSTAZIONI -> p.copy(voce = VoceBarra.ALTRO, pile = p.pile - VoceBarra.ALTRO)
     }
 
