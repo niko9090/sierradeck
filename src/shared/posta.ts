@@ -114,6 +114,13 @@ export type BattitoPc = {
    */
   aiutante?: boolean
   /**
+   * 19/11 (k-agg1): questo PC sta installando la versione `versione` e si chiude
+   * (`da` = ms dal 1970). Gli altri leggono «Computer in aggiornamento, attendere»
+   * invece di «non risponde». Vale 15 minuti (`@shared/aggiornamento-remoto`);
+   * al ritorno il battito normale non lo ha più.
+   */
+  aggiornando?: { versione: string; da: number }
+  /**
    * 13/11 (Aiutante 1.0.3): perché quell'Aiutante adesso non prende lavori
    * («Claude non collegato o accesso scaduto», «limite del piano»…). Assente
    * se va. Gli altri PC lo mostrano accanto al nome; i posti sono già 0.

@@ -12,6 +12,7 @@
  * dalla cassaforte condivisa: niente da accoppiare.
  */
 
+import { TESTO_IN_AGGIORNAMENTO } from './aggiornamento-remoto'
 import type { StatoPc } from './scoperta-pc'
 import type { InfoStrada } from './strada-pc'
 
@@ -172,7 +173,9 @@ export const RIGHE_REMOTE = 200
  */
 export const SILENZIO_BREVE_MS = 30_000
 
-export function descriviSilenzio(motivo: string, pcNome: string, daMs: number): { titolo: string; breve: boolean } {
+export function descriviSilenzio(motivo: string, pcNome: string, daMs: number, aggiornando?: { versione: string } | null): { titolo: string; breve: boolean } {
+  // k-agg1: quel PC si sta aggiornando: il silenzio è giusto, si dice questo (non «non risponde» / «non so se è acceso»).
+  if (aggiornando != null && !['cassaforte', 'lento', 'chat', 'cartella', 'pin'].includes(motivo)) return { titolo: TESTO_IN_AGGIORNAMENTO, breve: false }
   const secondi = Math.max(0, Math.round(daMs / 1000))
   const quanto = secondi < 90 ? `${secondi} secondi` : `${Math.round(secondi / 60)} minuti`
   const breve = daMs < SILENZIO_BREVE_MS

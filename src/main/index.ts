@@ -191,6 +191,7 @@ import { azioneDelPonte } from '@shared/ponte-telefono'
 import { workspaceDiApertura } from '@shared/workspace-apertura'
 import { autopilotiDaStato, erroreAltroPc, rottaAutopilotaAltroPc, unBattitoPerNome, type AutopilotiDiPc } from '@shared/autopiloti-altri'
 import { vistoConAiutante, vistoDelPc } from '@shared/stato-pc'
+import { AGGIORNAMENTO_VALE_MS } from '@shared/aggiornamento-remoto'
 import { eAiutante, pcCheHaLaCartella, pcVivo, senzaAiutanti, tagliaIntero, TAGLIO_OPZIONE_BATTITO, type BattitoPc } from '@shared/posta'
 import type { EsitoLavoro } from './cassaforte/lavoro-in-corso'
 import { pathToSlug } from './indexer/project-scanner'
@@ -2300,6 +2301,11 @@ if (!app.requestSingleInstanceLock()) {
         mioId: () => identitaPc.leggi().id,
         log: registro.info,
         driveCollegato: () => contoDrive.stato().connesso,
+        // k-agg1: «Installa là» avviato da qui e già in fase «installo»: quel PC si sta aggiornando.
+        aggiornandoDa: (pcId) => {
+          const a = installaLaGlobale?.stato().find((x) => x.pcId === pcId)
+          return a?.fase === 'installo' && Date.now() - Date.parse(a.aggiornato) < AGGIORNAMENTO_VALE_MS ? { versione: a.a ?? '' } : undefined
+        },
         altriIndirizzi: async (pcId, nome) => ({
           ricordati: (indirizziRicordati()[pcId] ?? []).filter((x) => typeof x === 'string'),
           // Anche per indirizzo del battito (0.57.1): su Tailscale un PC può avere un altro nome.
@@ -2354,6 +2360,8 @@ if (!app.requestSingleInstanceLock()) {
             ...(remoto.indirizzoBuono(b.pcId) !== undefined ? { buono: remoto.indirizzoBuono(b.pcId) } : {}),
             ...(remoto.stradaDi(b.pcId) !== undefined ? { strada: remoto.stradaDi(b.pcId) } : {}),
             ...(stati[b.pcId] !== undefined ? { stato: stati[b.pcId] } : {}),
+            // k-agg1: quel PC si sta aggiornando: «Computer in aggiornamento, attendere».
+            ...(remoto.aggiornandoDi(b.pcId) !== null ? { aggiornando: remoto.aggiornandoDi(b.pcId)! } : {}),
             chat: b.chat, cartelle: b.cartelle
           }))
         }
@@ -6330,7 +6338,9 @@ if (!app.requestSingleInstanceLock()) {
           consegneInPausa = false
           try { rmSync(filePausa(dati), { force: true }) } catch { /* non c'era */ }
           registro.info("[aggiornamenti] pausa disfatta: l'installazione non e' partita")
-        }
+        },
+        // k-agg1: il battito «in aggiornamento», subito, prima di chiudersi (5 s al massimo).
+        async (versione) => { await postinoGlobale?.annunciaAggiornamento?.(versione) }
       )
       // 0.67.1: un altro PC annuncia nel battito una versione più nuova di
       // questa → si cerca subito, senza aspettare il giro dei dieci minuti.

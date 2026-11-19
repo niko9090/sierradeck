@@ -402,7 +402,12 @@ export function creaAggiornamenti(
    * pausa faceva scrivere «SierraDeck e' tornato su con la versione nuova»
    * in chat che non si erano mai fermate.
    */
-  disfaPausa?: () => Promise<void>
+  disfaPausa?: () => Promise<void>,
+  /**
+   * k-agg1: entrando in «installo», dice agli altri PC (battito sul Drive) che questo si sta
+   * aggiornando. Ha un tempo limite breve e non lancia: non deve fermare l'installazione.
+   */
+  annunciaAgliAltri?: (versione: string) => Promise<void>
 ): Aggiornamenti {
   const nota = (m: string): void => { console.log(`[aggiornamenti] ${m}`); registro?.info(`[aggiornamenti] ${m}`) }
   const guaio = (m: string): void => { console.error(`[aggiornamenti] ${m}`); registro?.errore(`[aggiornamenti] ${m}`) }
@@ -843,6 +848,8 @@ export function creaAggiornamenti(
       // risponde piu', e chi sta guardando da un telefono deve sapere che il
       // silenzio che sta per arrivare e' quello giusto.
       annuncia({ ...stato, fase: 'installo' })
+      // Anche gli altri PC lo devono sapere (k-agg1): leggono «in aggiornamento», non «non risponde».
+      try { await annunciaAgliAltri?.(stato.versione ?? versioneScaricata ?? '?') } catch (err) { guaio(`battito di aggiornamento non scritto: ${String(err)}`) }
       // Una copia dei layout **prima** di riavviare.
       //
       // Due volte, dopo un aggiornamento, le chat si sono ritrovate sotto il
