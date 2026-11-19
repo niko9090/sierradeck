@@ -109,6 +109,10 @@ data class PcRemoto(
     val battito: String = "",
     /** Deciso dal computer, che ha l'ora giusta. */
     val vivo: Boolean = false,
+    /** Stato e frase decisi dal PC (assenti con un servizio vecchio). */
+    val stato: String? = null,
+    val frase: String? = null,
+    val giorniAllaRimozione: Int? = null,
     val cartelle: List<String> = emptyList(),
     val chat: List<ChatDiPc> = emptyList()
 ) {

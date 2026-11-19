@@ -126,7 +126,8 @@ fun AltriComputer(api: Api) {
                                 Text(p.mostra, color = Banco.testo, maxLines = 1)
                                 p.sotto?.let { Text(it, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1) }
                                 Text(
-                                    (if (p.vivo) "acceso" else "spento, ultimo segno ${p.battito.take(16).replace('T', ' ')}") +
+                                    (p.frase?.takeIf { it.isNotBlank() }
+                                        ?: if (p.vivo) "acceso" else "spento, ultimo segno ${p.battito.take(16).replace('T', ' ')}") +
                                         " · ${p.chat.size} chat aperte · ${p.cartelle.size} cartelle",
                                     color = if (p.vivo) Banco.verde else Banco.testoQuieto, fontSize = 12.sp
                                 )
