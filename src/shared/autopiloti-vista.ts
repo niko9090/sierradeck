@@ -1,4 +1,5 @@
 import { chatAlLavoro, type Autopilota } from './autopilota'
+import { chatsDi } from './chats-di'
 import { statoAutopilotaDalVivo } from './stato-dal-vivo'
 import { stato, trova, type StatoVista } from './stato-vista'
 
@@ -79,7 +80,8 @@ export function vistaAutopilota(a: Autopilota & { domanda?: unknown; adesso?: { 
   // P4: i criteri stanno nei compiti del piano dell'orchestratore, non sull'autopilota.
   const fatti = 0
   const totali = 0
-  const alLavoro = a.chats.filter((c) => chatAlLavoro(a, c)).length
+  const chats = chatsDi(a)
+  const alLavoro = chats.filter((c) => chatAlLavoro(a, c)).length
   const azione: AzioneAp = s.id === 'aspetta' ? 'rispondi'
     : s.id === 'al-lavoro' || s.id === 'in-attesa' || s.id === 'senza-segni' || s.id === 'prepara' ? 'ferma'
       : 'riprendi'
@@ -87,7 +89,7 @@ export function vistaAutopilota(a: Autopilota & { domanda?: unknown; adesso?: { 
     stato: s,
     gruppi,
     criteri: { fatti, totali, testo: totali === 0 ? '—' : `${fatti}/${totali}` },
-    chat: { totali: a.chats.length, alLavoro, testo: a.chats.length === 0 ? '—' : alLavoro > 0 ? `${a.chats.length} · ${alLavoro} al lavoro` : String(a.chats.length) },
+    chat: { totali: chats.length, alLavoro, testo: chats.length === 0 ? '—' : alLavoro > 0 ? `${chats.length} · ${alLavoro} al lavoro` : String(chats.length) },
     ultima: dv.ultimaAzione !== '' ? dv.ultimaAzione : (motivo ?? '').replace(/\s+/g, ' ').slice(0, 140),
     da: dv.da,
     azione

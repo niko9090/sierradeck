@@ -1,4 +1,5 @@
 import type { Autopilota, ChatGovernata } from './autopilota'
+import { chatsDi } from './chats-di'
 import { vistaAutopilota } from './autopiloti-vista'
 import { RUOLI, RUOLI_ORDINE, type Ruolo } from './ruoli-agenti'
 import { compitoBreve, nomeChi } from './chat-autopilota'
@@ -319,7 +320,8 @@ const numeroDi = (id: string): number => { const n = Number(/(\d+)$/.exec(id)?.[
  */
 export function pianoAutopilota(a: Autopilota): CompitoPiano[] {
   const fuori: CompitoPiano[] = []
-  if (a.chats.length === 0) {
+  const chats = chatsDi(a)
+  if (chats.length === 0) {
     // La chat unica: un compito, l'obiettivo.
     if (a.sessionId !== undefined && a.stato !== 'intervista' && a.stato !== 'pronto') {
       fuori.push({
@@ -329,9 +331,9 @@ export function pianoAutopilota(a: Autopilota): CompitoPiano[] {
       })
     }
   } else {
-    const revisioni = a.chats.filter((c) => c.ruolo === 'revisione' && c.revisioneDi !== undefined)
+    const revisioni = chats.filter((c) => c.ruolo === 'revisione' && c.revisioneDi !== undefined)
     const ultimaPerTesto = new Map<string, ChatGovernata>()
-    for (const c of a.chats) {
+    for (const c of chats) {
       if (c.ruolo === 'revisione' && c.revisioneDi !== undefined) continue
       const prima = ultimaPerTesto.get(c.compito)
       if (prima === undefined || numeroDi(c.id) > numeroDi(prima.id)) ultimaPerTesto.set(c.compito, c)
@@ -454,11 +456,11 @@ export function riassuntoAlLavoro(
   const alLavoro = schede.filter((s) => s.stato === 'lavora' || s.stato === 'chiede')
     .sort((x, y) => (x.stato === 'chiede' ? 0 : 1) - (y.stato === 'chiede' ? 0 : 1) || confrontaFisso(x, y))
   return alLavoro.map((s) => {
-    const g = s.sessione !== undefined ? a?.chats.find((c) => c.sessionId === s.sessione) : undefined
+    const g = s.sessione !== undefined ? (a !== undefined ? chatsDi(a) : []).find((c) => c.sessionId === s.sessione) : undefined
     const ruolo = g?.ruolo ?? s.ruolo
     let cosa: string
     if (g !== undefined) {
-      cosa = cosaFaChat({ ...g, ...(ruolo !== undefined ? { ruolo } : {}) }, a?.chats)
+      cosa = cosaFaChat({ ...g, ...(ruolo !== undefined ? { ruolo } : {}) }, a !== undefined ? chatsDi(a) : undefined)
     } else if (a?.sessionId !== undefined && s.sessione === a.sessionId) {
       cosa = 'lavora all’obiettivo'
     } else {
