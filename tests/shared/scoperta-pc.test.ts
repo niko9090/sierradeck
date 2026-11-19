@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   avvisoDriveScollegato, indirizziDaProvare, indirizziTailscaleDi, indirizzoUtile, leggiScollegamento,
-  messaggioErroreRemoto, motivoDaStatoHttp, scollegamentoDalRegistro, statoPc, RIFIUTO_DI_RETE
+  messaggioErroreRemoto, motivoDaStatoHttp, scollegamentoDalRegistro, titoloDopoIlBussare, RIFIUTO_DI_RETE
 } from '@shared/scoperta-pc'
 import { decidiApertura } from '@shared/apertura-chat'
 import { descriviSilenzio } from '@shared/pc-remoto'
@@ -57,10 +57,10 @@ describe('quali indirizzi provare', () => {
 describe('com e quel PC dopo il bussare: mai «spento» se non lo so', () => {
   const base = { nome: 'PORTATILE-ESEMPIO', ultimoSegno: LAPTOP.battito, porta: 47640 }
   it('risponde: acceso, anche con il battito vecchio e il Drive scollegato', () => {
-    expect(statoPc({ ...base, ping: { esito: 'risponde', indirizzo: '192.0.2.20' }, battitoVivo: false, driveCollegato: false }).stato).toBe('acceso')
+    expect(titoloDopoIlBussare({ ...base, ping: { esito: 'risponde', indirizzo: '192.0.2.20' }, battitoVivo: false, driveCollegato: false }).stato).toBe('acceso')
   })
   it('battito vecchio e nessuno risponde: «non so se è acceso», con cosa fare', () => {
-    const s = statoPc({ ...base, ping: { esito: 'muto', provati: ['192.0.2.20 (rete locale)'] }, battitoVivo: false, driveCollegato: false })
+    const s = titoloDopoIlBussare({ ...base, ping: { esito: 'muto', provati: ['192.0.2.20 (rete locale)'] }, battitoVivo: false, driveCollegato: false })
     expect(s.stato).toBe('non-so')
     expect(s.titolo).toBe('Non so se PORTATILE-ESEMPIO è acceso')
     expect(`${s.titolo} ${s.cosaFare}`).not.toMatch(/è spento/)
@@ -69,18 +69,18 @@ describe('com e quel PC dopo il bussare: mai «spento» se non lo so', () => {
     expect(s.cosaFare).toContain('Tailscale')
   })
   it('battito fresco e nessuno risponde: acceso ma irraggiungibile (rete o firewall)', () => {
-    const s = statoPc({ ...base, ping: { esito: 'muto', provati: ['x'] }, battitoVivo: true, driveCollegato: true })
+    const s = titoloDopoIlBussare({ ...base, ping: { esito: 'muto', provati: ['x'] }, battitoVivo: true, driveCollegato: true })
     expect(s.stato).toBe('irraggiungibile')
     expect(s.cosaFare).toContain('firewall')
   })
   it('nessun indirizzo: lo dice chiaro invece di fallire in silenzio', () => {
-    const s = statoPc({ ...base, ping: { esito: 'senza-indirizzi' }, battitoVivo: false, driveCollegato: false })
+    const s = titoloDopoIlBussare({ ...base, ping: { esito: 'senza-indirizzi' }, battitoVivo: false, driveCollegato: false })
     expect(s.stato).toBe('senza-indirizzi')
     expect(s.cosaFare).toContain('Non ho nessun indirizzo')
   })
   it('chiave rifiutata e indirizzo rifiutato: il motivo vero', () => {
-    expect(statoPc({ ...base, ping: { esito: 'chiave', indirizzo: 'x' }, battitoVivo: false, driveCollegato: false }).stato).toBe('chiave')
-    expect(statoPc({ ...base, ping: { esito: 'rifiutato', indirizzo: 'x' }, battitoVivo: false, driveCollegato: false }).cosaFare).toContain('accetta anche da fuori la rete locale')
+    expect(titoloDopoIlBussare({ ...base, ping: { esito: 'chiave', indirizzo: 'x' }, battitoVivo: false, driveCollegato: false }).stato).toBe('chiave')
+    expect(titoloDopoIlBussare({ ...base, ping: { esito: 'rifiutato', indirizzo: 'x' }, battitoVivo: false, driveCollegato: false }).cosaFare).toContain('accetta anche da fuori la rete locale')
   })
 })
 
@@ -94,7 +94,7 @@ describe('decidiApertura con il bussare diretto', () => {
     expect(decidiApertura({ ...dati, rispondono: ['a1b2c3d4e5f6'] })).toMatchObject({ tipo: 'remoto', pc: { id: 'a1b2c3d4e5f6', nome: 'PORTATILE-ESEMPIO' } })
   })
   it('non risponde: in attesa, con lo stato «non so se è acceso» per il riquadro', () => {
-    const stato = statoPc({ nome: LAPTOP.nome, ping: { esito: 'muto', provati: [] }, battitoVivo: false, driveCollegato: false, porta: 47640 })
+    const stato = titoloDopoIlBussare({ nome: LAPTOP.nome, ping: { esito: 'muto', provati: [] }, battitoVivo: false, driveCollegato: false, porta: 47640 })
     const a = decidiApertura({ ...dati, rispondono: [], statiPc: { 'a1b2c3d4e5f6': stato } })
     expect(a).toMatchObject({ tipo: 'attesa', statoPc: { stato: 'non-so' } })
   })

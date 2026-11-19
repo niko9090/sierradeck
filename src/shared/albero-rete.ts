@@ -126,7 +126,7 @@ export function alberoRete(d: DatiAlbero): AlberoRete {
     if (st.stato === 'da-rimuovere') continue
     const acceso = st.stato === 'acceso'
     const nome = nomeDaMostrare(b)
-    const segno = quantoFa(b.battito, d.adesso).replace(/^1 minuti fa$/u, '1 minuto fa')
+    const segno = quantoFa(b.battito, d.adesso)
     const righe: RigaNodo[] = []
     const targhette: string[] = []
     if (!acceso) targhette.push(st.frase)

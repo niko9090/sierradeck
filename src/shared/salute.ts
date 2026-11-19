@@ -11,6 +11,7 @@
 
 import { mappaPc, type MappaPc } from './collegamento'
 import { DISMETTI_DOPO_MS, statoPc } from './stato-pc'
+import { tempoRelativo } from './tempo-it'
 import { rigaRisorse, risorseAlte, type GpuPc, type RisorsePc } from './risorse'
 
 export type Tono = 'ok' | 'attenzione' | 'guasto'
@@ -105,17 +106,7 @@ export function parolaPcSenzaRisposta(battito: string | undefined, adesso: numbe
   return statoPc(battito, adesso).stato === 'acceso' ?'acceso secondo il Drive, ma non si raggiunge' : 'non so se è acceso'
 }
 
-export function quantoFa(iso: string | undefined, adesso: number): string {
-  if (iso === undefined) return 'mai'
-  const t = Date.parse(iso)
-  if (Number.isNaN(t)) return 'non si sa'
-  const s = Math.max(0, Math.round((adesso - t) / 1000))
-  if (s < 60) return 'adesso'
-  if (s < 3600) return `${Math.round(s / 60)} minuti fa`
-  if (s < 86_400) { const h = Math.round(s / 3600); return h === 1 ? '1 ora fa' : `${h} ore fa` }
-  const g = Math.round(s / 86_400)
-  return g === 1 ? '1 giorno fa' : `${g} giorni fa`
-}
+export const quantoFa = (iso: string | undefined, adesso: number): string => tempoRelativo(iso, adesso)
 
 /** Stesso major.minor: cambia solo la patch (correzioni). */
 export function stessoMinor(a: string, b: string): boolean {

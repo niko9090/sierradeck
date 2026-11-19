@@ -7,7 +7,7 @@ import { creaClientPcRemoto } from '../../src/main/pc-remoto'
 import { improntaPc, provaCasa } from '../../src/main/casa-firma'
 import { creaServerClient } from '../../src/main/client-server'
 import { apriDispositivi } from '../../src/main/dispositivi'
-import { indirizziTailscaleDi, statoPc, testoProva } from '../../src/shared/scoperta-pc'
+import { indirizziTailscaleDi, titoloDopoIlBussare, testoProva } from '../../src/shared/scoperta-pc'
 import type { BattitoPc } from '../../src/shared/posta'
 
 // Il caso del 10/10 (0.57.0): dal PC fisso le chat con casa sul portatile
@@ -90,7 +90,7 @@ describe('il bussare racconta cosa ha provato (0.57.1)', () => {
     expect(riga).toContain('192.168.1.20 (rete locale): nessuna risposta')
     expect(riga).toContain('100.70.0.5 (Tailscale): risponde, ma non prova la chiave di casa')
     expect(riga).not.toContain('169.254')
-    const s = statoPc({ nome: 'PC-ESEMPIO', ping: p, battitoVivo: true, driveCollegato: true, porta: 47640 })
+    const s = titoloDopoIlBussare({ nome: 'PC-ESEMPIO', ping: p, battitoVivo: true, driveCollegato: true, porta: 47640 })
     expect(s.cosaFare).toContain('Cosa ho provato')
     // Lo stesso esito non si riscrive a ogni giro del riquadro.
     await c.bussa('portatile-id')

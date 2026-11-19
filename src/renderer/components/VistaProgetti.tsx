@@ -2,6 +2,7 @@ import { TendinaMenu } from './TendinaMenu'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { byteLeggibili } from '@shared/spazio-drive'
+import { dataBreve } from '@shared/tempo-it'
 import { chatDelProgetto, comeAprireChat, filtraChat, type AzioneProgetto, type FiltroPannello, type Pannello, type RigaChat, type RigaProgetto } from '@shared/pannello-drive'
 import { azioniDivise, cartellaDelQuaderno, cercaProgetti, COLONNE, contaGruppi, GRUPPI, nelGruppo, ordinaProgetti, vistaDi, type Colonna, type Colore, type Gruppo, type Verso } from '@shared/progetti-vista'
 import type { CartellaInRecupero, StatoRimozione } from '@shared/rimozione-sicura'
@@ -30,7 +31,7 @@ import { BordoDettaglio } from './BordoDettaglio'
  */
 
 const COLORE: Record<Colore, string> = { verde: 'var(--verde)', ambra: 'var(--ambra)', rosso: 'var(--rosso)', blu: 'var(--blu)' }
-const quando = (iso: string | undefined): string => (iso === undefined ? 'mai' : new Date(iso).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' }))
+const quando = (iso: string | undefined): string => (iso === undefined ? 'mai' : dataBreve(iso))
 const CHAT_IN_VISTA = 8
 
 type Foglio = 'chat' | 'salvataggio' | 'contenuto' | 'spazio' | 'recupero'

@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { postoTendina, type PostoTendina } from '@shared/menu-workspace'
+import { vocePc } from '@shared/vocabolario-stati-pc'
 import { ALTRI_PC_CON_RICERCA, filtraAltriPc, gruppiValidi, riassuntoAltriPc, statoPcBreve, type GruppoAltroPc, type VoceAltroPc } from '@shared/workspace-remoti'
 import { EVENTO_REMOTI } from '../workspace-remoti'
 import { Aiuto } from './Aiuto'
@@ -179,7 +180,7 @@ export function SezioneAltriPc({ attivo, nomi, onCambia }: {
           })}
           title={`${g.nome}: ${su ? 'chiudi' : 'mostra'} i suoi workspace`}>
           <span className="altri-pc__freccia" aria-hidden="true">{su ? '▾' : '▸'}</span>
-          <span className={`led ${g.vivo ? 'led--lavoro' : 'led--finito'}`} aria-hidden="true" />
+          <span className={`led ${vocePc(g.vivo ? 'acceso' : 'spento').led}`} aria-hidden="true" />
           <span className="altri-pc__nome">{g.nome}</span>
           <span className="altri-pc__stato">{statoPcBreve(g)}</span>
           <span className="altri-pc__quanti" title={`${g.voci.length} workspace${aperti > 0 ? `, ${aperti} aperti qui` : ''}`}>

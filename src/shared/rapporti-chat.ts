@@ -1,6 +1,7 @@
 import type { Autopilota, ChatGovernata } from './autopilota'
 import type { SegnaleChat } from './segnali-flotta'
 import { chatsDi } from './chats-di'
+import { tempoRelativo } from './tempo-it'
 
 /**
  * **Le chat riferiscono sempre all'autopilota** (0.85.1).
@@ -131,10 +132,8 @@ export type SegnoVero = { tipo: string; quando: string }
 const PAROLA_VERO: Record<string, string> = { commit: 'commit', test: 'test', file: 'file cambiati', terminale: 'terminale' }
 
 function fa(quando: string | undefined, ora: number): string | undefined {
-  const t = Date.parse(quando ?? '')
-  if (Number.isNaN(t)) return undefined
-  const min = Math.max(0, Math.round((ora - t) / 60_000))
-  return min < 1 ? 'adesso' : min < 60 ? `${min} min fa` : min < 48 * 60 ? `${Math.round(min / 60)} h fa` : `${Math.round(min / 1440)} giorni fa`
+  if (Number.isNaN(Date.parse(quando ?? ''))) return undefined
+  return tempoRelativo(quando, ora, { breve: true })
 }
 
 export type QuadroChat = {

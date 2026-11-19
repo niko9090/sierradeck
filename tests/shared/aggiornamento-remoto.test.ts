@@ -3,7 +3,8 @@ import {
   AGGIORNAMENTO_VALE_MS, TESTO_IN_AGGIORNAMENTO, aggiornamentoInCorsoDi, testoAggiornamentoRemoto
 } from '../../src/shared/aggiornamento-remoto'
 import { descriviSilenzio } from '../../src/shared/pc-remoto'
-import { messaggioErroreRemoto, statoPc } from '../../src/shared/scoperta-pc'
+import { messaggioErroreRemoto, titoloDopoIlBussare } from '../../src/shared/scoperta-pc'
+import { statoPc } from '../../src/shared/stato-pc'
 
 const ADESSO = 1_800_000_000_000
 const battito = (extra: Record<string, unknown> = {}) => ({ pcId: 'pc-a', nome: 'PC-Prova', versione: '1.0.0', ...extra })
@@ -50,14 +51,22 @@ describe('chi guarda', () => {
     expect(descriviSilenzio('non-so', 'PC-Prova', 120_000).titolo).toContain('Non so se')
     expect(descriviSilenzio('pin', 'PC-Prova', 1000, agg).titolo).toContain('PIN')
   })
-  it('statoPc (scoperta) dà in-aggiornamento, ma se risponde è acceso', () => {
+  it('titoloDopoIlBussare dà in-aggiornamento, ma se risponde è acceso', () => {
     const base = { nome: 'PC-Prova', ping: { esito: 'muto' as const, provati: [] }, battitoVivo: false, driveCollegato: true, porta: 1 }
-    const s = statoPc({ ...base, aggiornando: agg })
+    const s = titoloDopoIlBussare({ ...base, aggiornando: agg })
     expect(s.stato).toBe('in-aggiornamento')
     expect(s.titolo).toBe(TESTO_IN_AGGIORNAMENTO)
     expect(s.aggiornando).toEqual(agg)
-    expect(statoPc(base).stato).toBe('non-so')
-    expect(statoPc({ ...base, ping: { esito: 'risponde', indirizzo: 'x' }, aggiornando: agg }).stato).toBe('acceso')
+    expect(titoloDopoIlBussare(base).stato).toBe('non-so')
+    expect(titoloDopoIlBussare({ ...base, ping: { esito: 'risponde', indirizzo: 'x' }, aggiornando: agg }).stato).toBe('acceso')
+  })
+  it('statoPc (dal battito) dice in-aggiornamento se tace, acceso se il battito è fresco', () => {
+    const vecchio = new Date(ADESSO - 2 * 3_600_000).toISOString()
+    const fresco = new Date(ADESSO - 60_000).toISOString()
+    expect(statoPc(vecchio, ADESSO, agg)).toMatchObject({ stato: 'in-aggiornamento', frase: TESTO_IN_AGGIORNAMENTO, aggiornando: agg, giorniAllaRimozione: null })
+    expect(statoPc(undefined, ADESSO, agg).stato).toBe('in-aggiornamento')
+    expect(statoPc(vecchio, ADESSO, null).stato).toBe('spento')
+    expect(statoPc(fresco, ADESSO, agg).stato).toBe('acceso')
   })
   it('messaggioErroreRemoto dà la frase intera', () => {
     expect(messaggioErroreRemoto('non-so', 'PC-Prova', undefined, agg)).toBe(testoAggiornamentoRemoto('PC-Prova', '1.1.0'))
