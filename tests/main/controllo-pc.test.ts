@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { existsSync, mkdtempSync, readdirSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { criticitaDi, firmaCriticita, giroControlloPc } from '../../src/main/controllo-pc'
+import { criticitaDi, firmaCriticita, giroControlloPc, testoRapporto, type SaluteDiPc } from '../../src/main/controllo-pc'
 import type { Salute } from '@shared/salute'
 import type { AutopilotiDiPc } from '@shared/autopiloti-altri'
 
@@ -196,6 +196,38 @@ describe('0.94.1: un PC spento non è una criticità', () => {
     const acceso = { pcId: 'p2', nome: 'LAPTOP', errore: 'nessuna risposta', battito: '2026-11-05T11:58:00.000Z' }
     expect(criticitaDi([spento], [], ora)).toEqual([])
     expect(criticitaDi([acceso], [], ora).map((c) => c.pc)).toEqual(['LAPTOP'])
+  })
+})
+
+describe('k-p2: i PC spenti nel rapporto', () => {
+  const ora = Date.parse('2026-11-05T12:00:00.000Z')
+  const giorniFa = (g: number): string => new Date(ora - g * 86_400_000).toISOString()
+  const quando = new Date(ora).toISOString()
+  const spento = (pcId: string, nome: string, battito: string): SaluteDiPc => ({ pcId, nome, errore: 'nessuna risposta', battito })
+
+  it('due PC spenti: due righe corte, senza «Accendi», con i giorni alla rimozione', () => {
+    const saluti = [{ pcId: 'a', nome: 'PC-Fisso', salute: salute() }, spento('b', 'PC-Banco', giorniFa(3)), spento('c', 'PC-Lavoro', giorniFa(20))]
+    const t = testoRapporto({ quando, saluti, criticita: criticitaDi(saluti, [], ora), adesso: ora })
+    expect(t).not.toContain('Accendi')
+    const sezione = t.split('## PC spenti (2)')[1]?.split('## Criticità')[0] ?? ''
+    expect(sezione.trim().split('\n')).toEqual(['- **PC-Banco**: spento da 3 giorni · si toglie fra 27 giorni', '- **PC-Lavoro**: spento da 20 giorni · si toglie fra 10 giorni'])
+    expect(t).toContain('## Criticità (0)')
+    expect(t.split('## I PC')[1]?.split('## PC spenti')[0]).not.toContain('PC-Banco')
+  })
+
+  it('battito illeggibile: spento, senza giorni alla rimozione e senza criticità', () => {
+    const saluti = [spento('b', 'PC-Banco', 'non-una-data')]
+    expect(criticitaDi(saluti, [], ora)).toEqual([])
+    const t = testoRapporto({ quando, saluti, criticita: [], adesso: ora })
+    expect(t).toContain('- **PC-Banco**: spento, non so da quanto')
+    expect(t).not.toContain('si toglie')
+  })
+
+  it('la riga «pc:<id>» di un PC spento non allunga l’elenco delle voci dell’altro PC', () => {
+    const remota: Salute['voci'][number] = { ...voce('attenzione', 'PC-Banco · spento da 3 giorni'), chiave: 'pc:b' }
+    const saluti: SaluteDiPc[] = [{ pcId: 'a', nome: 'PC-Fisso', salute: salute([remota]) }, spento('b', 'PC-Banco', giorniFa(3))]
+    const t = testoRapporto({ quando, saluti, criticita: [], adesso: ora })
+    expect(t.split('## I PC')[1]?.split('## PC spenti')[0]).not.toContain('PC-Banco')
   })
 })
 
