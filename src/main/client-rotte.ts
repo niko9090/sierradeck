@@ -33,6 +33,7 @@ import { firmaScelte, rispostaDaTesto, scelteDiTerminale, tastiPerRisposta, type
 import { fraseEsito, premiEVerifica, type EsitoAltroPc, type EsitoPressione } from './risposta-verificata'
 import { TAGLIO_OPZIONE_BATTITO, tagliaIntero, type OpzioneBattito } from '@shared/posta'
 import { statoPc, daRimuovere } from '@shared/stato-pc'
+import { aggiornamentoInCorsoDi, TESTO_IN_AGGIORNAMENTO } from '@shared/aggiornamento-remoto'
 import { leggiIdChatAltroPc, raccogliDomande, vociPerLeApp, type DomandaRisolta } from '@shared/domande-telefono'
 import { domandeScheda } from '@shared/domande-autopilota'
 import { conversazioniDomande, quanteAspettano, type Inviato } from '@shared/domande-conversazioni'
@@ -112,6 +113,8 @@ export type BattitoPcTelefono = {
   pcId: string; nome: string; host?: string; nomeScelto?: string; versione: string; battito: string
   /** Il più recente fra il battito di SierraDeck e quello dell'Aiutante dello stesso PC (solo per lo stato). */
   visto?: string
+  /** k-agg2: il segno «mi aggiorno» del suo battito (versione che installa, ora in ms). */
+  aggiornando?: { versione: string; da: number }
   cartelle: string[]
   chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean; scelte?: OpzioneBattito[]; domanda?: string; contesto?: string[] }[]
 }
@@ -2349,9 +2352,12 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         // Un PC da rimuovere non si elenca piu'.
         // `visto` (19/11): il battito più recente fra SierraDeck e l'Aiutante dello stesso PC, messo da chi dà l'elenco.
         pc: (pc ?? []).filter((b) => !daRimuovere(b.visto ?? b.battito, ora)).map((b) => {
-          const { visto, ...resto } = b
+          const { visto, aggiornando: _grezzo, ...resto } = b
+          void _grezzo
           const s = statoPc(visto ?? b.battito, ora)
-          return { ...resto, vivo: s.stato === 'acceso', stato: s.stato, frase: s.frase, giorniAllaRimozione: s.giorniAllaRimozione }
+          // k-agg2: in aggiornamento il silenzio è giusto: lo stesso testo del PC, e il segno per la pagina.
+          const agg = aggiornamentoInCorsoDi(b, ora)
+          return { ...resto, vivo: s.stato === 'acceso', stato: s.stato, frase: agg !== null ? TESTO_IN_AGGIORNAMENTO : s.frase, giorniAllaRimozione: s.giorniAllaRimozione, ...(agg !== null ? { aggiornando: agg } : {}) }
         })
       })
     }

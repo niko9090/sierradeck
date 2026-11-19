@@ -147,6 +147,8 @@ export type PcRemoto = {
   buono?: string
   /** Com'e' dopo il bussare diretto (0.39.3), quando lo si e' chiesto. */
   stato?: StatoPc
+  /** k-agg2: quel PC si sta aggiornando (la versione che installa): «Computer in aggiornamento, attendere». */
+  inAggiornamento?: { versione: string }
   /** La strada usata l'ultima volta (0.40.0): rete di casa o Tailscale. */
   strada?: InfoStrada
   chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean }[]

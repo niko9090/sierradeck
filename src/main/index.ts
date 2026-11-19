@@ -2361,7 +2361,7 @@ if (!app.requestSingleInstanceLock()) {
             ...(remoto.stradaDi(b.pcId) !== undefined ? { strada: remoto.stradaDi(b.pcId) } : {}),
             ...(stati[b.pcId] !== undefined ? { stato: stati[b.pcId] } : {}),
             // k-agg1: quel PC si sta aggiornando: «Computer in aggiornamento, attendere».
-            ...(remoto.aggiornandoDi(b.pcId) !== null ? { aggiornando: remoto.aggiornandoDi(b.pcId)! } : {}),
+            ...(remoto.aggiornandoDi(b.pcId) !== null ? { inAggiornamento: remoto.aggiornandoDi(b.pcId)! } : {}),
             chat: b.chat, cartelle: b.cartelle
           }))
         }
@@ -2655,7 +2655,9 @@ if (!app.requestSingleInstanceLock()) {
           return { stato: 200, corpo: dati, ...(strada !== undefined ? { strada } : {}) }
         } catch (err) {
           if (azione !== undefined) registro.info(`[ponte] dal telefono: ${azione} su ${nome}: NON riuscito — ${err instanceof Error ? err.message : String(err)}`)
-          if (err instanceof ErroreRemoto) return { stato: err.stato ?? 502, corpo: { ...(err.altro ?? {}), errore: err.message, motivo: err.motivo, su: nome } }
+          // k-agg2: se quel PC si sta aggiornando il silenzio è giusto: la pagina del telefono lo dice e riprova da sola.
+          const agg = remoto.aggiornandoDi(pc)
+          if (err instanceof ErroreRemoto) return { stato: err.stato ?? 502, corpo: { ...(err.altro ?? {}), errore: err.message, motivo: err.motivo, su: nome, ...(agg !== null && err.stato === undefined ? { aggiornando: agg } : {}) } }
           return { stato: 502, corpo: { errore: `${nome}: ${err instanceof Error ? err.message : String(err)}`, su: nome } }
         }
       }
