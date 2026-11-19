@@ -46,7 +46,7 @@ import {
   ESITO_PROTETTA, type ChatDiPc, type BattitoPc, type LocaliBattito, type VocePosta, type Posta,
   type UscitaPosta, type EsitoVoce, type EsitiPosta
 } from '@shared/posta'
-import { DISMETTI_DOPO_MS, RIMUOVI_DOPO_MS, daRimuovere, statoPc } from '@shared/stato-pc'
+import { DISMETTI_DOPO_MS, RIMUOVI_DOPO_MS, daRimuovere, statoPc, vistoConAiutante } from '@shared/stato-pc'
 import {
   nomeBattitoPc, nomePosta, nomeUscita, nomeEsiti, pcVivo, POSTA_PER_MITTENTE,
   PC_SPENTO_DOPO_MS, BATTITO_PC_OGNI_MS, BATTITO_RISCRIVI_MS, RIAPRI_DOPO_MS, VOCI_MAX, TESTO_POSTA_MAX,
@@ -502,7 +502,9 @@ export function creaPostino(deps: {
    */
   const rimuoviScaduti = async (s: Scatola, letti: BattitoPc[]): Promise<BattitoPc[]> => {
     const me = deps.pcId()
-    const scaduti = letti.filter((b) => b.pcId !== me && daRimuovere(b.battito, adesso()))
+    // 19/11: vale il più recente fra il battito di SierraDeck e quello dell'Aiutante dello stesso PC: chi aiuta con il solo Aiutante è vivo.
+    const visti = vistoConAiutante(letti, (b) => b.battito)
+    const scaduti = letti.filter((b) => b.pcId !== me && daRimuovere(visti.get(b.pcId), adesso()))
     if (scaduti.length === 0) return letti
     const tolti = new Set<string>()
     for (const b of scaduti) {
@@ -510,8 +512,10 @@ export function creaPostino(deps: {
         // Riletto ora: se nel frattempo si è riacceso (o l'hanno già tolto), non si tocca.
         const ora = await s.leggi<BattitoPc>(nomeBattitoPc(b.pcId))
         if (ora === undefined || ora === null) { tolti.add(b.pcId); continue }
-        if (!daRimuovere(ora.battito, adesso())) continue
-        const stato = statoPc(ora.battito, adesso())
+        // Il battito riletto, ma sempre contando quello dell'altro programma dello stesso PC.
+        const rivisto = vistoConAiutante([...letti.filter((x) => x.pcId !== b.pcId), ora], (x) => x.battito).get(b.pcId)
+        if (!daRimuovere(rivisto, adesso())) continue
+        const stato = statoPc(rivisto, adesso())
         await s.cancella(nomeBattitoPc(b.pcId))
         const rimaste = await cancellaCassette(s, b.pcId)
         try { deps.dimenticaPc?.(b.pcId) } catch { /* gli indirizzi ricordati sono un comodo */ }

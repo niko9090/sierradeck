@@ -56,6 +56,39 @@ export function statoPc(battitoIso: string | undefined, adesso: number): StatoPc
   return { stato: 'spento', spentoDaMs: da, giorniAllaRimozione: giorni, frase: `spento da ${durata(da)} · si toglie fra ${giorni === 1 ? '1 giorno' : `${giorni} giorni`}` }
 }
 
+/**
+ * 19/11: un PC che lavora solo con SierraDeck Aiutante («Aiuta la rete») ha il
+ * battito di SierraDeck fermo, ma è vivo. SierraDeck e l'Aiutante sullo stesso
+ * PC sono due registrazioni (id diversi, `aiutante` solo sulla seconda) con lo
+ * stesso `host`: per ogni registrazione, «visto» è il più recente fra il suo
+ * battito e quello dell'altro programma dello stesso host. Un battito nel
+ * futuro vince (conta acceso, come sempre); un battito illeggibile non vale se
+ * l'altro si legge. Senza `host` non si abbina nulla.
+ */
+export function vistoConAiutante<T extends { pcId: string; host?: string | undefined; aiutante?: unknown }>(
+  lista: readonly T[], battito: (x: T) => string | undefined
+): Map<string, string | undefined> {
+  const chiave = (x: T): string | undefined => (typeof x.host === 'string' && x.host.trim() !== '' ? x.host.trim().toLowerCase() : undefined)
+  const tempo = (iso: string | undefined): number => (iso === undefined ? Number.NaN : Date.parse(iso))
+  const out = new Map<string, string | undefined>()
+  for (const x of lista) {
+    let migliore = battito(x)
+    const h = chiave(x)
+    if (h !== undefined) {
+      for (const y of lista) {
+        if (y === x || chiave(y) !== h || (y.aiutante === true) === (x.aiutante === true)) continue
+        const by = battito(y)
+        const ty = tempo(by)
+        if (Number.isNaN(ty)) continue
+        const tm = tempo(migliore)
+        if (Number.isNaN(tm) || ty > tm) migliore = by
+      }
+    }
+    out.set(x.pcId, migliore)
+  }
+  return out
+}
+
 /** Un PC che tace da più di `RIMUOVI_DOPO_MS`: da togliere dalla lista. */
 export function daRimuovere(battitoIso: string | undefined, adesso: number): boolean {
   return statoPc(battitoIso, adesso).stato === 'da-rimuovere'
