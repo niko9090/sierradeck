@@ -41,6 +41,16 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.110.0',
+    righe: [
+      '**Stato dei PC uguale dappertutto:** acceso, spento o da togliere si decide con una regola sola. La vedi uguale nella Rete dei PC, in Altri PC, in Salute, nel rapporto del controllo, sul telefono e nell’app.',
+      '**Un PC spento da troppo si toglie da solo:** dopo 30 giorni esce dalla lista. Si cancella solo la sua registrazione, mai i suoi progetti. Un PC con l’orologio sbagliato non viene mai tolto.',
+      '**Una frase chiara per i PC spenti**, per esempio «spento da 3 giorni · si toglie fra 27 giorni».',
+      '**Controllo di tutti i PC più corto:** i PC spenti hanno una riga ciascuno e non contano più come problemi.',
+      '**App Android 3.2.0:** in «Altri computer» mostra la stessa frase.',
+    ],
+  },
+  {
     versione: '0.109.2',
     righe: [
       '**Lavori dell’Aiutante:** le 3 ore di tempo contano solo a PC sveglio, così il sonno notturno di un portatile non fa più uccidere un lavoro al risveglio.',
