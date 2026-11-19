@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.110.1',
+    righe: [
+      '**La schermata non si blocca più** quando da un altro PC arriva un autopilota senza l’elenco delle sue chat.',
+      '**Le liste dei PC reggono i dati incompleti:** se a un PC mancano delle informazioni, la Rete dei PC e i gruppi si vedono lo stesso.',
+      '**Un PC che lavora solo con l’Aiutante risulta acceso** e non viene più tolto dopo 30 giorni. Conta il segnale più recente fra SierraDeck e l’Aiutante dello stesso PC.',
+    ],
+  },
+  {
     versione: '0.110.0',
     righe: [
       '**Stato dei PC uguale dappertutto:** acceso, spento o da togliere si decide con una regola sola. La vedi uguale nella Rete dei PC, in Altri PC, in Salute, nel rapporto del controllo, sul telefono e nell’app.',
