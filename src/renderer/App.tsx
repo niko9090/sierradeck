@@ -698,7 +698,7 @@ export function App(): React.JSX.Element {
   }, [])
   // La rete dei PC ad albero (16/11): si apre da «Altri PC» e da Salute.
   useEffect(() => {
-    const apri = (): void => setAperto('rete')
+    const apri = (): void => setAperto('computer')
     window.addEventListener('sierradeck:rete-pc', apri)
     return () => window.removeEventListener('sierradeck:rete-pc', apri)
   }, [])
@@ -1740,9 +1740,6 @@ export function App(): React.JSX.Element {
         onDomande={() => commutaColonna('domande')}
         progettiAperti={pannelloDrive}
         onProgetti={() => setPannelloDrive((a) => !a)}
-        specialistiInFila={specialistiInFila}
-        specialistiAperti={specialistiLato.aperto}
-        onSpecialisti={() => salvaSpecialistiLato({ aperto: !specialistiLato.aperto })}
       />
 
       {/* L'aggiornamento (strisce e note) sta dal 13/11 nella finestra in basso a
@@ -1864,7 +1861,7 @@ export function App(): React.JSX.Element {
             suiConsumi={saluteSuConsumi}
           />
         ) : null}
-        {aperto === 'rete' ? (
+        {aperto === 'computer' ? (
           <PaginaRete onChiudi={() => setAperto(undefined)} aggiornamento={{ fase: aggiornamento.fase, ...(aggiornamento.versione !== undefined ? { versione: aggiornamento.versione } : {}), ...(aggiornamento.percento !== undefined ? { percento: aggiornamento.percento } : {}) }} />
         ) : null}
         {aperto === 'negozio' ? (
@@ -2043,18 +2040,10 @@ export function App(): React.JSX.Element {
         {/* Le Domande: una colonna fissa accanto alle chat, come nell'app
             Android. Resta aperta mentre si lavora. Dal 30/10 è l'unico posto
             delle domande, anche di quelle dell'autopilota del workspace. */}
-        {/* k-160: Specialisti a destra, accanto al workspace; indipendente dai pannelli di sinistra. */}
-        {specialistiLato.aperto ? (
-          <PannelloSpecialisti
-            larghezza={specialistiLato.larghezza}
-            onLarghezza={(px) => salvaSpecialistiLato({ larghezza: px })}
-            onChiudi={() => salvaSpecialistiLato({ aperto: false })}
-            altreColonne={colonnaDomande.aperta ? colonnaDomande.larghezza : 0}
-          />
-        ) : null}
+        {/* k-u0: la colonna Specialisti a destra non c'è più: sta dentro Autopiloti. */}
         {colonnaDomande.aperta ? (
           <PannelloDomande
-            altreColonne={specialistiLato.aperto ? specialistiLato.larghezza : 0}
+            altreColonne={0}
             larghezza={colonnaDomande.larghezza}
             onLarghezza={(px) => salvaColonnaDomande({ larghezza: px })}
             onChiudi={() => salvaColonnaDomande({ aperta: false })}

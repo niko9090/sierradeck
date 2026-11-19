@@ -226,15 +226,12 @@ describe('la sezione «Specialisti»: nel programma', () => {
   const app = readFileSync('src/renderer/App.tsx', 'utf8')
   const pannello = readFileSync('src/renderer/components/PannelloSpecialisti.tsx', 'utf8')
 
-  it('sta nel menu principale dopo Domande, con il numero di chi è in fila', () => {
-    expect(console_).toContain('vociDellaFascia(')
-    expect(console_).toContain("v.id === 'specialisti' ? specialistiInFila")
-    expect(console_).toMatch(/findIndex\(\(v\) => v\.id === 'domande'\) \+ 1/)
-    expect(console_).toContain("'specialisti' | undefined")
-    // k-160: Specialisti è una colonna a destra, aperta da specialistiLato (non più da «aperto»).
-    expect(app).toContain('{specialistiLato.aperto ? (')
-    expect(app).toContain('<PannelloSpecialisti')
-    expect(app).toContain('specialistiInFila={specialistiInFila}')
+  it('k-u0: non ha più una voce né una colonna a destra: sta dentro Autopiloti', () => {
+    expect(console_).not.toContain('VOCE_SPECIALISTI')
+    expect(console_).not.toContain("'specialisti' | undefined")
+    expect(console_).not.toContain('specialistiInFila')
+    expect(app).not.toContain('{specialistiLato.aperto ? (')
+    expect(app).not.toContain('specialistiInFila={specialistiInFila}')
   })
 
   it('legge la lista ogni pochi secondi e usa le tre funzioni del servizio', () => {
