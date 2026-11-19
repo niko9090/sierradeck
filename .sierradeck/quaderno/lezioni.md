@@ -581,6 +581,8 @@
 - Per le copie temporanee conviene metterle sotto `E:\Users\nikof\Documents\SierraDeck.sierradeck-wt`, così la pulizia non chiede il consenso di Nicholas. _(2026-11-17)_
 - Il link della bozza creata con `gh release create --draft --verify-tag` ha forma `untagged-…`: è normale, il tag esiste già sul remoto. _(2026-11-17)_
 - In questa copia `git fetch` fallisce se il bundle di arrivo è sparito. Il controllo su `origin/main` va fatto dalla cartella principale. _(2026-11-19)_
+- Prima della release controllare che android/novita-app.txt abbia la voce della versione app: pubblica-app si ferma se manca, e la 0.110.0 è uscita senza APK 3.2.0. _(2026-11-19)_
+- `npm run pubblica` supera i 10 minuti (prove, build, Aiutante): va in sottofondo da solo. Si controlla con `gh release view --json assets` finché i file sono 7, senza lanciarlo due volte. _(2026-11-19)_
 
 ## build
 
@@ -726,3 +728,7 @@
 ## rotte
 
 - `/api/pc` esclude i PC da rimuovere; l'app Android può contare su `stato`, `frase` e `giorniAllaRimozione`. _(2026-11-19)_
+
+## novita
+
+- in `android/novita-app.txt` la voce app va aggiunta a mano a ogni salita di versionName, altrimenti `pubblica-app` si ferma; verificarla con `noteDi` di `scripts/note-novita.mjs`. _(2026-11-19)_
