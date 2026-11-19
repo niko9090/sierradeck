@@ -114,8 +114,13 @@ data class PcRemoto(
     val frase: String? = null,
     val giorniAllaRimozione: Int? = null,
     val cartelle: List<String> = emptyList(),
-    val chat: List<ChatDiPc> = emptyList()
+    val chat: List<ChatDiPc> = emptyList(),
+    /** Il campo `aggiornando` del battito (`{ versione, da }`), grezzo: lo legge `AggiornamentoRemoto`. */
+    val aggiornando: kotlinx.serialization.json.JsonElement? = null
 ) {
+    /** La versione che quel PC sta installando adesso (k-agg3), o null se non si aggiorna. */
+    fun inAggiornamento(adesso: Long): String? = AggiornamentoRemoto.inCorso(aggiornando, versione, adesso)
+
     /** Il nome da mostrare (`NomePc.daMostrare`). */
     val mostra: String get() = NomePc.daMostrare(nomeScelto, nome, host)
     /** L'hostname piccolo sotto, se dice qualcosa in più. */
