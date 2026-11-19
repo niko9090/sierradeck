@@ -71,6 +71,7 @@
 - gradle testDebugUnitTest --rerun impiega circa 7 minuti a freddo: da lanciare in foreground con timeout di 10 minuti. _(2026-11-19)_
 - menu-unificato.test.ts legge i sorgenti: se sposti etichette fra file, aggiorna anche quel test. _(2026-11-19)_
 - `tests/shared/menu-principale.test.ts` cerca titoli e tasti nel sorgente di VistaProgetti, ContenutoDrive e PannelloAccount: se si rinominano, va aggiornato anche quello. _(2026-11-19)_
+- Per modificare client-pagina.ts con script node: il file ha fine riga CRLF e backslash doppi nel template; cercare una riga sola, non stringhe multi-riga. _(2026-11-19)_
 
 ## worktree
 
@@ -290,6 +291,7 @@
 - «Nessuno al lavoro» in PannelloSpecialisti riguarda i posti di questo PC (VistaAttesa), non la Panoramica: gli affidati non occupano posti qui. _(2026-11-16)_
 - «Usate da altri PC» era sparita dalla fascia con k-u0 senza essere ricollocata: ora sta in PannelloChat (sottofondo.elenco + remoto.pc → righeAltriPc). _(2026-11-19)_
 - Il Drive nel dettaglio sta dietro un tasto: ContenutoDrive appena montato apre la finestra d'attesa, quindi non va montato a ogni progetto scelto. _(2026-11-19)_
+- ferma/riparti/archivia dell'autopilota non hanno API nel renderer (solo crea, dialoga, avvioAlLogin): per metterli in pagina serve prima l'IPC. _(2026-11-19)_
 
 ## salute
 
@@ -438,6 +440,7 @@
 
 - una funzione condivisa che arriva nella pagina con toString() non può avere funzioni annidate né costanti di modulo: i dati le arrivano come parametri. _(2026-11-09)_
 - La pagina del telefono è una stringa gigante: i testi condivisi vanno iniettati con `${JSON.stringify(...)}` e le funzioni si provano estraendole dallo script, come in tests/main/client-pagina-domand… _(2026-11-19)_
+- pannelliDelPosto (shared/navigazione-telefono) decide quali pannelli sono «aperti»: 'specialisti' ora è aperto su tutta la voce Workspace, quindi la lista si rilegge ogni 4 s lì. _(2026-11-19)_
 
 ## merge
 
@@ -782,3 +785,7 @@
 ## tipi
 
 - Non chiamare `aggiornando` il campo nuovo di `PcRemoto`: in `RiquadroRemoto` quell'oggetto passa a `pcVivo` (tipo `BattitoPc`) e il tipo non combacia. Ho usato `inAggiornamento`. _(2026-11-19)_
+
+## file
+
+- molti .tsx del renderer sono CRLF: Write li scrive LF, riconvertire con sed 's/$/\r/'; Edit invece combacia. Python non c'è sulla macchina. _(2026-11-19)_
