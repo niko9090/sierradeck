@@ -606,6 +606,8 @@ let gettoniMcp: Gettoni | undefined
 let alTelefono: AlTelefono | undefined
 /** Chi impara gli indirizzi dei PC che ci chiamano (0.57.1): nasce con il client degli altri PC. */
 let pcVistoGlobale: ((pcId: string, indirizzo: string) => void) | undefined
+/** Dimentica gli indirizzi ricordati di un PC tolto dalla lista (rimozione dopo 30 giorni). */
+let dimenticaPcIndirizzi: ((pcId: string) => void) | undefined
 /** Le copie locali per il battito e il piano di allineamento (0.58.0): nascono con «una chat, una casa». */
 let localiBattito: (() => LocaliBattito) | undefined
 /** Il Client di questo PC è in ascolto sulla sua porta (0.58.1). */
@@ -2164,6 +2166,7 @@ if (!app.requestSingleInstanceLock()) {
           cartelleInMemoria = { il: Date.now(), l: [...fuori] }
           return cartelleInMemoria.l
         },
+        dimenticaPc: (pcId) => { dimenticaPcIndirizzi?.(pcId) },
         memoria: {
           leggi: () => {
             try {
@@ -2270,6 +2273,13 @@ if (!app.requestSingleInstanceLock()) {
         if (tutti[pcId]?.length === 0) delete tutti[pcId]
         try { scriviAtomico(fileIndirizzi, JSON.stringify(tutti, null, 2), 'remoto') } catch { /* la prossima volta */ }
         registro.info(`[remoto] ${ind} non è più di ${postino.altrui().find((b) => b.pcId === pcId)?.nome ?? pcId}: ora risponde un’altra identità, lo tolgo dagli indirizzi ricordati`)
+      }
+      /** Un PC tolto dalla lista (30 giorni di silenzio): si dimenticano tutti i suoi indirizzi ricordati. */
+      dimenticaPcIndirizzi = (pcId) => {
+        const tutti = indirizziRicordati()
+        if (tutti[pcId] === undefined) return
+        delete tutti[pcId]
+        try { scriviAtomico(fileIndirizzi, JSON.stringify(tutti, null, 2), 'remoto') } catch { /* la prossima volta */ }
       }
       pcVistoGlobale = (pcId, ind) => {
         if (pcId === identitaPc.leggi().id || !indirizzoUtile(ind) || ind.startsWith('127.')) return
