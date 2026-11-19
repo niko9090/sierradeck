@@ -195,6 +195,37 @@ export function useAttesaSpecialisti(attiva: boolean): { vista: VistaAttesa | 'v
 }
 
 /**
+ * La fila (k-u3): posti, chi lavora e chi aspetta, con le mosse per cambiare
+ * l'ordine. Una sola, usata dalla scheda «Fila» della pagina Autopiloti e
+ * dalla colonna a destra: la lettura e le mosse stanno qui e non altrove.
+ */
+export function FilaSpecialisti(): React.JSX.Element {
+  const { vista, rileggi, metti } = useAttesaSpecialisti(true)
+  const [adesso, setAdesso] = useState(() => Date.now())
+  const [daTogliere, setDaTogliere] = useState<string | undefined>(undefined)
+  const [daFermare, setDaFermare] = useState<string | undefined>(undefined)
+  const [nota, setNota] = useState<string | undefined>(undefined)
+  // Il tempo che passa si aggiorna con la lettura, e da solo ogni 15 secondi.
+  useEffect(() => { setAdesso(Date.now()) }, [vista])
+  useEffect(() => {
+    const t = setInterval(() => setAdesso(Date.now()), 15_000)
+    return () => clearInterval(t)
+  }, [])
+  const dopo = (r: VistaAttesa | undefined): void => {
+    if (r === undefined) { setNota('Non è andata: il servizio non ha risposto. Riprova tra poco.'); rileggi() } else { setNota(undefined); metti(r) }
+  }
+  const mossa = (id: string, m: MossaFila): void => { setDaFermare(undefined); void window.gestore.autopilota.prioritaAttesa(id, m).then(dopo).catch(() => dopo(undefined)) }
+  const togli = (id: string): void => { setDaTogliere(undefined); void window.gestore.autopilota.togliAttesa(id).then(dopo).catch(() => dopo(undefined)) }
+  return (
+    <>
+      {nota !== undefined ? <div className="progetti__striscia">⚠ {nota}</div> : null}
+      <ListaSpecialisti vista={vista} adesso={adesso} {...(daTogliere !== undefined ? { daTogliere } : {})} {...(daFermare !== undefined ? { daFermare } : {})} onMossa={mossa} onFerma={setDaFermare} onAnnullaFerma={() => setDaFermare(undefined)} onTogli={setDaTogliere} onAnnullaTogli={() => setDaTogliere(undefined)} onConfermaTogli={togli} />
+      <button className="tasto tasto--mini" onClick={rileggi}>Aggiorna</button>
+    </>
+  )
+}
+
+/**
  * k-160: Specialisti sta a destra, accanto al workspace (come le Domande): il
  * mosaico si restringe invece di essere coperto. Larghezza trascinabile dal
  * bordo, ricordata fra un avvio e l'altro.
@@ -237,23 +268,6 @@ export function PannelloSpecialisti({ onChiudi, larghezza, onLarghezza, altreCol
     onLarghezza(nuova)
   }
   const iniziale = (): void => { setLarga(MISURE.specialisti.predefinita); onLarghezza(MISURE.specialisti.predefinita) }
-  const { vista, rileggi, metti } = useAttesaSpecialisti(true)
-  const [adesso, setAdesso] = useState(() => Date.now())
-  const [daTogliere, setDaTogliere] = useState<string | undefined>(undefined)
-  const [daFermare, setDaFermare] = useState<string | undefined>(undefined)
-  const [nota, setNota] = useState<string | undefined>(undefined)
-  // Il tempo che passa si aggiorna con la lettura, e da solo ogni 15 secondi.
-  useEffect(() => { setAdesso(Date.now()) }, [vista])
-  useEffect(() => {
-    const t = setInterval(() => setAdesso(Date.now()), 15_000)
-    return () => clearInterval(t)
-  }, [])
-  const dopo = (r: VistaAttesa | undefined): void => {
-    if (r === undefined) { setNota('Non è andata: il servizio non ha risposto. Riprova tra poco.'); rileggi() } else { setNota(undefined); metti(r) }
-  }
-  const mossa = (id: string, m: MossaFila): void => { setDaFermare(undefined); void window.gestore.autopilota.prioritaAttesa(id, m).then(dopo).catch(() => dopo(undefined)) }
-  const togli = (id: string): void => { setDaTogliere(undefined); void window.gestore.autopilota.togliAttesa(id).then(dopo).catch(() => dopo(undefined)) }
-  const inFila = typeof vista === 'object' ? vista.inFila.length : 0
   return (
     <aside className="domande-lato specialisti-lato" style={{ width: larghezzaEffettiva('specialisti', larga, finestra, altreColonne) }} aria-label="Specialisti">
       <div
@@ -268,15 +282,13 @@ export function PannelloSpecialisti({ onChiudi, larghezza, onLarghezza, altreCol
         onKeyDown={tasti}
       />
       <div className="progetti__testa">
-        <span className="progetti__titolo">☰ Specialisti{inFila > 0 ? ` · ${inFila} in fila` : ''}</span>
+        <span className="progetti__titolo">☰ Specialisti</span>
         <span style={{ flex: 1 }} />
-        <button className="tasto tasto--mini" onClick={rileggi}>Aggiorna</button>
         <button className="tasto tasto--mini" onClick={onChiudi} aria-label="Chiudi">×</button>
       </div>
-      {nota !== undefined ? <div className="progetti__striscia">⚠ {nota}</div> : null}
       <div className="progetti__corpo">
         <div className="progetti__tabella">
-          <ListaSpecialisti vista={vista} adesso={adesso} {...(daTogliere !== undefined ? { daTogliere } : {})} {...(daFermare !== undefined ? { daFermare } : {})} onMossa={mossa} onFerma={setDaFermare} onAnnullaFerma={() => setDaFermare(undefined)} onTogli={setDaTogliere} onAnnullaTogli={() => setDaTogliere(undefined)} onConfermaTogli={togli} />
+          <FilaSpecialisti />
         </div>
       </div>
     </aside>
