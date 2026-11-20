@@ -136,6 +136,7 @@
 - Le sezioni di Altro (Salute, Computer) non scorrono da sole: vanno avvolte in Column con verticalScroll dentro il Box della Linguetta. _(2026-11-20)_
 - In una copia senza `gh` consentito non si sa se l'app è uscita: la voce in novita-app.txt viene committata dopo la pubblicazione, e può servire come indizio. _(2026-11-20)_
 - impostazioni-struttura.ts alimenta android/.../assets/impostazioni.json: cambiare un testo lì richiede `AGGIORNA=1 npx vitest run tests/shared/impostazioni-struttura.test.ts`. _(2026-11-20)_
+- nella cartella android non c'è gradlew: i test Kotlin si lanciano col gradle di sistema (`gradle --offline testDebugUnitTest`), circa 3 minuti. _(2026-11-20)_
 
 ## release
 
@@ -765,6 +766,7 @@
 - «Limiti» è una sezione solo PC: se le sottovoci di Impostazioni vanno sul telefono, filtrare con sezioniDi('app'). _(2026-11-20)_
 - Una voce del menu PC senza controparte sul telefono usa `soloPc`. Il menu dell'app (`menu.json`, `MenuPrincipaleTest.kt`) deve restare uguale alle sue schede. _(2026-11-20)_
 - `Correzioni` è `soloPc`: va filtrata (`soloPc !== true`) sia in `menu.json` sia nella pagina; le sottovoci vengono da `COMANDI_CHAT_WORKSPACE` e `SEZIONI`. _(2026-11-20)_
+- la barra dell'app (Lavoro/File/Altro) e due sezioni di Altro («Tutte le chat», «Dati riservati») non sono nel menu.json: nomi propri del telefono, non allinearli alla fonte. _(2026-11-20)_
 
 ## panoramica
 
