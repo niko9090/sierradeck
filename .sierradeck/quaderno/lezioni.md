@@ -86,6 +86,7 @@
 - `index.ts` non si importa nei test: il collegamento lì si protegge con un controllo a regex sul sorgente, più i test sulle funzioni (`collegaCredenziali`, `rispondiAiuto`). _(2026-11-20)_
 - `AGGIORNA=1` sul test delle impostazioni riscrive anche `impostazioni.json`: dopo, `git add -A` mostra solo avvisi di fine riga, non modifiche vere. _(2026-11-20)_
 - `src/aiutante/index.ts` non si importa nei test; `colleghiRete` nemmeno: il collegamento si protegge con un controllo sul sorgente di `rete.ts`. _(2026-11-20)_
+- `servizio-orchestratore.test.ts` «PreToolUse dell'unico» (git -C merge) è rosso nella copia di lavoro; non l'ho riprovato su main, ma non dipende dallo spedizioniere. _(2026-11-20)_
 
 ## worktree
 
@@ -927,3 +928,7 @@
 ## mcp
 
 - L'MCP dell'orchestratore gira nel servizio autopilota, che non ha né i battiti né le chiavi dei PC (stanno nel main): per parlare ai PC serve un canale servizio→main, oggi inesistente. _(2026-11-20)_
+
+## spedizioniere
+
+- le capacità dei PC arrivano già in `Aiutante` da `aggiornaPosti`: non serve una mappa a parte; `scegliCapace` passa `[scelto]` a `decidiRiassegna`. _(2026-11-20)_
