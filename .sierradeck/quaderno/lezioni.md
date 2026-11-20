@@ -83,6 +83,7 @@
 - tests/autopilot-host/servizio-orchestratore.test.ts «PreToolUse dell'unico» è rosso in questa copia (atteso `deny`, ricevuto `undefined`), senza i miei file. _(2026-11-20)_
 - Un default di parametro in un helper di test scatta anche con `undefined` passato a mano: per un battito assente usare un valore non valido (es. 'mai'), non `undefined`. _(2026-11-20)_
 - per provare le rotte loopback senza creaServerClient: funzione pura con indirizzo e autorizzazione in ingresso, più un http.createServer di prova su 127.0.0.1 porta 0. _(2026-11-20)_
+- `index.ts` non si importa nei test: il collegamento lì si protegge con un controllo a regex sul sorgente, più i test sulle funzioni (`collegaCredenziali`, `rispondiAiuto`). _(2026-11-20)_
 
 ## worktree
 
@@ -131,6 +132,7 @@
 - `SuPc.corrente` non era letto da nessuno: il tasto «Chat dal vivo» di Altri computer apriva solo le chat locali. Il ponte vero andrebbe riscritto, non ripristinato. _(2026-11-20)_
 - Le sezioni di Altro (Salute, Computer) non scorrono da sole: vanno avvolte in Column con verticalScroll dentro il Box della Linguetta. _(2026-11-20)_
 - In una copia senza `gh` consentito non si sa se l'app è uscita: la voce in novita-app.txt viene committata dopo la pubblicazione, e può servire come indizio. _(2026-11-20)_
+- impostazioni-struttura.ts alimenta android/.../assets/impostazioni.json: cambiare un testo lì richiede `AGGIORNA=1 npx vitest run tests/shared/impostazioni-struttura.test.ts`. _(2026-11-20)_
 
 ## release
 
@@ -715,6 +717,7 @@
 - `SILENZIO_MAX_MS` esiste due volte con valori diversi (`aiuto-rete.ts:256`, `aiuto-scadenza.ts:21`): verificare quale vale. _(2026-11-20)_
 - `SILENZIO_MAX_MS` stava in due file con valori diversi (20 e 60 min): ora è uno solo in aiuto-rete.ts (30 min), aiuto-scadenza lo importa. _(2026-11-20)_
 - Per la lentezza conta l'attività vera (`fermoMs` dal PC ospite, sul suo orologio), non la percentuale: lo specialista spesso non la manda, e senza di lei un lavoro attivo non si sposta. _(2026-11-20)_
+- il lavoratore gira nel servizio autopilota, senza cassaforte: le credenziali vanno chieste dal main (rotta `/api/aiuto/avvia` → campo `segreti` nel corpo) e consumate in `lancia`. _(2026-11-20)_
 
 ## aiutante
 
@@ -731,6 +734,7 @@
 - la versione dell'Aiutante sta in src/aiutante/versione.json e va alzata insieme alla voce in novita-aiutante.txt; novita.ts e package.json sono del programma completo. _(2026-11-16)_
 - L'Aiutante è una registrazione `pc-<id>` a parte, con `aiutante:true` e lo stesso `host` di SierraDeck: per legare i due si usa `host`, non il pcId. _(2026-11-19)_
 - Per sapere se un PC è acceso solo grazie all'Aiutante usa `vistoDelPc` (stato-pc.ts); se serve una nuova vista sul battito, passa da lì invece di rifare l'abbinamento per host. _(2026-11-19)_
+- SierraDeck Aiutante crea la sincronia dentro `colleghiRete` dopo `aiuto`: per dargli `chiediCredenziali` serve un cambio d'ordine, non l'ho fatto. _(2026-11-20)_
 
 ## blocco
 
@@ -890,6 +894,7 @@
 ## testi
 
 - Gli Aiuto citano ancora «Altri computer» e «Salute → Altri computer»: dopo ogni spostamento di voci, cercare i nomi vecchi nei testi (impostazioni-struttura.ts, SezioneAltriPc.tsx). _(2026-11-20)_
+- I percorsi «Impostazioni → …» vanno presi da src/shared/percorsi-menu.ts; il test testi-menu-esistenti rifiuta sezioni inesistenti nei testi utente (escluse novita.ts e le righe di commento). _(2026-11-20)_
 
 ## compatibilità
 
