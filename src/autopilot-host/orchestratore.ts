@@ -1,5 +1,5 @@
 import { modelloAutopilotaAmmesso } from '@shared/modelli'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { gitPerLeChat } from '../main/git-nel-path'
 import { POSTI_MAX } from '@shared/posti-chat'
 import { separaAvvisiNode } from '@shared/avvisi-node'
@@ -34,11 +34,11 @@ export { ambientePulito }
  *   **Mai** `bypassPermissions`, mai `--dangerously-skip-permissions`, mai
  *   `--bare` (ignorerebbe il login dell'abbonamento), e niente
  *   `ANTHROPIC_API_KEY` nell'ambiente del figlio;
- * - il processo si spegne dopo 10 minuti senza turni né specialisti al
+ * - il processo si spegne dopo 55 minuti (`INATTIVO_MS`) senza turni né specialisti al
  *   lavoro, e riparte con `--resume`; quando il contesto cresce troppo sopra il
  *   primo turno della sessione (`sogliaDiRotazione`, 11/11) la sessione ruota
  *   (quella nuova riceve lo stato e le ultime 10 battute);
- * - un turno alla volta per workspace e al più 2 su tutto il PC: quello che
+ * - un turno alla volta per workspace e al più 3 su tutto il PC (`CHIAMATE_PC_MAX`): quello che
  *   arriva durante un turno aspetta e parte insieme, alla fine del turno.
  */
 
@@ -73,7 +73,13 @@ export function sogliaDiRotazione(soglia: number, base: number | undefined): num
   return Math.min(2 * soglia, Math.max(soglia, (base ?? 0) + Math.round(MARGINE_ROTAZIONE * soglia)))
 }
 export const BATTUTE_SEMINA = 10
-export const INATTIVO_MS = 10 * 60_000
+/**
+ * Quiete dopo cui il processo si spegne (poi riparte con `--resume`). Un processo fermo non consuma token: costa
+ * solo un poco di RAM. Spegnerlo dopo 10 minuti faceva riscrivere la cache del prompt (regole, agenti, strumenti,
+ * contesto: 50-60k token) a ogni ripresa; la cache dura 1 ora, quindi lo si tiene vivo fino a 55 minuti di quiete
+ * (5 di margine sulla scadenza): chi riprende entro l'ora legge la cache invece di riscriverla.
+ */
+export const INATTIVO_MS = 55 * 60_000
 export const SILENZIO_SPECIALISTA_MS = 20 * 60_000
 /** Un turno senza nessuna riga in uscita per tanto (fuori da un permesso in attesa) è appeso: si uccide e si riprova. */
 export const TURNO_MUTO_MS = 20 * 60_000
@@ -215,9 +221,11 @@ export function componiPrompt(p: {
   semina?: RigaDialogo[]
   messaggi: MessaggioUtente[]
   eventi: EventoOrchestratore[]
+  /** Falso: l'indice è già nella sessione e non è cambiato, non si rimanda (di serie vero). */
+  conIndice?: boolean
 }): string {
   const righe: string[] = ['<stato>', p.riassunto.trim(), '</stato>']
-  if (p.indice.trim() !== '') righe.push('', '<quaderno>', p.indice.trim(), '</quaderno>')
+  if (p.conIndice !== false && p.indice.trim() !== '') righe.push('', '<quaderno>', p.indice.trim(), '</quaderno>')
   if (p.semina !== undefined && p.semina.length > 0) {
     righe.push('', '<ultime-battute>', 'Sessione nuova: le ultime battute del dialogo, per riprendere il filo.')
     for (const r of p.semina) righe.push(`[${orario(r.quando)}] ${r.da === 'tu' ? 'Nicholas' : r.da === 'lui' ? 'tu' : 'evento'}: ${r.testo.replace(/\s+/gu, ' ').slice(0, 600)}`)
@@ -353,6 +361,8 @@ type StatoWs = {
   /** Quello che il turno in corso ha portato: torna in attesa se il processo muore. */
   inviati?: { messaggi: MessaggioUtente[]; eventi: EventoOrchestratore[] }
   ruota: boolean
+  /** Impronta dell'ultimo indice del quaderno mandato (nella sessione di adesso): senza cambiamenti non si rimanda. */
+  improntaIndice?: string
   /** 11/11: il contesto del primo turno della sessione di adesso: la soglia di rotazione si conta da lì. */
   baseContesto?: number
   /** Guasti di fila: dal secondo si aspetta sempre di più, senza fermarsi mai. */
@@ -412,6 +422,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
     const persi = s.inviati
     s.inviati = undefined
     if (persi === undefined) return
+    s.improntaIndice = undefined // il turno non è arrivato: l'indice va rimandato
     s.messaggi = [...persi.messaggi, ...s.messaggi]
     s.eventi = [...persi.eventi, ...s.eventi]
     if (s.eventi.length > 0) s.eventiPronti = true
@@ -510,7 +521,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
     s.cane.unref?.()
   }
 
-  /** A riposo (nessun turno, nessuno specialista): ruota subito se serve, se no si spegne dopo 10 minuti. */
+  /** A riposo (nessun turno, nessuno specialista): ruota subito se serve, se no si spegne dopo `INATTIVO_MS`. */
   const riposo = (ws: string, s: StatoWs): void => {
     if (s.inattivo !== undefined) { clearTimeout(s.inattivo); s.inattivo = undefined }
     if (s.proc === undefined || inTurno(s) || specialistiAlLavoro(s.flusso).length > 0 || pronto(s)) return
@@ -625,7 +636,12 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
     const appena = s.proc === undefined ? avviaProcesso(ws, s, ctx) : undefined
     const imp = d.impostazioni(ws)
     const semina = appena?.nuovaSess === true || imp.daSeminare === true ? d.ultime(ws, BATTUTE_SEMINA) : undefined
-    const testo = componiPrompt({ riassunto: ctx.riassunto, indice: ctx.indice, ...(semina !== undefined ? { semina } : {}), messaggi, eventi })
+    // L'indice del quaderno si manda al primo turno di una sessione e quando cambia: altrimenti è già nel contesto.
+    const impronta = createHash('sha1').update(ctx.indice.trim()).digest('hex')
+    const sessioneNuova = appena?.nuovaSess === true || imp.daSeminare === true
+    const conIndice = sessioneNuova || s.improntaIndice !== impronta
+    s.improntaIndice = impronta
+    const testo = componiPrompt({ riassunto: ctx.riassunto, indice: ctx.indice, conIndice, ...(semina !== undefined ? { semina } : {}), messaggi, eventi })
     s.inviati = { messaggi, eventi }
     s.flusso = { ...s.flusso, inTurno: true }
     armaCane(ws, s)
