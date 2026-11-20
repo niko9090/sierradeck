@@ -17,12 +17,36 @@ import type { EventoAiuto } from './eventi-aiuto'
 
 export const MAX_RIASSEGNAZIONI = 2
 
+/** Peso del compito: quanto ci si aspetta che duri (ms) su un PC normale. */
+export type PesoCompito = 'leggero' | 'medio' | 'pesante'
+export const DURATA_PREVISTA_MS: Readonly<Record<PesoCompito, number>> = { leggero: 10 * 60_000, medio: 30 * 60_000, pesante: 90 * 60_000 }
+/** Senza alcuna attività vera (strumento usato, testo scritto) da tanto: è fermo, anche se il processo c'è. Sotto il silenzio di `SILENZIO_MAX_MS`, che è perso del tutto. */
+export const FERMO_MAX_MS = 15 * 60_000
+/** Un PC è «molto più lento» quando la durata stimata dalla percentuale supera la prevista di questo fattore. */
+export const FATTORE_LENTO = 3
+
+/** I fatti sull'avanzamento di un lavoro in corso, per decidere se è troppo lento. */
+export type DatiLentezza = {
+  /** Da quanti ms non c'è attività vera (riferita dal PC ospite); assente = non lo sa. */
+  fermoMs?: number
+  /** Da quanti ms il lavoro è partito su quel PC (tempo da sveglio). */
+  trascorsoMs: number
+  peso: PesoCompito
+  /** Avanzamento vero 0-100, se lo specialista lo dice: spesso manca. */
+  percentuale?: number
+  /** Commit già fatti nel ramo parziale di là (0 o assente = niente da salvare). */
+  commit?: number
+}
+
 export type MossaRiassegna =
-  | { tipo: 'riassegna'; a: Aiutante }
+  | { tipo: 'riassegna'; a: Aiutante; /** Passato per lentezza (non per colpa del PC). */ perLentezza?: boolean; /** Si riparte dal ramo parziale di prima (dal suo ultimo commit) invece che da capo. */ ripartiDalRamo?: boolean }
   | { tipo: 'resta-fallito'; motivo: string; /** true se va scritto «arreso» nel registro (c'era una causa del PC). */ arreso: boolean }
+  | { tipo: 'continua'; motivo: string }
 
 export type DatiRiassegna = {
-  causa: CausaFallimento
+  /** La causa del fallimento; assente se il lavoro non è fallito ma si valuta solo la lentezza (`lentezza`). */
+  causa?: CausaFallimento
+  lentezza?: DatiLentezza
   /** Quante volte il lavoro è già passato di mano. */
   riassegnazioni: number
   /** I PC già provati per questo lavoro, compreso quello che ha appena fallito. */
@@ -42,7 +66,32 @@ export function scegliAltroPc(d: Pick<DatiRiassegna, 'aiutanti' | 'provati' | 'f
     .sort((a, b) => Number(b.programma === 'aiutante') - Number(a.programma === 'aiutante') || b.liberi - a.liberi || a.pcId.localeCompare(b.pcId))[0]
 }
 
+/**
+ * Il lavoro è troppo lento? Due segni, in ordine di affidabilità:
+ * 1. nessuna attività vera da `FERMO_MAX_MS` (non serve la percentuale);
+ * 2. la percentuale c'è e dice che finirebbe oltre `FATTORE_LENTO` volte la durata prevista del suo peso.
+ * Attività viva e percentuale assente = va avanti, non si tocca.
+ */
+export function eLento(l: DatiLentezza): string | undefined {
+  if (l.fermoMs !== undefined && l.fermoMs > FERMO_MAX_MS) return `fermo da ${String(Math.round(l.fermoMs / 60_000))} minuti senza fare nulla`
+  const p = l.percentuale
+  if (p !== undefined && p >= 0 && p < 100 && l.trascorsoMs > 0) {
+    const stimaMs = p > 0 ? (l.trascorsoMs * 100) / p : Infinity
+    const previsto = DURATA_PREVISTA_MS[l.peso]
+    if (l.trascorsoMs > previsto && stimaMs > previsto * FATTORE_LENTO) return `al ${String(Math.round(p))}% dopo ${String(Math.round(l.trascorsoMs / 60_000))} minuti: molto più lento del previsto`
+  }
+  return undefined
+}
+
 export function decidiRiassegna(d: DatiRiassegna): MossaRiassegna {
+  if (d.causa === undefined) {
+    const motivo = d.lentezza !== undefined ? eLento(d.lentezza) : undefined
+    if (motivo === undefined) return { tipo: 'continua', motivo: 'va avanti' }
+    if (d.riassegnazioni >= MAX_RIASSEGNAZIONI) return { tipo: 'continua', motivo: `lento (${motivo}) ma già passato di mano ${MAX_RIASSEGNAZIONI} volte` }
+    const altro = scegliAltroPc(d)
+    if (altro === undefined) return { tipo: 'continua', motivo: `lento (${motivo}) ma nessun altro PC libero` }
+    return { tipo: 'riassegna', a: altro, perLentezza: true, ripartiDalRamo: (d.lentezza?.commit ?? 0) > 0 }
+  }
   if (!causaRiassegnabile(d.causa)) return { tipo: 'resta-fallito', motivo: fraseCausa(d.causa), arreso: false }
   if (d.riassegnazioni >= MAX_RIASSEGNAZIONI) {
     return { tipo: 'resta-fallito', motivo: `già passato di mano ${MAX_RIASSEGNAZIONI} volte: ${fraseCausa(d.causa)}`, arreso: true }

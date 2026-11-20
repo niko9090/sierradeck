@@ -175,6 +175,8 @@ export type VistaLavoroAiutato = {
   ramo?: string
   byte?: number
   commit?: number
+  /** Da quanti ms lo specialista non fa nulla di vero (strumento usato o testo scritto), misurati da quel PC; assente se non lavora. */
+  fermoMs?: number
   /** 13/11: la causa riconosciuta di un lavoro non riuscito (manca nei PC di prima: si legge dal motivo). */
   causa?: CausaFallimento
 }
@@ -253,8 +255,15 @@ export function motivoAffidato(pcNome: string, compito: string | undefined): str
   return `Fatto: ${chi} è affidato a ${pcNome}, che ha un posto libero (Aiuta la rete). Lo specialista lavora là su una copia del progetto, con lo stesso ruolo e lo stesso messaggio; il ramo torna qui e il programma lo unisce da solo, come per gli altri. Non rilanciarlo: l’esito ti arriva come evento. Intanto puoi affidare altro.`
 }
 
-/** Quanto si aspetta un PC che aiuta e non risponde più, prima di dire che il lavoro è perso. */
-export const SILENZIO_MAX_MS = 20 * 60_000
+/**
+ * Quanto silenzio si aspetta prima di dire che il lavoro è perso, per tutti e due i casi:
+ * il PC che aiuta non risponde più al controllo (rete, spento) e lo specialista là non scrive più una riga.
+ * Prima erano due valori (20 e 60 minuti). 30: il controllo di stato gira ogni pochi secondi, quindi mezz'ora
+ * di mancate risposte è un PC perso (20 era già giusto); ma uno specialista che lancia una prova lunga può
+ * restare muto qualche minuto, mai una mezz'ora (60 teneva fermo un lavoro bloccato per un'ora di troppo).
+ * Il sonno del portatile non c'entra: lo tratta `aiuto-scadenza` a parte.
+ */
+export const SILENZIO_MAX_MS = 30 * 60_000
 /** Un lavoro che dura oltre questo si ferma (come uno specialista di qui che non finisce più). */
 export const LAVORO_MAX_MS = 3 * 60 * 60_000
 

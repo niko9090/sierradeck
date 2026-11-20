@@ -208,8 +208,8 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): { giro: () => Pro
     const compito = l.compito ?? l.descrizione.slice(0, 80)
     const quando = new Date(adesso()).toISOString()
     const mossa = decidiRiassegna({ causa, riassegnazioni: l.riassegnazioni ?? 0, provati, aiutanti: causaRiassegnabile(causa) ? await aggiornaPosti() : [], fuori, adesso: adesso() })
-    if (mossa.tipo === 'resta-fallito') {
-      if (mossa.arreso) registra(eventoArreso({ quando, lavoroId: l.id, compito, daPc: l.pcNome, motivo: `${mossa.motivo} (${motivo})` }))
+    if (mossa.tipo !== 'riassegna') {
+      if (mossa.tipo === 'resta-fallito' && mossa.arreso) registra(eventoArreso({ quando, lavoroId: l.id, compito, daPc: l.pcNome, motivo: `${mossa.motivo} (${motivo})` }))
       return undefined
     }
     await d.chiama(l.pcId, '/api/aiuto/chiudi', { lavoro: l.id }).catch(() => undefined)
