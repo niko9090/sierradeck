@@ -81,6 +81,7 @@
 - menu-principale.test.ts legge Console.tsx come testo (es. la riga `.map((v) =>`): togliere o rinominare un helper della fascia rompe quel test. _(2026-11-20)_
 - `tests/autopilot-host/compiti-chiusi-11-11.test.ts` e `parallelo-12-11.test.ts` usano `riassuntoOrchestratore`: sono la prova di compatibilità del formato quando lo si cambia. _(2026-11-20)_
 - tests/autopilot-host/servizio-orchestratore.test.ts «PreToolUse dell'unico» è rosso in questa copia (atteso `deny`, ricevuto `undefined`), senza i miei file. _(2026-11-20)_
+- Un default di parametro in un helper di test scatta anche con `undefined` passato a mano: per un battito assente usare un valore non valido (es. 'mai'), non `undefined`. _(2026-11-20)_
 
 ## worktree
 
@@ -896,3 +897,7 @@
 ## claude
 
 - Il Code Mode di Claude Code non vale con `-p` né con l'SDK (solo terminale interattivo): con `-p` il contesto è identico, 56.549 token con e senza variabile. _(2026-11-20)_
+
+## mcp
+
+- L'MCP dell'orchestratore gira nel servizio autopilota, che non ha né i battiti né le chiavi dei PC (stanno nel main): per parlare ai PC serve un canale servizio→main, oggi inesistente. _(2026-11-20)_
