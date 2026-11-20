@@ -1,3 +1,6 @@
+import { COMANDI_CHAT_WORKSPACE } from './chat-workspace'
+import { SEZIONI } from './impostazioni-struttura'
+
 /**
  * **Il menu principale** (0.61.0), uguale su PC, pagina e app.
  *
@@ -17,6 +20,9 @@
  */
 export type IdMenu = 'progetti' | 'autopiloti' | 'domande' | 'chat' | 'computer' | 'file' | 'salute' | 'correzioni' | 'impostazioni'
 
+/** Una sottovoce: stesso id, nome e ordine su PC, pagina e app. */
+export type SottoVoce = { id: string; nome: string }
+
 export type VoceMenu = {
   id: IdMenu
   nome: string
@@ -30,6 +36,8 @@ export type VoceMenu = {
   breve: string
   /** Cosa guarda e cosa fa: il testo del tasto, quando ci passi sopra. */
   spiega: string
+  /** Le sottovoci (PC, pagina e app): stessi id, nomi e ordine. */
+  sotto: readonly SottoVoce[]
   /**
    * Solo nella pagina e nell'app, non nella fascia del PC. È la sezione File
    * del telefono (sfogliare i progetti del PC e ritirare i file mandati): sul
@@ -47,38 +55,47 @@ export type VoceMenu = {
 export const MENU_PRINCIPALE: readonly VoceMenu[] = [
   {
     id: 'progetti', nome: 'Progetti', icona: '▦', breve: 'Progetti',
+    sotto: [{ id: 'elenco', nome: 'I progetti' }, { id: 'drive', nome: 'Contenuto del Drive' }, { id: 'salvataggio', nome: 'Salvataggio e sincronizzazione' }, { id: 'quaderno', nome: 'Quaderno del progetto' }],
     spiega: 'Tutti i tuoi progetti e le loro chat, su tutti i PC: il PC su cui vive ognuno e come sta. Da qui Apri, Apri su un altro PC, Sposta su questo PC, il contenuto del Drive, il salvataggio e l’arrivo dal Drive, e il quaderno del progetto.'
   },
   {
     id: 'autopiloti', nome: 'Autopiloti', icona: '◉', breve: 'Auto\u00adpiloti',
+    sotto: [{ id: 'autopiloti', nome: 'Gli autopiloti' }, { id: 'specialisti', nome: 'Gli specialisti' }],
     spiega: 'Gli autopiloti di questo PC e quelli degli altri PC: cosa stanno facendo, cosa aspettano da te, i comandi per crearli, fermarli, farli ripartire e archiviarli, e i loro specialisti: chi lavora e chi è in fila per un posto.'
   },
   {
     id: 'domande', nome: 'Domande', icona: '?', breve: 'Domande',
+    sotto: [],
     spiega: 'Tutto quello che aspetta una tua risposta: chat ferme su una domanda o un permesso, chat che hanno finito, domande degli autopiloti. Si apre accanto alle chat e resta aperta mentre lavori.'
   },
   {
     id: 'chat', nome: 'Chat e workspace', icona: '▭', breve: 'Chat',
+    sotto: COMANDI_CHAT_WORKSPACE.map((c) => ({ id: c.id, nome: c.etichetta })),
     spiega: 'Le chat e i workspace: nuova chat, riprendi una conversazione, lo spazio delle chat, crea, rinomina ed elimina i workspace, le chat usate da altri PC, una nuova finestra, e il Negozio con gli strumenti delle chat (plugin, skill, MCP).'
   },
   {
     id: 'computer', nome: 'Computer', icona: '⌂', breve: 'Computer',
+    sotto: [],
     spiega: 'Tutti i tuoi computer ad albero, in elenco e su una mappa: acceso o spento, strada, versione, chat aperte, guarda dal vivo, cassetta e installa là.'
   },
   {
     id: 'file', nome: 'File', icona: '⇅', breve: 'File', soloTelefono: true,
+    sotto: [{ id: 'progetti', nome: 'Dei progetti' }, { id: 'ricevuti', nome: 'Mandati dal PC' }],
     spiega: 'I file dei progetti dei tuoi PC, da sfogliare e leggere dal telefono, e quelli che un PC ti ha mandato: si guardano e si scaricano.'
   },
   {
     id: 'salute', nome: 'Salute', icona: '♥', breve: 'Salute',
+    sotto: [{ id: 'sistema', nome: 'Da sistemare' }, { id: 'consumi', nome: 'Consumi' }],
     spiega: 'Come sta il sistema: cosa c’è da sistemare, il Drive e i consumi del piano, con cosa fare per ognuno. I computer hanno la loro voce, gli errori e le correzioni pure.'
   },
   {
     id: 'correzioni', nome: 'Correzioni', icona: '✚', breve: 'Correzioni', soloPc: true,
+    sotto: [{ id: 'arrivati', nome: 'Errori arrivati' }, { id: 'in-corso', nome: 'Lavoro in corso' }, { id: 'fatte', nome: 'Correzioni fatte' }],
     spiega: 'Gli errori arrivati dagli altri PC, raggruppati; il lavoro in corso per correggerli e le correzioni già fatte. Tutto in un posto solo: Salute ti rimanda qui.'
   },
   {
     id: 'impostazioni', nome: 'Impostazioni', icona: '⚙', breve: 'Imposta\u00adzioni',
+    sotto: SEZIONI.map((s) => ({ id: s.id, nome: s.titolo })),
     spiega: 'Solo le preferenze: aggiornamenti, nome del computer e rete, comportamento delle chat, l’account Google, aspetto, notifiche. Niente che abbia già un suo tasto in questa barra.'
   }
 ]
