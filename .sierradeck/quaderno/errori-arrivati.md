@@ -314,3 +314,8 @@ Difetto vero, corretto nella versione 0.109.2 (con l'Aiutante 1.2.2). Causa: la 
 
 ## Gruppo 1: «[renderer] errore di render — Cannot read properties of undefined (reading 'replace') in chiaveWorkspace» (Portatile Asus)
 Difetto vero, corretto nella versione 0.111.3. Causa: un autopilota arrivato senza cartella di lavoro (cwd) faceva cadere chiaveWorkspace, e con lei la Panoramica. Correzione k-165a (commit 9a27373f: chiaveWorkspace regge l'assenza di cwd; src/shared/coda-richieste.ts e i tre componenti dell'autopilota). Test: tests/shared/chiave-workspace-senza-cwd.test.ts.
+
+# Errori arrivati (lotto 20261120145943)
+
+## Gruppo 1: «[rete] il Drive è scollegato…» (1 volta, Aiutante 1.2.2 di un altro PC, 20/11 alle 14:51Z)
+Corretto nella versione 0.112.0 (Aiutante 1.3.0). Causa: l Aiutante prendeva per Drive scollegato un solo giro in cui il token non si vedeva (portachiavi non ancora pronto o file in riscrittura) e lo mandava agli altri PC come errore di rete. Ora `stabilizzaRete` (src/aiutante/regole.ts): portachiavi non pronto = non scollegato; il segno scritto da conto-drive alla revoca vale subito; altrimenti servono due giri di fila. Correzione k-170a (commit 58ffcba5b9b). Test: tests/aiutante/blocchi-rete-transitori.test.ts.
