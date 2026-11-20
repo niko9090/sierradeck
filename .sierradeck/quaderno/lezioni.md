@@ -251,6 +251,7 @@
 - SubagentStop senza toccare server.ts: hook `command` con `node -e` e script in base64 (niente virgolette da proteggere), generato da `finePrematura.toString()`; la funzione deve restare autosufficien… _(2026-11-08)_
 - l'hook Bash di SierraDeck blocca sleep e comandi in sottofondo: le attese a intervalli non si possono fare da una chat, serve richiamare o un altro meccanismo. _(2026-11-10)_
 - Il programma blocca l'intero comando Bash se un rmdir o una cancellazione contiene una variabile ($T): scrivere i percorsi per intero. _(2026-11-20)_
+- Il PreToolUse dell'Agent, quando lascia passare, non può portare testo all'autopilota: i motivi «resta qui» vanno come `evento` al suo prossimo turno. _(2026-11-20)_
 
 ## versioni
 
@@ -508,6 +509,7 @@
 - Le azioni fra PC passano da POST /api/azione sul Client (stessa firma): per un file al telefono serve sempre conferma di chi sta là, mai solo la richiesta remota. _(2026-11-20)_
 - Deciso 20/11: manda-file-telefono chiesto da un altro PC resta sempre con conferma di chi sta al PC ricevente; mai senza. _(2026-11-20)_
 - il ramo di un lavoro da unire può non esistere nella copia del PC che aiuta: prima di affidare un'unione, verificare che il ramo sia stato rimandato. _(2026-11-20)_
+- `Aiutante` non portava battito né capacità: valutare per requisiti ha richiesto di farli arrivare da index.ts e spedizioniere fino a `/aiuto/giro`. _(2026-11-20)_
 
 ## cancello
 
