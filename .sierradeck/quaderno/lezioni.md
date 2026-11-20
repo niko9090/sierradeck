@@ -798,6 +798,7 @@
 ## novita
 
 - in `android/novita-app.txt` la voce app va aggiunta a mano a ogni salita di versionName, altrimenti `pubblica-app` si ferma; verificarla con `noteDi` di `scripts/note-novita.mjs`. _(2026-11-19)_
+- la voce in novita.ts va in cima all'array NOVITA; nelle righe mai iniziare con «versione:». _(2026-11-20)_
 
 ## versione
 
