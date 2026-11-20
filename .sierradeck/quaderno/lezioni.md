@@ -238,7 +238,6 @@
 
 ## ambiente
 
-- la guardia del carico può rimandare per ore anche `tsc`; con Defender al 30% il typecheck non parte: lanciare i test per file e riprovare dopo. _(2026-11-08)_
 - Con la guardia del carico che rimanda tsc, `ping -n N 127.0.0.1` è l'unica attesa consentita: `sleep` seguito da un comando viene bloccato. _(2026-11-08)_
 - Nel worktree la guardia rifiuta i comandi Bash che mettono git dentro blocchi composti (`||`, `&&` con cmd): tenere git in chiamate semplici e la junction in PowerShell. _(2026-11-08)_
 - nei worktree alcuni heredoc Bash con python vengono rifiutati come «troppo complessi»: scrivere lo script con Write ed eseguirlo, oppure usare Edit _(2026-11-09)_
@@ -741,6 +740,7 @@
 - Per sapere se un PC è acceso solo grazie all'Aiutante usa `vistoDelPc` (stato-pc.ts); se serve una nuova vista sul battito, passa da lì invece di rifare l'abbinamento per host. _(2026-11-19)_
 - SierraDeck Aiutante crea la sincronia dentro `colleghiRete` dopo `aiuto`: per dargli `chiediCredenziali` serve un cambio d'ordine, non l'ho fatto. _(2026-11-20)_
 - L'Aiutante non ha cassaforte di credenziali: per i lavori affidati chiede solo al PC che li ha affidati (`chiedi` senza deposito), collegato in `rete.ts`, non in `index.ts`. _(2026-11-20)_
+- `novita-aiutante.txt` ha una riga di testo per versione tra apici singoli: un apice dentro il testo si scrive `\'`. I test di pubblicazione e aggiornamento dell'Aiutante lo leggono. _(2026-11-20)_
 
 ## blocco
 
