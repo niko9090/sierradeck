@@ -22,7 +22,7 @@ import { vociMenuApplicazione, vociMenuContestuale } from './menu-modifica'
 import { registraMenuContestuale } from './menu-contestuale'
 import { basename, dirname, join, resolve, sep } from 'node:path'
 import { GIRO_VUOTI_MS, giroProgettiVuoti } from './progetti/vuoti'
-import { CONTROLLO_PC_OGNI_MS, PRIMO_CONTROLLO_MS, giroControlloPc, versioneDalVivo } from './controllo-pc'
+import { CONTROLLO_PC_OGNI_MS, PRIMO_CONTROLLO_MS, altriPcDelControllo, giroControlloPc, versioneDalVivo } from './controllo-pc'
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, rmdirSync, statSync, copyFileSync, writeFileSync, watch } from 'node:fs'
 import { cpus, homedir, hostname, userInfo } from 'node:os'
 import { createConnection } from 'node:net'
@@ -2570,18 +2570,9 @@ if (!app.requestSingleInstanceLock()) {
       // `/api/stato`, chiesto con la firma di casa; se un PC non risponde, il
       // perché con le strade provate. Ogni PC una volta, in parallelo.
       altriPcGlobale = async () => {
-        const io = identitaPc.leggi()
-        // 12/11: senza gli Aiutanti (niente autopiloti né chat da elencare).
-        // 19/11: il battito che conta è il più recente fra SierraDeck e l'Aiutante dello stesso PC (un PC con il solo Aiutante non è «spento»).
-        const tutti = await postino.pcSubito().catch(() => postino.altrui())
-        const visti = vistoConAiutante(tutti, (b) => b.battito)
-        const adessoMs = Date.now()
-        return unBattitoPerNome(senzaAiutanti(tutti).filter((b) => b.pcId !== io.id), nomeDaMostrare).map((b) => ({
-          pcId: b.pcId, nome: nomeDaMostrare(b),
-          ...(visti.get(b.pcId) !== undefined ? { battito: visti.get(b.pcId) as string } : {}),
-          // Acceso solo grazie all'Aiutante: SierraDeck là è chiuso, non è un «non risponde».
-          ...(vistoDelPc(tutti, b.pcId, adessoMs).soloAiutante ? { soloAiutante: true } : {})
-        }))
+        // 12/11: senza gli Aiutanti. 19/11: il battito che conta è il più recente fra SierraDeck e l'Aiutante.
+        // k-163e: battiti riletti dal Drive, non dalla memoria di `pcSubito` (vedi `altriPcDelControllo`).
+        return altriPcDelControllo({ postino, ioId: identitaPc.leggi().id, nome: nomeDaMostrare, adesso: () => Date.now() })
       }
       saluteAltroPcGlobale = async (pcId) => (await remoto.chiama(pcId, '/api/salute')) as import('@shared/salute').Salute
       autopilotiAltri = async () => {

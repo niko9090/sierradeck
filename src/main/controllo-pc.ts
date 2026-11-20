@@ -2,8 +2,9 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
 import { prima, type Salute } from '@shared/salute'
-import { SPENTO_DOPO_MS, statoPc } from '@shared/stato-pc'
-import type { AutopilotiDiPc } from '@shared/autopiloti-altri'
+import { SPENTO_DOPO_MS, statoPc, vistoConAiutante, vistoDelPc } from '@shared/stato-pc'
+import { unBattitoPerNome, type AutopilotiDiPc } from '@shared/autopiloti-altri'
+import { senzaAiutanti, type BattitoPc } from '@shared/posta'
 
 /**
  * k-196: la versione che un PC dice adesso (rotta leggera /api/pc), se risponde. Una sola fonte:
@@ -32,6 +33,30 @@ export async function versioneDalVivo(chiama: (pcId: string, percorso: string) =
 
 export const CONTROLLO_PC_OGNI_MS = 6 * 60 * 60_000
 export const PRIMO_CONTROLLO_MS = 15 * 60_000
+
+/**
+ * k-163e: gli altri PC del controllo, dal postino. Una fonte sola per il segno più recente (`vistoConAiutante`
+ * / `vistoDelPc`: SierraDeck e Aiutante dello stesso PC) e per le soglie (`statoPc`). I battiti si rileggono dal
+ * Drive (`pc`), non da `pcSubito`: quello risponde con la memoria (anche quella letta dal disco all'avvio, o col
+ * freno del Drive) e il controllo, ogni 6 ore, giudicava «non risponde» un PC che l'Aiutante aveva appena segnato.
+ * Se il Drive non risponde si ripiega sulla memoria (`altrui`).
+ */
+export async function altriPcDelControllo(d: {
+  postino: { pc: () => Promise<BattitoPc[]>; altrui: () => BattitoPc[] }
+  ioId: string
+  nome: (b: BattitoPc) => string
+  adesso: () => number
+}): Promise<Array<{ pcId: string; nome: string; battito?: string; soloAiutante?: boolean }>> {
+  const tutti = await d.postino.pc().catch(() => d.postino.altrui())
+  const visti = vistoConAiutante(tutti, (b) => b.battito)
+  const adesso = d.adesso()
+  return unBattitoPerNome(senzaAiutanti(tutti).filter((b) => b.pcId !== d.ioId), d.nome).map((b) => ({
+    pcId: b.pcId, nome: d.nome(b),
+    ...(visti.get(b.pcId) !== undefined ? { battito: visti.get(b.pcId) as string } : {}),
+    // Acceso solo grazie all'Aiutante: SierraDeck là è chiuso, non è un «non risponde».
+    ...(vistoDelPc(tutti, b.pcId, adesso).soloAiutante ? { soloAiutante: true } : {})
+  }))
+}
 
 export type SaluteDiPc = { pcId: string; nome: string; salute?: Salute; errore?: string; battito?: string; /** Risponde, ma non ha finito in tempo (anche al secondo tentativo): lento, non spento. */ lento?: boolean; /** Il battito è dell'Aiutante: SierraDeck là è chiuso (`vistoDelPc`). */ soloAiutante?: boolean }
 

@@ -69,7 +69,9 @@ describe('dove il programma completo sceglie un PC per chat e progetti', () => {
     expect(indice).toMatch(/pc: \(\) => postinoGlobale\?\.pcSubito\(\)\.then\(\(tutti\) => \{[\s\S]{0,300}senzaAiutanti\(tutti\)/u)
   })
   it('gli autopiloti degli altri PC e le versioni: senza Aiutanti', () => {
-    expect(indice).toMatch(/altriPcGlobale = async \(\) => \{[\s\S]{0,600}senzaAiutanti/u)
+    // k-163e: `altri` del controllo si costruisce in `altriPcDelControllo` (controllo-pc.ts), che toglie gli Aiutanti.
+    expect(indice).toMatch(/altriPcGlobale = async \(\) => \{[\s\S]{0,600}altriPcDelControllo/u)
+    expect(readFileSync('src/main/controllo-pc.ts', 'utf8')).toMatch(/altriPcDelControllo[\s\S]{0,900}senzaAiutanti/u)
     expect(indice).toMatch(/const altre = senzaAiutanti\(postinoGlobale\?\.altrui\(\)/u)
   })
   it('lo spedizioniere sa chi è un Aiutante (per sceglierlo per primo)', () => {
