@@ -178,7 +178,9 @@ const ROTTE_LENTE_FRA_PC: readonly string[] = ['/api/salute',
   // 0.103.0: un pezzo del progetto (qualche MB) e il ramo da ritirare viaggiano con calma.
   '/api/aiuto/pezzo', '/api/aiuto/ritira', '/api/aiuto/avvia', '/api/aiuto/posti',
   // «Altri PC» (13/11): l'autopilota di un workspace remoto nasce su quel PC, e partire ci mette più di 4 s.
-  '/api/autopilota/crea']
+  '/api/autopilota/crea',
+  // k-166n3: un'azione singola (versione di un programma, prova di rete) ci mette qualche secondo.
+  '/api/azione']
 const ATTESA_LENTA_PREDEFINITA_MS = 45_000
 /**
  * Le risposte alle domande (0.84.1): quel PC preme, riguarda il suo schermo e
