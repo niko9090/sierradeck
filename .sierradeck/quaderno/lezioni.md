@@ -292,6 +292,8 @@
 - la guardia del carico rimanda anche `tsc` lanciato diretto e Start-Sleep è bloccato: scrivere i test e fare commit prima, poi misurare quando il PC scende. _(2026-11-08)_
 - la guardia del carico può rimandare typecheck per molti minuti di fila; non si può aspettare dentro il turno (sleep e Monitor sono bloccati): il commit va fatto prima. _(2026-11-08)_
 - La guardia del carico controlla prima del comando: un `ping` nella stessa chiamata non fa aspettare. Per attendere serve una chiamata separata, poi si ritenta. _(2026-11-08)_
+- la copia di un compito di «rimettere in pari» può nascere senza il ramo da unire: controllare l'esistenza del ramo prima di assegnare il compito. _(2026-11-20)_
+- Rimettere in pari un ramo nato qui: se il compito va su un altro PC il ramo là non c'è. Incolla nel prompt il diff (git diff main...ramo) e fallo riapplicare sopra main. _(2026-11-20)_
 
 ## unioni
 
