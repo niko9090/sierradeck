@@ -19,6 +19,7 @@ import { homedir } from 'node:os'
 import { PtyHostClient } from './pty-host-client'
 import type { HostToCore } from '@shared/protocol'
 import { openDatabase, listSessions, rimuoviSessioni, type Db } from './db'
+import { leggiDbOVuoto } from './db-chiuso'
 import { workspaceDelleSessioni } from '@shared/dove-chiedono'
 import { remotePerWorkspace, riordinaWorkspaceArchivio } from '@shared/workspace'
 import { ordineValido, stessoOrdine } from '@shared/riordina-workspace'
@@ -604,7 +605,7 @@ export function registerSessionIpc(cartella?: string, arricchisciConsumi?: (c: C
   ipcMain.handle('sessioni:stato', () => ({ inCorso, avanzamento: ultimoAvanzamento }))
 
   ipcMain.handle('sessioni:lista', (_e, opts: unknown) => {
-    const l = listSessions(db, validateListOptions(opts))
+    const l = leggiDbOVuoto(db, () => listSessions(db, validateListOptions(opts)), [])
     // `{ archiviate: true }`: anche le archiviate (la vista «Archiviate» le vuole).
     const conArchiviate = typeof opts === 'object' && opts !== null && (opts as { archiviate?: unknown }).archiviate === true
     return filtroSessioni === undefined || conArchiviate ? l : filtroSessioni(l)
@@ -656,7 +657,7 @@ export function registerSessionIpc(cartella?: string, arricchisciConsumi?: (c: C
         errori.push(`${basename(percorso)}: ${String(err)}`)
       }
     }
-    rimuoviSessioni(db, tolte)
+    leggiDbOVuoto(db, () => rimuoviSessioni(db, tolte), undefined)
     return { eliminate: tolte.length, errori }
   })
 
@@ -677,7 +678,7 @@ export function registerSessionIpc(cartella?: string, arricchisciConsumi?: (c: C
   ipcMain.handle('sessioni:consumi', () => {
     // Senza tetto: un consumo calcolato sulle prime cinquemila righe sarebbe un
     // numero che sembra un totale e non lo è.
-    const c = riassumiConsumi(listSessions(db), Date.now())
+    const c = riassumiConsumi(leggiDbOVuoto(db, () => listSessions(db), []), Date.now())
     return arricchisciConsumi === undefined ? c : arricchisciConsumi(c)
   })
 
