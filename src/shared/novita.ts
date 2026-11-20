@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.111.2',
+    righe: [
+      '**Controllo dei PC più giusto:** un PC acceso con il solo Aiutante non viene più segnalato come «non risponde». Prima a volte leggeva una lista vecchia dei battiti, per esempio subito dopo l’avvio o con il Drive lento, e il PC sembrava fermo da giorni.',
+      '**Stesso PC, nomi diversi:** il PC viene riconosciuto anche se il suo nome è scritto in due modi (maiuscole, o dominio come «.local»).',
+    ],
+  },
+  {
     versione: '0.111.1',
     righe: [
       '**Schermate più solide:** Salute, Computer, Autopiloti e Progetti non cadono più se da un altro PC arriva un dato incompleto (senza testo o senza titolo). Prima poteva comparire un errore e la schermata restava vuota.',
