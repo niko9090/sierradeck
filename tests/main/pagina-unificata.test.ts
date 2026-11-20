@@ -47,6 +47,15 @@ describe('pagina unificata (k-u6)', () => {
     expect(script).toContain('Altro → Computer')
   })
 
+  it('k-u6b: specialisti e percentuale dell’autopilota compaiono una volta sola', () => {
+    // Gli specialisti: niente seconda lista nella linguetta Avanzamento.
+    expect(script).not.toContain('avanzamento-specialista')
+    expect(script).not.toContain("'Specialisti · ' + sp.length")
+    // La percentuale: la mostra la linguetta Avanzamento, non anche il riassunto sopra.
+    expect(script.split("'%</div><div class=\"barra\"><i style=\"width:' + Math.max(0, Math.min(100, Math.round(percentoAvanzamento(").length - 1).toBe(0)
+    expect(script.split('Math.round(pc) + \'%</b>').length - 1).toBe(1)
+  })
+
   it('il testo della pagina non ha backtick sciolti: lo script è JavaScript valido', () => {
     expect(() => new Function(script)).not.toThrow()
   })
