@@ -2523,7 +2523,7 @@ function pannello(s) {
         : (sessioniViste || []).slice(0, 20).map((x, i) =>
             '<button class="cartella" onclick="riprendiSessione(' + i + ')">' +
             esc(x.titolo) + (x.altrove ? ' <span class="sotto">· su ' + esc(x.altrove) + (x.altroveAcceso === true ? ' · acceso' : x.altroveAcceso === false ? ' · spento' : '') + '</span>' : '') +
-            '<br><span class="sotto">' + esc(x.cwd) + (x.altrove ? (x.altrovePc ? ' (vive su quel PC: tocca per scriverle, parte là in sottofondo)' : ' (cartella di quel PC: qui non si apre, scrivile da Computer → Altri computer)') : '') + '</span></button>' +
+            '<br><span class="sotto">' + esc(x.cwd) + (x.altrove ? (x.altrovePc ? ' (vive su quel PC: tocca per scriverle, parte là in sottofondo)' : ' (cartella di quel PC: qui non si apre, scrivile da Altro → Computer)') : '') + '</span></button>' +
             (x.altrove ? '' : '<div class="riga gc-riga"><button class="riga-altro" data-s="' + esc(x.id) + '" onclick="gcApriAzioni(this.dataset.s)" aria-expanded="' + (gcAzioniDi === x.id) + '" aria-label="Chiudi, archivia o elimina">⋯ ' + (gcAzioniDi === x.id ? 'meno' : 'gestisci') + '</button>' + (gcAzioniDi === x.id ? gcTastiHtml(x.id, x.titolo, 's' + i) : '') + '</div>')).join('')}
       <div class="riga"><button onclick="apriPannello('sessioni')">Chiudi</button></div>
     </div>\`
@@ -2533,7 +2533,7 @@ function pannello(s) {
   const elencoPc = !aperto('pc') ? '' : (() => {
     const pc = pcVisti || []
     if (pcAperto === null) {
-      return '<div class="piastrella"><div class="titolo">Altri computer' + aiuto('altri-pc', 'I PC che usano questo stesso Drive, con le chat che hanno aperte (dal loro battito, ogni pochi minuti): pallino ambra = aspetta te. Per comandarli dal vivo apri la loro pagina (stesso indirizzo, sul loro IP). Toccandone uno lasci un’azione nella sua cassetta: si esegue solo là, in una sua chat, quando è acceso — è la strada per una cartella che sta su quel PC (un disco di rete, un progetto che non viaggia).') + '</div>' +
+      return '<div class="piastrella"><div class="titolo">Computer' + aiuto('altri-pc', 'I PC che usano questo stesso Drive, con le chat che hanno aperte (dal loro battito, ogni pochi minuti): pallino ambra = aspetta te. Per comandarli dal vivo apri la loro pagina (stesso indirizzo, sul loro IP). Toccandone uno lasci un’azione nella sua cassetta: si esegue solo là, in una sua chat, quando è acceso — è la strada per una cartella che sta su quel PC (un disco di rete, un progetto che non viaggia).') + '</div>' +
         (postaErrore ? '<div class="errore" style="margin-top:6px">' + esc(postaErrore) + '</div>' : '') +
         (pcVisti === null ? '<div class="sotto" style="margin-top:8px">Leggo il Drive…</div>' : '') +
         (pcVisti !== null && pc.length === 0 ? '<div class="sotto" style="margin-top:8px">Nessun altro PC ha ancora lasciato un segno sul Drive: serve SierraDeck 0.27.0 o più nuovo su quel PC, con la cassaforte sbloccata e il Drive collegato.</div>' : '') +
@@ -2545,6 +2545,8 @@ function pannello(s) {
             '<span class="sotto" style="display:flex;gap:6px;align-items:center"><span class="led ' + (!b.vivo ? 'spenta' : c.aspetta ? 'ferma' : 'lavoro') + '"></span>' +
             esc(c.titolo || c.cwd) + ' · ' + (!b.vivo ? 'ultimo stato noto' : c.aspetta ? 'ferma' : 'al lavoro') + '</span>').join('') +
           '</button>').join('') +
+        // k-u6: la mappa sta qui, non nella Salute; lo stato di ogni PC è quello di statoPc (frase del PC).
+        (saluteVista && saluteVista.mappa ? '<div class="riga" style="margin-top:10px"><button onclick="mappaSalute()" style="flex:none;width:auto">' + (saluteMappa ? 'Nascondi la mappa' : 'Mappa dei PC') + '</button></div>' + (saluteMappa ? mappaHtml(saluteVista.mappa) : '') : '') +
         '<div class="riga"><button onclick="apriPannello(\\'pc\\')">Chiudi</button></div></div>'
     }
     const b = pc.find((x) => x.pcId === pcAperto) || { nome: pcAperto, cartelle: [], chat: [], vivo: false }
@@ -2610,11 +2612,11 @@ function pannello(s) {
 
   // «Salute del sistema» (0.44.0): le stesse voci del PC, con spiegazione e cosa fare.
   const vistaSalute = !inVista('salute') ? '' : (() => {
-    const testa = '<div class="piastrella"><div class="titolo">Salute del sistema' + aiuto('salute', 'Com’è messo il computer: il Drive, gli altri PC (ultimo segno, strada, versione), un aggiornamento non riuscito, gli errori delle ultime ore, le istruzioni degli autopiloti non partite. Ogni voce dice cosa vuol dire e cosa fare.') + '</div>'
+    const testa = '<div class="piastrella"><div class="titolo">Salute del sistema' + aiuto('salute', 'Com’è messo il computer: il Drive, un aggiornamento non riuscito, gli errori delle ultime ore, le istruzioni degli autopiloti non partite. Ogni voce dice cosa vuol dire e cosa fare.') + '</div>'
     if (saluteErrore) return testa + '<div class="errore">' + esc(saluteErrore) + '</div></div>'
     if (!saluteVista) return testa + '<div class="sotto">Guardo…</div></div>'
     const colore = (t) => t === 'ok' ? 'var(--verde)' : t === 'attenzione' ? '#e0a33c' : '#dc5f5f'
-    const nomi = { drive: 'Drive', pc: 'Gli altri PC', aggiornamento: 'Aggiornamento', errori: 'Errori delle ultime ore', consegne: 'Istruzioni non partite' }
+    const nomi = { drive: 'Drive', aggiornamento: 'Aggiornamento', errori: 'Errori delle ultime ore', consegne: 'Istruzioni non partite' }
     const azione = (a) => a.id === 'scarica-a-mano' ? '<a href="' + esc(a.url) + '" target="_blank" rel="noopener">' + esc(a.testo) + '</a>'
       : a.id === 'installa' ? '<button onclick="installaAggiornamento()">' + esc(a.testo) + '</button>'
       : a.id === 'apri-autopilota' ? '<button onclick="vaiScheda(\\'autopiloti\\')">' + esc(a.testo) + '</button>'
@@ -2622,13 +2624,13 @@ function pannello(s) {
       : a.id === 'libera-spazio' ? '<button onclick="plDaSalute()">' + esc(a.testo) + '</button>'
       : ''
     // 0.70.0: i gruppi come sul PC (Da sistemare · Computer · Drive · Errori · Tutto), una riga per voce con la sua parola.
-    const tutte = saluteVista.voci || []
-    const gruppiDi = (v) => [v.tono !== 'ok' ? 'sistemare' : '', v.gruppo === 'pc' ? 'computer' : '', v.gruppo === 'drive' ? 'drive' : '', (v.gruppo === 'errori' || v.gruppo === 'consegne' || v.gruppo === 'aggiornamento') ? 'errori' : ''].filter(Boolean)
-    const conti = { sistemare: 0, computer: 0, drive: 0, errori: 0, tutto: tutte.length }
+    const tutte = (saluteVista.voci || []).filter((v) => v.gruppo !== 'pc')
+    const gruppiDi = (v) => [v.tono !== 'ok' ? 'sistemare' : '', v.gruppo === 'drive' ? 'drive' : '', (v.gruppo === 'errori' || v.gruppo === 'consegne' || v.gruppo === 'aggiornamento') ? 'errori' : ''].filter(Boolean)
+    const conti = { sistemare: 0, drive: 0, errori: 0, tutto: tutte.length }
     for (const v of tutte) for (const g of gruppiDi(v)) conti[g] += 1
-    const gruppo = saluteGruppo || (conti.sistemare > 0 ? 'sistemare' : 'computer')
+    const gruppo = saluteGruppo || (conti.sistemare > 0 ? 'sistemare' : 'drive')
     let corpo = '<div class="sotto" style="margin-top:6px;color:' + colore(saluteVista.tono) + '"><b>' + esc(saluteVista.riassunto) + '</b></div>' +
-      '<div class="riga" style="gap:6px;flex-wrap:wrap">' + [['sistemare', 'Da sistemare'], ['computer', 'Computer'], ['drive', 'Drive'], ['errori', 'Errori'], ['tutto', 'Tutto']].map((g) =>
+      '<div class="riga" style="gap:6px;flex-wrap:wrap">' + [['sistemare', 'Da sistemare'], ['drive', 'Drive'], ['errori', 'Errori'], ['tutto', 'Tutto']].map((g) =>
         '<button' + (gruppo === g[0] ? ' class="primario"' : '') + ' onclick="gruppoSalute(\\'' + g[0] + '\\')" style="flex:none;width:auto;min-height:48px;padding:6px 12px' + (g[0] === 'sistemare' && conti.sistemare > 0 ? ';color:var(--ambra,#e0a33c)' : '') + '">' + g[1] + ' ' + conti[g[0]] + '</button>').join('') + '</div>'
     const voci = tutte.filter((v) => gruppo === 'tutto' || gruppiDi(v).indexOf(gruppo) >= 0)
     // 0.81.0: le azioni che si fanno solo dal computer, dette una volta qui in cima, non riga per riga.
@@ -2644,8 +2646,7 @@ function pannello(s) {
         ((v.azioni || []).filter((a) => AZIONI_DAL_TELEFONO.indexOf(a.id) >= 0).length > 0 ? '<div class="riga">' + v.azioni.map(azione).join('') + '</div>' : '') +
         '</div>'
     }).join('')
-    // La mappa dei PC (0.70.0): in fondo, a richiesta.
-    if (saluteVista.mappa) corpo += '<div class="riga" style="margin-top:10px"><button onclick="mappaSalute()" style="flex:none;width:auto">' + (saluteMappa ? 'Nascondi la mappa' : 'Mappa dei PC') + '</button></div>' + (saluteMappa ? mappaHtml(saluteVista.mappa) : '')
+    // k-u6: i computer (elenco, mappa) stanno solo in Altro → Computer.
     return testa + corpo + '<div class="riga"><button onclick="rileggiSalute()">Aggiorna</button></div></div>'
   })()
 
@@ -2902,6 +2903,8 @@ function pannello(s) {
       : (domandeConversazioni ? vistaConversazioni() : vistaDomande(s)) +
         '<div class="solco"></div><div class="titolo">Autopiloti</div>' + postiChatHtml(s) +
         (autopiloti || '<div class="vuoto">Nessun autopilota su questo computer.</div>') + delega +
+        // k-u6: gli specialisti sono dentro Autopiloti, sotto gli autopiloti (non una sezione a parte).
+        vistaSpecialisti +
         (inMotoAdesso ? '<div class="solco"></div><div class="titolo">In moto adesso</div>' + inMotoAdesso : ''),
     // «Chat»: Chat · Workspace · Negozio.
     chat: noteChat + (lingua === 1
@@ -2928,7 +2931,6 @@ function pannello(s) {
       : posto.sezione === 'salute' ? vistaSalute
       : posto.sezione === 'pc' ? elencoPc
       : posto.sezione === 'consumi' ? vistaConsumi
-      : posto.sezione === 'specialisti' ? vistaSpecialisti
       : sezioneImpostazioni(tutteImpostazioni, posto.sezione)
   }
 
@@ -4105,7 +4107,7 @@ window.apriPannello = async (quale) => {
 window.riprendiSalvata = async (cwd, sessione, altrove) => {
   // La cartella e' su un altro PC: si dice qui, invece di chiedere al computer
   // una cosa che rifiutera' comunque.
-  if (altrove) { notaGlobale = 'Questa chat lavora su ' + altrove + ': la sua cartella qui non c’è. Riaprila da quel PC, o scrivile da Computer → Altri computer.'; pannello(ultimoStato); return }
+  if (altrove) { notaGlobale = 'Questa chat lavora su ' + altrove + ': la sua cartella qui non c’è. Riaprila da quel PC, o scrivile da Altro → Computer.'; pannello(ultimoStato); return }
   await chiedi('/api/sessioni/riprendi', { cartella: cwd, sessione: sessione })
   aggiorna()
 }
@@ -4203,7 +4205,7 @@ window.riprendiSessione = async (i) => {
   if (!s) return
   // Vive su un altro PC (0.58.4): si scrive da qui, quel PC la avvia in sottofondo.
   if (s.altrove && s.altrovePc) { sfScelta = i; sfStato = null; pannello(ultimoStato); return }
-  if (s.altrove) { notaGlobale = 'Questa conversazione lavora su ' + s.altrove + ': la sua cartella qui non c’è. Riaprila da quel PC, o scrivile da Computer → Altri computer.'; pannello(ultimoStato); return }
+  if (s.altrove) { notaGlobale = 'Questa conversazione lavora su ' + s.altrove + ': la sua cartella qui non c’è. Riaprila da quel PC, o scrivile da Altro → Computer.'; pannello(ultimoStato); return }
   await chiedi('/api/sessioni/riprendi', { cartella: s.cwd, sessione: s.id })
   pannelloAperto = null
   aggiorna()
@@ -5943,7 +5945,8 @@ window.menuSpecMossa = async (el) => {
 }
 window.menuSpecFerma = (id) => { menuSpecConferma = id; pannello(ultimoStato) }
 window.menuSpecAnnulla = () => { menuSpecConferma = ''; pannello(ultimoStato) }
-window.menuSpecApri = () => { menuSpecAperto = false; menuSpecConferma = ''; window.apriSezione('specialisti') }
+// k-u6: gli specialisti stanno dentro Autopiloti: si chiude la chat dell'autopilota e si torna all'elenco, dove sono sotto.
+window.menuSpecApri = () => { menuSpecAperto = false; menuSpecConferma = ''; window.chiudiAp(); leggiAttesa().then(() => pannello(ultimoStato)) }
 function menuSpecHtml(a) {
   const vm = vistaMenu()
   // k-60: di un altro PC la lista si guarda e basta, e se quel PC non risponde una riga lo dice.
@@ -6169,7 +6172,7 @@ function vaiAlPosto(nuovo) {
   entra(() => { driveRiavviato = false; leggiDrive().then(ridisegna) }, aperto('drive'))
   entra(() => { negozioNota = ''; leggiNegozio().then(() => { if (negozioFamiglia === 'mcp') negozioProvaMcp(); ridisegna() }) }, aperto('negozio'))
   entra(() => { leggiSalute().then(ridisegna) }, inVista('salute'))
-  entra(() => { postaVoci = null; leggiPc().then(ridisegna) }, aperto('pc'))
+  entra(() => { postaVoci = null; leggiPc().then(ridisegna); leggiSalute().then(ridisegna) }, aperto('pc'))
   entra(() => { leggiConsumi().then(ridisegna) }, aperto('consumi'))
   entra(() => { attesaConferma = ''; attesaNota = ''; leggiAttesa().then(ridisegna) }, aperto('specialisti'))
   entra(() => { Promise.all([leggiPreferenze(), leggiAggiornamento(), leggiQuadernoPersonale(), leggiAccount(), leggiAvvisiPagina()]).then(ridisegna) }, inVista('impostazioni') || (nuovo.voce === 'altro' && prima.voce !== 'altro'))

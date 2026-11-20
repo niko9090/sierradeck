@@ -855,7 +855,7 @@ describe('analisi del telefono, 30/09', () => {
   it('la sezione degli altri PC ha lo stesso nome dappertutto', () => {
     expect(script).not.toContain('>Altri PC<')
     expect(script).not.toContain('«Altri PC»')
-    expect(script).toContain('Altri computer')
+    expect(script).toContain('Altro → Computer') // k-u6: «Computer» al posto di «Altri computer»
   })
 
   it('i testi hanno gli accenti', () => {
