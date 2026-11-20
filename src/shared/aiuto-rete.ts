@@ -1,3 +1,4 @@
+import type { CapacitaPc } from './capacita-pc'
 import { causaValida, type CausaFallimento } from './aiuto-esito'
 import { risorseValide, type Risorsa } from './aiuto-risorse'
 
@@ -37,7 +38,7 @@ export function modoAiutoValido(x: unknown): x is ModoAiuto {
 export type ProgrammaAiuto = 'aiutante'
 
 /** La risposta di un PC a «quanti posti hai per gli altri?». */
-export type PostiAiuto = { modo: ModoAiuto; liberi: number; tetto: number; programma?: ProgrammaAiuto }
+export type PostiAiuto = { modo: ModoAiuto; liberi: number; tetto: number; programma?: ProgrammaAiuto; capacita?: CapacitaPc }
 
 /** Un PC che può aiutare, come lo vede chi chiede. */
 export type Aiutante = { pcId: string; nome: string; modo: ModoAiuto; liberi: number; programma?: ProgrammaAiuto }

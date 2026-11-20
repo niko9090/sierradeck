@@ -1,3 +1,4 @@
+import type { CapacitaPc } from './capacita-pc'
 import type { RisorsePc } from './risorse'
 import type { InvioErrori } from './storico-errori'
 import { SPENTO_DOPO_MS, statoPc } from './stato-pc'
@@ -126,6 +127,12 @@ export type BattitoPc = {
    * se va. Gli altri PC lo mostrano accanto al nome; i posti sono già 0.
    */
   bloccoAiutante?: string
+  /**
+   * k-166n1: cosa sa fare quel PC (programmi nel PATH, telefono, rete), per
+   * affidargli i compiti giusti prima di spedire il progetto. Manca nei battiti
+   * di prima: `haCapacita` risponde «sconosciuto», non «no».
+   */
+  capacita?: CapacitaPc
 }
 
 /** Il motivo per cui un Aiutante non lavora, dal battito: solo una stringa corta vale. */

@@ -1,4 +1,5 @@
 import type { ModoAiuto, PostiAiuto } from '@shared/aiuto-rete'
+import type { CapacitaPc } from '@shared/capacita-pc'
 
 /**
  * Le rotte `/api/aiuto/*` sul collegamento sicuro fra i PC («Aiuta la rete»,
@@ -21,6 +22,8 @@ export type FonteAiuto = {
   nomePc?: (pcId: string) => string | undefined
   /** 12/11: chi risponde è SierraDeck Aiutante: chi chiede lo preferisce agli altri PC. */
   programma?: 'aiutante'
+  /** k-166n1: cosa sa fare questo PC, nella risposta dei posti. */
+  capacita?: () => CapacitaPc | undefined
 }
 
 export type RichiestaAiuto = { metodo: string; percorso: string; corpo: unknown; dispositivo?: string }
@@ -32,7 +35,8 @@ export async function rispondiAiuto(r: RichiestaAiuto, aiuto: FonteAiuto | undef
   if (aiuto === undefined) return { stato: 404, corpo: { errore: 'questo PC non presta ancora i suoi posti' } }
   const modo = aiuto.modo()
   const dove = r.percorso.slice('/api'.length)
-  const conProgramma = aiuto.programma !== undefined ? { programma: aiuto.programma } : {}
+  const cap = (() => { try { return aiuto.capacita?.() } catch { return undefined } })()
+  const conProgramma = { ...(aiuto.programma !== undefined ? { programma: aiuto.programma } : {}), ...(cap !== undefined ? { capacita: cap } : {}) }
   if (r.percorso === '/api/aiuto/posti') {
     if (modo === 'no') return { stato: 200, corpo: { modo, liberi: 0, tetto: 0, ...conProgramma } satisfies PostiAiuto }
     const p = await aiuto.servizio(dove).catch(() => undefined) as { liberi?: unknown; tetto?: unknown } | undefined

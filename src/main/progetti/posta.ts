@@ -1,4 +1,5 @@
 import { staDentro } from './registro'
+import type { CapacitaPc } from '@shared/capacita-pc'
 
 /**
  * La posta per un PC: azioni che si eseguono **solo su quel computer**,
@@ -191,6 +192,8 @@ export function creaPostino(deps: {
   aiutante?: () => boolean
   /** 13/11 (Aiutante 1.0.3): perché l'Aiutante non prende lavori, se non li prende. */
   bloccoAiutante?: () => string | undefined
+  /** k-166n1: cosa sa fare questo PC (già in memoria per 10 minuti): va nel battito. */
+  capacita?: () => CapacitaPc | undefined
   cartellaEsiste: (cwd: string) => boolean
   /**
    * Esegue un comando arrivato per posta (0.88.0, «Sposta su questo PC»):
@@ -363,6 +366,7 @@ export function creaPostino(deps: {
       ...(() => { const r = deps.risorse?.(); return r === undefined ? {} : { risorse: r } })(),
       ...(() => { const dal = deps.sviluppo?.(); return dal === undefined ? {} : { sviluppo: true as const, sviluppoDal: dal } })(),
       ...(deps.aiutante?.() === true ? { aiutante: true } : {}),
+      ...(() => { const c = deps.capacita?.(); return c === undefined ? {} : { capacita: c } })(),
       ...(aggiornando !== undefined ? { aggiornando } : {}),
       ...(() => { const b = deps.aiutante?.() === true ? deps.bloccoAiutante?.() : undefined; return b !== undefined ? { bloccoAiutante: b } : {} })()
     }
@@ -372,8 +376,9 @@ export function creaPostino(deps: {
   const batti = async (s: Scatola): Promise<void> => {
     const b = mioBattito()
     // Le risorse cambiano a ogni misura: se contassero, il battito si riscriverebbe a ogni giro.
-    const { battito: _b, risorse: _r, ...senzaOra } = b
-    const firma = JSON.stringify(senzaOra)
+    const { battito: _b, risorse: _r, capacita: cap, ...senzaOra } = b
+    // Le capacità: conta cosa cambia, non l'ora del calcolo (ogni 10 minuti).
+    const firma = JSON.stringify({ ...senzaOra, ...(cap !== undefined ? { capacita: { ...cap, il: '' } } : {}) })
     if (firma === ultimoBattito && adesso() - ultimoBattitoIl < BATTITO_RISCRIVI_MS) return
     await s.scrivi(nomeBattitoPc(b.pcId), b)
     // La prima volta si dice: e' l'unico modo, dal registro, di sapere se
