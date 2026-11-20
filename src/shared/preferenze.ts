@@ -163,6 +163,8 @@ export type Preferenze = {
    * Le chat lo ricevono nel PATH (vedi `main/git-nel-path`).
    */
   percorsoGit?: string
+  /** «Code mode» di Claude Code per le chat normali e gli specialisti (`@shared/code-mode`). Assente = spento. */
+  codeMode?: boolean
   /**
    * «Più chat / meno chat» (0.82.0): quante chat degli autopiloti lavorano
    * insieme lo decide il PC (`@shared/posti-chat`); qui lo si sposta un poco.
@@ -338,6 +340,7 @@ export function normalizzaPreferenze(raw: unknown): Preferenze {
     ...(o.proclamaSviluppo === true ? { proclamaSviluppo: true } : {}),
     ...(o.proclamaSviluppo === true && typeof o.proclamaSviluppoIl === 'string' && !Number.isNaN(Date.parse(o.proclamaSviluppoIl)) ? { proclamaSviluppoIl: o.proclamaSviluppoIl } : {}),
     ...(typeof o.percorsoGit === 'string' && o.percorsoGit.trim() !== '' && o.percorsoGit.length <= 400 ? { percorsoGit: o.percorsoGit.trim() } : {}),
+    ...(o.codeMode === true ? { codeMode: true } : {}),
     ...(o.postiChat === 1 || o.postiChat === -1 ? { postiChat: o.postiChat } : {}),
     ...(leggiPostiScelti(o.postiScelti) !== undefined ? { postiScelti: leggiPostiScelti(o.postiScelti) } : {}),
     ...(Array.isArray(o.chatSoloMie)

@@ -61,6 +61,7 @@ import {
 import { preparaAmbiente } from './preparazione'
 import { eseguiDavvero, installaRuntimeMancanti } from './installa-runtime'
 import { gitPerLeChat } from './git-nel-path'
+import { ambienteCodeMode } from '@shared/code-mode'
 import { decidiChiusura, vociArea, suggerimentoArea } from './area-notifica'
 import { espandiTilde } from './validation'
 import { creaClientAutopilota } from './autopilot-client'
@@ -1498,7 +1499,10 @@ if (!app.requestSingleInstanceLock()) {
       ptyClient = registerPtyIpc(
         // Git nel PATH di ogni chat (0.82.1): senza, gli hook ECC rifiutano gli strumenti.
         // Le chat usano l'abbonamento di Claude Code: nessun fornitore alternativo.
-        () => gitPerLeChat(impostazioni.preferenze().percorsoGit, process.env),
+        () => ({
+          ...gitPerLeChat(impostazioni.preferenze().percorsoGit, process.env),
+          ...ambienteCodeMode(impostazioni.preferenze().codeMode)
+        }),
         (cwd, autopilotaJson) => {
           const scope = scopeStore?.leggi(cwd) ?? scopeVuoto()
           // Nessun override per questa cartella: si lascia tutto com'era, senza
