@@ -6,6 +6,7 @@ import type { Specialista } from '@shared/flusso-orchestratore'
 import { LEZIONE_MAX } from '@shared/lezioni-chat'
 import { gettoneBearer, rispondiRpc, type EsitoStrumento, type ServerMcpMinimo, type StrumentoMcp } from '@shared/mcp-minimo'
 import { argomentoDi } from '@shared/argomento-testo'
+import { TIPI_AZIONE_PC } from '@shared/azione-pc'
 import { CLASSI_PERMESSO, DURATA_PERMESSO_MIN } from '@shared/permessi-nicholas'
 
 /**
@@ -143,6 +144,8 @@ export type AmbienteOrchestratore = {
   giaSuccesso?: (ws: string, testo: string) => string | undefined
   /** 11/11: una riga di avviso a Nicholas nella chat, senza risposta richiesta. Uguale a una recente non si ripete. */
   avviso?: (ws: string, testo: string) => void
+  /** k-166n10: una azione singola su un altro PC (il programma sceglie quello capace e acceso). Senza, lo strumento dice che non c'è. */
+  azioneSuPc?: (azione: unknown) => Promise<EsitoAmbiente>
   /** Ricalcola la percentuale dopo un cambio, con il perché se scende. */
   ricalcola: (ws: string, perche: string) => void
   riassunto: (ws: string) => string
@@ -321,6 +324,22 @@ export const STRUMENTI_ORCHESTRATORE: readonly StrumentoMcp[] = [
     }
   },
   {
+    name: 'azione_su_pc',
+    title: 'Una azione su un altro PC',
+    description: 'Chiede a un altro PC della rete UNA azione precisa e ti dà il risultato: stato-programma (è installato?), versione-programma, raggiungibile (host e porta, da quel PC), manda-file-telefono (percorso intero su quel PC; parte solo con la conferma di chi sta là). Il PC lo sceglie il programma: uno acceso che ha ciò che serve. Non è una shell e non affida lavori: per i lavori usa gli specialisti. Se nessun PC può, leggi il motivo.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tipo: { type: 'string', enum: [...TIPI_AZIONE_PC], description: 'Quale azione.' },
+        programma: { type: 'string', description: 'Per stato-programma e versione-programma: il programma (per esempio git, node, java, adb).' },
+        host: { type: 'string', description: 'Per raggiungibile: il nome o il numero di rete da controllare.' },
+        porta: { type: 'integer', minimum: 1, maximum: 65535, description: 'Per raggiungibile: la porta.' },
+        percorso: { type: 'string', description: 'Per manda-file-telefono: il percorso intero del file su quel PC.' }
+      },
+      required: ['tipo']
+    }
+  },
+  {
     // 11/11, Nicholas: «perché hai lasciato i limiti? devono poter essere sorpassati se decisi da me».
     name: 'chiedi_consenso',
     title: 'Chiedi a Nicholas il permesso per un’azione protetta',
@@ -486,6 +505,12 @@ export async function chiamaStrumento(amb: AmbienteOrchestratore, ws: string, no
     case 'chiedi_consenso': {
       if (amb.chiediConsenso === undefined) return no('i permessi di Nicholas non sono disponibili')
       const e = amb.chiediConsenso(ws, { classe: arg.classe, comando: arg.comando, percorsi: arg.percorsi, strumento: arg.strumento, perche: str(arg.perche).replace(/\s+/gu, ' ').slice(0, 300) })
+      return e.ok ? si(e.testo) : no(e.motivo)
+    }
+
+    case 'azione_su_pc': {
+      if (amb.azioneSuPc === undefined) return no('le azioni su un altro PC non sono disponibili qui')
+      const e = await amb.azioneSuPc(arg)
       return e.ok ? si(e.testo) : no(e.motivo)
     }
 

@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import type { Server } from 'node:http'
 import { hostname, homedir } from 'node:os'
 import { join } from 'node:path'
+import { rispondiAzione, creaEsecutoriLocali, type DipendenzeEsecutore } from '../main/azione-pc'
 import { creaCapacitaLocali } from '../main/capacita-locali'
 import type { BattitoPc } from '@shared/posta'
 import { nomeDaMostrare, nomeSceltoValido } from '@shared/nome-pc'
@@ -68,10 +69,12 @@ export const NESSUN_DISPOSITIVO: Dispositivi = {
  * completo, `rotte-aiuto.ts`) e `/api/pc`, il bussare leggero con cui gli
  * altri PC sanno se è acceso. Tutto il resto non c'è.
  */
-export function rotteAiutante(p: { aiuto: FonteAiuto; versione: string; identita: () => { nome: string; host: string } }) {
+export function rotteAiutante(p: { aiuto: FonteAiuto; versione: string; identita: () => { nome: string; host: string }; /** k-166n10: le azioni singole chieste da un altro PC (lo stesso esecutore del programma completo). */ azione?: DipendenzeEsecutore }) {
   return async (r: { metodo: string; percorso: string; corpo: unknown; dispositivo?: string }): Promise<{ stato: number; corpo: unknown }> => {
     const a = await rispondiAiuto(r, p.aiuto)
     if (a !== undefined) return a
+    const az = await rispondiAzione(r, p.azione)
+    if (az !== undefined) return az
     if (r.percorso === '/api/pc') {
       const i = p.identita()
       return { stato: 200, corpo: { programma: 'SierraDeck', aiutante: true, versione: p.versione, nome: i.nome, host: i.host } }
@@ -160,7 +163,8 @@ export function colleghiRete(d: {
     driveCollegato: () => contoDrive.stato().connesso,
     log: (m) => registro.info(m)
   })
-  const rotta = rotteAiutante({ aiuto: { ...d.aiuto, capacita },versione: d.versione, identita: () => { const i = identita.leggi(); return { nome: i.nome, host: i.host } } })
+  // Il file al telefono qui non c'è (nessun telefono accoppiato): l'esecutore lo rifiuta con il motivo.
+  const rotta = rotteAiutante({ aiuto: { ...d.aiuto, capacita }, azione: { capacita, esecutori: creaEsecutoriLocali() }, versione: d.versione, identita: () => { const i = identita.leggi(); return { nome: i.nome, host: i.host } } })
 
   let server: Server | undefined
   let portaInUso = d.porta()
