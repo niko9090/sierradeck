@@ -82,7 +82,7 @@ export function ChatAutopilota({
       {/* k-54: gli specialisti di tutti i workspace in un menu, con percentuale, cosa fanno e la precedenza. */}
       <div className="chatap__testa">
         <VoceAutopilota autopilota={autopilota} workspace={chiaveWorkspace(autopilota)} battute={battute} invia={inviaParlato} suComando={chiediRiassunto} {...(richiesta !== undefined ? { richiesta } : {})} />
-        <MenuSpecialisti riferimenti={[chiaveWorkspace(autopilota), autopilota.cwd, autopilota.workspace ?? '']} />
+        <MenuSpecialisti riferimenti={[chiaveWorkspace(autopilota), autopilota.cwd ?? '', autopilota.workspace ?? '']} />
       </div>
       {/* 0.95.3: in testa solo barra, percentuale e cosa succede; il resto nella tendina ▾. */}
       <TestaOrchestratore workspace={chiaveWorkspace(autopilota)}>

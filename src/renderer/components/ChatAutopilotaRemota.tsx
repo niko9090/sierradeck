@@ -217,7 +217,7 @@ export function AutopilotaRemoto({ pcId, pcNome, workspace }: { pcId: string; pc
   const { stato, rileggi } = useAutopilotaRemoto(pcId, workspace)
   const a = stato.autopilota
   // I modi in cui quel PC chiama questo workspace: chi lavora lì sta in testa, in evidenza.
-  const riferimenti = a === undefined ? [workspace] : [chiaveWorkspace(a), a.cwd, a.workspace ?? workspace]
+  const riferimenti = a === undefined ? [workspace] : [chiaveWorkspace(a), a.cwd ?? '', a.workspace ?? workspace]
   return (
     <>
       <aside className="pan-colonna pan-colonna--remota" aria-label={`L’autopilota su ${pcNome}`}>

@@ -10,6 +10,6 @@ export function AutopilotaRemotoScelto({ pcId, pcNome, workspace, scheda }: { pc
   const { stato, rileggi } = useAutopilotaRemoto(pcId, workspace)
   if (scheda === 'chat') return <ChatAutopilotaRemota pcId={pcId} pcNome={pcNome} stato={stato} rileggi={rileggi} />
   const a = stato.autopilota
-  const riferimenti = a === undefined ? [workspace] : [chiaveWorkspace(a), a.cwd, a.workspace ?? workspace]
+  const riferimenti = a === undefined ? [workspace] : [chiaveWorkspace(a), a.cwd ?? '', a.workspace ?? workspace]
   return <ColonnaSpecialistiRemoti pcId={pcId} pcNome={pcNome} riferimenti={riferimenti} />
 }
