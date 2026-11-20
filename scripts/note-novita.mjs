@@ -6,8 +6,14 @@ export function noteDi(sorgente, versione) {
   if (inizio < 0) return []
   const dopo = sorgente.indexOf('versione: ', inizio + 10)
   const blocco = sorgente.slice(inizio, dopo < 0 ? undefined : dopo)
+  const apertura = /righe:\s*\[/.exec(blocco)
+  if (!apertura) return []
   const righe = []
-  for (const m of blocco.matchAll(/^\s*'((?:[^'\\]|\\.)*)',?\s*$/gm)) {
+  // Legge le stringhe dell'array `righe: [...]`, su una riga o su più righe,
+  // fino alla `]` che sta fuori dalle stringhe.
+  const lettore = /'((?:[^'\\]|\\.)*)'|(\])/g
+  lettore.lastIndex = apertura.index + apertura[0].length
+  for (let m = lettore.exec(blocco); m && !m[2]; m = lettore.exec(blocco)) {
     // Toglie gli escape della stringa JS (\' e \\), non solo l'apice.
     righe.push(m[1].replace(/\\(.)/g, '$1').replace(/\*\*/g, ''))
   }
