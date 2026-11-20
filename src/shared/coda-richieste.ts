@@ -148,9 +148,12 @@ export function codaVuota(workspace: string): Coda {
 }
 
 /** La chiave del workspace di un autopilota: il suo workspace, o la sua cartella se è nato prima del campo. */
-export function chiaveWorkspace(a: { workspace?: string | undefined; cwd: string }): string {
-  const ws = a.workspace?.trim()
-  return ws !== undefined && ws !== '' ? ws : `cartella:${a.cwd.replace(/[\\/]+$/u, '').toLowerCase()}`
+export function chiaveWorkspace(a: { workspace?: string | undefined; cwd?: string | undefined }): string {
+  const ws = typeof a.workspace === 'string' ? a.workspace.trim() : ''
+  if (ws !== '') return ws
+  // dati incompleti (autopilota remoto letto a metà): una chiave stabile, senza eccezioni
+  const cwd = typeof a.cwd === 'string' ? a.cwd : ''
+  return `cartella:${cwd.replace(/[\\/]+$/u, '').toLowerCase()}`
 }
 
 /** Il titolo dalle parole: una riga, al più 120 caratteri, senza parole tagliate a metà. */
