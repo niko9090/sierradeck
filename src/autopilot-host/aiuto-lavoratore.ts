@@ -64,6 +64,8 @@ type Lavoro = VistaLavoroAiutato & {
   descrizione?: string
   perPc?: string
   base?: string
+  /** Ultima attività vera dello specialista (strumento usato o testo scritto), orologio di questo PC. */
+  ultimaAttivita?: number
   ricevuti: number
   totale?: number
   inizio: number
@@ -443,6 +445,7 @@ export function creaLavoratoreAiuto(x: {
     }
     // 12/11: fermato mentre si preparava: la copia appena fatta non serve, via subito (prima restava lì).
     if (l.stato === 'fermato') { await pulisciCopia(l); return }
+    l.ultimaAttivita = adesso()
     cambia(l, { stato: 'lavoro', attivita: `${r.ruolo} al lavoro` })
     const sezione = sezioneRisorse(verificate)
     const sistema = `${r.sistema}${sezione !== '' ? `\n\n${sezione}` : ''}\n\nLavori su un altro PC della rete di Nicholas («Aiuta la rete»): la tua copia è ${copia}, sul ramo ${ramo}. Il ramo principale del progetto è ${r.ramoBase}. Niente push: il ramo lo rimanda il programma al PC che ha chiesto, che lo prova e lo unisce.${notaModuli}`
@@ -481,6 +484,7 @@ export function creaLavoratoreAiuto(x: {
       if (o.type === 'assistant') {
         const m = o.message as { content?: unknown } | undefined
         const pezzi = Array.isArray(m?.content) ? m!.content as Record<string, unknown>[] : []
+        if (pezzi.length > 0) l.ultimaAttivita = adesso()
         for (const c of pezzi) {
           if (c.type === 'tool_use' && typeof c.name === 'string') {
             const inp = (c.input ?? {}) as Record<string, unknown>
@@ -631,6 +635,7 @@ export function creaLavoratoreAiuto(x: {
         ...(l.ramo !== undefined ? { ramo: l.ramo } : {}),
         ...(l.byte !== undefined ? { byte: l.byte } : {}),
         ...(l.commit !== undefined ? { commit: l.commit } : {}),
+        ...(l.stato === 'lavoro' && l.ultimaAttivita !== undefined ? { fermoMs: Math.max(0, adesso() - l.ultimaAttivita) } : {}),
         ...(l.causa !== undefined ? { causa: l.causa } : {})
       }
     },

@@ -1,4 +1,5 @@
 import type { CausaFallimento } from './aiuto-esito'
+import { SILENZIO_MAX_MS } from './aiuto-rete'
 
 /**
  * **La scadenza di un lavoro affidato, contata sul tempo da sveglio** (17/11).
@@ -17,8 +18,6 @@ export const TICK_SCADENZA_MS = 30_000
 export const SALTO_SONNO_MS = 2 * 60_000
 /** Dopo un sonno, tanto silenzio dello specialista vuol dire che la connessione è andata. */
 export const SILENZIO_DOPO_SONNO_MS = 10 * 60_000
-/** Tanto silenzio, anche senza sonno, vuol dire che lo specialista è bloccato (non è il compito). */
-export const SILENZIO_MAX_MS = 60 * 60_000
 
 export type StatoScadenza = {
   /** Ms di PC sveglio da quando il lavoro è partito. */
