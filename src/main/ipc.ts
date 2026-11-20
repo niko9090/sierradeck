@@ -1104,6 +1104,8 @@ export function assorbiOrfani(store: WorkspaceStore): void {
 export type PrimaDiEliminare = {
   rifiuto?: (nome: string) => Promise<string | undefined>
   cartella?: (nome: string, dopo: Archivio) => Promise<string | undefined>
+  /** La lapide sul Drive: scritta all'eliminazione, tolta al ripristino (k-166w1). Non solleva mai. */
+  lapide?: (nome: string, verso: 'togli' | 'rimetti') => Promise<void>
 }
 
 /**
@@ -1358,6 +1360,8 @@ export function registerLayoutIpc(
     annotaEliminato(dirname(store.percorso), validateNomeWorkspace(raw))
     // «Altri PC»: un workspace remoto eliminato esce anche dal registro dei PC.
     if (a !== precedente) togliSuPc(dirname(store.percorso), validateNomeWorkspace(raw))
+    // La lapide sul Drive (k-166w1): senza, il salvataggio dopo rimette il nome che resta sul Drive.
+    if (a !== precedente) await elimina.lapide?.(validateNomeWorkspace(raw), 'togli')
     dopoNome(validateNomeWorkspace(raw), undefined)
     if (a.attivo !== precedente.attivo) annunciaCambio(event, a, precedente.attivo)
     return statoDi(a)
@@ -1378,6 +1382,7 @@ export function registerLayoutIpc(
     if (typeof rawQuando !== 'string' || rawQuando === '') throw new Error('richiesta IPC non valida: manca il momento dell’eliminazione')
     const e = ripristinaWorkspace(dirname(store.percorso), store.leggi(), { nome, eliminatoIl: rawQuando }, (a) => store.scrivi(a))
     if (!e.ok) throw new Error(e.errore)
+    void elimina.lapide?.(nome, 'rimetti')
     registro.inviaATutte('workspace:ripristinato', statoDi(e.archivio))
     return statoDi(e.archivio)
   })
