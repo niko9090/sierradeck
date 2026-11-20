@@ -46,7 +46,7 @@ export type RigaDelGuasto = { livello: 'info' | 'errore'; testo: string }
  * finisce negli errori arrivati. Ogni altro caso resta un errore.
  */
 export function rigaDelGuasto(d: Diagnosi, chat: { title?: string; sessionUuid: string; cwd: string }): RigaDelGuasto {
-  const dettaglio = d.dettaglio.replace(/\s+/g, ' ').slice(0, 600)
+  const dettaglio = (d.dettaglio ?? '').replace(/\s+/g, ' ').slice(0, 600)
   const testo = `[chat] «${chat.title ?? ''}» (${chat.sessionUuid}, ${chat.cwd}) non si apre — ${d.caso}: ${d.titolo}. ${dettaglio}`
   return { livello: d.caso === 'cartella-sparita' ? 'info' : 'errore', testo }
 }

@@ -65,18 +65,18 @@ const SUFFISSI = [/\s*\(\d+\)\s*$/, /\s*\[\d+\]\s*$/, /[\s_-]+(copia|copy)(\s*\(
 
 /** Il nome senza i suffissi delle copie: «sito (2)» → «sito». */
 export function senzaSuffissi(nome: string): string {
-  let n = nome.trim()
+  let n = (nome ?? '').trim()
   for (let giro = 0; giro < 4; giro += 1) {
     const prima = n
     for (const s of SUFFISSI) n = n.replace(s, '')
     if (n === prima) break
   }
-  return n === '' ? nome.trim() : n
+  return n === '' ? (nome ?? '').trim() : n
 }
 
 export function nomeNormalizzato(nome: string): string {
-  const fuori = senzaSuffissi(nome.normalize('NFKD').replace(/[\u0300-\u036f]/g, '')).toLowerCase().replace(/[\s._-]+/g, '')
-  return fuori === '' ? nome.trim().toLowerCase() : fuori
+  const fuori = senzaSuffissi((nome ?? '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '')).toLowerCase().replace(/[\s._-]+/g, '')
+  return fuori === '' ? (nome ?? '').trim().toLowerCase() : fuori
 }
 
 const normaPercorso = (p: string): string => p.replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase()
@@ -159,7 +159,7 @@ export function gruppoDiCartella(cwd: string, gruppi: GruppoProgetti[]): { grupp
     }
   }
   if (migliore !== undefined) return { ...migliore, perNome: false }
-  const parti = cwd.replace(/\//g, '\\').replace(/\\+$/, '').split('\\')
+  const parti = (cwd ?? '').replace(/\//g, '\\').replace(/\\+$/, '').split('\\')
   // Mai la radice di un disco: «C:» non è il nome di un progetto.
   for (let i = parti.length - 1; i >= 1; i -= 1) {
     // Il nome di una cartella di sistema non porta a nessun progetto (0.67.4).

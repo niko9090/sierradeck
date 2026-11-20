@@ -83,7 +83,7 @@ export type FontiAvvisi = {
 const AVVISO_MAX = 110
 
 function accorcia(testo: string): string {
-  const pulito = testo.replace(/\s+/g, ' ').trim()
+  const pulito = (testo ?? '').replace(/\s+/g, ' ').trim()
   if (pulito.length <= AVVISO_MAX) return pulito
   const tagliato = pulito.slice(0, AVVISO_MAX - 1)
   const spazio = tagliato.lastIndexOf(' ')

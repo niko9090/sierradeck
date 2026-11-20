@@ -46,11 +46,11 @@ function cartellaDi(s: SessionSummary): string {
 
 /** Il confronto fra due richieste: maiuscole e spaziatura non fanno testo. */
 function normalizza(testo: string): string {
-  return testo.replace(/\s+/g, ' ').trim().toLowerCase()
+  return (testo ?? '').replace(/\s+/g, ' ').trim().toLowerCase()
 }
 
 function accorcia(testo: string): string {
-  const pulito = testo.replace(/\s+/g, ' ').trim()
+  const pulito = (testo ?? '').replace(/\s+/g, ' ').trim()
   if (pulito.length <= TITOLO_MAX) return pulito
   // Si taglia sull'ultimo spazio: una parola mozzata a metà si legge peggio di
   // una frase che finisce prima.
