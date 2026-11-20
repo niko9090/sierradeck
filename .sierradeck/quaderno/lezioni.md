@@ -629,6 +629,7 @@
 - Se `npm run pubblica` si ferma a metà, la bozza resta con i primi 3 file. Rilanciarlo sulla stessa bozza completa gli altri file, compresi quelli dell'Aiutante, senza crearne una seconda. _(2026-11-19)_
 - `gh release view --json` non ha il campo isLatest: per sapere se è Latest usare `gh release list`. _(2026-11-19)_
 - `git fetch` fallisce se origin è un .bundle d'arrivo già cancellato: la versione si controlla da package.json e dal log locale, i tag non ci sono. _(2026-11-20)_
+- nel package-lock.json il secondo punto della versione (packages[""]) può restare indietro: nella 0.111.0 era ancora 0.110.2. Controllare entrambi. _(2026-11-20)_
 
 ## build
 
