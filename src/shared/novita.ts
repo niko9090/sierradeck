@@ -48,6 +48,7 @@ export const NOVITA: Novita[] = [
       '**Lavori affidati al PC giusto:** prima di dare un lavoro a un PC la rete valuta cosa sa fare. Se un lavoro resta fermo su un PC lento, passa a un altro PC capace.',
       '**Credenziali di rete:** in Impostazioni > Computer puoi aggiungerle, vedere l’elenco dei soli nomi e toglierle. Le chiavi vengono date solo ai lavori affidati, su richiesta, anche all’Aiutante (1.3.0).',
       '**Azioni fra PC:** l’autopilota può chiedere azioni a un altro PC.',
+      '**Aiutante meno allarmista:** non dice più «il Drive è scollegato» quando è solo un attimo di ritardo del portachiavi o un giro storto.',
     ],
   },
   {
