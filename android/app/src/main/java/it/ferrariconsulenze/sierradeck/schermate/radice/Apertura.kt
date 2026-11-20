@@ -90,15 +90,15 @@ import it.ferrariconsulenze.sierradeck.rete.PcPonte
  * quale voce sta ogni destinazione; l'ordine e i nomi corti restano quelli del
  * PC (`MenuPrincipaleTest`).
  */
-enum class Scheda(val id: String, val breve: String) {
-    PROGETTI("progetti", "Progetti"),
-    AUTOPILOTI("autopiloti", "Auto\u00adpiloti"),
-    DOMANDE("domande", "Domande"),
-    CHAT("chat", "Chat"),
-    COMPUTER("computer", "Computer"),
-    FILE("file", "File"),
-    SALUTE("salute", "Salute"),
-    IMPOSTAZIONI("impostazioni", "Imposta\u00adzioni")
+enum class Scheda(val id: String) {
+    PROGETTI("progetti"),
+    AUTOPILOTI("autopiloti"),
+    DOMANDE("domande"),
+    CHAT("chat"),
+    COMPUTER("computer"),
+    FILE("file"),
+    SALUTE("salute"),
+    IMPOSTAZIONI("impostazioni")
 }
 
 /**
