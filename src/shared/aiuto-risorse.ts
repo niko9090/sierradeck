@@ -15,7 +15,9 @@
  * un percorso con utente e password dentro (`user:pass@`) si scarta.
  */
 
-export type TipoRisorsa = 'cartella' | 'percorso-rete' | 'programma' | 'variabile'
+import { eNomeCredenziale, nomiCredenzialiNelTesto, variabileCredenziale } from './aiuto-credenziali'
+
+export type TipoRisorsa = 'cartella' | 'percorso-rete' | 'programma' | 'variabile' | 'credenziale'
 
 export type Risorsa = {
   tipo: TipoRisorsa
@@ -36,7 +38,7 @@ export const RISORSE_MAX = 20
 /** Tempo massimo per guardare una risorsa (un percorso di rete spento può far attendere minuti). */
 export const VERIFICA_RISORSA_MAX_MS = 3000
 
-const TIPI: readonly TipoRisorsa[] = ['cartella', 'percorso-rete', 'programma', 'variabile']
+const TIPI: readonly TipoRisorsa[] = ['cartella', 'percorso-rete', 'programma', 'variabile', 'credenziale']
 
 /** I comandi che, se nominati, vale la pena trovare nel PATH (non quelli che l'Aiutante ha già: git, node, npm, claude). */
 export const PROGRAMMI_NOTI: readonly string[] = [
@@ -75,6 +77,7 @@ export function risorsaValida(x: unknown): Risorsa | undefined {
   if (valore === '' || conCredenziali(valore)) return undefined
   if (tipo === 'variabile' && !eNomeVariabile(valore)) return undefined
   if (tipo === 'programma' && !eNomeProgramma(valore)) return undefined
+  if (tipo === 'credenziale' && !eNomeCredenziale(valore)) return undefined
   return {
     tipo, valore,
     perche: typeof o.perche === 'string' ? o.perche.trim().slice(0, 300) : '',
@@ -133,6 +136,8 @@ export function ricavaRisorse(prompt: string, dichiarate: readonly Risorsa[] = [
     const dopoVerbo = new RegExp(`\\b(?:lancia|lanciare|esegui|eseguire|usa|usare|run|serve|servono|installa)\\s+(?:il\\s+comando\\s+|il\\s+programma\\s+)?${escapa(prog)}\\b`, 'iu').test(prompt)
     if (inCodice || dopoVerbo) ricavate.push({ tipo: 'programma', valore: prog, perche: 'il compito lo usa', alternativa: 'se manca su questo PC: installalo se il compito lo chiede (winget, scoop, apt), altrimenti dì nel riepilogo cosa non hai potuto provare' })
   }
+  // Credenziali nominate con `credenziale:nome`: solo il nome. Indispensabili: senza, il lavoro non può fare ciò per cui è stato affidato.
+  for (const nome of nomiCredenzialiNelTesto(prompt)) ricavate.push({ tipo: 'credenziale', valore: nome, perche: 'il compito la dichiara', indispensabile: true })
   const dichiarateOk = dichiarate.map((r) => ({ ...r, indispensabile: r.indispensabile ?? true }))
   return unisci([...dichiarateOk, ...ricavate])
 }
@@ -144,6 +149,8 @@ export type StrumentiVerifica = {
   nelPath: (programma: string) => Promise<boolean>
   /** La variabile è impostata (e non vuota)? Il valore non si legge mai fuori da qui. */
   variabile: (nome: string) => boolean
+  /** La credenziale (per nome) è stata data a questo lavoro? Il valore non passa di qui. Senza: manca. */
+  credenziale?: (nome: string) => boolean
   tempoMs?: number
 }
 
@@ -160,6 +167,7 @@ export async function verificaRisorse(risorse: readonly Risorsa[], s: StrumentiV
   return Promise.all(risorse.map(async (risorsa): Promise<RisorsaVerificata> => {
     try {
       if (risorsa.tipo === 'variabile') return { risorsa, esito: s.variabile(risorsa.valore) ? 'ok' : 'manca' }
+      if (risorsa.tipo === 'credenziale') return { risorsa, esito: s.credenziale?.(risorsa.valore) === true ? 'ok' : 'manca' }
       const r = risorsa.tipo === 'programma'
         ? await conTempo(s.nelPath(risorsa.valore), ms)
         : await conTempo(s.esiste(risorsa.valore), ms)
@@ -169,7 +177,7 @@ export async function verificaRisorse(risorse: readonly Risorsa[], s: StrumentiV
   }))
 }
 
-const ETICHETTA: Record<TipoRisorsa, string> = { cartella: 'cartella', 'percorso-rete': 'percorso di rete', programma: 'programma', variabile: 'variabile d’ambiente' }
+const ETICHETTA: Record<TipoRisorsa, string> = { cartella: 'cartella', 'percorso-rete': 'percorso di rete', programma: 'programma', variabile: 'variabile d’ambiente', credenziale: 'credenziale' }
 
 /** Una risorsa che non c'è e senza la quale il lavoro non può riuscire (né c'è un'alternativa). */
 export function risorsaMancante(v: readonly RisorsaVerificata[]): RisorsaVerificata | undefined {
@@ -192,7 +200,7 @@ export function sezioneRisorse(v: readonly RisorsaVerificata[]): string {
   const righe = v.map(({ risorsa: r, esito }) => {
     const segno = esito === 'ok' ? 'c’è' : esito === 'non-risponde' ? 'NON RISPONDE (tempo scaduto)' : 'MANCA'
     const resto = esito === 'ok'
-      ? ''
+      ? (r.tipo === 'credenziale' ? ` — nella variabile d’ambiente ${variabileCredenziale(r.valore)} (mai scriverla in file, commit o riepilogo)` : '')
       : ` — ${r.alternativa ?? 'nessuna alternativa indicata: se ti serve davvero, fermati e dillo nel riepilogo («bloccato: …»)'}`
     return `- ${ETICHETTA[r.tipo]} ${r.valore}: ${segno}${r.perche !== '' ? ` (${r.perche})` : ''}${resto}`
   })

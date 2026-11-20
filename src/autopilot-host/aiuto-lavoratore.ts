@@ -8,6 +8,7 @@ import {
 } from '@shared/aiuto-rete'
 import { causaDalTesto, fraseCausa, motivoDelRisultato, type CausaFallimento } from '@shared/aiuto-esito'
 import { causaScadenza, scadenzaIniziale, scadenzaRaggiunta, scadenzaSegno, scadenzaTick, TICK_SCADENZA_MS } from '@shared/aiuto-scadenza'
+import { ambienteSpecialista, oscura } from '@shared/aiuto-credenziali'
 import { motivoRisorsa, risorseValide, risorsaMancante, sezioneRisorse, verificaRisorse, type Risorsa, type StrumentiVerifica } from '@shared/aiuto-risorse'
 import type { AvviaProcesso } from './processo-claude'
 import { cancellaSicuraAsincrona } from '@shared/cancella-sicura'
@@ -165,6 +166,12 @@ export function creaLavoratoreAiuto(x: {
   suFine?: (f: FineLavoro) => void
   /** 16/11: come si guardano le risorse su questo PC (nelle prove, un finto). */
   verificaRisorse?: StrumentiVerifica
+  /**
+   * 20/11: le credenziali di rete che il lavoro dichiara (per nome), chieste al momento (cassaforte di
+   * questo PC o PC che ha affidato il lavoro). Torna nome → valore; i mancanti non compaiono. I valori
+   * vanno solo nell'ambiente dello specialista di quel lavoro e si dimenticano alla fine.
+   */
+  credenziali?: (r: { lavoro: string; nomi: string[]; perPc?: string }) => Promise<Record<string, string>>
 }): LavoratoreAiuto {
   const adesso = x.adesso ?? Date.now
   const log = x.log ?? ((r: string) => console.info(`[aiuto] ${r}`))
@@ -403,7 +410,13 @@ export function creaLavoratoreAiuto(x: {
     // 16/11: le risorse nominate dal compito, guardate subito (tempo massimo breve ciascuna). Una indispensabile
     // che manca e senza alternativa: il lavoro fallisce SUBITO (causa 'risorsa', colpa del PC), e passa a un altro PC.
     cambia(l, { stato: 'preparo', attivita: 'controllo le risorse del compito', repo })
-    const verificate = await verificaRisorse(r.risorse ?? [], x.verificaRisorse ?? verificaRisorseQui)
+    // 20/11: le credenziali dichiarate per nome, chieste adesso. Restano in questa funzione: mai su disco, mai nel log.
+    let segreti: Record<string, string> = {}
+    const nomiCredenziali = (r.risorse ?? []).filter((c) => c.tipo === 'credenziale').map((c) => c.valore)
+    if (nomiCredenziali.length > 0 && x.credenziali !== undefined) {
+      segreti = await x.credenziali({ lavoro: l.id, nomi: nomiCredenziali, ...(l.perPc !== undefined ? { perPc: l.perPc } : {}) }).catch(() => ({}))
+    }
+    const verificate = await verificaRisorse(r.risorse ?? [], { ...(x.verificaRisorse ?? verificaRisorseQui), credenziale: (n) => segreti[n] !== undefined })
     const mancante = risorsaMancante(verificate)
     if (mancante !== undefined) {
       cambia(l, { stato: 'fallito', motivo: `${fraseCausa('risorsa')} — ${corto(motivoRisorsa(mancante), 300)}`, causa: 'risorsa', attivita: 'non riuscito' })
@@ -459,9 +472,12 @@ export function creaLavoratoreAiuto(x: {
       '--disallowedTools', [...VIETATI_AIUTO, ...STRUMENTI_AIUTO.filter((t) => !strumentiAmmessi(r.strumenti).includes(t))].join(','),
       '--strict-mcp-config'
     ]
-    const env: Record<string, string> = {}
-    for (const [k, v] of Object.entries(process.env)) if (typeof v === 'string' && !k.startsWith('SIERRADECK_HOOK')) env[k] = v
+    // 20/11: solo le variabili di base, quelle che il lavoro dichiara e le sue credenziali: non tutto `process.env` del PC ospite.
+    const env = ambienteSpecialista(process.env, (r.risorse ?? []).filter((c) => c.tipo === 'variabile').map((c) => c.valore), segreti)
+    const valoriSegreti = Object.values(segreti)
     const proc = x.avvia({ args, cwd: copia, env })
+    // Alla fine i valori si dimenticano (e quel che lo specialista ha scritto in riepilogo si ripulisce).
+    segreti = {}
     let finale: { testo: string; errore: boolean; tipo?: string } | undefined
     // 17/11: le 3 ore contano solo col PC sveglio (un portatile addormentato di notte non fa scadere il lavoro),
     // e se la scadenza arriva dopo un sonno o con lo specialista muto la colpa è del PC (il lavoro passa a un altro).
@@ -477,7 +493,8 @@ export function creaLavoratoreAiuto(x: {
     }, TICK_SCADENZA_MS)
     scadenza.unref?.()
     l.ferma = () => proc.uccidi()
-    proc.suRiga((riga) => {
+    proc.suRiga((rigaGrezza) => {
+      const riga = valoriSegreti.length > 0 ? oscura(rigaGrezza, valoriSegreti) : rigaGrezza
       let o: Record<string, unknown>
       try { o = JSON.parse(riga) as Record<string, unknown> } catch { return }
       tempo = scadenzaSegno(tempo, adesso())
@@ -498,7 +515,8 @@ export function creaLavoratoreAiuto(x: {
       }
     })
     proc.scrivi(`${JSON.stringify({ type: 'user', message: { role: 'user', content: r.prompt } })}\n`)
-    const uscita = await new Promise<{ codice: number | null; e: string }>((ok) => proc.suUscita((codice, e) => ok({ codice, e })))
+    const uscita = await new Promise<{ codice: number | null; e: string }>((ok) => proc.suUscita((codice, e) => ok({ codice, e: valoriSegreti.length > 0 ? oscura(e, valoriSegreti) : e })))
+    valoriSegreti.length = 0
     clearInterval(scadenza)
     l.ferma = undefined
     if ((l.stato as StatoAiuto) === 'fermato') { await pulisciCopia(l); return }
