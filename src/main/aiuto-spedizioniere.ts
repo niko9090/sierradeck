@@ -6,7 +6,8 @@ import {
   SILENZIO_MAX_MS, type Aiutante, type LavoroAffidato, type VistaLavoroAiutato
 } from '@shared/aiuto-rete'
 import { causaDelMotivo, causaRiassegnabile, fraseCausa, type CausaFallimento } from '@shared/aiuto-esito'
-import { decidiRiassegna, eventoAffidato, eventoArreso, eventoRifiutato, eventoRiassegnato, eventoRisorsaMancante } from '@shared/aiuto-riassegna'
+import { decidiRiassegna, eLento, eventoAffidato, eventoArreso, eventoRifiutato, eventoRiassegnato, eventoRisorsaMancante, MAX_RIASSEGNAZIONI, type DatiLentezza } from '@shared/aiuto-riassegna'
+import { valutaPrimaDiAffidare, type CandidatoPc, type RequisitiCompito } from '../autopilot-host/affida-valuta'
 import type { EventoAiuto } from '@shared/eventi-aiuto'
 import { ricavaRisorse } from '@shared/aiuto-risorse'
 import { capacitaValida, type CapacitaPc } from '@shared/capacita-pc'
@@ -220,18 +221,43 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): Spedizioniere {
    * lavoro, lo passa là (al più 2 volte), lo scrive nel registro e dice al servizio il nuovo PC.
    * `undefined` = resta fallito (causa del lavoro, tentativi finiti, nessun altro PC).
    */
-  const riassegna = async (l: LavoroAffidato, causa: CausaFallimento, motivo: string): Promise<LavoroAffidato | undefined> => {
+  /** I programmi indispensabili che il lavoro dichiara: chi riceve deve averli. */
+  const requisitiDel = (l: LavoroAffidato): RequisitiCompito | undefined => {
+    const programmi = (l.risorse ?? []).filter((r) => r.tipo === 'programma' && r.indispensabile !== false).map((r) => r.valore)
+    return programmi.length > 0 ? { programmi } : undefined
+  }
+
+  /** Chi può ricevere il lavoro: libero, capace dei requisiti, mai provato, non fuori; gli Aiutanti prima. */
+  const scegliCapace = (l: LavoroAffidato, aiutanti: readonly Aiutante[], provati: readonly string[]): Aiutante | undefined => {
+    const ok = aiutanti.filter((a) => !provati.includes(a.pcId) && (fuori.get(a.pcId) ?? 0) <= adesso())
+    const requisiti = requisitiDel(l)
+    const prova = (lista: readonly Aiutante[]): Aiutante | undefined => {
+      const candidati: CandidatoPc[] = lista.map((a) => ({ pcId: a.pcId, nome: a.nome, liberi: a.liberi, battito: a.battito ?? new Date(adesso()).toISOString(), capacita: a.capacita }))
+      const e = valutaPrimaDiAffidare(requisiti, candidati, adesso())
+      return e.tipo === 'scelto' ? lista.find((a) => a.pcId === e.pc.pcId) : undefined
+    }
+    return prova(ok.filter((a) => a.programma === 'aiutante')) ?? prova(ok)
+  }
+
+  const riassegna = async (l: LavoroAffidato, causa: CausaFallimento | undefined, motivo: string, lentezza?: DatiLentezza): Promise<LavoroAffidato | undefined> => {
     const provati = [...new Set([...(l.provati ?? []), l.pcId])]
     const compito = l.compito ?? l.descrizione.slice(0, 80)
     const quando = new Date(adesso()).toISOString()
-    const mossa = decidiRiassegna({ causa, riassegnazioni: l.riassegnazioni ?? 0, provati, aiutanti: causaRiassegnabile(causa) ? await aggiornaPosti() : [], fuori, adesso: adesso() })
+    const scelto = causa === undefined || causaRiassegnabile(causa) ? scegliCapace(l, await aggiornaPosti(), provati) : undefined
+    const mossa = decidiRiassegna({
+      ...(causa !== undefined ? { causa } : {}), ...(lentezza !== undefined ? { lentezza } : {}),
+      riassegnazioni: l.riassegnazioni ?? 0, provati, aiutanti: scelto !== undefined ? [scelto] : [], adesso: adesso()
+    })
     if (mossa.tipo !== 'riassegna') {
       if (mossa.tipo === 'resta-fallito' && mossa.arreso) registra(eventoArreso({ quando, lavoroId: l.id, compito, daPc: l.pcNome, motivo: `${mossa.motivo} (${motivo})` }))
       return undefined
     }
     await d.chiama(l.pcId, '/api/aiuto/chiudi', { lavoro: l.id }).catch(() => undefined)
-    registra(eventoRiassegnato({ quando, lavoroId: l.id, compito, daPc: l.pcNome, aPc: mossa.a.nome, motivo, causa }))
-    await avanza(l.id, { riassegna: { pcId: mossa.a.pcId, pcNome: mossa.a.nome } })
+    registra(eventoRiassegnato({ quando, lavoroId: l.id, compito, daPc: l.pcNome, aPc: mossa.a.nome, motivo, causa: causa ?? 'pc' }))
+    const frase = lentezza !== undefined
+      ? `Il lavoro ${compito} ${motivo} su ${l.pcNome}: l’ho passato a ${mossa.a.nome}`
+      : `Il lavoro ${compito}: ${motivo}. L’ho passato da ${l.pcNome} a ${mossa.a.nome}`
+    await avanza(l.id, { riassegna: { pcId: mossa.a.pcId, pcNome: mossa.a.nome }, motivo: frase })
     log(`${l.id} (${compito}): passa da ${l.pcNome} a ${mossa.a.nome} (${motivo})`)
     return { ...l, pcId: mossa.a.pcId, pcNome: mossa.a.nome, stato: 'da-spedire', provati, riassegnazioni: (l.riassegnazioni ?? 0) + 1 }
   }
@@ -257,6 +283,7 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): Spedizioniere {
     }
     let silenzioDa: number | undefined
     let ultima = ''
+    const partitoIl = adesso()
     while (!fermo) {
       let v: VistaLavoroAiutato | undefined
       try {
@@ -308,6 +335,28 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): Spedizioniere {
           ;(riuscito ? log : blocco)(`${l.id} (${l.compito ?? l.ruolo}) da ${l.pcNome}: ${riuscito ? 'finito' : `non riuscito${motivo !== undefined ? `: ${motivo}` : ''}`}${ramo !== undefined ? `, ramo ${ramo} preso` : ''}`)
           await d.chiama(l.pcId, '/api/aiuto/chiudi', { lavoro: l.id }).catch(() => undefined)
           return
+        }
+        // k-166n6: ancora in corso ma fermo da troppo: passa a un altro PC capace; se non c'è nessuno, riparte qui.
+        const dati: DatiLentezza = { ...(v.fermoMs !== undefined ? { fermoMs: v.fermoMs } : {}), trascorsoMs: adesso() - partitoIl, peso: 'medio' }
+        if (eLento(dati) !== undefined && v.fermoMs !== undefined) {
+          const minuti = Math.round(v.fermoMs / 60_000)
+          const nuovo = await riassegna(l, undefined, `era fermo da ${minuti} minuti`, dati)
+          if (nuovo !== undefined) {
+            fuori.set(l.pcId, adesso() + FUORI_PER_MS)
+            posti = { lista: [], il: -Infinity }
+            return segui(nuovo)
+          }
+          if ((l.riassegnazioni ?? 0) < MAX_RIASSEGNAZIONI) {
+            fuori.set(l.pcId, adesso() + FUORI_PER_MS)
+            posti = { lista: [], il: -Infinity }
+            const compito = l.compito ?? l.descrizione.slice(0, 80)
+            const motivo = `Il lavoro ${compito} era fermo da ${minuti} minuti su ${l.pcNome}: nessun altro PC è capace e libero, lo riprendo e riparte qui`
+            registra(eventoRiassegnato({ quando: new Date(adesso()).toISOString(), lavoroId: l.id, compito, daPc: l.pcNome, aPc: 'questo PC', motivo: `fermo da ${minuti} minuti, nessun altro PC capace`, causa: 'pc' }))
+            await d.chiama(l.pcId, '/api/aiuto/chiudi', { lavoro: l.id }).catch(() => undefined)
+            await avanza(l.id, { stato: 'fallito', causa: 'pc', motivo })
+            avviso(`${l.id} (${compito}): ${motivo}`)
+            return
+          }
         }
       }
       await dorme(STATO_OGNI_MS)
