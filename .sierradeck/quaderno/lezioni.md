@@ -192,6 +192,7 @@
 - `noteDi()` di scripts/note-novita.mjs restituisce un array di righe, non una stringa: per `--notes-file` va unito con "- " e "\n" prima di `writeFileSync`. _(2026-11-20)_
 - Nella cartella principale `npm run pubblica` dura oltre 10 minuti (finisce in sottofondo): niente seconda copia, basta controllare gli allegati con `gh release view` finché ci sono tutti e sette. _(2026-11-20)_
 - La bozza creata prima di avere il tag online risulta «untagged-…», ma `npm run pubblica` la riempie lo stesso. Il tag `v0.112.0` era già sul remoto prima della bozza. _(2026-11-20)_
+- `errori-arrivati.md` è in CRLF: un Edit che aggiunge righe porta fine riga LF e il file resta con fine riga misti. _(2026-11-20)_
 
 ## git
 
@@ -277,7 +278,6 @@
 
 ## criteri
 
-- `ePesante` taglia su `|` e `;` anche dentro gli apici: toglierli con `senzaApici`, salvo dopo `-c`/`-Command`/`/c`, dove stanno i comandi veri. _(2026-11-08)_
 - I criteri del piano girano in bash (criterio.sh): niente backslash nei percorsi. Per l'app Android: `/e/Programs/Gradle/gradle-8.11.1/bin/gradle -p android testDebugUnitTest --rerun --offline`. _(2026-11-14)_
 - Mai criteri «versione === X» per un compito di versione: il cancello li rimisura e blocca ogni versione dopo. Usare «almeno X» (confronto numerico >=) o `gh release view vX`. _(2026-11-15)_
 - un criterio con versione fissa passa sul principale ma cade su ogni ramo che alza la versione: va escluso dalla prova prima/dopo (`fissaLaVersione`), non rimisurato. _(2026-11-15)_
