@@ -12,7 +12,7 @@ import type { ModoAiuto, PostiAiuto } from '@shared/aiuto-rete'
  * (e non deve sapere) quale dei due gli risponde, se non da `programma`.
  */
 
-export const ROTTE_AIUTO: ReadonlySet<string> = new Set(['/api/aiuto/posti', '/api/aiuto/pezzo', '/api/aiuto/avvia', '/api/aiuto/stato', '/api/aiuto/ritira', '/api/aiuto/chiudi', '/api/aiuto/ferma'])
+export const ROTTE_AIUTO: ReadonlySet<string> = new Set(['/api/aiuto/posti', '/api/aiuto/pezzo', '/api/aiuto/avvia', '/api/aiuto/stato', '/api/aiuto/ritira', '/api/aiuto/chiudi', '/api/aiuto/ferma', '/api/aiuto/credenziali'])
 
 export type FonteAiuto = {
   modo: () => ModoAiuto
@@ -21,6 +21,12 @@ export type FonteAiuto = {
   nomePc?: (pcId: string) => string | undefined
   /** 12/11: chi risponde è SierraDeck Aiutante: chi chiede lo preferisce agli altri PC. */
   programma?: 'aiutante'
+  /**
+   * 20/11: le credenziali di rete che un lavoro affidato da questo PC dichiara, per il PC che aiuta
+   * (`servi` di `aiuto-credenziali`). Riceve l'id del PC dalla richiesta firmata; rifiuta lanciando.
+   * Senza: questo PC non ne dà.
+   */
+  credenziali?: (r: { pcId: string | undefined; corpo: unknown }) => Promise<unknown>
 }
 
 export type RichiestaAiuto = { metodo: string; percorso: string; corpo: unknown; dispositivo?: string }
@@ -30,6 +36,16 @@ export type EsitoAiuto = { stato: number; corpo: unknown }
 export async function rispondiAiuto(r: RichiestaAiuto, aiuto: FonteAiuto | undefined): Promise<EsitoAiuto | undefined> {
   if (!r.percorso.startsWith('/api/aiuto/') || !ROTTE_AIUTO.has(r.percorso)) return undefined
   if (aiuto === undefined) return { stato: 404, corpo: { errore: 'questo PC non presta ancora i suoi posti' } }
+  if (r.percorso === '/api/aiuto/credenziali') {
+    if (r.metodo !== 'POST') return { stato: 405, corpo: { errore: 'solo POST' } }
+    // Solo un altro PC riconosciuto (id dalla firma della richiesta): mai un telefono, mai una richiesta senza dispositivo.
+    const pcId = r.dispositivo?.startsWith('pc:') === true && !r.dispositivo.startsWith('pc:tel:') && r.dispositivo.length > 3 ? r.dispositivo.slice(3) : undefined
+    if (pcId === undefined) return { stato: 403, corpo: { errore: 'le credenziali si danno solo a un altro PC riconosciuto' } }
+    if (aiuto.credenziali === undefined) return { stato: 404, corpo: { errore: 'questo PC non dà credenziali' } }
+    try { return { stato: 200, corpo: await aiuto.credenziali({ pcId, corpo: r.corpo }) } } catch (err) {
+      return { stato: 409, corpo: { errore: (err instanceof Error ? err.message : String(err)).slice(0, 300) } }
+    }
+  }
   const modo = aiuto.modo()
   const dove = r.percorso.slice('/api'.length)
   const conProgramma = aiuto.programma !== undefined ? { programma: aiuto.programma } : {}
