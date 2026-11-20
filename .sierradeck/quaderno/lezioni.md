@@ -300,6 +300,7 @@
 - la prova di unione salva con un commit solo `.sierradeck/quaderno/` (anche riscritto); le altre note di `.sierradeck/` restano «solo aggiunte» (numstat): un test deve coprire entrambi i rami. _(2026-11-11)_
 - Fino alla 0.99.1 installata una nota del quaderno con righe cambiate o tolte ferma tutta la fila: la sblocca solo un commit di `.sierradeck/quaderno` fatto da una chat aperta nella cartella principale (dalla 0.99.2 la salva il programma). _(2026-11-11)_
 - Dalla 0.100.0 un file non salvato nella cartella principale ferma un’unione solo se il ramo lo tocca; in quel caso dopo 5 minuti è il programma a chiedere a Nicholas «Salvali e unisci», non l’autopilota. _(2026-11-11)_
+- rami con rotte nuove: il conflitto sta nel tipo `FonteAiuto` di `src/main/rotte-aiuto.ts`; tenere i campi opzionali di entrambi i lati. _(2026-11-20)_
 
 ## gpu
 
