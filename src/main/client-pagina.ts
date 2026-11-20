@@ -2337,7 +2337,6 @@ function pannello(s) {
       <div class="solo-riassunto">
       <div style="\${panoramicaAp && panoramicaAp.situazione ? 'display:none' : ''}">
       <div class="sotto">\${apAperto.vista ? fraseApHtml(apAperto) + (apAperto.vista.da ? ' · da ' + esc(apAperto.vista.da) : '') + (apAperto.vista.stato.ragione ? ' · ' + esc(apAperto.vista.stato.ragione) : '') : esc(apAperto.strategia ? 'bloccato, provo: ' + apAperto.strategia : (apAperto.motivo || apAperto.stato))}</div>
-      \${percentoAvanzamento(apAvanzamento) !== undefined ? '<div class="misura-riga">' + Math.round(percentoAvanzamento(apAvanzamento)) + '%</div><div class="barra"><i style="width:' + Math.max(0, Math.min(100, Math.round(percentoAvanzamento(apAvanzamento)))) + '%"></i></div>' : ''}
       </div>
       \${apDettaglio ? panoramicaHtml(panoramicaAp, 'testa') : ''}
       \${apDettaglio ? dalVivoHtml(apDettaglio.dalVivo, !!(panoramicaAp && panoramicaAp.situazione)) + (apDettaglio.punto ? '' : adessoHtml(apDettaglio.adesso)) : ''}
@@ -3567,12 +3566,7 @@ function avanzamentoApHtml(v) {
     (richieste.length
       ? richieste.map((r) => '<div class="voce--riga avanzamento-richiesta"><span class="quando">' + esc(r.id) + '</span><b>' + esc(r.titolo || r.testo || '') + '</b> <span class="sotto">' + esc(parole[r.stato] || r.stato || '') + (typeof r.percento === 'number' ? ' · ' + Math.round(r.percento) + '%' : '') + '</span></div>').join('')
       : '<div class="sotto">Nessuna richiesta in coda: scrivigli cosa vuoi nella casella qui sopra.</div>')
-  const sp = o && Array.isArray(o.specialisti) ? o.specialisti : []
-  const specialisti = '<div class="serigrafia" style="margin-top:10px">Specialisti · ' + sp.length + '</div>' +
-    (sp.length
-      ? sp.map((x) => '<div class="voce--riga avanzamento-specialista"><b>' + esc(x.ruolo || 'specialista') + '</b> <span>' + esc(x.compito || '') + '</span> <span class="sotto">' + esc(x.stato || '') + (x.durata ? ' · ' + esc(x.durata) : '') + '</span></div>').join('')
-      : '<div class="sotto">Nessuno specialista al lavoro adesso.</div>')
-  return percento + (calo ? '<div class="sotto">scesa da ' + calo.da + '% a ' + calo.a + '%: ' + esc(calo.perche || '') + '</div>' : '') + coda + specialisti
+  return percento + (calo ? '<div class="sotto">scesa da ' + calo.da + '% a ' + calo.a + '%: ' + esc(calo.perche || '') + '</div>' : '') + coda
 }
 
 /** La linguetta «File» (0.38.0): l'elenco per chat e il diff del file scelto, in sola lettura. */

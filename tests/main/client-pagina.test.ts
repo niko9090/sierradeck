@@ -633,8 +633,8 @@ return avanzamentoApHtml`)((x: string) => x) as (v: unknown) => string
     expect(h).toContain('Leggere i CSV')
     expect(h).toContain('in corso · 40%')
     expect(h).toContain('in coda · 0%')
-    expect(h).toContain('sviluppatore')
-    expect(h).toContain('il lettore CSV')
+    // k-u6b: gli specialisti stanno in un posto solo (dentro Autopiloti), non anche qui.
+    expect(h).not.toContain('il lettore CSV')
     expect(html(null)).toContain('Leggo')
     expect(html({ orchestratore: null, coda: null })).toContain('Nessuna richiesta')
     expect(html({ errore: 'giù' })).toContain('giù')
