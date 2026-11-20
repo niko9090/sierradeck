@@ -319,3 +319,8 @@ Difetto vero, corretto nella versione 0.111.3. Causa: un autopilota arrivato sen
 
 ## Gruppo 1: «[rete] il Drive è scollegato…» (1 volta, Aiutante 1.2.2 di un altro PC, 20/11 alle 14:51Z)
 Corretto nella versione 0.112.0 (Aiutante 1.3.0). Causa: l Aiutante prendeva per Drive scollegato un solo giro in cui il token non si vedeva (portachiavi non ancora pronto o file in riscrittura) e lo mandava agli altri PC come errore di rete. Ora `stabilizzaRete` (src/aiutante/regole.ts): portachiavi non pronto = non scollegato; il segno scritto da conto-drive alla revoca vale subito; altrimenti servono due giri di fila. Correzione k-170a (commit 58ffcba5b9b). Test: tests/aiutante/blocchi-rete-transitori.test.ts.
+
+# Errori arrivati (lotto 20261120155343)
+
+## Gruppo 1: «The database connection is not open» (Portatile Asus, 0.111.2)
+Difetto vero, corretto nella versione 0.112.1. Causa: in chiusura del programma chiudiRisorse() chiudeva il db mentre la finestra chiedeva ancora i consumi (e lista/elimina delle sessioni), e i gestori ipc lanciavano un errore finto nel registro. Correzione k-171a: i gestori 'sessioni:lista', 'sessioni:consumi' e 'sessioni:elimina' usano `leggiDbOVuoto` (src/main/db-chiuso.ts). Test: tests/main/db-chiuso-in-uscita.test.ts.

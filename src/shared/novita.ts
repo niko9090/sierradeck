@@ -41,6 +41,10 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.112.1',
+    righe: ['**Chiusura più pulita:** chiudendo il programma non compare più un errore finto nel registro.'],
+  },
+  {
     versione: '0.112.0',
     righe: [
       '**Menu unico:** stessi nomi, stesso ordine e stesse sottovoci sul PC, sulla pagina del telefono e nell’app Android 3.4.0. Sul PC c’è la nuova voce «Correzioni» con Errori arrivati, Lavoro in corso e Correzioni fatte.',
