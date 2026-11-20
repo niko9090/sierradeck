@@ -78,6 +78,7 @@
 - per riprodurre il controllo dei PC basta `giroControlloPc` con `creaClientPcRemoto` muto e `altri` costruito come in index.ts: vedi tests/main/controllo-pc-aiutante-vivo.test.ts. _(2026-11-20)_
 - Per provare che un test fallisce senza la correzione, rimetti il file di prima del commit con `git show <commit>^:file` e poi ripristinalo (qui ha riprodotto parola per parola il rapporto reale). _(2026-11-20)_
 - Il rapporto del controllo può dire «dato vecchio» e «non risponde» insieme solo con codice diverso da main: nella 0.111.1 verificare `testoRapporto` prima di fidarsi del testo del rapporto. _(2026-11-20)_
+- menu-principale.test.ts legge Console.tsx come testo (es. la riga `.map((v) =>`): togliere o rinominare un helper della fascia rompe quel test. _(2026-11-20)_
 
 ## worktree
 
@@ -213,6 +214,7 @@
 - il client non sa il workspace di un id sparito: lo ricorda lui (id→cwd/workspace) e riscrive via /orchestratore/messaggio, che riusa l'autopilota del workspace. _(2026-11-13)_
 - Mai criteri «la versione di package.json è già su GitHub»: dopo, il programma li rimisura su ogni ramo e respinge il bump successivo (13/11, 0.106.3 bloccata, sbloccata con pre-release vuota). _(2026-11-13)_
 - il client segna `scaduto` (timeout) e `spento` (fetch failed/ECONNREFUSED/ECONNRESET): per un errore atteso usare `servizioIndisponibile`, non il solo `scaduto _(2026-11-13)_
+- INATTIVO_MS è 55 minuti: la cache del prompt dura 1 ora e lo spegnimento a 10 minuti la faceva riscrivere a ogni ripresa. _(2026-11-20)_
 
 ## controllo
 
@@ -324,6 +326,7 @@
 ## misure
 
 - il gancio PreToolUse rimanda vitest se il PC è carico: attendere col Monitor, non con sleep ripetuti, e fermarsi dopo 3 tentativi. I file singoli passano comunque. _(2026-11-08)_
+- Nel confronto dei token con `claude -p` contano input + cache creata + cache letta insieme: il secondo giro costa meno solo per la cache calda, non per la modifica provata. _(2026-11-20)_
 
 ## aggiornamenti
 
@@ -721,6 +724,7 @@
 - Il test menu-principale.test.ts confronta assets/menu.json con MENU_PRINCIPALE: dopo ogni cambio di voci rigenerarlo con AGGIORNA=1 prima del commit. _(2026-11-19)_
 - Gli errori hanno due fonti: Salute legge il registro, Impostazioni → Errori legge lo storico (storico-errori-file). Possono non coincidere. _(2026-11-20)_
 - Ogni voce di errore in Salute dovrebbe avere l'azione «Apri gli errori», altrimenti la correzione resta sepolta due livelli sotto. _(2026-11-20)_
+- i dati di menu-principale.ts e impostazioni-struttura.ts sono copiati in android/assets (menu.json, impostazioni.json) e confrontati da test: rinominare le voci là richiede AGGIORNA=1 e tocca android… _(2026-11-20)_
 
 ## panoramica
 
@@ -869,3 +873,11 @@
 ## cassaforte
 
 - scriviAtomico scrive testo, non Buffer: il blob cifrato si salva in base64. Il dispositivo `pc:tel:` è un telefono, mai un PC: le rotte sensibili lo scartano. _(2026-11-20)_
+
+## token
+
+- il blocco <quaderno> si manda solo se l'impronta dell'indice cambia o la sessione è nuova; un turno fallito azzera l'impronta (rimettiInAttesa). _(2026-11-20)_
+
+## claude
+
+- Il Code Mode di Claude Code non vale con `-p` né con l'SDK (solo terminale interattivo): con `-p` il contesto è identico, 56.549 token con e senza variabile. _(2026-11-20)_
