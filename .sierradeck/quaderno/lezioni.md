@@ -87,6 +87,7 @@
 - `AGGIORNA=1` sul test delle impostazioni riscrive anche `impostazioni.json`: dopo, `git add -A` mostra solo avvisi di fine riga, non modifiche vere. _(2026-11-20)_
 - `src/aiutante/index.ts` non si importa nei test; `colleghiRete` nemmeno: il collegamento si protegge con un controllo sul sorgente di `rete.ts`. _(2026-11-20)_
 - `servizio-orchestratore.test.ts` «PreToolUse dell'unico» (git -C merge) è rosso nella copia di lavoro; non l'ho riprovato su main, ma non dipende dallo spedizioniere. _(2026-11-20)_
+- `servizio-orchestratore.test.ts` (PreToolUse, merge negato) è rosso se la suite gira dentro una copia di lavoro: usa `process.cwd()` come radice del progetto. _(2026-11-20)_
 
 ## worktree
 
@@ -237,9 +238,6 @@
 
 ## ambiente
 
-- nel worktree la Bash rifiuta comandi con mklink/cmd; la junction node_modules si crea con New-Item -ItemType Junction da PowerShell e si toglie con (Get-Item).Delete(). _(2026-11-08)_
-- il gancio «PC carico» blocca ogni comando npx del Bash finché il processore è sopra soglia: prima di lanciare la suite, controllare il carico o aspettare, non riprovare in serie. _(2026-11-08)_
-- La guardia del PC rifiuta anche `npm run typecheck` con CPU alta e non basta riprovare; un comando in background non aggira il rifiuto. _(2026-11-08)_
 - la guardia del carico può rimandare per ore anche `tsc`; con Defender al 30% il typecheck non parte: lanciare i test per file e riprovare dopo. _(2026-11-08)_
 - Con la guardia del carico che rimanda tsc, `ping -n N 127.0.0.1` è l'unica attesa consentita: `sleep` seguito da un comando viene bloccato. _(2026-11-08)_
 - Nel worktree la guardia rifiuta i comandi Bash che mettono git dentro blocchi composti (`||`, `&&` con cmd): tenere git in chiamate semplici e la junction in PowerShell. _(2026-11-08)_
@@ -259,6 +257,7 @@
 
 - le versioni dei PC nel rapporto vengono dall'ultimo battito, che non si scrive con il Drive pieno: prima di dire «vecchio» si controlla il PC. _(2026-11-09)_
 - Le voci di versione del quaderno sono file datati (`AAAA-MM-GG-...md`). `errori-arrivati.md` è solo per gli errori arrivati. _(2026-11-19)_
+- Un bump tocca 3 file di note: `src/shared/novita.ts`, `android/novita-app.txt` e `src/aiutante/novita-aiutante.txt` (righe che cominciano con `versione:`); app e Aiutante hanno la loro versione. _(2026-11-20)_
 
 ## drive
 
@@ -676,6 +675,7 @@
 - Il compito può chiedere un worktree separato, in contrasto con la regola «build solo in cartella principale»: serve una conferma esplicita dell'autopilota prima di procedere. _(2026-11-20)_
 - Con unioni continue in main, al rilascio dai un commit unito e pulito (senza MERGE_HEAD), push di quel commit, tag lì e build in un worktree temporaneo fuori dal progetto. _(2026-11-20)_
 - Dopo un'interruzione la release può essere ancora in bozza anche se il compito dice di no: controllare isDraft. Gli asset arrivano già costruiti nelle cartelle dist e dist-aiutante della copia. _(2026-11-20)_
+- `git fetch` fallisce se origin è un .bundle sparito: il controllo «c'è già una 0.112.x?» va fatto su `arrivo/main`, e `v0.111.3` non esiste come tag locale. _(2026-11-20)_
 
 ## build
 
