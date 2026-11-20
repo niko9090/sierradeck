@@ -110,6 +110,27 @@ describe('nella pagina e nell’app: la stessa struttura', () => {
     // L'app nuova (11/11) ha tre voci sue (Lavoro · File · Altro): la navigazione
     // la prova NavigazioneTest, sul comportamento, non sul testo dei sorgenti.
   })
+  it('l’app Kotlin legge nomi e sottovoci dal json: niente etichette del menu scritte a mano (k-166m4)', () => {
+    const kt = (p: string): string => leggi(join('android', 'app', 'src', 'main', 'java', 'it', 'ferrariconsulenze', 'sierradeck', ...p.split('/')))
+    const lettore = kt('nucleo/MenuApp.kt')
+    expect(lettore).toContain('assets.open("menu.json")')
+    const apertura = kt('schermate/radice/Apertura.kt')
+    const navigazione = kt('schermate/radice/Navigazione.kt')
+    const altro = kt('schermate/altro/Altro.kt')
+    // Le sette destinazioni non hanno più il nome corto nel codice.
+    for (const v of MENU_PRINCIPALE) {
+      expect(apertura, `breve di ${v.id}`).not.toContain(`"${v.breve.replace(/­/g, '\\u00ad')}"`)
+    }
+    expect(apertura).not.toContain('val breve')
+    // I titoli delle sezioni di Altro e le linguette di Salute vengono dal json, non da testi fissi.
+    for (const t of ['"Aggiornamenti"', '"Notifiche"', '"Computer"', '"Salute"', '"Aiuto"', '"Info e aiuto"']) expect(navigazione, t).not.toContain(t)
+    expect(altro).not.toContain('listOf("Salute", "Consumi")')
+    expect(altro).toContain('menu.voce("salute")')
+    // Le voci solo del PC non arrivano nel json dell'app, quindi nemmeno sul telefono.
+    for (const v of MENU_PRINCIPALE.filter((x) => x.soloPc === true)) {
+      expect(leggi(join('android', 'app', 'src', 'main', 'assets', 'menu.json')), v.id).not.toContain(`"id": "${v.id}"`)
+    }
+  })
   it('PC e pagina leggono la stessa fonte: stesso ordine, stessi nomi, sottovoci comprese', () => {
     const html = paginaClient()
     const m = /var MENU = (\[.*\])\n/.exec(html)

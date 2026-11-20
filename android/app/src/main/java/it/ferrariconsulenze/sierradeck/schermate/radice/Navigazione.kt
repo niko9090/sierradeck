@@ -1,6 +1,6 @@
 package it.ferrariconsulenze.sierradeck.schermate.radice
 
-import it.ferrariconsulenze.sierradeck.schermate.radice.Scheda
+import it.ferrariconsulenze.sierradeck.nucleo.MenuApp
 
 /**
  * **Tre voci** (app nuova, 11/11): Lavoro · File · Altro. Nicholas: «da capo,
@@ -32,14 +32,26 @@ enum class VoceBarra(val id: String, val nome: String) {
  * Le sette voci di «Altro» (app 11/11): una per tocco. `impostazione` è l'id
  * della sezione delle impostazioni del PC (`assets/impostazioni.json`).
  */
-enum class SezioneAltro(val titolo: String, val sotto: String, val impostazione: String? = null) {
-    AGGIORNAMENTI("Aggiornamenti", "L’app e il computer", "aggiornamenti"),
-    AVVISI("Notifiche", "Quali suonano, ore di silenzio", "notifiche"),
-    COMPUTER("Computer", "Accesi o spenti, chat aperte, guarda dal vivo", "computer"),
-    SALUTE("Salute", "Cosa sistemare, Drive, errori, consumi"),
-    CHAT("Tutte le chat", "Rinomina, chiudi"),
-    DRIVE("Dati riservati", "Drive, cassaforte, quaderno personale", "drive"),
-    INFO("Aiuto", "Versioni, errori, scollega questo telefono", "info");
+enum class SezioneAltro(
+    val sotto: String,
+    val impostazione: String? = null,
+    /** Dove `assets/menu.json` ha il nome: la voce e, se serve, la sua sottovoce. */
+    val voce: String? = null,
+    val sottoVoce: String? = null,
+    /** Solo per le due sezioni che il menu del PC non ha (nate sul telefono). */
+    val titoloProprio: String? = null
+) {
+    AGGIORNAMENTI("L’app e il computer", "aggiornamenti", "impostazioni", "aggiornamenti"),
+    AVVISI("Quali suonano, ore di silenzio", "notifiche", "impostazioni", "notifiche"),
+    COMPUTER("Accesi o spenti, chat aperte, guarda dal vivo", "computer", "computer"),
+    SALUTE("Cosa sistemare, Drive, errori, consumi", voce = "salute"),
+    CHAT("Rinomina, chiudi", titoloProprio = "Tutte le chat"),
+    DRIVE("Drive, cassaforte, quaderno personale", "drive", titoloProprio = "Dati riservati"),
+    INFO("Versioni, errori, scollega questo telefono", "info", "impostazioni", "info");
+
+    /** Il titolo: dal menu del PC (`menu.json`), a meno che la sezione sia solo del telefono. */
+    fun titolo(menu: MenuApp): String =
+        titoloProprio ?: voce?.let { menu.nome(it, sottoVoce) } ?: name.lowercase().replaceFirstChar { it.uppercase() }
 
     companion object {
         /** Dove porta una voce trovata con «Cerca» (l'id della sezione delle impostazioni del PC). */

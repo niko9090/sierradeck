@@ -44,6 +44,7 @@ import it.ferrariconsulenze.sierradeck.rete.Api
 import it.ferrariconsulenze.sierradeck.schermate.comune.Aiuto
 import it.ferrariconsulenze.sierradeck.schermate.comune.TastoAzioniChat
 import it.ferrariconsulenze.sierradeck.schermate.comune.tocco
+import it.ferrariconsulenze.sierradeck.nucleo.MenuApp
 import it.ferrariconsulenze.sierradeck.schermate.radice.SezioneAltro
 import it.ferrariconsulenze.sierradeck.schermate.tema.Banco
 import it.ferrariconsulenze.sierradeck.schermate.altro.AltriComputer
@@ -72,17 +73,18 @@ fun SchermataAltro(
     onScollega: suspend (Boolean) -> String?
 ) {
     if (aperta == null) { ElencoAltro(onApri); return }
+    val menu = MenuApp.carica(androidx.compose.ui.platform.LocalContext.current)
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onIndietro) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Indietro") }
-            Text(aperta.titolo, style = MaterialTheme.typography.titleMedium, color = Banco.testo)
+            Text(aperta.titolo(menu), style = MaterialTheme.typography.titleMedium, color = Banco.testo)
         }
         Box(Modifier.fillMaxSize()) {
             when (aperta) {
                 SezioneAltro.AGGIORNAMENTI -> Column(Modifier.verticalScroll(rememberScrollState())) { SezioneAggiornamenti(api) }
                 SezioneAltro.AVVISI -> Column(Modifier.verticalScroll(rememberScrollState())) { SchermataNotifiche() }
                 SezioneAltro.COMPUTER -> Column(Modifier.verticalScroll(rememberScrollState())) { AltriComputer(api) }
-                SezioneAltro.SALUTE -> Linguette(listOf("Salute", "Consumi")) { i ->
+                SezioneAltro.SALUTE -> Linguette(menu.voce("salute")?.sotto?.map { it.nome }.orEmpty()) { i ->
                     if (i == 0) Column(Modifier.verticalScroll(rememberScrollState())) { SezioneSalute(api) } else SezioneConsumi(api)
                 }
                 SezioneAltro.CHAT -> TutteLeChat(api, chat, onApriChat)
@@ -109,10 +111,11 @@ private fun Linguette(nomi: List<String>, contenuto: @Composable (Int) -> Unit) 
 
 @Composable
 fun ElencoAltro(onApri: (SezioneAltro) -> Unit) {
+    val menu = MenuApp.carica(androidx.compose.ui.platform.LocalContext.current)
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 8.dp)) {
         items(SezioneAltro.entries, key = { it.name }) { s ->
             Column(Modifier.fillMaxWidth().tocco { onApri(s) }.heightIn(min = 64.dp).padding(horizontal = 16.dp, vertical = 12.dp)) {
-                Text(s.titolo, style = MaterialTheme.typography.titleMedium, color = Banco.testo)
+                Text(s.titolo(menu), style = MaterialTheme.typography.titleMedium, color = Banco.testo)
                 Text(s.sotto, style = MaterialTheme.typography.bodyMedium, color = Banco.testoQuieto)
             }
             HorizontalDivider(color = Banco.incisione)
