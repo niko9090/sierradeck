@@ -47,7 +47,7 @@ export type ReteAiutante = {
   remoto: ClientPcRemoto
   registroProgetti: RegistroProgettiStore
   server: () => Server | undefined
-  stato: () => { driveConnesso: boolean; driveConfigurato: boolean; email?: string; cassaforteAperta: boolean; inAscolto: boolean; errorePorta?: string; porta: number; altri: BattitoPc[] }
+  stato: () => { driveConnesso: boolean; driveConfigurato: boolean; email?: string; cassaforteAperta: boolean; inAscolto: boolean; errorePorta?: string; porta: number; altri: BattitoPc[]; portachiaviNonPronto?: boolean; driveFileScollegato?: boolean }
   /** Riavvia il collegamento fra i PC su un'altra porta (cambiata nelle impostazioni). */
   riascolta: (porta: number) => void
   ferma: () => void
@@ -228,6 +228,8 @@ export function colleghiRete(d: {
       return {
         driveConnesso: st.connesso,
         driveConfigurato: st.configurato,
+        ...(st.portachiaviNonPronto === true ? { portachiaviNonPronto: true } : {}),
+        ...(!st.connesso && contoDrive.scollegamento() !== undefined ? { driveFileScollegato: true } : {}),
         ...(st.email !== undefined ? { email: st.email } : {}),
         cassaforteAperta: sincronia.chiaveDiCasa('prova') !== undefined,
         inAscolto: statoClient.inAscolto,
