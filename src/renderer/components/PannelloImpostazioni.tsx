@@ -17,6 +17,7 @@ import { SezionePassaggiDiMano } from './SezionePassaggiDiMano'
 import { SezioneNotifiche } from './SezioneNotifiche'
 import { SezioneLimiti } from './SezioneLimiti'
 import { Aiuto } from './Aiuto'
+import { SezioneCredenzialiRete } from './SezioneCredenzialiRete'
 import { RigaAccessoClaude } from './AccessoClaude'
 import { NomeQuestoPc } from './PannelloAccount'
 import { cercaImpostazioni, SEZIONI, sezioneInVista, type IdSezione } from '@shared/impostazioni-struttura'
@@ -443,6 +444,7 @@ Le porte cambiate valgono al prossimo avvio: un servizio in ascolto non
           </section>
         ) : null}
         {vede('accoppiamento') ? <SezioneClient /> : null}
+        {vede('credenziali-rete') ? <section className="impostazioni__gruppo"><SezioneCredenzialiRete /></section> : null}
 
         {vede('pin', 'iberna', 'posti-chat', 'attesa-chat', 'fiducia-cartelle', 'posto-autopilota') || vedeAccesso ? (
           <section className="impostazioni__gruppo">

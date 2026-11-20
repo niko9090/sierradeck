@@ -562,6 +562,12 @@ contextBridge.exposeInMainWorld('gestore', {
     stato: (): Promise<import('@shared/sposta').VistaSposta | undefined> => ipcRenderer.invoke('sposta:stato'),
     chiudi: (): Promise<boolean> => ipcRenderer.invoke('sposta:chiudi')
   },
+  /** Le credenziali di rete (k-166n8): si elencano i nomi, si aggiunge, si toglie. Il valore non torna mai. */
+  credenziali: {
+    elenca: (): Promise<{ aperta: boolean; voci: import('@shared/aiuto-credenziali').VoceCredenziale[] }> => ipcRenderer.invoke('credenziali:elenca'),
+    aggiungi: (c: { nome: string; tipo: string; valore: string; serveA: string[] }): Promise<{ ok: boolean; messaggio?: string }> => ipcRenderer.invoke('credenziali:aggiungi', c),
+    togli: (nome: string): Promise<boolean> => ipcRenderer.invoke('credenziali:togli', nome)
+  },
   /** La sincronizzazione cifrata: passphrase (cassaforte E2E) + salva/ripristina. */
   sync: {
     stato: (): Promise<{

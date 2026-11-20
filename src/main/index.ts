@@ -3918,6 +3918,12 @@ if (!app.requestSingleInstanceLock()) {
         if (percorso !== undefined) identitaPc.impostaCartellaProgetti(percorso)
         return elencoProgetti()
       })
+      // k-166n8: la schermata «Credenziali di rete». Solo nomi in uscita; il valore entra e non torna mai.
+      ipcMain.handle('credenziali:elenca', async () => ({ aperta: depositoCredenziali.aperto(), voci: await depositoCredenziali.elenco() }))
+      ipcMain.handle('credenziali:aggiungi', async (_e, c: unknown) => {
+        try { return await depositoCredenziali.aggiungi(c) } catch { return { ok: false, messaggio: 'non sono riuscito a salvarla' } }
+      })
+      ipcMain.handle('credenziali:togli', async (_e, nome: unknown) => typeof nome === 'string' ? depositoCredenziali.togli(nome) : false)
       ipcMain.handle('sync:stato', () => sincronia.stato())
       ipcMain.handle('sync:info', () => sincronia.info())
       ipcMain.handle('sync:creaPassphrase', (_e, pw: unknown) =>
