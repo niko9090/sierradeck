@@ -3015,9 +3015,13 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
         archivioAiuti.scrivi(affidati().map((v) => (v.id === id ? { ...resto, pcId: p.riassegna!.pcId, pcNome: p.riassegna!.pcNome, stato: 'da-spedire' as const, attivita: `passato a ${p.riassegna!.pcNome}: ${l.pcNome} non poteva agire`.slice(0, 200), provati, riassegnazioni: (l.riassegnazioni ?? 0) + 1 } : v)))
         console.warn(`[aiuto] ${l.workspace} — ${l.compito ?? l.id}: da ${l.pcNome} a ${p.riassegna.pcNome} (${(l.riassegnazioni ?? 0) + 1}° passaggio)`)
         cambiSpecialisti.segna()
+        // 20/11: all'autopilota una frase chiara (il lavoro era fermo, ora è su un altro PC); resta una sola copia viva.
+        if (p.motivo !== undefined && p.motivo.trim() !== '') {
+          evento(l.workspace, { tipo: 'fermo', quando: x.adesso(), chat: l.id, testo: `${p.motivo.trim().slice(0, 400)}. È lo stesso lavoro, una sola copia viva: non rilanciarlo, e se il PC di prima manda qualcosa dopo, lo ignoro.` })
+        }
         return true
       }
-      const chiuso = p.stato === 'finito' || p.stato === 'fallito'
+      const chiuso =p.stato === 'finito' || p.stato === 'fallito'
       const fallito = p.stato === 'fallito'
       // 13/11: il perché resta nel lavoro (e quindi nel file, anche dopo un riavvio): ne seguono le pause.
       // Un Aiutante di prima (1.0.1) manda solo «lo specialista ha chiuso con un errore», ma il testo del
