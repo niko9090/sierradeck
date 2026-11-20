@@ -743,6 +743,8 @@
 - Gli errori hanno due fonti: Salute legge il registro, Impostazioni → Errori legge lo storico (storico-errori-file). Possono non coincidere. _(2026-11-20)_
 - Ogni voce di errore in Salute dovrebbe avere l'azione «Apri gli errori», altrimenti la correzione resta sepolta due livelli sotto. _(2026-11-20)_
 - i dati di menu-principale.ts e impostazioni-struttura.ts sono copiati in android/assets (menu.json, impostazioni.json) e confrontati da test: rinominare le voci là richiede AGGIORNA=1 e tocca android… _(2026-11-20)_
+- Per rigenerare i JSON dell'app: `AGGIORNA=1` con vitest su menu-principale.test.ts e impostazioni-struttura.test.ts; non c'è altro script di copia. _(2026-11-20)_
+- «Limiti» è una sezione solo PC: se le sottovoci di Impostazioni vanno sul telefono, filtrare con sezioniDi('app'). _(2026-11-20)_
 
 ## panoramica
 
