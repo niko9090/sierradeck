@@ -89,7 +89,6 @@ import it.ferrariconsulenze.sierradeck.rete.Collegamenti
 import it.ferrariconsulenze.sierradeck.rete.EventoLinea
 import it.ferrariconsulenze.sierradeck.rete.Linea
 import it.ferrariconsulenze.sierradeck.rete.PcPonte
-import it.ferrariconsulenze.sierradeck.rete.SuPc
 import it.ferrariconsulenze.sierradeck.schermate.comune.Aiuto
 import it.ferrariconsulenze.sierradeck.schermate.comune.Serigrafia
 import it.ferrariconsulenze.sierradeck.schermate.comune.Tessera

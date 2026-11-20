@@ -88,9 +88,4 @@ object Ponte {
 
 /** Il PC che si sta guardando attraverso il ponte. */
 data class PcPonte(val pcId: String, val nome: String)
-
-object SuPc {
-    /** `null` = le chat del PC accoppiato, come sempre. */
-    var corrente by mutableStateOf<PcPonte?>(null)
-}
 

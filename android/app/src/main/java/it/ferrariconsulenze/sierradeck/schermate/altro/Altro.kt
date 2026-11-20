@@ -81,8 +81,9 @@ fun SchermataAltro(
             when (aperta) {
                 SezioneAltro.AGGIORNAMENTI -> Column(Modifier.verticalScroll(rememberScrollState())) { SezioneAggiornamenti(api) }
                 SezioneAltro.AVVISI -> Column(Modifier.verticalScroll(rememberScrollState())) { SchermataNotifiche() }
-                SezioneAltro.SALUTE -> Linguette(listOf("Salute", "Computer", "Consumi")) { i ->
-                    when (i) { 0 -> SezioneSalute(api); 1 -> AltriComputer(api); else -> SezioneConsumi(api) }
+                SezioneAltro.COMPUTER -> Column(Modifier.verticalScroll(rememberScrollState())) { AltriComputer(api) }
+                SezioneAltro.SALUTE -> Linguette(listOf("Salute", "Consumi")) { i ->
+                    if (i == 0) Column(Modifier.verticalScroll(rememberScrollState())) { SezioneSalute(api) } else SezioneConsumi(api)
                 }
                 SezioneAltro.CHAT -> TutteLeChat(api, chat, onApriChat)
                 SezioneAltro.DRIVE -> Linguette(listOf("Drive", "Quaderno personale")) { i ->

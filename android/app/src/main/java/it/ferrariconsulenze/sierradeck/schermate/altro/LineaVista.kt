@@ -120,34 +120,6 @@ fun IndicatoreLinea(linea: StatoLinea, nomePc: String, spiega: String? = null) {
     }
 }
 
-/** La fascia di riconnessione (non blocca niente) e l'annuncio del cambio di strada. */
-@Composable
-fun FasciaLinea(linea: StatoLinea, nomePc: String, onRiprova: () -> Unit) {
-    val adesso = adessoVivo(linea.fase == "ricollego" || linea.cambio != null)
-    val cambio = Linea.cambioVisibile(linea, adesso)
-    AnimatedVisibility(visible = cambio != null, enter = slideInVertically() + fadeIn(), exit = fadeOut()) {
-        Text(
-            "⇄ ${cambio ?: ""}", color = VIOLA_ALTRO_PC, fontWeight = FontWeight.Bold, fontSize = 13.sp,
-            modifier = Modifier.fillMaxWidth().background(VIOLA_ALTRO_PC.copy(alpha = 0.14f)).padding(horizontal = 12.dp, vertical = 6.dp)
-        )
-    }
-    val giu = Linea.testoRiconnessione(linea, nomePc, adesso) ?: return
-    Row(
-        Modifier.fillMaxWidth().background(Banco.rosso.copy(alpha = 0.14f)).padding(horizontal = 12.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(giu, color = Banco.rosso, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-            Text(
-                (linea.messaggio?.let { "${it.trimEnd('.')}. " } ?: "") + "Lo schermo resta, attenuato: al ritorno si aggiorna da solo. Quello che scrivi intanto resta in coda e parte al ritorno, una volta sola.",
-                color = Banco.testo, fontSize = 12.sp, maxLines = 4
-            )
-        }
-        Spacer(Modifier.width(8.dp))
-        OutlinedButton(onClick = onRiprova) { Text("Riprova adesso", fontSize = 12.sp) }
-    }
-}
-
 /** I messaggi in coda: in attesa di invio, o in volo. */
 @Composable
 fun CodaLinea(coda: List<VoceCodaLinea>, onTogli: (String) -> Unit) {

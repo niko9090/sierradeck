@@ -71,15 +71,17 @@ data class VoceSalute(
 )
 
 /** I gruppi della Salute (PC 0.70), come sul PC e nella pagina. */
-val GRUPPI_SALUTE_VISTA = listOf("sistemare" to "Da sistemare", "computer" to "Computer", "drive" to "Drive", "errori" to "Errori", "tutto" to "Tutto")
+val GRUPPI_SALUTE_VISTA = listOf("sistemare" to "Da sistemare", "drive" to "Drive", "errori" to "Errori", "tutto" to "Tutto")
 
 object SaluteVista {
+    /** I PC hanno la loro voce, «Computer»: in Salute non si ripetono. */
+    fun senzaPc(voci: List<VoceSalute>): List<VoceSalute> = voci.filter { it.gruppo != "pc" }
     fun gruppi(v: VoceSalute): List<String> = listOfNotNull(
-        "sistemare".takeIf { v.tono != "ok" }, "computer".takeIf { v.gruppo == "pc" }, "drive".takeIf { v.gruppo == "drive" },
+        "sistemare".takeIf { v.tono != "ok" }, "drive".takeIf { v.gruppo == "drive" },
         "errori".takeIf { v.gruppo == "errori" || v.gruppo == "consegne" || v.gruppo == "aggiornamento" }
     )
     fun conti(voci: List<VoceSalute>): Map<String, Int> = GRUPPI_SALUTE_VISTA.associate { (g, _) -> g to if (g == "tutto") voci.size else voci.count { g in gruppi(it) } }
-    fun iniziale(voci: List<VoceSalute>): String = if (voci.any { it.tono != "ok" }) "sistemare" else "computer"
+    fun iniziale(voci: List<VoceSalute>): String = if (voci.any { it.tono != "ok" }) "sistemare" else "drive"
     /** La parola: dal PC 0.70, o dal tono con un PC di prima. */
     fun parola(v: VoceSalute): Pair<String, String> = v.stato?.let { it.parola to it.colore }
         ?: when (v.tono) { "ok" -> "a posto" to "verde"; "attenzione" -> "da guardare" to "ambra"; else -> "da sistemare" to "rosso" }
@@ -89,8 +91,6 @@ object SaluteVista {
 data class Salute(val scritto: String = "", val tono: String = "ok", val riassunto: String = "", val voci: List<VoceSalute> = emptyList(), val mappa: MappaPc? = null)
 
 /** I gruppi, in ordine, con il nome da mostrare. */
-val GRUPPI_SALUTE = listOf("drive" to "Drive", "pc" to "Gli altri PC", "aggiornamento" to "Aggiornamento", "errori" to "Errori delle ultime ore", "consegne" to "Istruzioni non partite")
-
 /**
  * Cosa sa fare il telefono per un'azione. «Installa» no: chiude il computer
  * con le chat aperte, e dal telefono si fa nella sezione Aggiornamenti qui
@@ -113,7 +113,6 @@ fun SezioneSalute(api: Api) {
     var salute by remember { mutableStateOf<Salute?>(null) }
     var guasto by remember { mutableStateOf<String?>(null) }
     var gruppoScelto by remember { mutableStateOf<String?>(null) }
-    var mappa by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val contesto = LocalContext.current
     val spenta = FunzioniPc.disponibile(FunzionePc.SALUTE, PcCorrente.versione) == false
@@ -121,7 +120,7 @@ fun SezioneSalute(api: Api) {
         try { salute = api.salute(); guasto = null } catch (e: Exception) { guasto = FunzioniPc.spiega(e, FunzionePc.SALUTE) }
     }
     LaunchedEffect(spenta) { if (!spenta) leggi() }
-    RigaConAiuto("Com’è messo il computer.", "Com'è messo il computer: il Drive, gli altri PC (ultimo segno, strada, versione), un aggiornamento non riuscito, gli errori delle ultime ore, le istruzioni degli autopiloti non partite. Ogni voce dice cosa vuol dire e cosa fare.")
+    RigaConAiuto("Com’è messo il computer.", "Com'è messo il sistema: il Drive (i computer hanno la loro voce, Computer), un aggiornamento non riuscito, gli errori delle ultime ore, le istruzioni degli autopiloti non partite. Ogni voce dice cosa vuol dire e cosa fare.")
     if (spenta) { Text(FunzioniPc.testoMancante(FunzionePc.SALUTE), color = Banco.ambra, fontSize = 13.sp); return }
     guasto?.let { Text(it, color = Banco.ambra, fontSize = 12.sp) }
     val s = salute
@@ -129,15 +128,16 @@ fun SezioneSalute(api: Api) {
     if (s != null) {
         Text(s.riassunto, color = coloreTonoSalute(s.tono), fontWeight = FontWeight.Bold, fontSize = 13.sp)
         // PC 0.70: i gruppi come sul PC, una riga per voce con la sua parola; il perché dietro il «?».
-        val conti = SaluteVista.conti(s.voci)
-        val g = gruppoScelto ?: SaluteVista.iniziale(s.voci)
+        val tutte = SaluteVista.senzaPc(s.voci)
+        val conti = SaluteVista.conti(tutte)
+        val g = gruppoScelto ?: SaluteVista.iniziale(tutte)
         androidx.compose.foundation.layout.FlowRow(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
             for ((id, nome) in GRUPPI_SALUTE_VISTA) {
                 androidx.compose.material3.FilterChip(selected = g == id, onClick = { gruppoScelto = id },
                     label = { Text("$nome ${conti[id] ?: 0}", color = if (id == "sistemare" && (conti[id] ?: 0) > 0) Banco.ambra else Banco.testo) })
             }
         }
-        val voci = s.voci.filter { g == "tutto" || g in SaluteVista.gruppi(it) }
+        val voci = tutte.filter { g == "tutto" || g in SaluteVista.gruppi(it) }
         if (voci.isEmpty()) Text(if (g == "sistemare") "Tutto a posto" else "Niente in questo gruppo.", color = if (g == "sistemare") Banco.verde else Banco.testoQuieto, fontSize = 13.sp)
         run {
             for (v in voci) {
@@ -163,11 +163,6 @@ fun SezioneSalute(api: Api) {
                     }
                 }
             }
-        }
-        // La mappa dei PC (PC 0.51.0): in fondo, a richiesta (PC 0.70).
-        s.mappa?.takeIf { it.nodi.size > 1 }?.let { m ->
-            androidx.compose.material3.TextButton(onClick = { mappa = !mappa }) { Text(if (mappa) "Nascondi la mappa" else "Mappa dei PC") }
-            if (mappa) MappaPcVista(m)
         }
         Spacer(Modifier.height(6.dp))
         OutlinedButton(onClick = { scope.launch { leggi() } }) { Text("Aggiorna") }

@@ -81,7 +81,6 @@ import kotlinx.serialization.json.jsonPrimitive
 import it.ferrariconsulenze.sierradeck.nucleo.ApriChatAltrove
 import it.ferrariconsulenze.sierradeck.nucleo.CartellaRichiesta
 import it.ferrariconsulenze.sierradeck.rete.PcPonte
-import it.ferrariconsulenze.sierradeck.rete.SuPc
 
 /**
  * Le destinazioni di prima (app 2.61.0, le sette voci del PC): restano come
@@ -117,7 +116,6 @@ object Apertura {
     var sessioneRichiesta by mutableStateOf<String?>(null)
     /** «Apri la chat su <PC>» (PC 0.84.1): le chat di quel PC dal ponte, dentro quella conversazione. */
     fun apriChatSu(a: ApriChatAltrove) {
-        SuPc.corrente = PcPonte(a.pcId, a.pc)
         sessioneRichiesta = a.sessione.takeIf { it.isNotBlank() }
         schedaRichiesta = Scheda.CHAT
     }

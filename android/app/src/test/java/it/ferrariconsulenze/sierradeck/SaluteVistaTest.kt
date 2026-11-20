@@ -17,8 +17,11 @@ class SaluteVistaTest {
 
     @Test
     fun `gruppi, conti e parola`() {
-        assertEquals(mapOf("sistemare" to 2, "computer" to 1, "drive" to 1, "errori" to 1, "tutto" to 3), SaluteVista.conti(voci))
-        assertEquals("sistemare", SaluteVista.iniziale(voci))
+        // I PC non stanno in Salute: hanno la voce Computer.
+        val senza = SaluteVista.senzaPc(voci)
+        assertEquals(2, senza.size)
+        assertEquals(mapOf("sistemare" to 2, "drive" to 1, "errori" to 1, "tutto" to 2), SaluteVista.conti(senza))
+        assertEquals("sistemare", SaluteVista.iniziale(senza))
         assertEquals("scollegato" to "rosso", SaluteVista.parola(voci[0]))
         // Un PC di prima: la parola dal tono.
         assertEquals("a posto" to "verde", SaluteVista.parola(voci[1]))
