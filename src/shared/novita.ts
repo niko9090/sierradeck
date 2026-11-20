@@ -41,6 +41,16 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.112.0',
+    righe: [
+      '**Menu unico:** stessi nomi, stesso ordine e stesse sottovoci sul PC, sulla pagina del telefono e nell’app Android 3.4.0. Sul PC c’è la nuova voce «Correzioni» con Errori arrivati, Lavoro in corso e Correzioni fatte.',
+      '**Workspace uguali su tutti i PC:** lo stesso nome conta come uno solo anche con maiuscole o spazi diversi, l’ordine è condiviso, e un workspace eliminato non ricompare più.',
+      '**Lavori affidati al PC giusto:** prima di dare un lavoro a un PC la rete valuta cosa sa fare. Se un lavoro resta fermo su un PC lento, passa a un altro PC capace.',
+      '**Credenziali di rete:** in Impostazioni > Computer puoi aggiungerle, vedere l’elenco dei soli nomi e toglierle. Le chiavi vengono date solo ai lavori affidati, su richiesta, anche all’Aiutante (1.3.0).',
+      '**Azioni fra PC:** l’autopilota può chiedere azioni a un altro PC.',
+    ],
+  },
+  {
     versione: '0.111.3',
     righe: [
       '**Panoramica più solida:** non si blocca più quando un autopilota arriva con dati incompleti (errore arrivato dal Portatile Asus).',

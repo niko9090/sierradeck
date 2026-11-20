@@ -3,6 +3,12 @@ per le note della pubblicazione e della notifica sul telefono).
 La più recente in cima. Ogni riga fra apici, come in src/shared/novita.ts.
 
   {
+    versione: '3.4.0',
+    righe: [
+      'Il menu ha gli stessi nomi, lo stesso ordine e le stesse sottovoci del PC e della pagina del telefono.',
+    ],
+  },
+  {
     versione: '3.3.0',
     righe: [
       'In «Altro» Computer e Salute sono due voci separate: niente più elenchi ripetuti.',
