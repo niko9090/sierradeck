@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.111.3',
+    righe: [
+      '**Panoramica più solida:** non si blocca più quando un autopilota arriva con dati incompleti (errore arrivato dal Portatile Asus).',
+    ],
+  },
+  {
     versione: '0.111.2',
     righe: [
       '**Controllo dei PC più giusto:** un PC acceso con il solo Aiutante non viene più segnalato come «non risponde». Prima a volte leggeva una lista vecchia dei battiti, per esempio subito dopo l’avvio o con il Drive lento, e il PC sembrava fermo da giorni.',

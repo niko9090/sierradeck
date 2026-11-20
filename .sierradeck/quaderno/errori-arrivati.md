@@ -309,3 +309,8 @@ A mano: se su quel PC Claude non è collegato, «Collega Claude» dalla finestra
 
 ## Gruppo 1: «[aiuto] lavoro r1d069f21bebc (sviluppatore) per DESKTOP-G24D499 non riuscito: ha superato le 3 ore» (NB-PROBOOK-TEC, Aiutante 1.2.1)
 Difetto vero, corretto nella versione 0.109.2 (con l'Aiutante 1.2.2). Causa: la scadenza delle 3 ore era a orologio da muro, quindi il sonno notturno del portatile contava e al risveglio il lavoro veniva ucciso. In più la colpa andava sempre al «compito», così il lavoro non passava a un altro PC. I commit già fatti non si perdevano. Ora la scadenza conta solo il tempo a PC sveglio; dopo un sonno o col silenzio la colpa è del PC e il lavoro può passare a un altro (src/shared/aiuto-scadenza.ts, src/autopilot-host/aiuto-lavoratore.ts, test tests/autopilot-host/aiuto-scadenza.test.ts). Il lavoro r1d069f21bebc va riproposto.
+
+# Errori arrivati (lotto 20261120123843)
+
+## Gruppo 1: «[renderer] errore di render — Cannot read properties of undefined (reading 'replace') in chiaveWorkspace» (Portatile Asus)
+Difetto vero, corretto nella versione 0.111.3. Causa: un autopilota arrivato senza cartella di lavoro (cwd) faceva cadere chiaveWorkspace, e con lei la Panoramica. Correzione k-165a (commit 9a27373f: chiaveWorkspace regge l'assenza di cwd; src/shared/coda-richieste.ts e i tre componenti dell'autopilota). Test: tests/shared/chiave-workspace-senza-cwd.test.ts.
