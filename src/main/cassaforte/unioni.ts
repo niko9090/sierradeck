@@ -3,7 +3,7 @@ import { riparaArchivio } from '@shared/workspace-riparazioni'
 import type { Archivio as ArchivioDrive } from './archivio'
 import { decifra } from './cifratura'
 import type { Manifesto } from './incrementale'
-import { aggiungiPaneA, unaChatUnWorkspace, type Archivio as ArchivioWorkspace, type LayoutSalvato } from '@shared/workspace'
+import { aggiungiPaneA, chiaveNomeWorkspace, unaChatUnWorkspace, type Archivio as ArchivioWorkspace, type LayoutSalvato } from '@shared/workspace'
 
 /**
  * Le unioni che salgono sul Drive al posto del file di un PC (0.25.2, 0.86.2):
@@ -68,24 +68,42 @@ function fondiArchiviGrezzo(
     // tutte e due le parti: quelli che ha solo questo PC restano (0.65.1). La
     // lista di un PC non si sostituisce mai con quella di un altro.
     if (pc === undefined || drive === undefined) return senzaLapidi(drive ?? pc)
-    const soloQui = pc.workspace.filter((w) => !drive.workspace.some((x) => x.nome === w.nome))
+    const soloQui = pc.workspace.filter((w) => !drive.workspace.some((x) => chiaveNomeWorkspace(x.nome) === chiaveNomeWorkspace(w.nome)))
     const d = senzaLapidi(drive) as ArchivioWorkspace
     return { ...d, workspace: [...d.workspace, ...soloQui] }
   }
   if (pc === undefined) return perDrive ? drive : senzaLapidi(drive)
   if (drive === undefined) return perDrive ? pc : senzaLapidi(pc)
   const fuori = new Set(escludi)
-  const nomi = [...pc.workspace.map((w) => w.nome), ...drive.workspace.filter((w) => !pc.workspace.some((x) => x.nome === w.nome)).map((w) => w.nome)]
-  const workspace = nomi.flatMap((nome) => {
+  // Lo stesso workspace e' lo stesso nome senza spazi e maiuscole di troppo:
+  // «Lavoro» e «lavoro » non diventano due voci.
+  const k = chiaveNomeWorkspace
+  const chiaviPc = pc.workspace.map((w) => k(w.nome))
+  const chiavi = [...new Set([...chiaviPc, ...drive.workspace.map((w) => k(w.nome))])]
+  // Quale ordine vale: quello deciso piu' di recente (a parita', il Drive, che e'
+  // uguale per tutti); se nessuno ha mai riordinato, PC e poi coda del Drive.
+  const oP = pc.ordine
+  const oD = drive.ordine
+  const ordine = oP !== undefined && (oD === undefined || oP.quando > oD.quando) ? oP : oD
+  const posizione = (chiave: string): number => {
+    const i = ordine?.nomi.findIndex((n) => k(n) === chiave) ?? -1
+    return i < 0 ? Number.MAX_SAFE_INTEGER : i
+  }
+  const ordinate = ordine === undefined ? chiavi : chiavi.map((c, i) => ({ c, i })).sort((a, b) => posizione(a.c) - posizione(b.c) || a.i - b.i).map((x) => x.c)
+  const lapideNormalizzate = new Set(Object.keys(tolti).map(k))
+  const fuoriNormalizzati = new Set([...fuori].map(k))
+  const workspace = ordinate.flatMap((chiave) => {
     // Sul Drive un workspace con la lapide non sale, nemmeno da un PC che ce
     // l'ha ancora: e' cio' che rende «Togli dal Drive» definitivo finche'
     // qualcuno non lo rimette.
-    if (perDrive && conLapide(nome)) return []
-    const wp = pc.workspace.find((w) => w.nome === nome)
-    const wd = drive.workspace.find((w) => w.nome === nome)
-    if (fuori.has(nome)) return wp !== undefined ? [wp] : []
+    if (perDrive && (lapideNormalizzate.has(chiave) || conLapide(chiave))) return []
+    const wp = pc.workspace.find((w) => k(w.nome) === chiave)
+    const wd = drive.workspace.find((w) => k(w.nome) === chiave)
+    if (fuoriNormalizzati.has(chiave)) return wp !== undefined ? [wp] : []
     if (wp === undefined) return wd !== undefined ? [wd] : []
     if (wd === undefined) return [wp]
+    // Il nome resta quello gia' sul Drive: e' lo stesso su tutti i PC.
+    const nome = wd.nome
     const perSlot: Record<string, LayoutSalvato> = { ...wp.perSlot }
     for (const [slot, l] of Object.entries(wd.perSlot)) {
       let unito: LayoutSalvato = perSlot[slot] ?? { root: undefined, panes: [] }
@@ -95,10 +113,12 @@ function fondiArchiviGrezzo(
     return [{ nome, perSlot }]
   })
   const { tolti: _lapidiPc, ...pcSenza } = pc
+  const attivoPc = workspace.find((w) => k(w.nome) === k(pc.attivo))?.nome ?? pc.attivo
   return {
     ...pcSenza,
-    attivo: pc.attivo !== '' ? pc.attivo : drive.attivo,
-    workspace: unaChatUnWorkspace(workspace, pc.attivo),
+    attivo: pc.attivo !== '' ? attivoPc : drive.attivo,
+    workspace: unaChatUnWorkspace(workspace, attivoPc),
+    ...(ordine !== undefined ? { ordine } : {}),
     ...(perDrive && Object.keys(tolti).length > 0 ? { tolti } : {})
   }
 }

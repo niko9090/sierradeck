@@ -115,6 +115,29 @@ export type Archivio = {
    * rimette. Una lapide toglie dal Drive, mai da un PC.
    */
   tolti?: Record<string, { quando: string; pcId: string }>
+  /**
+   * L'ordine scelto dall'utente, che **viaggia** fra i PC: i nomi nell'ordine
+   * voluto e quando e' stato deciso. L'unione tiene quello piu' recente, cosi'
+   * un riordino su un PC arriva agli altri. Assente: nessuno ha mai riordinato,
+   * vale l'ordine dell'array.
+   */
+  ordine?: { nomi: string[]; quando: string }
+}
+
+/** La chiave con cui due nomi sono lo stesso workspace: senza spazi ai lati o doppi, senza maiuscole. */
+export function chiaveNomeWorkspace(nome: string): string {
+  return nome.trim().replace(/\s+/g, ' ').toLowerCase()
+}
+
+/** L'archivio con i workspace nell'ordine dato (i nomi che mancano in coda) e l'ordine registrato. */
+export function riordinaWorkspaceArchivio(a: Archivio, nomi: string[], quando: string): Archivio {
+  const chiavi = nomi.map(chiaveNomeWorkspace)
+  const pos = (w: WorkspaceSalvato): number => {
+    const i = chiavi.indexOf(chiaveNomeWorkspace(w.nome))
+    return i < 0 ? chiavi.length : i
+  }
+  const workspace = a.workspace.map((w, i) => ({ w, i })).sort((x, y) => pos(x.w) - pos(y.w) || x.i - y.i).map((x) => x.w)
+  return { ...a, workspace, ordine: { nomi: workspace.map((w) => w.nome), quando } }
 }
 
 /**
@@ -688,13 +711,23 @@ export function parseArchivio(raw: unknown): { archivio: Archivio; scartati: str
     }
   }
 
+  let ordine: { nomi: string[]; quando: string } | undefined
+  if (typeof o.ordine === 'object' && o.ordine !== null && !Array.isArray(o.ordine)) {
+    const oo = o.ordine as Record<string, unknown>
+    const quando = stringaNonVuota(oo.quando)
+    if (quando !== undefined && Array.isArray(oo.nomi)) {
+      ordine = { nomi: oo.nomi.filter((n): n is string => typeof n === 'string' && n.trim() !== ''), quando }
+    }
+  }
+
   return {
     archivio: {
       versione: VERSIONE_ARCHIVIO,
       attivo,
       workspace: raggiungibili,
       ...(finestre !== undefined ? { finestre } : {}),
-      ...(tolti !== undefined ? { tolti } : {})
+      ...(tolti !== undefined ? { tolti } : {}),
+      ...(ordine !== undefined ? { ordine } : {})
     },
     scartati
   }
