@@ -41,7 +41,12 @@ export type ProgrammaAiuto = 'aiutante'
 export type PostiAiuto = { modo: ModoAiuto; liberi: number; tetto: number; programma?: ProgrammaAiuto; capacita?: CapacitaPc }
 
 /** Un PC che può aiutare, come lo vede chi chiede. */
-export type Aiutante = { pcId: string; nome: string; modo: ModoAiuto; liberi: number; programma?: ProgrammaAiuto }
+export type Aiutante = {
+  pcId: string; nome: string; modo: ModoAiuto; liberi: number; programma?: ProgrammaAiuto
+  /** k-166n9: il battito (ISO) e le capacità di quel PC, per valutare un compito con requisiti prima di affidarlo. Mancano nei PC di prima. */
+  battito?: string
+  capacita?: CapacitaPc
+}
 
 /** 12/11: `programma` da fuori (battito, risposta, corpo): solo il valore conosciuto, il resto non c'è. */
 export function programmaAiuto(x: unknown): ProgrammaAiuto | undefined {

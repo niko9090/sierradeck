@@ -3,6 +3,7 @@ import {
   type Coda, type CompitoMisurato, type EventoCoda, type MisuraCompito, type Modifica, type Richiesta, type StatoCoda, type StatoCompito
 } from './coda-richieste'
 import { criterioSempreVerde, esaminaCriterio, titoloDiSolaAnalisi } from './controllo-comandi'
+import { requisitiValidi, type RequisitiCompito } from './capacita-pc'
 
 /**
  * **Il piano dell'orchestratore unico** (P3, 30/10/2026): i compiti in cui
@@ -30,6 +31,8 @@ export type CompitoPiano = {
   /** I compiti che devono essere uniti prima. */
   dopo: string[]
   peso: 1 | 2 | 3
+  /** k-166n9: cosa serve al compito (programmi, telefono, rete, Aiutante). Assente: va bene qualunque PC. */
+  requisiti?: RequisitiCompito
   stato: StatoCompito
   /** Lo specialista che ci lavora (o ci ha lavorato). */
   chat?: string
@@ -139,7 +142,7 @@ const ID_COMPITO = /^[\p{L}\p{N}][\p{L}\p{N}._-]{0,39}$/u
 
 const STATI_COMPITO: StatoCompito[] = ['da-fare', 'in-corso', 'in-revisione', 'unito']
 
-export type CompitoProposto = { id: string; richiesta: string; titolo: string; criterio: string; dopo: string[]; peso: 1 | 2 | 3 }
+export type CompitoProposto = { id: string; richiesta: string; titolo: string; criterio: string; dopo: string[]; peso: 1 | 2 | 3; requisiti?: RequisitiCompito }
 
 /** I compiti come li manda il modello: ognuno letto e controllato, o il primo errore. */
 export function leggiCompitiProposti(raw: unknown): { ok: true; compiti: CompitoProposto[] } | { ok: false; errore: string } {
@@ -160,7 +163,8 @@ export function leggiCompitiProposti(raw: unknown): { ok: true; compiti: Compito
     const peso = o.peso === undefined ? 1 : o.peso
     if (peso !== 1 && peso !== 2 && peso !== 3) return { ok: false, errore: `${chi}: il peso va da 1 a 3` }
     if (fuori.some((c) => c.id === o.id)) return { ok: false, errore: `${chi} compare due volte` }
-    fuori.push({ id: o.id, richiesta: o.richiesta.trim(), titolo: titolo.slice(0, 160), criterio: criterio.slice(0, 600), dopo: [...new Set(dopo as string[])], peso })
+    const requisiti = requisitiValidi(o.requisiti)
+    fuori.push({ id: o.id, richiesta: o.richiesta.trim(), titolo: titolo.slice(0, 160), criterio: criterio.slice(0, 600), dopo: [...new Set(dopo as string[])], peso, ...(requisiti !== undefined ? { requisiti } : {}) })
   }
   return { ok: true, compiti: fuori }
 }
@@ -242,6 +246,9 @@ export function scriviPiano(piano: Piano, coda: Coda, raw: unknown, adesso: stri
     }
     const prima = compiti[i]!
     const dopo: CompitoPiano = { ...prima, richiesta: c.richiesta, titolo: c.titolo, criterio: c.criterio, dopo: c.dopo, peso: c.peso }
+    // Riscrivere il compito senza `requisiti` li toglie: il piano dice sempre tutto quello che serve.
+    if (c.requisiti !== undefined) dopo.requisiti = c.requisiti
+    else delete dopo.requisiti
     // Un criterio cambiato non è più verde: va rimisurato.
     if (dopo.criterio !== prima.criterio) delete dopo.criterioVerde
     // 11/11: un compito chiuso senza unirlo torna vivo solo se il piano lo riscrive davvero (richiesta, titolo o criterio nuovi).
@@ -593,6 +600,7 @@ function leggiCompitoPiano(x: unknown): CompitoPiano | undefined {
     criterio: o.criterio,
     dopo: Array.isArray(o.dopo) ? o.dopo.filter((d): d is string => typeof d === 'string') : [],
     peso,
+    ...(requisitiValidi(o.requisiti) !== undefined ? { requisiti: requisitiValidi(o.requisiti)! } : {}),
     stato: STATI_COMPITO.includes(o.stato as StatoCompito) ? (o.stato as StatoCompito) : 'da-fare',
     creato: typeof o.creato === 'string' ? o.creato : '',
     ...(typeof o.chat === 'string' && o.chat !== '' ? { chat: o.chat } : {}),

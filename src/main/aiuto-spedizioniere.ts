@@ -9,6 +9,7 @@ import { causaDelMotivo, causaRiassegnabile, fraseCausa, type CausaFallimento } 
 import { decidiRiassegna, eventoAffidato, eventoArreso, eventoRifiutato, eventoRiassegnato, eventoRisorsaMancante } from '@shared/aiuto-riassegna'
 import type { EventoAiuto } from '@shared/eventi-aiuto'
 import { ricavaRisorse } from '@shared/aiuto-risorse'
+import { capacitaValida, type CapacitaPc } from '@shared/capacita-pc'
 
 /**
  * **Lo spedizioniere** (0.103.0): il pezzo del programma che porta a un altro
@@ -27,7 +28,7 @@ import { ricavaRisorse } from '@shared/aiuto-risorse'
 
 export type DipendenzeSpedizioniere = {
   /** Gli altri PC accesi adesso; 12/11: `aiutante` se il battito dice che è SierraDeck Aiutante. */
-  altri: () => { pcId: string; nome: string; aiutante?: boolean }[]
+  altri: () => { pcId: string; nome: string; aiutante?: boolean; /** k-166n9: dal battito, per valutare i requisiti di un compito. */ battito?: string; capacita?: CapacitaPc }[]
   /** Una rotta di un altro PC, sul collegamento sicuro. */
   chiama: (pcId: string, percorso: string, corpo?: Record<string, unknown>) => Promise<unknown>
   /** Una rotta `/aiuto/*` del servizio di questo PC. */
@@ -99,11 +100,18 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): { giro: () => Pro
     await Promise.all(d.altri().map(async (pc) => {
       if ((fuori.get(pc.pcId) ?? 0) > adesso()) return
       try {
-        const r = await d.chiama(pc.pcId, '/api/aiuto/posti') as { modo?: unknown; liberi?: unknown; programma?: unknown }
+        const r = await d.chiama(pc.pcId, '/api/aiuto/posti') as { modo?: unknown; liberi?: unknown; programma?: unknown; capacita?: unknown }
         if (!modoAiutoValido(r?.modo) || typeof r.liberi !== 'number') return
         // 12/11: è un Aiutante se lo dice la risposta o il battito: va scelto prima degli altri PC.
         const programma = programmaAiuto(r.programma) ?? (pc.aiutante === true ? 'aiutante' : undefined)
-        lista.push({ pcId: pc.pcId, nome: pc.nome, modo: r.modo, liberi: Math.max(0, Math.floor(r.liberi)), ...(programma !== undefined ? { programma } : {}) })
+        // k-166n9: le capacità fresche dalla risposta, altrimenti quelle del battito; un PC vecchio non le porta («sconosciuto»).
+        const capacita = capacitaValida(r.capacita) ?? pc.capacita
+        lista.push({
+          pcId: pc.pcId, nome: pc.nome, modo: r.modo, liberi: Math.max(0, Math.floor(r.liberi)),
+          ...(programma !== undefined ? { programma } : {}),
+          ...(pc.battito !== undefined ? { battito: pc.battito } : {}),
+          ...(capacita !== undefined ? { capacita } : {})
+        })
       } catch { /* spento, vecchio, o non presta: non è fra gli aiutanti */ }
     }))
     posti = { lista, il: adesso() }

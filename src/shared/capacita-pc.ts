@@ -78,6 +78,34 @@ export function haCapacita(c: CapacitaPc | null | undefined, nome: string): 'si'
   return 'no'
 }
 
+/** Cosa serve a un compito (k-166n9): viaggia nel piano. Senza requisiti vale qualunque PC acceso con posti liberi. */
+export type RequisitiCompito = {
+  /** Programmi da trovare nel PATH (nomi senza estensione). */
+  programmi?: readonly string[]
+  /** Un telefono collegato (adb). */
+  telefono?: boolean
+  /** Percorsi o host di rete da raggiungere. */
+  rete?: readonly string[]
+  /** Deve essere SierraDeck Aiutante. */
+  aiutante?: boolean
+}
+
+/** `requisiti` da fuori (piano scritto dal modello, disco): la forma giusta, o niente se è vuoto o sbagliato. */
+export function requisitiValidi(x: unknown): RequisitiCompito | undefined {
+  if (typeof x !== 'object' || x === null) return undefined
+  const o = x as Record<string, unknown>
+  const lista = (v: unknown): string[] => (Array.isArray(v) ? [...new Set(v.filter((s): s is string => typeof s === 'string').map((s) => s.trim().slice(0, 200)).filter((s) => s !== ''))].slice(0, 30) : [])
+  const programmi = lista(o.programmi)
+  const rete = lista(o.rete)
+  const r: RequisitiCompito = {
+    ...(programmi.length > 0 ? { programmi } : {}),
+    ...(o.telefono === true ? { telefono: true } : {}),
+    ...(rete.length > 0 ? { rete } : {}),
+    ...(o.aiutante === true ? { aiutante: true } : {})
+  }
+  return Object.keys(r).length > 0 ? r : undefined
+}
+
 /** `capacita` da fuori (battito, risposta): la forma giusta o niente. */
 export function capacitaValida(x: unknown): CapacitaPc | undefined {
   if (typeof x !== 'object' || x === null) return undefined

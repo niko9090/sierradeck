@@ -4836,7 +4836,7 @@ if (!app.requestSingleInstanceLock()) {
       // 0.103.0: lo spedizioniere porta agli altri PC il lavoro affidato dal servizio e riporta i rami.
       const spedizioniere = creaSpedizioniere({
         // 12/11: con `aiutante` dal battito: SierraDeck Aiutante si sceglie prima degli altri PC.
-        altri: () => postino.altrui().filter((b) => pcVivo(b, Date.now())).map((b) => ({ pcId: b.pcId, nome: nomeDaMostrare(b), ...(eAiutante(b) ? { aiutante: true } : {}) })),
+        altri: () => postino.altrui().filter((b) => pcVivo(b, Date.now())).map((b) => ({ pcId: b.pcId, nome: nomeDaMostrare(b), ...(eAiutante(b) ? { aiutante: true } : {}), battito: b.battito, ...(b.capacita !== undefined ? { capacita: b.capacita } : {}) })),
         chiama: (pc, percorso, corpo) => remoto.chiama(pc, percorso, corpo),
         servizio: (percorso, corpo) => clientAutopilota.aiuto(percorso, corpo),
         cartella: join(dati, 'aiuto-spedizioni'),

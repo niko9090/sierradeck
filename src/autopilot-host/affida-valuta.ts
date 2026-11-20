@@ -1,4 +1,4 @@
-import type { CapacitaPc } from '../shared/capacita-pc'
+import type { CapacitaPc, RequisitiCompito } from '../shared/capacita-pc'
 import { haCapacita } from '../shared/capacita-pc'
 import { statoPc } from '../shared/stato-pc'
 
@@ -13,17 +13,8 @@ import { statoPc } from '../shared/stato-pc'
  * a parità sceglie prima chi le capacità le ha dimostrate.
  */
 
-/** Cosa serve al compito. Senza requisiti vale qualunque PC acceso con posti liberi. */
-export type RequisitiCompito = {
-  /** Programmi da trovare nel PATH (nomi senza estensione). */
-  programmi?: readonly string[]
-  /** Un telefono collegato (adb). */
-  telefono?: boolean
-  /** Percorsi o host di rete da raggiungere. */
-  rete?: readonly string[]
-  /** Deve essere SierraDeck Aiutante. */
-  aiutante?: boolean
-}
+/** Cosa serve al compito: il tipo sta in `capacita-pc` perché viaggia nel piano. */
+export type { RequisitiCompito }
 
 export type CandidatoPc = {
   pcId: string

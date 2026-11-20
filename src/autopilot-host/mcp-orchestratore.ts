@@ -218,7 +218,17 @@ export const STRUMENTI_ORCHESTRATORE: readonly StrumentoMcp[] = [
               titolo: { type: 'string' },
               criterio: { type: 'string' },
               dopo: { type: 'array', items: { type: 'string' } },
-              peso: { type: 'integer', minimum: 1, maximum: 3 }
+              peso: { type: 'integer', minimum: 1, maximum: 3 },
+              requisiti: {
+                type: 'object',
+                description: 'Facoltativo: cosa deve avere il PC che fa il compito (se manca va bene qualunque PC). Se nessun altro PC li ha, il compito parte su questo.',
+                properties: {
+                  programmi: { type: 'array', items: { type: 'string' }, description: 'Programmi nel PATH, senza estensione (adb, java…).' },
+                  telefono: { type: 'boolean', description: 'Un telefono collegato (adb).' },
+                  rete: { type: 'array', items: { type: 'string' }, description: 'Percorsi o host di rete da raggiungere.' },
+                  aiutante: { type: 'boolean', description: 'Deve essere SierraDeck Aiutante.' }
+                }
+              }
             },
             required: ['id', 'richiesta', 'titolo', 'criterio']
           }
