@@ -234,7 +234,28 @@ export function requisitiPersi(prima: readonly VoceRequisito[] | undefined, ades
 
 // ---------------------------------------------------------------- collegamento
 
-export type StatoRete = { driveConnesso: boolean; cassaforteAperta: boolean; inAscolto: boolean; errorePorta?: string }
+export type StatoRete = { driveConnesso: boolean; cassaforteAperta: boolean; inAscolto: boolean; errorePorta?: string; giriDriveScollegato?: number }
+
+/** Quanti giri di fila scollegato prima di crederci, se non c'è il segno scritto da conto-drive. */
+export const GIRI_DRIVE_SCOLLEGATO = 2
+
+/**
+ * Il Drive «scollegato» di un solo giro non è un guaio: il token si rilegge dal
+ * portachiavi o da un file in riscrittura e per un attimo non si vede. Qui si
+ * fa il conto: portachiavi non pronto = non scollegato; il segno vero
+ * (`fileScollegato`, scritto da conto-drive alla revoca) vale subito; altrimenti
+ * servono due giri di fila. `prima` è lo stato già stabilizzato del giro prima.
+ */
+export function stabilizzaRete(
+  prima: StatoRete | undefined,
+  grezzo: StatoRete & { portachiaviNonPronto?: boolean; driveFileScollegato?: boolean }
+): StatoRete {
+  const { portachiaviNonPronto, driveFileScollegato, ...resto } = grezzo
+  if (grezzo.driveConnesso || portachiaviNonPronto === true) return { ...resto, driveConnesso: true, giriDriveScollegato: 0 }
+  const giri = (prima?.giriDriveScollegato ?? 0) + 1
+  const scollegato = driveFileScollegato === true || giri >= GIRI_DRIVE_SCOLLEGATO
+  return { ...resto, driveConnesso: scollegato ? false : (prima?.driveConnesso ?? true), giriDriveScollegato: giri }
+}
 
 /**
  * I blocchi del collegamento appena comparsi (Drive scollegato, cassaforte

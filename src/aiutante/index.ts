@@ -27,7 +27,7 @@ import { NOVITA_AIUTANTE_URL, noteAiutante } from './novita-aiutante'
 import { creaInvioErrori, registroConStorico } from './errori-aiutante'
 import { creaNucleo } from './nucleo'
 import { apriPreferenzeAiutante } from './preferenze-aiutante'
-import { blocchiRete, inScarico, perLaFinestra, requisitiPersi, rigaAggiornamento, tooltipIcona, valutaRequisiti, type StatoRete, type VoceRequisito } from './regole'
+import { blocchiRete, inScarico, perLaFinestra, requisitiPersi, rigaAggiornamento, stabilizzaRete, tooltipIcona, valutaRequisiti, type StatoRete, type VoceRequisito } from './regole'
 import { MOTIVO_TIMEOUT, misuraRequisiti } from './requisiti'
 import { colleghiRete, erroreConRisposta, nomeDi, type ReteAiutante } from './rete'
 
@@ -226,7 +226,11 @@ function avvia(): void {
       if (giri < 3) return
       const s = r.stato()
       // La porta occupata la scrive già il collegamento (`rete.ts`): qui solo Drive e cassaforte.
-      const adesso: StatoRete = { driveConnesso: s.driveConnesso, cassaforteAperta: s.cassaforteAperta, inAscolto: true }
+      const adesso = stabilizzaRete(statoRetePrima, {
+        driveConnesso: s.driveConnesso, cassaforteAperta: s.cassaforteAperta, inAscolto: true,
+        ...(s.portachiaviNonPronto === true ? { portachiaviNonPronto: true } : {}),
+        ...(s.driveFileScollegato === true ? { driveFileScollegato: true } : {})
+      })
       for (const riga of blocchiRete(statoRetePrima, adesso, giaCollegato)) registro.errore(riga)
       statoRetePrima = adesso
     }, 60_000).unref?.()
