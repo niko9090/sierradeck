@@ -88,6 +88,7 @@
 - `src/aiutante/index.ts` non si importa nei test; `colleghiRete` nemmeno: il collegamento si protegge con un controllo sul sorgente di `rete.ts`. _(2026-11-20)_
 - `servizio-orchestratore.test.ts` «PreToolUse dell'unico» (git -C merge) è rosso nella copia di lavoro; non l'ho riprovato su main, ma non dipende dallo spedizioniere. _(2026-11-20)_
 - `servizio-orchestratore.test.ts` (PreToolUse, merge negato) è rosso se la suite gira dentro una copia di lavoro: usa `process.cwd()` come radice del progetto. _(2026-11-20)_
+- better-sqlite3 si carica anche in vitest nel progetto: un test può aprire un db temporaneo reale, senza finti. _(2026-11-20)_
 
 ## worktree
 
@@ -188,6 +189,9 @@
 - Le credenziali Google per `pubblica` si passano con SD_GOOGLE_CLIENT_ID/SECRET letti con node da google-oauth.json (campi clientId, clientSecret), senza stamparle. _(2026-11-15)_
 - 16/11: main è già alla 0.108.0 (tag v0.108.0, pubblicata da altrove): la prossima release va oltre, 0.109.0 se dentro ci sono funzioni (riassegnazione fra PC, Passaggi di mano), non 0.107.4. _(2026-11-16)_
 - nelle note di novita.ts la parola «commit» fa fallire tests/shared/novita.test.ts (linguaggio da utente, niente gergo) _(2026-11-17)_
+- `noteDi()` di scripts/note-novita.mjs restituisce un array di righe, non una stringa: per `--notes-file` va unito con "- " e "\n" prima di `writeFileSync`. _(2026-11-20)_
+- Nella cartella principale `npm run pubblica` dura oltre 10 minuti (finisce in sottofondo): niente seconda copia, basta controllare gli allegati con `gh release view` finché ci sono tutti e sette. _(2026-11-20)_
+- La bozza creata prima di avere il tag online risulta «untagged-…», ma `npm run pubblica` la riempie lo stesso. Il tag `v0.112.0` era già sul remoto prima della bozza. _(2026-11-20)_
 
 ## git
 
@@ -238,8 +242,6 @@
 
 ## ambiente
 
-- Con la guardia del carico che rimanda tsc, `ping -n N 127.0.0.1` è l'unica attesa consentita: `sleep` seguito da un comando viene bloccato. _(2026-11-08)_
-- Nel worktree la guardia rifiuta i comandi Bash che mettono git dentro blocchi composti (`||`, `&&` con cmd): tenere git in chiamate semplici e la junction in PowerShell. _(2026-11-08)_
 - nei worktree alcuni heredoc Bash con python vengono rifiutati come «troppo complessi»: scrivere lo script con Write ed eseguirlo, oppure usare Edit _(2026-11-09)_
 - Per scrivere stringhe con `\n` nei file non usare heredoc Python: gli escape vengono interpretati. Meglio lo strumento Edit. _(2026-11-10)_
 - Nel worktree gli heredoc con `cat >>` seguiti da altri comandi nella stessa chiamata Bash vengono rifiutati come «troppo complessi»: usare Edit e comandi separati. _(2026-11-10)_
@@ -247,7 +249,6 @@
 
 ## hook
 
-- SubagentStop senza toccare server.ts: hook `command` con `node -e` e script in base64 (niente virgolette da proteggere), generato da `finePrematura.toString()`; la funzione deve restare autosufficien… _(2026-11-08)_
 - l'hook Bash di SierraDeck blocca sleep e comandi in sottofondo: le attese a intervalli non si possono fare da una chat, serve richiamare o un altro meccanismo. _(2026-11-10)_
 - Il programma blocca l'intero comando Bash se un rmdir o una cancellazione contiene una variabile ($T): scrivere i percorsi per intero. _(2026-11-20)_
 - Il PreToolUse dell'Agent, quando lascia passare, non può portare testo all'autopilota: i motivi «resta qui» vanno come `evento` al suo prossimo turno. _(2026-11-20)_
@@ -260,7 +261,6 @@
 
 ## drive
 
-- Il freno Drive (k-65) esiste: se un controllo mostra 403 quota ripetuti, prima guardare la versione dei PC (0.95.x non ce l'ha). `creaFreno(adesso, caso)` e `creaArchivioDrive({pausa, caso})` rendono… _(2026-11-08)_
 - «Drive pieno» nella Salute viene dal freno in memoria che scade dopo 15 minuti (index.ts:2632): va reso uno stato «detto», non «in corso». _(2026-11-09)_
 - Con Drive pieno il freno blocca anche battito, posta e registro insieme; «acceso» in Progetti viene solo dal battito, quindi un PC che risponde appare «non risponde». _(2026-11-09)_
 - A Drive pieno il freno blocca POST/PUT/PATCH ma non DELETE: ogni pulizia va annotata in locale (spazio-intenzioni.json) e il registro sul Drive va riallineato dopo, mai prima. _(2026-11-09)_
@@ -277,7 +277,6 @@
 
 ## criteri
 
-- `git tag --list vX` esce sempre con 0 anche senza tag: come criterio dà verde falso (k-184 0.97.1 segnata fatta senza release). Usare `git rev-parse vX` o `gh release view vX`. _(2026-11-08)_
 - `ePesante` taglia su `|` e `;` anche dentro gli apici: toglierli con `senzaApici`, salvo dopo `-c`/`-Command`/`/c`, dove stanno i comandi veri. _(2026-11-08)_
 - I criteri del piano girano in bash (criterio.sh): niente backslash nei percorsi. Per l'app Android: `/e/Programs/Gradle/gradle-8.11.1/bin/gradle -p android testDebugUnitTest --rerun --offline`. _(2026-11-14)_
 - Mai criteri «versione === X» per un compito di versione: il cancello li rimisura e blocca ogni versione dopo. Usare «almeno X» (confronto numerico >=) o `gh release view vX`. _(2026-11-15)_
@@ -931,3 +930,7 @@
 ## spedizioniere
 
 - le capacità dei PC arrivano già in `Aiutante` da `aggiornaPosti`: non serve una mappa a parte; `scegliCapace` passa `[scelto]` a `decidiRiassegna`. _(2026-11-20)_
+
+## main
+
+- `chiudiRisorse()` chiude il db mentre le finestre possono ancora interrogare gli ipc: i gestori che usano `db` devono controllare `db.open`. _(2026-11-20)_
