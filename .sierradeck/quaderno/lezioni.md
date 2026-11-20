@@ -506,6 +506,7 @@
 - `Aiutante` (aiuto-rete.ts) non ha `battito` né `capacita`: il collegamento k-166n6 deve aggiungerli prima di usare `valutaPrimaDiAffidare`. _(2026-11-20)_
 - Le azioni fra PC passano da POST /api/azione sul Client (stessa firma): per un file al telefono serve sempre conferma di chi sta là, mai solo la richiesta remota. _(2026-11-20)_
 - Deciso 20/11: manda-file-telefono chiesto da un altro PC resta sempre con conferma di chi sta al PC ricevente; mai senza. _(2026-11-20)_
+- il ramo di un lavoro da unire può non esistere nella copia del PC che aiuta: prima di affidare un'unione, verificare che il ramo sia stato rimandato. _(2026-11-20)_
 
 ## cancello
 
