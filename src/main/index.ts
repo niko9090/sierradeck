@@ -95,6 +95,7 @@ import { gruppiAltriPc, remotiDiQui, type RegistroSuPc, type WorkspaceRemoto } f
 import { leggiSuPc as leggiSuPcFile, migraLinguetteRemote, scriviSuPc } from './workspace-su-pc-file'
 import { leggiEliminati } from './workspace-ritrova'
 import { annotaEliminato, copieDellaLista, riparaListaAllAvvio, type EsitoAvvio } from './workspace-ritrova'
+import { lapideDelWorkspace } from './workspace-lapide'
 import { cartellaVuota, elencoRecuperoWorkspace, mettiWorkspaceNelRecupero, recuperoLeggibile, ripristinaWorkspace } from './workspace-recupero-file'
 import { leggiRecentiWorkspace } from './workspace-recenti-file'
 import { cartellaVuotaDaRecuperare, motivoPerNonEliminare } from '@shared/workspace-recupero'
@@ -1715,7 +1716,8 @@ if (!app.requestSingleInstanceLock()) {
       }, {
         // Pronte più tardi (servono gli autopiloti): fino ad allora si chiede ogni volta.
         rifiuto: async (nome) => primaDiEliminareGlobale?.rifiuto?.(nome),
-        cartella: async (nome, dopo) => primaDiEliminareGlobale?.cartella?.(nome, dopo)
+        cartella: async (nome, dopo) => primaDiEliminareGlobale?.cartella?.(nome, dopo),
+        lapide: async (nome, verso) => primaDiEliminareGlobale?.lapide?.(nome, verso)
       }, {
         // La cartella del progetto si rinomina col workspace (13/11).
         prima: async (vecchio, nuovo) => gestioneGlobale?.primaDiRinominareWorkspace(vecchio, nuovo)
@@ -4256,6 +4258,7 @@ if (!app.requestSingleInstanceLock()) {
       }
       registerAutopilotaIpc(clientAutopilota, (m) => registro.info(m))
       primaDiEliminareGlobale = {
+        lapide: (nome, verso) => lapideDelWorkspace((n, v) => sincronia.segnaWorkspaceSulDrive(n, v), nome, verso, (m) => registro.info(m)),
         rifiuto: async (nome) => {
           const w = workspaceStore?.leggi().workspace.find((x) => x.nome === nome)
           if (w === undefined) return undefined
@@ -5432,6 +5435,7 @@ if (!app.requestSingleInstanceLock()) {
           if (!store.scrivi(dopo)) throw new Error('workspaces.json non si è potuto scrivere')
           if (dopo !== precedente && !mettiWorkspaceNelRecupero(dati, precedente, nome, undefined, new Date().toISOString(), cartella)) registro.errore(`[workspace] «${nome}» eliminato ma non messo nel recupero: resta solo workspaces.prima-dell-eliminazione.json`)
           annotaEliminato(dati, nome)
+          if (dopo !== precedente) await primaDiEliminareGlobale?.lapide?.(nome, 'togli')
           // Se si è cancellato il workspace ATTIVO, l'attivo si è spostato su un
           // altro: le finestre che mostravano quello cancellato devono seguirlo,
           // o resterebbero su un nome che non esiste più e il salvataggio
@@ -5455,6 +5459,7 @@ if (!app.requestSingleInstanceLock()) {
           if (store === undefined) return { ok: false as const, errore: 'I workspace di questo PC non sono ancora pronti: riprova fra poco.' }
           const e = ripristinaWorkspace(dati, store.leggi(), { nome, eliminatoIl }, (a) => store.scrivi(a))
           if (!e.ok) return e
+          void primaDiEliminareGlobale?.lapide?.(e.nome, 'rimetti')
           registro.info(`[workspace] «${e.nome}» ripristinato dal recupero (eliminato il ${eliminatoIl}): lo schermo resta dov'è`)
           const stato = { nomi: e.archivio.workspace.map((w) => w.nome), attivo: e.archivio.attivo }
           for (const w of finestreDiChat()) {

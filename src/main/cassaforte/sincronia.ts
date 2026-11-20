@@ -1138,7 +1138,12 @@ export function apriSincronia(deps: {
           const locale = join(deps.dati, 'workspaces.json')
           let firmaLocale: { size: number; mtime: number } | undefined
           try { const st = statSync(locale); firmaLocale = { size: st.size, mtime: Math.round(st.mtimeMs) } } catch { firmaLocale = undefined }
-          const voce = { nome: nomeBlob, size: firmaLocale?.size ?? buf.length, mtime: firmaLocale?.mtime ?? Date.now(), sha: impronta(buf) }
+          // Con «rimetti» la firma è volutamente quella di un file diverso: il file
+          // di qui, che ha di nuovo il workspace (ripristino dal recupero), al
+          // salvataggio dopo conta come cambiato e risale sul Drive.
+          const voce = verso === 'rimetti'
+            ? { nome: nomeBlob, size: -1, mtime: 0, sha: impronta(buf) }
+            : { nome: nomeBlob, size: firmaLocale?.size ?? buf.length, mtime: firmaLocale?.mtime ?? Date.now(), sha: impronta(buf) }
           // Solo questa voce, sul manifesto riletto (0.86.2): niente voci vecchie rimesse sopra.
           await aggiornaManifesto(deps.archivio(), m, (attuale) => ({ ...attuale, versione: 1, creatoIl: adesso(), file: { ...attuale.file, [percorso]: voce } }),
             { presente: (x) => stessaVoce(x.file[percorso], voce) })
