@@ -292,6 +292,7 @@
 - «Usate da altri PC» era sparita dalla fascia con k-u0 senza essere ricollocata: ora sta in PannelloChat (sottofondo.elenco + remoto.pc → righeAltriPc). _(2026-11-19)_
 - Il Drive nel dettaglio sta dietro un tasto: ContenutoDrive appena montato apre la finestra d'attesa, quindi non va montato a ogni progetto scelto. _(2026-11-19)_
 - ferma/riparti/archivia dell'autopilota non hanno API nel renderer (solo crea, dialoga, avvioAlLogin): per metterli in pagina serve prima l'IPC. _(2026-11-19)_
+- I test di sorgente (`readFileSync` sul .tsx) bastano per controllare che un pannello non porti più un elenco, senza DOM. _(2026-11-19)_
 
 ## salute
 
@@ -301,6 +302,7 @@
 - Le voci create da `risorse` di un altro PC (consumi, `gpu:`) vanno filtrate col battito recente in `componiSalute`; ogni nuova voce per PC ha lo stesso rischio di dato vecchio. _(2026-11-10)_
 - «non so se è acceso» valeva anche con battito fresco; ora «acceso secondo il Drive, ma non si raggiunge». Le righe unite del controllo (controllo-pc.ts `generica`) vanno aggiornate con ogni nuova dic… _(2026-11-15)_
 - Le soglie spento/acceso vanno prese da `statoPc`; con `PC_SPENTO_DOPO_MS` i confronti `<` e `<=` si mischiavano e davano risultati diversi al limite. _(2026-11-19)_
+- L'elenco PC di Salute si toglie nel renderer (`saluteSenzaPc`), non in `salute.ts`: le stesse voci servono a telefono e pagina servita. _(2026-11-19)_
 
 ## dipendenze
 
