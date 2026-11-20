@@ -110,6 +110,8 @@ export type Sincronia = {
    * senza accoppiarsi (`client-pc:<id>`). `undefined` a cassaforte chiusa.
    */
   chiaveDiCasa: (scopo: string) => string | undefined
+  /** La chiave-maestra in memoria (`undefined` a cassaforte chiusa): solo per cifrare file di questo PC, mai per mostrarla o mandarla. */
+  maestraInMemoria: () => Buffer | undefined
   /**
    * Riprova ad aprire la cassaforte con la chiave ricordata dal portachiavi
    * (0.65.0), se è chiusa e la chiave c'è. Vero se adesso è aperta.
@@ -670,6 +672,7 @@ export function apriSincronia(deps: {
       log('cassaforte riaperta dal portachiavi del sistema (al secondo tentativo)')
       return true
     },
+    maestraInMemoria: () => maestra,
     chiaveDiCasa(scopo) {
       if (maestra === undefined || scopo === '') return undefined
       return createHmac('sha256', maestra).update(scopo, 'utf8').digest('base64url')

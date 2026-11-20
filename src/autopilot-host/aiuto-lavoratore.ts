@@ -8,7 +8,7 @@ import {
 } from '@shared/aiuto-rete'
 import { causaDalTesto, fraseCausa, motivoDelRisultato, type CausaFallimento } from '@shared/aiuto-esito'
 import { causaScadenza, scadenzaIniziale, scadenzaRaggiunta, scadenzaSegno, scadenzaTick, TICK_SCADENZA_MS } from '@shared/aiuto-scadenza'
-import { ambienteSpecialista, oscura } from '@shared/aiuto-credenziali'
+import { ambienteSpecialista, eNomeCredenziale, oscura } from '@shared/aiuto-credenziali'
 import { motivoRisorsa, risorseValide, risorsaMancante, sezioneRisorse, verificaRisorse, type Risorsa, type StrumentiVerifica } from '@shared/aiuto-risorse'
 import type { AvviaProcesso } from './processo-claude'
 import { cancellaSicuraAsincrona } from '@shared/cancella-sicura'
@@ -53,6 +53,8 @@ export type RichiestaAvvio = {
   autore?: AutoreGit
   /** 16/11: le risorse che il compito nomina (cartelle, percorsi di rete, programmi, variabili): si verificano prima di lanciare. */
   risorse?: Risorsa[]
+  /** k-166n7: i valori delle credenziali dichiarate, solo in memoria (mai in `lavori.json`, mai nel log); `lancia` li consuma. */
+  segreti?: Record<string, string>
 }
 
 /** 12/11: come è finito un lavoro, per chi ospita il lavoratore (l'Aiutante guarda il limite del piano). */
@@ -114,6 +116,14 @@ export type LavoratoreAiuto = {
   ferma: (id: unknown) => boolean
   /** 12/11: il giro di pulizia (all'avvio, ogni 10 minuti); torna quando è finito. */
   pulizia: () => Promise<void>
+}
+
+/** Solo nome valido → testo; il resto si scarta. */
+function segretiValidi(x: unknown): Record<string, string> {
+  const fuori: Record<string, string> = {}
+  if (typeof x !== 'object' || x === null) return fuori
+  for (const [k, v] of Object.entries(x)) if (eNomeCredenziale(k) && typeof v === 'string' && v !== '') fuori[k] = v
+  return fuori
 }
 
 const corto = (s: string, n = 160): string => s.replace(/\s+/gu, ' ').trim().slice(0, n)
@@ -411,10 +421,12 @@ export function creaLavoratoreAiuto(x: {
     // che manca e senza alternativa: il lavoro fallisce SUBITO (causa 'risorsa', colpa del PC), e passa a un altro PC.
     cambia(l, { stato: 'preparo', attivita: 'controllo le risorse del compito', repo })
     // 20/11: le credenziali dichiarate per nome, chieste adesso. Restano in questa funzione: mai su disco, mai nel log.
-    let segreti: Record<string, string> = {}
+    // k-166n7: già arrivate con l'avvio (dal programma che le ha chieste alla cassaforte o al PC che ha affidato il lavoro).
+    let segreti: Record<string, string> = r.segreti ?? {}
+    delete r.segreti
     const nomiCredenziali = (r.risorse ?? []).filter((c) => c.tipo === 'credenziale').map((c) => c.valore)
-    if (nomiCredenziali.length > 0 && x.credenziali !== undefined) {
-      segreti = await x.credenziali({ lavoro: l.id, nomi: nomiCredenziali, ...(l.perPc !== undefined ? { perPc: l.perPc } : {}) }).catch(() => ({}))
+    if (nomiCredenziali.some((n) => segreti[n] === undefined) && x.credenziali !== undefined) {
+      segreti = { ...segreti, ...await x.credenziali({ lavoro: l.id, nomi: nomiCredenziali, ...(l.perPc !== undefined ? { perPc: l.perPc } : {}) }).catch(() => ({})) }
     }
     const verificate = await verificaRisorse(r.risorse ?? [], { ...(x.verificaRisorse ?? verificaRisorseQui), credenziale: (n) => segreti[n] !== undefined })
     const mancante = risorsaMancante(verificate)
@@ -629,7 +641,8 @@ export function creaLavoratoreAiuto(x: {
         ruolo: typeof p.ruolo === 'string' ? corto(p.ruolo, 40) : 'sviluppatore',
         descrizione: typeof p.descrizione === 'string' ? corto(p.descrizione, 300) : '',
         ...(autoreValido(p.autore) !== undefined ? { autore: autoreValido(p.autore)! } : {}),
-        ...(risorseValide(p.risorse).length > 0 ? { risorse: risorseValide(p.risorse) } : {})
+        ...(risorseValide(p.risorse).length > 0 ? { risorse: risorseValide(p.risorse) } : {}),
+        ...(Object.keys(segretiValidi(p.segreti)).length > 0 ? { segreti: segretiValidi(p.segreti) } : {})
       }
       cambia(l, { progetto: nomeProgettoSicuro(r.progetto), base: r.base, ruolo: r.ruolo, descrizione: r.descrizione, ...(typeof p.daNome === 'string' && p.daNome.trim() !== '' ? { perPc: corto(p.daNome, 60) } : {}) })
       if (accoda) {

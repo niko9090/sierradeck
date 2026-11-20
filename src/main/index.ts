@@ -67,6 +67,7 @@ import { decidiChiusura, vociArea, suggerimentoArea } from './area-notifica'
 import { espandiTilde } from './validation'
 import { creaClientAutopilota } from './autopilot-client'
 import { creaSpedizioniere } from './aiuto-spedizioniere'
+import { collegaCredenziali, creaDepositoCredenziali } from './aiuto-credenziali'
 import { apriIstantaneeStore } from './istantanee-store'
 import { listSessions, rimuoviSessioni } from './db'
 import { creaGestioneChat, type GestioneChat } from './gestione-chat'
@@ -2042,6 +2043,8 @@ if (!app.requestSingleInstanceLock()) {
         }
       })
       sincroniaGlobale = sincronia
+      // k-166n7: le credenziali di rete stanno in un file cifrato con la maestra della cassaforte (niente in chiaro su disco).
+      const depositoCredenziali = creaDepositoCredenziali({ file: join(dati, 'credenziali-rete.cifrato'), maestra: () => sincronia.maestraInMemoria() })
       registro.info(`Drive configurato: ${contoDrive.stato().configurato}, connesso: ${contoDrive.stato().connesso}${contoDrive.stato().portachiaviNonPronto === true ? ' (portachiavi non pronto: il token cifrato c è, riprovo)' : ''}`)
       // La cassaforte chiusa con la chiave ricordata (0.65.0): se all'avvio il
       // portachiavi non era pronto, si riprova ogni minuto, da soli.
@@ -4864,6 +4867,7 @@ if (!app.requestSingleInstanceLock()) {
         avviso: (r) => registro.info(`[aiuto] ${r}`)
       })
       app.on('before-quit', () => spedizioniere.ferma())
+      const credenzialiAiuto = collegaCredenziali({ deposito: depositoCredenziali, dichiarate: (lavoro) => spedizioniere.dichiarate(lavoro), chiama: (pc, percorso, corpo) => remoto.chiama(pc, percorso, corpo) })
       const avvisi = accendiAvvisi({ dati, log: (r) => registro.info(r), telefoni: () => dispositivi.elenca(), chat: () => chatAperte, aggiornamento: () => aggiornamenti?.stato(), versioneQui: () => app.getVersion(), coda, quadernoPersonale, altriPc: () => altriPcGlobale?.() ?? Promise.resolve([]), chiamaPc: (pc, percorso) => remoto.chiama(pc, percorso) })
       ipcAvvisi(ipcMain, avvisi)
       /**
@@ -4993,7 +4997,7 @@ if (!app.requestSingleInstanceLock()) {
         orchestratoreWorkspace: (ws: string) => clientAutopilota.orchestratore(ws),
         specialistaAutopilota: (ws: string, id: string) => clientAutopilota.specialista(ws, id),
         // 0.103.0: «Aiuta la rete»: il modo scelto qui e la strada verso il servizio per le rotte `/aiuto/*`.
-        aiuto: { capacita: () => capacitaQuiGlobale?.(), modo: () => impostazioni.preferenze().aiutoRete,servizio: (percorso: string, corpo?: Record<string, unknown>) => clientAutopilota.aiuto(percorso, corpo), nomePc: (pcId: string) => { const b = postino.altrui().find((x) => x.pcId === pcId); return b !== undefined ? nomeDaMostrare(b) : undefined } },
+        aiuto: { ...credenzialiAiuto, capacita: () => capacitaQuiGlobale?.(), modo: () => impostazioni.preferenze().aiutoRete, servizio: (percorso: string, corpo?: Record<string, unknown>) => clientAutopilota.aiuto(percorso, corpo), nomePc: (pcId: string) => { const b = postino.altrui().find((x) => x.pcId === pcId); return b !== undefined ? nomeDaMostrare(b) : undefined } },
         // k-166n3: le azioni singole chieste da un altro PC; il file al telefono parte sempre con la conferma di chi sta qui.
         azione: {
           capacita: () => capacitaQuiGlobale?.(),
