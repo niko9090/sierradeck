@@ -117,6 +117,8 @@
 - `/api/pc` passa il battito grezzo (`...resto`): l'app legge `aggiornando` da lì senza toccare il PC. _(2026-11-19)_
 - `SuPc.corrente` e `FasciaLinea` non sono letti da nessuna schermata; la chat remota passa da `Api.ponte` in `SchermataDettaglioChat`. _(2026-11-19)_
 - L'app prende le voci del menu da assets/menu.json (scritto dal test TS con AGGIORNA=1): un cambio di menu sul PC rompe solo l'enum Scheda in Apertura.kt e il `when` in Navigazione.kt. _(2026-11-19)_
+- `SuPc.corrente` non era letto da nessuno: il tasto «Chat dal vivo» di Altri computer apriva solo le chat locali. Il ponte vero andrebbe riscritto, non ripristinato. _(2026-11-20)_
+- Le sezioni di Altro (Salute, Computer) non scorrono da sole: vanno avvolte in Column con verticalScroll dentro il Box della Linguetta. _(2026-11-20)_
 
 ## release
 
