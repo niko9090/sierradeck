@@ -89,6 +89,7 @@
 - `servizio-orchestratore.test.ts` «PreToolUse dell'unico» (git -C merge) è rosso nella copia di lavoro; non l'ho riprovato su main, ma non dipende dallo spedizioniere. _(2026-11-20)_
 - `servizio-orchestratore.test.ts` (PreToolUse, merge negato) è rosso se la suite gira dentro una copia di lavoro: usa `process.cwd()` come radice del progetto. _(2026-11-20)_
 - better-sqlite3 si carica anche in vitest nel progetto: un test può aprire un db temporaneo reale, senza finti. _(2026-11-20)_
+- `npm run pubblica` esegue tutta la suite (~7 min) e basta un test lento sotto carico, come risposta-autopilota-k317, a fermarlo. Rilanciare, non forzare. In tutto serve più di un'ora. _(2026-11-20)_
 
 ## worktree
 
@@ -193,6 +194,7 @@
 - Nella cartella principale `npm run pubblica` dura oltre 10 minuti (finisce in sottofondo): niente seconda copia, basta controllare gli allegati con `gh release view` finché ci sono tutti e sette. _(2026-11-20)_
 - La bozza creata prima di avere il tag online risulta «untagged-…», ma `npm run pubblica` la riempie lo stesso. Il tag `v0.112.0` era già sul remoto prima della bozza. _(2026-11-20)_
 - `errori-arrivati.md` è in CRLF: un Edit che aggiunge righe porta fine riga LF e il file resta con fine riga misti. _(2026-11-20)_
+- `noteDi` (scripts/note-novita.mjs) restituisce [] se le novità stanno su una riga sola, `righe: ['...']`: note della release e di app-android.json vuote. Scriverle a mano o correggere il parser. _(2026-11-20)_
 
 ## git
 
@@ -285,15 +287,12 @@
 
 ## processo
 
-- la guardia del carico rimanda anche `tsc` lanciato diretto e Start-Sleep è bloccato: scrivere i test e fare commit prima, poi misurare quando il PC scende. _(2026-11-08)_
-- la guardia del carico può rimandare typecheck per molti minuti di fila; non si può aspettare dentro il turno (sleep e Monitor sono bloccati): il commit va fatto prima. _(2026-11-08)_
-- La guardia del carico controlla prima del comando: un `ping` nella stessa chiamata non fa aspettare. Per attendere serve una chiamata separata, poi si ritenta. _(2026-11-08)_
 - la copia di un compito di «rimettere in pari» può nascere senza il ramo da unire: controllare l'esistenza del ramo prima di assegnare il compito. _(2026-11-20)_
 - Rimettere in pari un ramo nato qui: se il compito va su un altro PC il ramo là non c'è. Incolla nel prompt il diff (git diff main...ramo) e fallo riapplicare sopra main. _(2026-11-20)_
+- Qui le attese da una chiamata Bash sono bloccate: `sleep` va a una chiamata sola, ≤20 s, senza altri comandi dopo. Per i comandi lunghi conviene `run_in_background` e leggere il file di output. _(2026-11-20)_
 
 ## unioni
 
-- il turno dell'unione (12 min, attesa compresa) è più corto della prova (15 min) che lo contiene: possibile scadenza prematura, da decidere _(2026-11-08)_
 - UNIONE_TURNO_MAX_MS (12 min) copre solo i passi git, non le misure; se scade prima di PROVA_MAX_MS l'esito è lo stesso 'scaduta'. Ordine voluto: turno < prova < fila. _(2026-11-08)_
 - dopo un riavvio i subagenti in memoria sono vuoti: cancelloOra trova ramo e cartella solo se il piano li ha salvati, quindi va salvato anche il worktree, non solo il ramo _(2026-11-10)_
 - Ripresa dopo il riavvio: le unioni partono solo dopo la pulizia della prova (`provaRipulita`) e una volta per avvio. Senza aggiornamento solo compiti con `ramo` e senza esito «unione non fatta». _(2026-11-10)_
@@ -857,6 +856,7 @@
 
 - in `android/novita-app.txt` la voce app va aggiunta a mano a ogni salita di versionName, altrimenti `pubblica-app` si ferma; verificarla con `noteDi` di `scripts/note-novita.mjs`. _(2026-11-19)_
 - la voce in novita.ts va in cima all'array NOVITA; nelle righe mai iniziare con «versione:». _(2026-11-20)_
+- In novita.ts le voci hanno `righe: [...]` o su una riga o su più righe: ogni parser di quel file deve gestire entrambe le forme. _(2026-11-20)_
 
 ## versione
 
