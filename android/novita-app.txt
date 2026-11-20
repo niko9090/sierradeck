@@ -3,6 +3,14 @@ per le note della pubblicazione e della notifica sul telefono).
 La più recente in cima. Ogni riga fra apici, come in src/shared/novita.ts.
 
   {
+    versione: '3.3.0',
+    righe: [
+      'In «Altro» Computer e Salute sono due voci separate: niente più elenchi ripetuti.',
+      'Se aggiorni un PC mentre guardi la sua chat compare «Computer in aggiornamento, attendere» al posto di «non risponde», e la chat riprende da sola quando il PC torna.',
+      'Le sezioni lunghe ora scorrono.',
+    ],
+  },
+  {
     versione: '3.2.0',
     righe: [
       'Nella schermata «Altri computer» lo stato di ogni PC arriva dal PC stesso, con la stessa frase delle altre schermate, per esempio «spento da 3 giorni · si toglie fra 27 giorni».',
