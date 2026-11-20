@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.111.1',
+    righe: [
+      '**Schermate più solide:** Salute, Computer, Autopiloti e Progetti non cadono più se da un altro PC arriva un dato incompleto (senza testo o senza titolo). Prima poteva comparire un errore e la schermata restava vuota.',
+      '**Controllo dei PC con una prova in più:** un PC acceso con il solo Aiutante non viene più segnalato come «non risponde» (la correzione c’era già, ora è protetta da una prova).',
+    ],
+  },
+  {
     versione: '0.111.0',
     righe: [
       '**Computer in aggiornamento:** se aggiorni un PC remoto mentre guardi la sua chat, compare «Computer in aggiornamento, attendere» al posto di «non risponde». Quando il PC torna, la chat riprende da sola (PC, pagina del telefono e app).',
