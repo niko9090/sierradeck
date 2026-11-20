@@ -80,6 +80,7 @@
 - Il rapporto del controllo può dire «dato vecchio» e «non risponde» insieme solo con codice diverso da main: nella 0.111.1 verificare `testoRapporto` prima di fidarsi del testo del rapporto. _(2026-11-20)_
 - menu-principale.test.ts legge Console.tsx come testo (es. la riga `.map((v) =>`): togliere o rinominare un helper della fascia rompe quel test. _(2026-11-20)_
 - `tests/autopilot-host/compiti-chiusi-11-11.test.ts` e `parallelo-12-11.test.ts` usano `riassuntoOrchestratore`: sono la prova di compatibilità del formato quando lo si cambia. _(2026-11-20)_
+- tests/autopilot-host/servizio-orchestratore.test.ts «PreToolUse dell'unico» è rosso in questa copia (atteso `deny`, ricevuto `undefined`), senza i miei file. _(2026-11-20)_
 
 ## worktree
 
@@ -269,6 +270,7 @@
 ## tooling
 
 - Nel worktree i comandi Bash/sed composti con più modifiche vengono rifiutati come «troppo complessi»: usare Edit per le modifiche multiple. _(2026-11-09)_
+- Edit su una riga di import senza il newline finale la incolla alla successiva: dopo ogni Edit di import controllare con typecheck. _(2026-11-20)_
 
 ## criteri
 
@@ -500,6 +502,9 @@
 - Prima di rifare un cherry-pick controllare con `git cat-file -t <sha>`: il commit del collega può già essere nella copia. _(2026-11-17)_
 - Dai PC della rete il git push è negato dai permessi di Bash (non da GitHub): portare in main un commit già pronto va affidato al «rilascio», che lavora nella cartella principale. _(2026-11-17)_
 - Dai PC dell'Aiutante la cartella principale e origin non sono raggiungibili: il controllo versione su origin/main va fatto dall'autopilota. _(2026-11-19)_
+- `Aiutante` (aiuto-rete.ts) non ha `battito` né `capacita`: il collegamento k-166n6 deve aggiungerli prima di usare `valutaPrimaDiAffidare`. _(2026-11-20)_
+- Le azioni fra PC passano da POST /api/azione sul Client (stessa firma): per un file al telefono serve sempre conferma di chi sta là, mai solo la richiesta remota. _(2026-11-20)_
+- Deciso 20/11: manda-file-telefono chiesto da un altro PC resta sempre con conferma di chi sta al PC ricevente; mai senza. _(2026-11-20)_
 
 ## cancello
 
