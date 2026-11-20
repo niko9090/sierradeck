@@ -51,23 +51,39 @@ const corto = (t: string, n: number): string => {
   return x.length > n ? `${x.slice(0, n - 1)}…` : x
 }
 
-/** «le 19:00 di oggi», «le 08:30 del 12/11»: l'ora di una sveglia come la legge Nicholas, nell'ora del PC. */
-export function quandoInParole(iso: string, adesso: number = Date.now()): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  const due = (n: number): string => String(n).padStart(2, '0')
-  const ora = `le ${due(d.getHours())}:${due(d.getMinutes())}`
-  const oggi = new Date(adesso)
-  return d.toDateString() === oggi.toDateString() ? `${ora} di oggi` : `${ora} del ${due(d.getDate())}/${due(d.getMonth() + 1)}`
-}
-
-export function riassuntoOrchestratore(d: DatiRiassunto): string {
-  const righe: string[] = []
+/** «le 19:00 di oggi», «le 08:30 del 12/11»: l'ora di una sveglia come la legge Nicholas, nell'ora del PC. */
+export function quandoInParole(iso: string, adesso: number = Date.now()): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  const due = (n: number): string => String(n).padStart(2, '0')
+  const ora = `le ${due(d.getHours())}:${due(d.getMinutes())}`
+  const oggi = new Date(adesso)
+  return d.toDateString() === oggi.toDateString() ? `${ora} di oggi` : `${ora} del ${due(d.getDate())}/${due(d.getMonth() + 1)}`
+}
+
+/** Quanto si accorcia lo stato: 0 intero, 1 poco, 2 molto. Le sezioni «fisse» non si accorciano mai. */
+type Livello = 0 | 1 | 2
+
+const TRENTA_MIN = 30 * 60_000
+const UN_ORA = 3_600_000
+const AVVISO_ACCORCIATO = '(stato accorciato: usa lo strumento stato)'
+
+type Sezioni = { testata: string[]; coda: string[]; piano: string[]; specialisti: string[]; fisse: string[]; eventi: string[] }
+
+function costruisci(d: DatiRiassunto, liv: Livello): Sezioni {
+  const testata: string[] = []
+  const codaR: string[] = []
+  const pianoR: string[] = []
+  const specR: string[] = []
+  const fisse: string[] = []
+  const eventiR: string[] = []
+  let righe: string[] = testata
   const aperte = d.coda.richieste.filter((r) => r.stato !== 'fatta')
   const fatte = d.coda.richieste.filter((r) => r.stato === 'fatta')
   righe.push(`Workspace: ${d.ws}${d.unico !== undefined ? ` — cartella ${d.unico.cwd}${d.unico.ramoBase !== undefined ? `, ramo principale ${d.unico.ramoBase}` : ''}` : ''}`)
   const p = d.percento
   righe.push(`Avanzamento: ${p?.valore !== undefined ? `${p.valore}%` : '—'}${p?.calo !== undefined ? ` (sceso da ${p.calo.da}%: ${p.calo.perche})` : ''}. Richieste aperte ${aperte.length}, fatte ${fatte.length}.`)
+  righe = codaR
   righe.push('', 'CODA (richieste aperte):')
   if (aperte.length === 0) righe.push('- niente in coda')
   const ora = d.adesso
@@ -75,12 +91,13 @@ export function riassuntoOrchestratore(d: DatiRiassunto): string {
     // 0.89.2: un messaggio senza piano da più di un'ora è fermo: o diventa lavoro o si chiude con coda_chiudi.
     const fermo = r.compiti.length === 0 && r.stato === 'in-coda' && ora - Date.parse(r.creata) > 3_600_000
     righe.push(`- ${r.id} [${PAROLA_STATO_CODA[r.stato]}, ${avanzamentoRichiesta(r, d.misura)}%${fermo ? ', FERMA: senza piano da ' + minuti(r.creata, ora) + ' — pianificala o chiudila con coda_chiudi' : ''}] ${corto(r.titolo, 140)}${r.segue !== undefined ? ` (segue ${r.segue})` : ''}${(r.candidati ?? []).length > 0 ? ` — forse la stessa di ${r.candidati!.join(', ')}` : ''}`)
-    if (r.testo !== r.titolo) righe.push(`  testo: ${corto(r.testo, 400)}`)
-    for (const q of r.punti) righe.push(`  ${q.id} ${q.stato === 'fatto' ? '[fatto] ' : q.stato === 'superato' ? '[superato] ' : ''}${corto(q.testo, 200)}`)
+    if (r.testo !== r.titolo && liv < 2) righe.push(`  testo: ${corto(r.testo, liv === 0 ? 400 : 140)}`)
+    for (const q of r.punti) righe.push(`  ${q.id} ${q.stato === 'fatto' ? '[fatto] ' : q.stato === 'superato' ? '[superato] ' : ''}${corto(q.testo, liv === 0 ? 200 : liv === 1 ? 120 : 70)}`)
     if (r.compiti.length > 0) righe.push(`  compiti: ${r.compiti.map((k) => corto(k, 40)).join(', ')}`)
   }
   if (fatte.length > 0) righe.push(`Fatte di recente: ${fatte.slice(-5).map((r) => `${r.id} ${corto(r.titolo, 60)}${r.versione !== undefined ? ` (${r.versione})` : ''}`).join('; ')}`)
 
+  righe = pianoR
   righe.push('', 'PIANO:')
   // 11/11: i compiti chiusi senza unirli (superati, annullati, di richieste chiuse) non sono lavoro: fuori dall'elenco.
   const chiusiSenzaUnire = d.piano.compiti.filter((c) => c.chiuso !== undefined && (c.stato !== 'unito' || c.criterioVerde !== true)).length
@@ -93,29 +110,59 @@ export function riassuntoOrchestratore(d: DatiRiassunto): string {
   if (chiusi > 0) righe.push(`(${chiusi} compiti uniti con il criterio verde)`)
   if (chiusiSenzaUnire > 0) righe.push(`(${chiusiSenzaUnire} compiti chiusi senza unirli: superati, annullati o di richieste già chiuse)`)
 
+  righe = specR
   righe.push('', 'SPECIALISTI:')
+  // Un compito già unito o chiuso non è più di nessuno: chi ci lavorava non compare.
+  const compitiFiniti = new Set(d.piano.compiti.filter((c) => c.stato === 'unito' || c.chiuso !== undefined).map((c) => c.id))
   const chats = (d.unico?.chats ?? []).filter((c) => c.fine === undefined)
-  const sub = (d.subagenti ?? []).filter((x) => x.unito !== true).slice(-12)
-  if (chats.length === 0 && sub.length === 0) righe.push('- nessuno')
+  const subTutti = (d.subagenti ?? []).filter((x) => x.unito !== true)
+  const inLavoro = (x: Specialista): boolean => x.stato === 'avviato' || x.stato === 'lavoro'
+  const recente = (iso: string | undefined, soglia: number): boolean => {
+    const t = iso === undefined ? NaN : Date.parse(iso)
+    return !Number.isNaN(t) && d.adesso - t <= soglia
+  }
+  let finitiNascosti = 0
+  const sub = subTutti.filter((x) => {
+    if (inLavoro(x)) return true
+    const mostra = liv < 2 && !(x.compito !== undefined && compitiFiniti.has(x.compito)) && recente(x.fine ?? x.inizio, TRENTA_MIN)
+    if (!mostra) finitiNascosti++
+    return mostra
+  }).slice(-12)
+  const adottateFermeN = { n: 0 }
+  const chatsViste = chats.filter((c) => {
+    if (c.stato !== 'finita') return true
+    const adottata = c.origine !== undefined
+    const mostra = liv < 2 && !(c.compitoId !== undefined && compitiFiniti.has(c.compitoId)) && c.conclusa === undefined && recente(c.dal, adottata ? UN_ORA : TRENTA_MIN)
+    if (!mostra) { if (adottata) adottateFermeN.n++; else finitiNascosti++ }
+    return mostra
+  })
+  if (chatsViste.length === 0 && sub.length === 0) righe.push('- nessuno al lavoro')
+  const corpoRiepilogo = liv === 0 ? 160 : 80
   for (const x of sub) {
-    righe.push(`- ${x.id} ${x.ruolo} [${x.stato}, ${durata(x, d.adesso)}]${x.compito !== undefined ? ` compito ${x.compito}` : ''}${x.ramo !== undefined ? ` ramo ${x.ramo}` : ''}: ${corto(x.descrizione, 100)}`)
-    if (x.attivita !== undefined && x.stato === 'lavoro') righe.push(`  ora: ${corto(x.attivita, 160)}`)
-    if (x.riepilogo !== undefined && x.stato !== 'lavoro') righe.push(`  riepilogo: ${corto(x.riepilogo, 400)}`)
+    righe.push(`- ${x.id} ${x.ruolo} [${x.stato}, ${durata(x, d.adesso)}]${x.compito !== undefined ? ` compito ${x.compito}` : ''}${x.ramo !== undefined ? ` ramo ${x.ramo}` : ''}: ${corto(x.descrizione, liv === 0 ? 100 : 60)}`)
+    if (x.attivita !== undefined && x.stato === 'lavoro') righe.push(`  ora: ${corto(x.attivita, liv === 0 ? 160 : 80)}`)
+    if (x.riepilogo !== undefined && x.stato !== 'lavoro') righe.push(`  riepilogo: ${corto(x.riepilogo, corpoRiepilogo)}`)
   }
-  for (const c of chats) {
+  for (const c of chatsViste) {
     const ruolo = c.ruolo !== undefined ? RUOLI[c.ruolo].nome : 'Chat'
-    righe.push(`- ${c.id} ${ruolo} [${c.stato}${c.dal !== undefined ? ` da ${minuti(c.dal, d.adesso)}` : ''}]${c.compitoId !== undefined ? ` compito ${c.compitoId}` : ''}${c.ramo !== undefined ? ` ramo ${c.ramo}` : ''}${c.origine !== undefined ? ` (adottata da ${c.origine.autopilota})` : ''}: ${corto(c.compito, 100)}`)
+    righe.push(`- ${c.id} ${ruolo} [${c.stato}${c.dal !== undefined ? ` da ${minuti(c.dal, d.adesso)}` : ''}]${c.compitoId !== undefined ? ` compito ${c.compitoId}` : ''}${c.ramo !== undefined ? ` ramo ${c.ramo}` : ''}${c.origine !== undefined ? ` (adottata da ${c.origine.autopilota})` : ''}: ${corto(c.compito, liv === 0 ? 100 : 60)}`)
     const ultimo = c.rapporto !== undefined ? `${c.rapporto.tipo}: ${c.rapporto.testo}` : c.ultimaAzione
-    if (ultimo !== undefined && ultimo !== '') righe.push(`  ultimo: ${corto(ultimo, 200)}`)
+    if (ultimo !== undefined && ultimo !== '') righe.push(`  ultimo: ${corto(ultimo, liv === 0 ? 160 : 80)}`)
   }
-  if (d.unioni !== undefined && d.unioni.length > 0) righe.push('', 'UNIONI (una alla volta, le altre aspettano e partono da sole: non rifarle):', ...d.unioni)
+  if (finitiNascosti > 0) righe.push(`(${finitiNascosti} specialisti finiti, già uniti o da tempo: non li elenco)`)
+  // Le chat adottate: una riga sola. Le «solo mia» di Nicholas si nominano, corte, perché non vanno scritte.
   const adottate = d.unico?.adottate ?? []
-  if (adottate.length > 0) righe.push(`Chat adottate di Nicholas: ${adottate.map((x) => `${corto(x.titolo || x.sessionId.slice(0, 8), 40)}${x.soloMia === true ? ' (solo sua: non scriverle)' : ''}`).join('; ')}`)
+  const soloMie = adottate.filter((x) => x.soloMia === true)
+  const guidabili = adottate.length - soloMie.length
+  if (adottateFermeN.n > 0 || guidabili > 0) righe.push(`${adottateFermeN.n + guidabili} chat adottate ferme (non le elenco: le trovi con lo strumento stato)`)
+  if (soloMie.length > 0) righe.push(`Chat solo di Nicholas (non scriverle): ${soloMie.slice(0, 8).map((x) => corto(x.titolo || x.sessionId.slice(0, 8), 30)).join('; ')}${soloMie.length > 8 ? ` e altre ${soloMie.length - 8}` : ''}`)
 
-  righe.push('', `TETTI: specialisti al lavoro in questo workspace ${sub.filter((x) => x.stato === 'avviato' || x.stato === 'lavoro').length + chats.filter((c) => c.stato !== 'finita').length}/${d.tetti.ws}; chat al lavoro sul PC ${d.tetti.alLavoroPc}/${d.tetti.pc}. Domande aperte a Nicholas: ${d.domandeAperte}.`)
+  righe = fisse
+  if (d.unioni !== undefined && d.unioni.length > 0) righe.push('', 'UNIONI (una alla volta, le altre aspettano e partono da sole: non rifarle):', ...d.unioni)
+  righe.push('', `TETTI: specialisti al lavoro in questo workspace ${subTutti.filter(inLavoro).length + chats.filter((c) => c.stato !== 'finita').length}/${d.tetti.ws}; chat al lavoro sul PC ${d.tetti.alLavoroPc}/${d.tetti.pc}. Domande aperte a Nicholas: ${d.domandeAperte}.`)
   // 12/11 (Nicholas: «lavora in parallelo più che puoi»): cosa può partire adesso, e quanti posti ci sono.
   {
-    const alLavoroWs = sub.filter((x) => (x.stato === 'avviato' || x.stato === 'lavoro') && x.pc === undefined).length + chats.filter((c) => c.stato !== 'finita').length
+    const alLavoroWs = subTutti.filter((x) => (x.stato === 'avviato' || x.stato === 'lavoro') && x.pc === undefined).length + chats.filter((c) => c.stato !== 'finita').length
     const liberiWs = Math.max(0, Math.min(d.tetti.ws - alLavoroWs, d.tetti.pc - d.tetti.alLavoroPc))
     const fuori = d.liberiFuori ?? 0
     const pronti = d.pronti ?? []
@@ -132,11 +179,41 @@ export function riassuntoOrchestratore(d: DatiRiassunto): string {
     for (const s of d.sveglie) righe.push(`- ${quandoInParole(s.il, d.adesso)}: ${corto(s.perche, 160)}`)
   }
 
-  if (d.eventi.length > 0) {
+  righe = eventiR
+  const nEventi = liv === 0 ? 12 : liv === 1 ? 5 : 0
+  if (d.eventi.length > 0 && nEventi > 0) {
     righe.push('', 'EVENTI RECENTI:')
-    for (const e of d.eventi.slice(-12)) righe.push(`- ${minuti(e.quando, d.adesso)} fa ${e.chat ?? ''} ${e.tipo}: ${corto(e.testo, 200)}`)
+    for (const e of d.eventi.slice(-nEventi)) righe.push(`- ${minuti(e.quando, d.adesso)} fa ${e.chat ?? ''} ${e.tipo}: ${corto(e.testo, liv === 0 ? 200 : 100)}`)
   }
-  let testo = righe.join('\n')
-  if (testo.length > RIASSUNTO_MAX) testo = `${testo.slice(0, RIASSUNTO_MAX - 60)}\n… (stato tagliato: usa lo strumento stato per il resto)`
-  return testo
+  return { testata, coda: codaR, piano: pianoR, specialisti: specR, fisse, eventi: eventiR }
+}
+
+const unisci = (s: Sezioni): string[] => [...s.testata, ...s.coda, ...s.piano, ...s.specialisti, ...s.fisse, ...s.eventi]
+
+/**
+ * Lo stato entro il tetto, per sezioni: PRONTI, DOMANDE APERTE, UNIONI, TETTI e
+ * SVEGLIE non si tagliano mai. Se non si sta nel tetto si accorciano prima gli
+ * specialisti, gli eventi vecchi e il testo lungo delle richieste; come ultima
+ * strada si taglia la coda dell'elenco di coda e piano, non le sezioni fisse.
+ */
+export function riassuntoOrchestratore(d: DatiRiassunto): string {
+  let s = costruisci(d, 0)
+  let testo = unisci(s).join('\n')
+  if (testo.length <= RIASSUNTO_MAX) return testo
+  for (const liv of [1, 2] as const) {
+    s = costruisci(d, liv)
+    testo = unisci(s).join('\n')
+    if (testo.length <= RIASSUNTO_MAX) return `${testo}\n${AVVISO_ACCORCIATO}`
+  }
+  // Ultima strada: restano intere le sezioni fisse, si taglia da coda e piano.
+  const fisso = [...s.testata, ...s.specialisti, ...s.fisse, AVVISO_ACCORCIATO].join('\n').length
+  let spazio = RIASSUNTO_MAX - fisso - 40
+  const tenute: string[] = []
+  for (const riga of [...s.coda, ...s.piano]) {
+    if (riga.length + 1 > spazio) break
+    tenute.push(riga)
+    spazio -= riga.length + 1
+  }
+  const taglio = tenute.length < s.coda.length + s.piano.length ? ['… (altre righe di coda e piano: usa lo strumento stato)'] : []
+  return [...s.testata, ...tenute, ...taglio, ...s.specialisti, ...s.fisse, AVVISO_ACCORCIATO].join('\n')
 }
