@@ -18,6 +18,7 @@ import { creaPostino, type Postino } from '../main/progetti/posta'
 import { apriRegistroProgetti, type RegistroProgettiStore } from '../main/progetti/registro'
 import type { Registro } from '../main/registro'
 import { rispondiAiuto, type FonteAiuto } from '../main/rotte-aiuto'
+import { chiedi } from '../main/aiuto-credenziali'
 import type { Portachiavi as PortachiaviToken } from '../main/segreti-su-file'
 
 /**
@@ -81,6 +82,16 @@ export function rotteAiutante(p: { aiuto: FonteAiuto; versione: string; identita
     }
     return { stato: 404, corpo: { errore: 'SierraDeck Aiutante: qui ci sono solo i posti per gli altri PC (Aiuta la rete)' } }
   }
+}
+
+/**
+ * k-166n12: le credenziali di un lavoro che parte sull'Aiutante. L'Aiutante non ha una cassaforte di
+ * credenziali sua: le chiede solo al PC che ha affidato il lavoro, con la stessa richiesta del programma
+ * completo (`chiedi`). Un rifiuto o nessuna risposta: nessun valore, e il lavoro prosegue senza
+ * (la risorsa risulta mancante nell'esito). Il valore va solo al lavoratore, in memoria.
+ */
+export function credenzialiPerAiutante(chiama: (pcId: string, percorso: string, corpo: Record<string, unknown>) => Promise<unknown>): NonNullable<FonteAiuto['chiediCredenziali']> {
+  return (r) => chiedi({ lavoro: r.lavoro, nomi: r.nomi, alPcCheAffido: (richiesta) => chiama(r.daPc, '/api/aiuto/credenziali', { ...richiesta }) })
 }
 
 export function colleghiRete(d: {
@@ -164,7 +175,7 @@ export function colleghiRete(d: {
     log: (m) => registro.info(m)
   })
   // Il file al telefono qui non c'è (nessun telefono accoppiato): l'esecutore lo rifiuta con il motivo.
-  const rotta = rotteAiutante({ aiuto: { ...d.aiuto, capacita }, azione: { capacita, esecutori: creaEsecutoriLocali() }, versione: d.versione, identita: () => { const i = identita.leggi(); return { nome: i.nome, host: i.host } } })
+  const rotta = rotteAiutante({ aiuto: { ...d.aiuto, capacita, chiediCredenziali: credenzialiPerAiutante((pc, percorso, corpo) => remoto.chiama(pc, percorso, corpo)) }, azione: { capacita, esecutori: creaEsecutoriLocali() }, versione: d.versione, identita: () => { const i = identita.leggi(); return { nome: i.nome, host: i.host } } })
 
   let server: Server | undefined
   let portaInUso = d.porta()
