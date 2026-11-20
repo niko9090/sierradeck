@@ -72,6 +72,7 @@
 - menu-unificato.test.ts legge i sorgenti: se sposti etichette fra file, aggiorna anche quel test. _(2026-11-19)_
 - `tests/shared/menu-principale.test.ts` cerca titoli e tasti nel sorgente di VistaProgetti, ContenutoDrive e PannelloAccount: se si rinominano, va aggiornato anche quello. _(2026-11-19)_
 - Per modificare client-pagina.ts con script node: il file ha fine riga CRLF e backslash doppi nel template; cercare una riga sola, non stringhe multi-riga. _(2026-11-19)_
+- In client-pagina.ts le duplicazioni si vedono dall'HTML generato: `misura-riga` compare anche nel menu specialisti, quindi il test conta la stringa precisa dell'Avanzamento. _(2026-11-20)_
 
 ## worktree
 
@@ -793,3 +794,7 @@
 ## file
 
 - molti .tsx del renderer sono CRLF: Write li scrive LF, riconvertire con sed 's/$/\r/'; Edit invece combacia. Python non c'è sulla macchina. _(2026-11-19)_
+
+## pagina-telefono
+
+- Il riassunto dell'autopilota e la linguetta Avanzamento mostravano la stessa percentuale; ora solo la linguetta. Gli specialisti stanno solo in Autopiloti e nel menu della chat. _(2026-11-20)_
