@@ -66,10 +66,9 @@ import { salvaPreferenze } from './salva-preferenze'
 import { decidiFumettiDrive, FUMETTO_ARRIVO_MS, FUMETTO_ESITO_OK_MS } from './fumetti-sync'
 import { PannelloChat } from './components/PannelloChat'
 import { PannelloSalute } from './components/PannelloSalute'
-import { PaginaRete } from './components/PaginaRete'
+import { PaginaComputer } from './components/PaginaComputer'
 import { PannelloDomande } from './components/PannelloDomande'
-import { PannelloSpecialisti, useAttesaSpecialisti } from './components/PannelloSpecialisti'
-import { MISURE, MISURE_LIBERE, MOSAICO_MINIMO_PX, limita } from '@shared/misure-pannelli'
+import { MISURE_LIBERE, MOSAICO_MINIMO_PX } from '@shared/misure-pannelli'
 import { Divisore } from './components/Divisore'
 import { useMisuraTrascinabile } from './misure-vive'
 import { apriMenuContestuale } from './menu-contestuale'
@@ -943,23 +942,6 @@ export function App(): React.JSX.Element {
   // Quante conversazioni della scheda Domande aspettano una risposta: il
   // numero sul tasto, letto dalle stesse rotte del telefono (0.36.0).
   const [domandeInAttesa, setDomandeInAttesa] = useState(0)
-  // Quanti specialisti sono in fila per un posto (k-49): il numero accanto a «Specialisti».
-  const { vista: vistaSpecialisti } = useAttesaSpecialisti(true)
-  const specialistiInFila = typeof vistaSpecialisti === 'object' ? vistaSpecialisti.inFila.length : 0
-  // k-160: Specialisti è una colonna a destra, a parte dai pannelli di sinistra. Aperta/chiusa e larghezza si ricordano su questo PC.
-  const [specialistiLato, setSpecialistiLato] = useState<{ aperto: boolean; larghezza: number }>(() => {
-    try {
-      const l = JSON.parse(localStorage.getItem('sierradeck.specialistiLato') ?? '{}') as { aperto?: unknown; larghezza?: unknown }
-      return { aperto: l.aperto === true, larghezza: limita('specialisti', typeof l.larghezza === 'number' ? l.larghezza : MISURE.specialisti.predefinita) }
-    } catch { return { aperto: false, larghezza: MISURE.specialisti.predefinita } }
-  })
-  const salvaSpecialistiLato = useCallback((cambio: { aperto?: boolean; larghezza?: number }): void => {
-    setSpecialistiLato((c) => {
-      const n = { ...c, ...cambio }
-      try { localStorage.setItem('sierradeck.specialistiLato', JSON.stringify(n)) } catch { /* resta com'è fino al riavvio */ }
-      return n
-    })
-  }, [])
   // La colonna laterale delle Domande: aperta o chiusa, e quanto e' larga.
   // Sta nelle preferenze, cosi' si ritrova com'era al riavvio.
   const [colonnaDomande, setColonnaDomande] = useState<{ aperta: boolean; larghezza: number }>({ aperta: false, larghezza: 400 })
@@ -1862,7 +1844,7 @@ export function App(): React.JSX.Element {
           />
         ) : null}
         {aperto === 'computer' ? (
-          <PaginaRete onChiudi={() => setAperto(undefined)} aggiornamento={{ fase: aggiornamento.fase, ...(aggiornamento.versione !== undefined ? { versione: aggiornamento.versione } : {}), ...(aggiornamento.percento !== undefined ? { percento: aggiornamento.percento } : {}) }} />
+          <PaginaComputer onChiudi={() => setAperto(undefined)} aggiornamento={{ fase: aggiornamento.fase, ...(aggiornamento.versione !== undefined ? { versione: aggiornamento.versione } : {}), ...(aggiornamento.percento !== undefined ? { percento: aggiornamento.percento } : {}) }} />
         ) : null}
         {aperto === 'negozio' ? (
           // Skill e MCP sono legati alla cartella della chat davanti: le mostri
@@ -1937,7 +1919,8 @@ export function App(): React.JSX.Element {
               onContextMenu={(e) => apriMenuContestuale(e, vociAutopilota({ dove: 'colonna', remoto: remotoDelWorkspace !== undefined }), {
                 autopiloti: () => setAperto('autopiloti'),
                 domande: () => { if (!colonnaDomande.aperta) commutaColonna('domande') },
-                specialisti: () => salvaSpecialistiLato({ aperto: true }),
+                // Gli specialisti stanno dentro Autopiloti (k-u0).
+                specialisti: () => setAperto('autopiloti'),
                 cartella: () => { void window.gestore.workspace.apriCartella({ workspace: workspace.attivo }).catch(() => undefined) },
                 misura: () => misuraColonna.onMisura(undefined, true),
                 'chiudi-colonna': () => cambiaColonna(false)
@@ -1959,7 +1942,7 @@ export function App(): React.JSX.Element {
               misura={misuraColonna.larghezza}
               misuraAttuale={() => colonnaRef.current?.getBoundingClientRect().width ?? 280}
               // Le chat a destra restano leggibili (come per le colonne Domande e Specialisti).
-              spazio={() => window.innerWidth - MOSAICO_MINIMO_PX - (colonnaDomande.aperta ? colonnaDomande.larghezza : 0) - (specialistiLato.aperto ? specialistiLato.larghezza : 0)}
+              spazio={() => window.innerWidth - MOSAICO_MINIMO_PX - (colonnaDomande.aperta ? colonnaDomande.larghezza : 0)}
               onMisura={misuraColonna.onMisura}
               classe="divisore--tra"
             />

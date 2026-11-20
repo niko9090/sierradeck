@@ -115,7 +115,7 @@ describe('una sola lista di specialisti, i comandi in un posto solo', () => {
     expect(f.match(/prioritaAttesa\(/g)).toHaveLength(1)
     expect(f.match(/togliAttesa\(/g)).toHaveLength(1)
     expect(f.match(/<ListaSpecialisti /g)).toHaveLength(1)
-    expect(f).toContain('<FilaSpecialisti />')
+    expect(f).toContain('export function FilaSpecialisti(')
   })
 
   it('i comandi stanno solo nella pagina: Aggiorna, Riparti al login, il primo messaggio', () => {

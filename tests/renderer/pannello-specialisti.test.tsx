@@ -232,6 +232,19 @@ describe('la sezione «Specialisti»: nel programma', () => {
     expect(console_).not.toContain('specialistiInFila')
     expect(app).not.toContain('{specialistiLato.aperto ? (')
     expect(app).not.toContain('specialistiInFila={specialistiInFila}')
+    // Niente colonna dimenticata: né il componente, né lo stato, né il tasto destro che la apriva.
+    expect(app).not.toContain('specialistiLato')
+    expect(app).not.toContain('salvaSpecialistiLato')
+    expect(pannello).not.toContain('export function PannelloSpecialisti(')
+    expect(app).toContain("specialisti: () => setAperto('autopiloti')")
+  })
+
+  it('k-u8: ogni voce della barra e ogni vecchio percorso portano alla pagina nuova', () => {
+    expect(app).toContain("<PaginaComputer onChiudi")
+    expect(app).not.toContain('PaginaRete')
+    expect(console_).toContain("else if (quale === 'rete') onApri('computer')")
+    expect(console_).toContain("else if (quale === 'specialisti') onApri('autopiloti')")
+    expect(console_).toContain("quale === 'drive' || quale === 'progetti'")
   })
 
   it('legge la lista ogni pochi secondi e usa le tre funzioni del servizio', () => {
