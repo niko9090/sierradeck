@@ -62,7 +62,10 @@ describe('sul PC: ogni voce dell’inventario si raggiunge', () => {
   })
   it('Chat e workspace, Salute, Impostazioni', () => {
     const c = leggi('src/renderer/components/PannelloChat.tsx')
-    for (const t of ['+ Nuova chat', 'Riprendi una conversazione', 'Crea, rinomina, elimina…', 'Nuova finestra', 'Negozio…']) expect(c, t).toContain(t)
+    // I comandi stanno in `@shared/chat-workspace`, una volta sola; il pannello li disegna tutti e li legge da lì.
+    expect(c).toContain('COMANDI_CHAT_WORKSPACE')
+    const comandi = leggi('src/shared/chat-workspace.ts')
+    for (const t of ['+ Nuova chat', 'Riprendi una conversazione', 'Crea, rinomina, elimina…', 'Nuova finestra', 'Negozio…']) expect(comandi, t).toContain(t)
     expect(app).toContain("aperto === 'chat' ? (")
     const s = leggi('src/renderer/components/PannelloSalute.tsx')
     for (const t of ["suiConsumi ? 'consumi'", '<PannelloConsumi incorporato />']) expect(s, t).toContain(t)
