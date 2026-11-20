@@ -217,6 +217,7 @@
 - Un rapporto controllo-*.md scritto da un PC con versione vecchia ripete criticità già corrette: guardare «questo PC la 0.x» nel rapporto prima di aprire lavoro nuovo. _(2026-11-09)_
 - La gravità «guasto» di `pc:<id>` si decide nel singolo PC senza vedere gli altri; il declassamento sta in `criticitaDi`, che vede se il PC ha risposto a chi controlla. _(2026-11-10)_
 - un rapporto «Controllo di tutti i PC» mostra la versione dei PC: prima di aprire un difetto verificare che sia sotto l'ultima versione corretta (qui 0.99.1 vs fix in 0.99.2). _(2026-11-11)_
+- Un rapporto di controllo può venire da una build più vecchia della correzione: prima di cercare un buco, riprodurre il caso nel codice attuale con un test. _(2026-11-20)_
 
 ## strumenti
 
@@ -768,6 +769,7 @@
 - La soglia di 7 giorni è scritta due volte, `posta.ts:116` e `salute.ts:273`: cambiarne una sola lascia la Salute e la logica in disaccordo. _(2026-11-19)_
 - Il rapporto del controllo elenca anche i PC spenti, e ognuno porta il paragrafo di Salute con «Accendi X»: se si toglie un PC dalla lista va tolto anche da `testoRapporto` (`controllo-pc.ts:152`). _(2026-11-19)_
 - `statoPc` di scoperta-pc.ts e `statoPc` di stato-pc.ts sono due funzioni diverse (stessa parola): la prima è il bussare, la seconda la soglia del battito. _(2026-11-19)_
+- Il segno «più recente fra SierraDeck e Aiutante» richiede `host` uguale in tutti e due i battiti (`vistoConAiutante`): senza `host` l'abbinamento non scatta e il PC con solo Aiutante sembra «non risp… _(2026-11-20)_
 
 ## posta
 
