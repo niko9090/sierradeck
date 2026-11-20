@@ -82,6 +82,7 @@
 - `tests/autopilot-host/compiti-chiusi-11-11.test.ts` e `parallelo-12-11.test.ts` usano `riassuntoOrchestratore`: sono la prova di compatibilità del formato quando lo si cambia. _(2026-11-20)_
 - tests/autopilot-host/servizio-orchestratore.test.ts «PreToolUse dell'unico» è rosso in questa copia (atteso `deny`, ricevuto `undefined`), senza i miei file. _(2026-11-20)_
 - Un default di parametro in un helper di test scatta anche con `undefined` passato a mano: per un battito assente usare un valore non valido (es. 'mai'), non `undefined`. _(2026-11-20)_
+- per provare le rotte loopback senza creaServerClient: funzione pura con indirizzo e autorizzazione in ingresso, più un http.createServer di prova su 127.0.0.1 porta 0. _(2026-11-20)_
 
 ## worktree
 
@@ -315,6 +316,7 @@
 - ferma/riparti/archivia dell'autopilota non hanno API nel renderer (solo crea, dialoga, avvioAlLogin): per metterli in pagina serve prima l'IPC. _(2026-11-19)_
 - I test di sorgente (`readFileSync` sul .tsx) bastano per controllare che un pannello non porti più un elenco, senza DOM. _(2026-11-19)_
 - gli orfani vanno cercati con il suffisso `/Nome'` negli import: un controllo su `./Nome'` ignora gli import fatti da App.tsx (`./components/Nome`). _(2026-11-20)_
+- Nel menu dei workspace le azioni dietro «⋯» sono contate da test e pagina servita: il riordino sta in controlli a parte, non come nuova azione di `azioniMenuWorkspace`. _(2026-11-20)_
 
 ## salute
 
@@ -429,6 +431,7 @@
 - Dalla 0.101.0 telefono, pagina e Telegram leggono lo stesso registro degli avvisi (`src/main/avvisi.ts`, `/api/eventi`): una regola su quando avvisare va lì, non nelle schermate; `avvisi=0` vuol dire «da capo» e l’attesa deve svegliarsi per ogni avviso nato dopo. _(2026-11-11)_
 - `dati += buffer` e `buffer.toString()` per pezzo spezzano i caratteri multibyte (U+FFFD): usare StringDecoder o setEncoding('utf8') su ogni lettura a pezzi. _(2026-11-14)_
 - `percentuale` per i lavori ospitati è inventata (10 + minuti): non mostrare una barra senza una stima vera. _(2026-11-16)_
+- il servizio autopiloti non conosce porta del client né gettoni del programma: per parlargli c'è `ponte-locale.json` nella cartella dati (porta+gettone), riscritto a ogni avvio del programma. _(2026-11-20)_
 
 ## registro
 
@@ -511,6 +514,8 @@
 - Deciso 20/11: manda-file-telefono chiesto da un altro PC resta sempre con conferma di chi sta al PC ricevente; mai senza. _(2026-11-20)_
 - il ramo di un lavoro da unire può non esistere nella copia del PC che aiuta: prima di affidare un'unione, verificare che il ramo sia stato rimandato. _(2026-11-20)_
 - `Aiutante` non portava battito né capacità: valutare per requisiti ha richiesto di farli arrivare da index.ts e spedizioniere fino a `/aiuto/giro`. _(2026-11-20)_
+- Il ciclo che segue i lavori affidati è `creaSpedizioniere` in src/main, non in autopilot-host: lì vanno agganciate le regole sui PC remoti. _(2026-11-20)_
+- `LavoroAffidato.percentuale` è una fotografia presa alla partenza del controllo: usarla per la lentezza dà falsi positivi, conta solo `fermoMs` dell'altro PC. _(2026-11-20)_
 
 ## cancello
 
@@ -597,6 +602,7 @@
 
 - `preferenze:imposta` ora risponde `{ preferenze, salvato }`: chi lo chiama dal renderer usi `salvaPreferenze` (src/renderer/salva-preferenze.ts), non `imposta` diretto. _(2026-11-12)_
 - negli handler IPC di sola lettura la validazione dell'argomento va dentro il catch/guard: un throw prima del .catch finisce nel log di Electron come errore. _(2026-11-16)_
+- Un canale nuovo va dichiarato in `src/preload/index.ts` e in `src/renderer/env.d.ts`, che è la fonte dei tipi di `window.gestore`: solo nel preload il typecheck fallisce. _(2026-11-20)_
 
 ## testo
 
@@ -745,6 +751,7 @@
 - i dati di menu-principale.ts e impostazioni-struttura.ts sono copiati in android/assets (menu.json, impostazioni.json) e confrontati da test: rinominare le voci là richiede AGGIORNA=1 e tocca android… _(2026-11-20)_
 - Per rigenerare i JSON dell'app: `AGGIORNA=1` con vitest su menu-principale.test.ts e impostazioni-struttura.test.ts; non c'è altro script di copia. _(2026-11-20)_
 - «Limiti» è una sezione solo PC: se le sottovoci di Impostazioni vanno sul telefono, filtrare con sezioniDi('app'). _(2026-11-20)_
+- Una voce del menu PC senza controparte sul telefono usa `soloPc`. Il menu dell'app (`menu.json`, `MenuPrincipaleTest.kt`) deve restare uguale alle sue schede. _(2026-11-20)_
 
 ## panoramica
 
@@ -870,6 +877,7 @@
 - «Elimina workspace» non mette la lapide sul Drive: al salvataggio dell'altro PC il workspace ritorna (unioni.ts:78). _(2026-11-20)_
 - Non esiste una UI di riordino dei workspace: l'ordine è l'array. `Archivio.ordine` (nomi+quando) ora viaggia sul Drive; serve un'azione che chiami `riordinaWorkspaceArchivio`. _(2026-11-20)_
 - Una lapide toglie dal Drive, mai dal PC: gli altri PC tengono il workspace nel loro archivio locale ma non lo rimandano su. _(2026-11-20)_
+- L'ordine dei workspace vive nell'array dell'archivio: PC, pagina e app lo leggono tutti da lì, quindi riordinare l'array basta. Il campo `ordine` serve solo all'unione sul Drive. _(2026-11-20)_
 
 ## adozione
 
