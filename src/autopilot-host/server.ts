@@ -149,6 +149,8 @@ export type Dipendenze = {
   porta?: number
   /** L'indice del quaderno del progetto (P2), nel prompt dell'orchestratore. */
   indiceQuaderno?: (cwd: string) => string
+  /** k-166n11: un'azione su un altro PC, chiesta al programma principale (`azione-su-pc-programma.ts`). */
+  azioneSuPc?: (azione: unknown) => Promise<{ ok: true; testo: string } | { ok: false; motivo: string }>
   /** Per i test: la raccolta degli eventi per l'orchestratore. */
   raccoltaEventiMs?: number
   /** Per le prove: dopo quanto si spegne un orchestratore a riposo (poi riparte con --resume). */
@@ -1714,6 +1716,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     avvisa: (tipo, a, testo) => deps.avvisa(tipo, a, testo),
     ...(deps.lezioni !== undefined ? { lezioni: deps.lezioni } : {}),
     ...(deps.indiceQuaderno !== undefined ? { indiceQuaderno: deps.indiceQuaderno } : {}),
+    ...(deps.azioneSuPc !== undefined ? { azioneSuPc: deps.azioneSuPc } : {}),
     ...(deps.ultimoDetto !== undefined ? { ultimoDetto: deps.ultimoDetto } : {}),
     ...(deps.git !== undefined ? { git: deps.git } : {}),
     ...(deps.gitAsincrono !== undefined ? { gitAsincrono: deps.gitAsincrono } : {}),

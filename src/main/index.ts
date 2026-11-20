@@ -169,7 +169,8 @@ import { MOTIVO_DRIVE_PIENO_SPOSTA } from '@shared/sposta'
 import { copieNonMie, creaLatoProprietario, creaSposta, giornaleSuDisco, gitDaSalvare, pulisciCopia, saleDaQuestoPc, vistaSposta, type Sposta } from './progetti/sposta'
 import { creaClientPcRemoto, ErroreRemoto } from './pc-remoto'
 import { creaCapacitaLocali } from './capacita-locali'
-import { creaEsecutoriLocali } from './azione-pc'
+import { chiediAzionePc, creaEsecutoriLocali } from './azione-pc'
+import { apriPonteLocale, rispondiAzioneLocale } from './azione-pc-locale'
 import type { CapacitaPc } from '@shared/capacita-pc'
 import { ultimeRighe as ultimeRigheDelRegistro } from './risoluzione'
 import { eFinitaDiAutopilota, motivoChiusaSenzaCartella } from '@shared/chiusa-senza-cartella'
@@ -5726,8 +5727,16 @@ if (!app.requestSingleInstanceLock()) {
       })
       ipcMain.removeHandler('alTelefono:pulisci')
       ipcMain.handle('alTelefono:pulisci', () => { coda.pulisci(); return statoAlTelefono() })
+      // k-166n11: il servizio degli autopiloti chiede qui le azioni su un altro PC (ponte locale, gettone di questo avvio).
+      const ponteLocale = apriPonteLocale(dati, porta)
       serverClient = creaServerClient({
         dispositivi,
+        azioneLocale: (r) => rispondiAzioneLocale(r, {
+          gettone: ponteLocale.gettone,
+          adesso: () => Date.now(),
+          candidati: () => postino.altrui().map((b) => ({ pcId: b.pcId, nome: nomeDaMostrare(b), liberi: 1, battito: b.battito, capacita: b.capacita })),
+          chiedi: (pcId, azione, opz) => chiediAzionePc(remoto, pcId, azione, opz)
+        }),
         // Il PC che ci chiama con la firma di casa: il suo indirizzo si impara (0.57.1).
         pcVisto: (pcId, ind) => { pcVistoGlobale?.(pcId, ind) },
         // Il polso delle chat: la riga di stato di Claude Code ci manda il suo

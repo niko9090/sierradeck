@@ -214,6 +214,8 @@ export type ContestoUnico = {
   aiutiQui?: () => number
   /** 12/11: i lavori degli altri PC che girano qui, per l'elenco «Al lavoro adesso». */
   ospitati?: () => LavoroOspitato[]
+  /** k-166n11: un'azione singola su un altro PC, chiesta al programma principale. Assente: lo strumento dice che non è disponibile. */
+  azioneSuPc?: (azione: unknown) => Promise<{ ok: true; testo: string } | { ok: false; motivo: string }>
 }
 
 /** Com'è andato un giro sui doppioni. */
@@ -1959,6 +1961,8 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     // 11/11: «devono poter essere sorpassati se decisi da me». L'autopilota dice la classe e l'azione; il programma
     // la controlla, scrive lui la domanda (maiDaSola: non scade, nessuno sceglie al posto suo) e la apre.
     // Il permesso nasce solo dalla risposta di Nicholas, dove il programma la registra (`rispondiAllaDomanda`).
+    // k-166n11: le azioni su un altro PC passano dal programma principale (azione-su-pc-programma.ts).
+    ...(x.azioneSuPc !== undefined ? { azioneSuPc: x.azioneSuPc } : {}),
     chiediConsenso(ws, p) {
       const a = unicoDi(ws)
       if (a === undefined) return { ok: false, motivo: 'l’autopilota unico non c’è' }

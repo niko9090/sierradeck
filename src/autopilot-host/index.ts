@@ -34,6 +34,7 @@ import { apriCode } from './coda-store'
 import { apriOrchestratori } from './orchestratore-store'
 import { avviaProcessoReale, claudeCmd } from './processo-claude'
 import { sorvegliaAccesso } from './sorveglia-accesso'
+import { creaAzioneSuPcDalProgramma, ponteDaFile } from './azione-su-pc-programma'
 import { aggiungiRuntimeAlPath } from '@shared/runtime-noti'
 
 /** Ogni quanto si passa a vedere se qualche chat ha smesso di parlare. */
@@ -401,7 +402,9 @@ export function avviaServizio(): void {
     limiti,
     avviaProcesso: avviaProcessoReale(claudeCmd()),
     porta: PORTA,
-    indiceQuaderno: (cwd) => quadernoLezioni.indice(cwd)
+    indiceQuaderno: (cwd) => quadernoLezioni.indice(cwd),
+    // k-166n11: le azioni su un altro PC le fa il programma principale, sul canale locale.
+    azioneSuPc: creaAzioneSuPcDalProgramma({ ponte: ponteDaFile(join(cartellaStato(), '..')) })
   })
 
   serverPronto = server

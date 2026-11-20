@@ -5,6 +5,7 @@ import { daReteLocale } from '@shared/rete-locale'
 import { RIFIUTO_DI_RETE } from '@shared/scoperta-pc'
 import { PERCORSO } from '@shared/percorsi-menu'
 import { leggiCorpoJson } from '@shared/corpo-richiesta'
+import { ROTTA_AZIONE_LOCALE } from '@shared/ponte-locale'
 import { TETTO_CORPO_PEZZO } from '@shared/aiuto-rete'
 import { createHash, timingSafeEqual } from 'node:crypto'
 import { gzip as comprimi, gzipSync } from 'node:zlib'
@@ -94,6 +95,12 @@ export type DipendenzeClient = {
    * nell'intestazione `Authorization` (lo controlla chi risponde).
    */
   mcp?: (metodo: string, autorizzazione: string | undefined, corpo: unknown) => Promise<{ stato: number; corpo?: unknown }>
+  /**
+   * k-166n11: il servizio degli autopiloti chiede un'azione su un altro PC
+   * (`POST /api/azione-locale`, solo da 127.0.0.1 e con il gettone del ponte
+   * locale: lo controlla chi risponde).
+   */
+  azioneLocale?: (r: { metodo: string; indirizzo: string; autorizzazione: string | undefined; corpo: unknown }) => Promise<{ stato: number; corpo: unknown }>
   /**
    * La **chiave di casa**: quella che un altro PC con la stessa cassaforte
    * ricava per bussare qui (`sincronia.chiaveDiCasa('client-pc:<mio id>')`).
@@ -323,6 +330,20 @@ async function gestisci(
       return
     }
     rispondi(res, { stato: e.stato, corpo: e.corpo })
+    return
+  }
+
+  if (percorso === ROTTA_AZIONE_LOCALE) {
+    if (!eLoopback(indirizzo) || deps.azioneLocale === undefined) {
+      rispondi(res, { stato: 403, corpo: { ok: false, motivo: 'solo da questo computer' } })
+      return
+    }
+    let e: { stato: number; corpo: unknown }
+    try { e = await deps.azioneLocale({ metodo, indirizzo, autorizzazione: req.headers.authorization, corpo }) } catch (err) {
+      console.warn('[client] azione locale:', err)
+      e = { stato: 500, corpo: { ok: false, motivo: 'errore nel programma' } }
+    }
+    rispondi(res, e)
     return
   }
 
