@@ -57,6 +57,7 @@ import {
 import { oscuraChat, rifiutoChiusa, STATO_CHIUSA } from '@shared/pin-chat'
 import { TASTI_REMOTI, tastoRemotoValido } from '@shared/tasti-remoti'
 import { rispondiAiuto, type FonteAiuto } from './rotte-aiuto'
+import { rispondiAzione, type DipendenzeEsecutore } from './azione-pc'
 
 /** 0.103.0: le rotte di «Aiuta la rete», fra PC. */
 import type { GuardianoPin } from './pin-guardiano'
@@ -246,6 +247,8 @@ export type DipendenzeRotte = {
    * rotte `/aiuto/*` (i posti, il progetto a pezzi, l'avvio, lo stato, il ramo da ritirare).
    */
   aiuto?: FonteAiuto
+  /** k-166n3: le azioni singole che un altro PC può chiedere a questo (`/api/azione`). */
+  azione?: DipendenzeEsecutore
   /** k-48: la lista d'attesa degli specialisti (chi lavora, chi aspetta), la priorità di una voce, togliere una voce. */
   attesaSpecialisti?: () => Promise<unknown>
   prioritaAttesaSpecialisti?: (id: string, mossa: import('@shared/attesa-specialisti').MossaAttesa) => Promise<unknown>
@@ -1629,6 +1632,9 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     // 12/11: le rotte stanno in `rotte-aiuto.ts`, uguali per il programma completo e per l'Aiutante.
     const aiuto = await rispondiAiuto(r, deps.aiuto)
     if (aiuto !== undefined) return aiuto
+    // k-166n3: una azione singola chiesta da un altro PC (elenco chiuso, capacità controllata).
+    const azione = await rispondiAzione(r, deps.azione)
+    if (azione !== undefined) return azione
 
     // 0.95.1: la conversazione di uno specialista dell'autopilota di un workspace,
     // la stessa che il PC mostra a destra. Il telefono la guarda e basta.

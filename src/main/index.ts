@@ -103,7 +103,7 @@ import { cartellaDiProva } from '@shared/chat-di-prova'
 import { LOCALI_MAX_CHAT, type LocaliBattito } from '@shared/posta'
 import { apriFileProgetti } from './file-progetti'
 import { apriGettoni, configMcp, rispondiMcp, type Gettoni } from './mcp-telefono'
-import { confermaDaRisposta, idDomandaConferma, leggiIdDomandaConferma, OPZIONI_CONFERMA, testoConferma, testoStato } from '@shared/file-telefono'
+import { confermaDaRisposta, idDomandaConferma, leggiIdDomandaConferma, OPZIONI_CONFERMA, telefonoPredefinito, testoConferma, testoStato } from '@shared/file-telefono'
 import type { Autopilota } from '@shared/autopilota'
 import { preparaConsegna } from '@shared/consegna-breve'
 import { nelRecuperoQuandoChiusa } from './agente-finito'
@@ -166,6 +166,7 @@ import { MOTIVO_DRIVE_PIENO_SPOSTA } from '@shared/sposta'
 import { copieNonMie, creaLatoProprietario, creaSposta, giornaleSuDisco, gitDaSalvare, pulisciCopia, saleDaQuestoPc, vistaSposta, type Sposta } from './progetti/sposta'
 import { creaClientPcRemoto, ErroreRemoto } from './pc-remoto'
 import { creaCapacitaLocali } from './capacita-locali'
+import { creaEsecutoriLocali } from './azione-pc'
 import type { CapacitaPc } from '@shared/capacita-pc'
 import { ultimeRighe as ultimeRigheDelRegistro } from './risoluzione'
 import { eFinitaDiAutopilota, motivoChiusaSenzaCartella } from '@shared/chiusa-senza-cartella'
@@ -4976,6 +4977,19 @@ if (!app.requestSingleInstanceLock()) {
         specialistaAutopilota: (ws: string, id: string) => clientAutopilota.specialista(ws, id),
         // 0.103.0: «Aiuta la rete»: il modo scelto qui e la strada verso il servizio per le rotte `/aiuto/*`.
         aiuto: { capacita: () => capacitaQuiGlobale?.(), modo: () => impostazioni.preferenze().aiutoRete,servizio: (percorso: string, corpo?: Record<string, unknown>) => clientAutopilota.aiuto(percorso, corpo), nomePc: (pcId: string) => { const b = postino.altrui().find((x) => x.pcId === pcId); return b !== undefined ? nomeDaMostrare(b) : undefined } },
+        // k-166n3: le azioni singole chieste da un altro PC; il file al telefono parte sempre con la conferma di chi sta qui.
+        azione: {
+          capacita: () => capacitaQuiGlobale?.(),
+          esecutori: {
+            ...creaEsecutoriLocali(),
+            mandaFileTelefono: async (percorso: string) => {
+              const tel = telefonoPredefinito(coda.telefoni())
+              if (tel === undefined) return { ok: false as const, motivo: 'A questo PC non è accoppiato nessun telefono.' }
+              const e = await coda.metti({ file: percorso, a: tel.chiave, da: 'pc', conferma: true, nota: 'Chiesto da un altro PC' })
+              return e.ok ? { ok: true as const, valore: { consegna: e.c.id, stato: e.c.stato } } : { ok: false as const, motivo: e.errore }
+            }
+          }
+        },
         attesaSpecialisti: () => clientAutopilota.attesaSpecialisti(),
         prioritaAttesaSpecialisti: (id: string, mossa: import('@shared/attesa-specialisti').MossaAttesa) => clientAutopilota.prioritaAttesa(id, mossa),
         togliAttesaSpecialisti: (id: string) => clientAutopilota.togliAttesa(id),
