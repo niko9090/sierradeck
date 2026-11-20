@@ -4,6 +4,7 @@ import { realpath, stat } from 'node:fs/promises'
 import { isAbsolute, resolve } from 'node:path'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 import { esitoPerLaChat, inCorso, nomeCartella, telefonoPredefinito, type Consegna } from '@shared/file-telefono'
+import { PERCORSO } from '@shared/percorsi-menu'
 import type { AlTelefono } from './al-telefono'
 import type { QuadernoPersonale } from './quaderno-personale'
 import { dentroOUguale } from './file-progetti'
@@ -155,7 +156,7 @@ export async function mandaDaChat(
   try { cartella = await realpath(chat.cwd) } catch { cartella = resolve(chat.cwd) }
   const dentro = dentroOUguale(cartella, vero)
   const tel = telefonoPredefinito(deps.alTelefono.telefoni())
-  if (tel === undefined) return no('a questo PC non è accoppiato nessun telefono. Nicholas deve prima collegare l’app SierraDeck (Impostazioni → Client sul PC).')
+  if (tel === undefined) return no(`a questo PC non è accoppiato nessun telefono. Nicholas deve prima collegare l’app SierraDeck (${PERCORSO.client} sul PC).`)
   const titolo = deps.titoloChat(chat.sessione) ?? nomeCartella(chat.cwd)
   const e = await deps.alTelefono.metti({
     file: vero, a: tel.chiave, da: 'chat', daChat: titolo, daSessione: chat.sessione, conferma: !dentro,

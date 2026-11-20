@@ -1,4 +1,5 @@
 import { TendinaMenu } from './TendinaMenu'
+import { PERCORSO } from '@shared/percorsi-menu'
 import { passoSulPc, vistaAccount } from '@shared/account-vista'
 import type { Colore } from '@shared/stato-vista'
 import { useEffect, useState } from 'react'
@@ -282,18 +283,18 @@ function SezioneSync({ parte }: { parte: 'account' | 'salvataggio' }): React.JSX
         </div>
       ) : null}
 
-      {/* Le due schede: Drive e Cassaforte, sempre visibili (in Impostazioni → Account) */}
+      {/* Le due schede: Drive e Cassaforte, sempre visibili (in Impostazioni → Account e Drive) */}
       {parte === 'salvataggio' && !pronto ? (
         <div className="account__scheda account__scheda--largo">
           <p className="account__nota">
             {drive.portachiaviNonPronto === true
               ? 'Il portachiavi di Windows non è ancora pronto: il collegamento al Drive c’è, ma non si legge adesso. Riprovo da solo fra pochi secondi; non serve ricollegare.'
               : !drive.connesso
-              ? 'Il Drive non è collegato: le chat non si salvano e gli altri PC non si vedono. Si collega da Impostazioni → Account, con il tuo account Google.'
-              : 'La cassaforte è chiusa: senza la passphrase non si salva e non si legge niente dal Drive. Si apre da Impostazioni → Account.'}
+              ? `Il Drive non è collegato: le chat non si salvano e gli altri PC non si vedono. Si collega da ${PERCORSO.account}, con il tuo account Google.`
+              : `La cassaforte è chiusa: senza la passphrase non si salva e non si legge niente dal Drive. Si apre da ${PERCORSO.account}.`}
           </p>
           <div className="account__tasti">
-            <button className="tasto tasto--primario" onClick={() => window.dispatchEvent(new Event('sierradeck:apri-account'))}>Apri Impostazioni → Account</button>
+            <button className="tasto tasto--primario" onClick={() => window.dispatchEvent(new Event('sierradeck:apri-account'))}>Apri {PERCORSO.account}</button>
           </div>
         </div>
       ) : null}
@@ -310,7 +311,7 @@ function SezioneSync({ parte }: { parte: 'account' | 'salvataggio' }): React.JSX
           <div className="account__catena-tutta">
             <div className="account__catena-testa">
               <span className="account__scheda-tit con-aiuto">Account e Drive<Aiuto di="Account e Drive">
-                Quattro anelli, da sinistra: sei <b>entrato</b>, il <b>Drive</b> di Google è collegato, la <b>cassaforte</b> (la passphrase che cifra i tuoi dati sul Drive) è aperta, l’ultimo <b>salvataggio</b> è recente. Il primo anello non a posto dice il prossimo passo. Salva ora, Ripristina, il salvataggio automatico e «Fondi con il Drive» stanno in <b>Progetti → «Salvataggio e arrivo»</b>; gli altri computer in <b>Salute</b>. Scollega, Cambia passphrase, Blocca ed Esci sono nel menu «Account ▾».
+                Quattro anelli, da sinistra: sei <b>entrato</b>, il <b>Drive</b> di Google è collegato, la <b>cassaforte</b> (la passphrase che cifra i tuoi dati sul Drive) è aperta, l’ultimo <b>salvataggio</b> è recente. Il primo anello non a posto dice il prossimo passo. Salva ora, Ripristina, il salvataggio automatico e «Fondi con il Drive» stanno in <b>Progetti → «Salvataggio e arrivo»</b>; gli altri computer in <b>Computer</b>. Scollega, Cambia passphrase, Blocca ed Esci sono nel menu «Account ▾».
               </Aiuto></span>
               <span style={{ flex: 1 }} />
               <span style={{ position: 'relative' }}>

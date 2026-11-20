@@ -303,7 +303,7 @@
       "id": "account-google",
       "sezione": "drive",
       "titolo": "Account Google del Drive",
-      "spiega": "Quale account Google usa il computer per salvare le chat, cifrate con la passphrase della cassaforte. Sul computer si collega e si scollega da Impostazioni → Account. Scollegato: le chat non si salvano e gli altri PC non si vedono. Il contenuto del Drive, «Porta qui» e il salvataggio stanno in Progetti.",
+      "spiega": "Quale account Google usa il computer per salvare le chat, cifrate con la passphrase della cassaforte. Sul computer si collega e si scollega da Impostazioni → Account e Drive. Scollegato: le chat non si salvano e gli altri PC non si vedono. Il contenuto del Drive, «Porta qui» e il salvataggio stanno in Progetti.",
       "parole": [
         "google",
         "cloud",

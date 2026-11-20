@@ -1,4 +1,5 @@
 import { vistaAccount } from '@shared/account-vista'
+import { PERCORSO } from '@shared/percorsi-menu'
 import { avvisoCarico, leggiPostiScelti, origineCorta, rigaPosti, spiegaPosti, POSTI_SCELTI_MAX, POSTI_SCELTI_MIN, type PostiChat } from '@shared/posti-chat'
 import { attivitaDaSegnali } from '@shared/attivita-chat'
 import type { Segnale } from '@shared/segnali-chat'
@@ -2513,9 +2514,9 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         }
         const stato = acceso === true ? ' · acceso' : acceso === false ? ' · spento o non risponde' : ''
         const sulComputer = acceso === false
-          ? `Sul computer, aprendola dall'elenco «Riprendi», il riquadro aspetta «${su}» e si collega da solo dal vivo appena torna acceso.`
-          : `Sul computer, aprendola dall'elenco «Riprendi», il riquadro si collega da solo dal vivo a «${su}» e ci lavori a distanza.`
-        return { stato: 409, corpo: { errore: `questa chat è su «${su}»${stato}: la sua cartella ${cartella} sta là, qui non c'è, e da qui partirebbe in una cartella vuota. ${sulComputer} Per lasciarle un'azione: Computer → «Altri computer».` } }
+          ? `Sul computer, aprendola da Chat e workspace → «Riprendi una conversazione», il riquadro aspetta «${su}» e si collega da solo dal vivo appena torna acceso.`
+          : `Sul computer, aprendola da Chat e workspace → «Riprendi una conversazione», il riquadro si collega da solo dal vivo a «${su}» e ci lavori a distanza.`
+        return { stato: 409, corpo: { errore: `questa chat è su «${su}»${stato}: la sua cartella ${cartella} sta là, qui non c'è, e da qui partirebbe in una cartella vuota. ${sulComputer} Per lasciarle un'azione: ${PERCORSO.computerBarra}.` } }
       }
       const chiesto = stringa(r.corpo, 'workspace').slice(0, 120)
       deps.riprendiSessione(cartella, sessione, chiesto !== '' ? chiesto : undefined)
@@ -2622,7 +2623,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     }
 
     if (r.metodo === 'POST' && r.percorso === '/api/salvataggi/carica') {
-      return { stato: 410, corpo: { errore: 'i salvataggi con nome non esistono più dalla 0.34.0: all’avvio il computer riapre da solo l’ultima composizione; per tornare a una chiusura precedente usa Impostazioni → «Torna a com’era» sul computer' } }
+      return { stato: 410, corpo: { errore: `i salvataggi con nome non esistono più dalla 0.34.0: all’avvio il computer riapre da solo l’ultima composizione; per tornare a una chiusura precedente usa ${PERCORSO.tornaComeEra} sul computer` } }
     }
 
     // Chiudere una chat non chiude la conversazione: quella resta su disco e si
@@ -2674,7 +2675,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     // altrimenti chiunque avesse il telefono la toglierebbe senza saperlo.
     if (r.metodo === 'POST' && r.percorso === '/api/pin/proteggi') {
       if (g === undefined || deps.proteggiChat === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora proteggere una chat da qui: aggiornalo alla 0.56.0.' } }
-      if (!g.stato().impostato) return { stato: 409, corpo: { errore: 'Sul computer non c’è ancora un PIN: si sceglie là, in Impostazioni → Chat e autopiloti → PIN. Poi da qui si protegge ogni chat.' } }
+      if (!g.stato().impostato) return { stato: 409, corpo: { errore: `Sul computer non c’è ancora un PIN: si sceglie là, in ${PERCORSO.pin}. Poi da qui si protegge ogni chat.` } }
       const c = depsPieni.chat().find((x) => x.id === stringa(r.corpo, 'chat'))
       if (c === undefined || c.sessione === undefined || c.sessione === '') return { stato: 404, corpo: { errore: 'Questa chat non è aperta sul computer, o non ha ancora una conversazione.' } }
       const si = (r.corpo as { si?: unknown } | undefined)?.si !== false

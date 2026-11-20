@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { workspaceCorrente } from '../workspace-corrente'
+import { PERCORSO } from '@shared/percorsi-menu'
 import { apriMenuContestuale } from '../menu-contestuale'
 
 /**
@@ -121,7 +122,7 @@ export function TastoPin({ sessione, titolo }: { sessione: string; titolo: strin
   }, [])
   const proteggi = (si: boolean): void => { void window.gestore.pin.proteggiChat(sessione, si).then(rileggi) }
   const menu = (e: React.MouseEvent): void => apriMenuContestuale(e, [
-    ...(!attivo ? [{ id: 'spento', testo: 'Il PIN è spento: accendilo dalle Impostazioni → PIN delle chat', spenta: true }] : []),
+    ...(!attivo ? [{ id: 'spento', testo: `Il PIN è spento: accendilo da ${PERCORSO.pin}`, spenta: true }] : []),
     protetta
       ? { id: 'togli', testo: 'Togli il PIN da questa chat' }
       : { id: 'metti', testo: 'Proteggi con il PIN', spenta: !attivo },

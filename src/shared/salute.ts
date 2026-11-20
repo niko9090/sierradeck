@@ -10,6 +10,7 @@
  */
 
 import { mappaPc, type MappaPc } from './collegamento'
+import { PERCORSO } from './percorsi-menu'
 import { DISMETTI_DOPO_MS, statoPc } from './stato-pc'
 import { tempoRelativo } from './tempo-it'
 import { rigaRisorse, risorseAlte, type GpuPc, type RisorsePc } from './risorse'
@@ -205,7 +206,7 @@ export function voceFirewall(f: NonNullable<IngressiSalute['firewall']>, nomeQui
     spiegazione: f.messaggio,
     cosaFare: f.motivo === 'blocca-tutto'
       ? `Su ${nomeQui}: Sicurezza di Windows → Firewall → la rete attiva → togli «Blocca tutte le connessioni in ingresso». Oppure, da PowerShell come amministratore: ${f.comando}`
-      : `Su ${nomeQui}: Impostazioni → Client → «Sistema» (Windows chiede il permesso di amministratore). Oppure, da PowerShell come amministratore: ${f.comando}`,
+      : `Su ${nomeQui}: ${PERCORSO.client} → «Sistema» (Windows chiede il permesso di amministratore). Oppure, da PowerShell come amministratore: ${f.comando}`,
     azioni: []
   }
 }
@@ -219,15 +220,15 @@ export function componiSalute(i: IngressiSalute): Salute {
     voci.push({
       chiave: 'drive', gruppo: 'drive', tono: 'attenzione', titolo: 'Drive non configurato',
       spiegazione: 'Questo PC non ha un Drive collegato: le chat di qui non hanno un salvataggio, e gli altri PC non sanno che esiste (niente battiti). Tutto il resto funziona.',
-      cosaFare: 'Se usi più PC o vuoi un salvataggio delle chat: Account → Drive → Collega.',
-      azioni: [{ id: 'apri-drive', testo: 'Apri Account → Drive' }]
+      cosaFare: 'Se usi più PC o vuoi un salvataggio delle chat: Impostazioni → Account e Drive → Collega.',
+      azioni: [{ id: 'apri-drive', testo: 'Apri Account e Drive' }]
     })
   } else if (!i.drive.connesso) {
     voci.push({
       chiave: 'drive', gruppo: 'drive', tono: 'guasto',
       titolo: i.drive.titolo ?? 'Drive scollegato',
       spiegazione: i.drive.testo ?? 'Il Drive di questo PC non ha l’autorizzazione: le chat non si salvano e gli altri PC non si vedono.',
-      cosaFare: 'Account → Drive → Collega, con lo stesso account Google, su ogni PC dove compare questa voce.',
+      cosaFare: 'Impostazioni → Account e Drive → Collega, con lo stesso account Google, su ogni PC dove compare questa voce.',
       azioni: [{ id: 'apri-drive', testo: 'Ricollega il Drive' }]
     })
   } else if (i.drive.pieno === true) {
@@ -289,7 +290,7 @@ export function componiSalute(i: IngressiSalute): Salute {
       titolo: `${p.nome} · ${raggiungibile ? 'acceso' : soloAiutante ? 'acceso, lavora solo l’Aiutante (SierraDeck non è aperto)' : p.stato === 'chiave' || p.stato === 'rifiutato' ? 'risponde ma non entra' : p.stato === 'altro' ? 'non lo trovo a quell’indirizzo' : vecchio ? st.frase : 'acceso secondo il Drive, ma non si raggiunge'} · ${p.versione}`,
       spiegazione: `Ultimo battito sul Drive: ${eta}.${battitoFermoPerDrivePieno ? ' Il battito non si aggiorna perché il Drive è pieno (un account solo per tutti i PC): il PC risponde, ma la versione del battito può essere vecchia.' : ''} Adesso ${strada}. ${indietro ? `Ha la ${p.versione}, ${nomeQui} ha la ${i.versione}: ${stessoMinor(p.versione, i.versione) ? 'solo correzioni: aggiornarlo non è urgente.' : `là mancano le novità della ${i.versione}.`}` : attendibile ? 'Ha la stessa versione di questo PC, o più nuova.' : 'Se sia aggiornato non si sa finché non risponde.'}${origineVersione !== '' ? ` ${origineVersione}` : ''}`,
       ...(rispostaDiversa !== undefined
-        ? { cosaFare: p.stato === 'chiave' ? `Su ${p.nome} apri la cassaforte (Account → Cassaforte) con la stessa passphrase di qui.` : p.stato === 'rifiutato' ? `Su ${p.nome}, in Impostazioni → Client, accetta anche da fuori la rete locale, oppure usate la stessa rete o Tailscale.` : `Controlla che ${p.nome} sia acceso, sulla stessa rete o con Tailscale: l’indirizzo che avevo ora è di un altro.` }
+        ? { cosaFare: p.stato === 'chiave' ? `Su ${p.nome} apri la cassaforte (${PERCORSO.account} → Cassaforte) con la stessa passphrase di qui.` : p.stato === 'rifiutato' ? `Su ${p.nome}, in ${PERCORSO.computer}, accendi «Accetta il Client anche da fuori la rete locale», oppure usate la stessa rete o Tailscale.` : `Controlla che ${p.nome} sia acceso, sulla stessa rete o con Tailscale: l’indirizzo che avevo ora è di un altro.` }
         : raggiungibile
         ? (indietro ? { cosaFare: `Aggiorna ${p.nome}: «Installa là» qui sotto lo fa da questo PC (ti mostra prima cosa cambia, poi ${p.nome} aspetta che le sue chat finiscano il turno e si riavvia da solo). Oppure dal suo schermo «Installa».` } : {})
         : soloAiutante ? {}

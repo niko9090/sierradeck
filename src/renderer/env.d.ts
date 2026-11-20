@@ -326,7 +326,6 @@ declare global {
         ripristina: (id: string) => Promise<{ ok: boolean; messaggio: string }>
         chiediSvuota: (ancheDalDrive: boolean) => Promise<{ ok: boolean; messaggio: string; gettone?: string; scadeIl?: string; chat?: number; byte?: number; frase?: string }>
         svuota: (p: { gettone: string; frase: string; ancheDalDrive: boolean }) => Promise<{ ok: boolean; messaggio: string; byte?: number }>
-        orfane: () => Promise<{ etichette: string[]; archiviate: string[] }>
         onCambiata: (cb: () => void) => () => void
       }
       etichette: {

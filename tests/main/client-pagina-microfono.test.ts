@@ -72,7 +72,7 @@ describe('0.75.1: pagina, perché non si collega', () => {
     const m = motivo(true, '192.168.1.20')
     expect(m.titolo).toBe('Il PC risponde ma non riconosce questo telefono')
     expect(m.rimedio).toContain('Riprova')
-    expect(m.dettagli).toContain('Impostazioni → Client')
+    expect(m.dettagli).toContain('Impostazioni → Computer → Client')
   })
   it('nessuna risposta: «Nessun PC risponde», con cosa ho provato e il rimedio giusto per l’indirizzo', () => {
     const ts = motivo(false, '100.64.0.20')

@@ -74,6 +74,7 @@ import { Divisore } from './components/Divisore'
 import { useMisuraTrascinabile } from './misure-vive'
 import { apriMenuContestuale } from './menu-contestuale'
 import { vociAutopilota } from '@shared/menu-contestuale'
+import { PERCORSO } from '@shared/percorsi-menu'
 import type { StatoLavoro } from '../main/cassaforte/lavoro-in-corso'
 import { useAvviaNomiPc } from './state/nomi-pc'
 import { BarraAffiancate, BarraLinguette, CorpoPanoramica, PANORAMICA, type SchedaVista } from './components/WorkspacePanoramica'
@@ -1741,7 +1742,7 @@ export function App(): React.JSX.Element {
           <button
             className="tasto tasto--primario"
             onClick={() => { setSchedaImpostazioni('account'); setAperto('impostazioni') }}
-            title="Apre Impostazioni → Account: lì «Collega» apre il browser per il consenso di Google"
+            title={`Apre ${PERCORSO.account}: lì «Collega» apre il browser per il consenso di Google`}
           >
             Ricollega il Drive
           </button>
@@ -1749,7 +1750,7 @@ export function App(): React.JSX.Element {
             <button
               className="tasto"
               onClick={() => chiudiDrive(driveScollegato.chiave as string)}
-              title="Nasconde questa riga. Ricompare solo se il Drive si scollega un’altra volta; lo stato resta comunque in Impostazioni → Account"
+              title={`Nasconde questa riga. Ricompare solo se il Drive si scollega un’altra volta; lo stato resta comunque in ${PERCORSO.account}`}
               aria-label="Chiudi l’avviso del Drive"
             >
               ×
@@ -1785,7 +1786,7 @@ export function App(): React.JSX.Element {
             ) : (
               <button className="tasto" title="Riprova a trasformare i workspace" onClick={() => { void window.gestore.migrazione.rifai().then((e) => setNotaMigrazione(e.messaggio)).catch(() => undefined) }}>Riprova</button>
             )}
-            <button className="tasto" title="Toglie questo avviso. «Torna come prima» resta in Impostazioni → Chat e autopiloti" onClick={() => chiudiAvviso([`migrazione:${migrazione.iniziata}`])}>Chiudi</button>
+            <button className="tasto" title={`Toglie questo avviso. «Torna come prima» resta in ${PERCORSO.chat}`} onClick={() => chiudiAvviso([`migrazione:${migrazione.iniziata}`])}>Chiudi</button>
           </div>
         </div>
       ) : null}

@@ -1170,7 +1170,7 @@ describe('il Drive dal telefono', () => {
       chatAltrove: () => 'Portatile'
     })
     const r = await rotteClient(su)({ metodo: 'POST', percorso: '/api/sessioni/riprendi', corpo: { cartella: 'E:\\a', sessione: 's' } })
-    expect((r.corpo as { errore: string }).errore).toContain('Altri computer')
+    expect((r.corpo as { errore: string }).errore).toContain("Per lasciarle un'azione: Computer.")
   })
 
   it('una chat di un altro PC non da un errore secco: dice «su X · acceso» o «spento o non risponde» e cosa fa il computer (0.36.1)', async () => {

@@ -1,4 +1,5 @@
 import { assaggio as assaggioScheda } from '@shared/quaderno-vista'
+import { PERCORSO } from '@shared/percorsi-menu'
 import { frenoDrive, MESSAGGIO_DRIVE_PIENO, RICONTROLLO_PIENO_MIN } from './cassaforte/freno-drive'
 import { nonRipartePerAltri } from '@shared/apertura-solo-utente'
 import { portaInVista, statoApertura } from '@shared/finestra-visibile'
@@ -2523,7 +2524,7 @@ if (!app.requestSingleInstanceLock()) {
         if (!r.ok) {
           // Un PC che non conosce la rotta: va aggiornato (lo si dice così, non con un 404).
           const vecchio = r.stato === 404 || /non sa ancora avviare le chat in sottofondo/.test(r.messaggio)
-          const messaggio = vecchio ? `${nome} ha una versione che non sa avviare le chat in sottofondo: va aggiornato alla 0.58.4 (Impostazioni → Altri computer → Installa là). Intanto puoi aprirla là a schermo.` : r.messaggio
+          const messaggio = vecchio ? `${nome} ha una versione che non sa avviare le chat in sottofondo: va aggiornato alla 0.58.4 (Computer → Installa là). Intanto puoi aprirla là a schermo.` : r.messaggio
           passo(`${nome} non l’ha avviata: ${messaggio}`)
           return { ...r, messaggio, ...(vecchio ? { vecchio: true } : {}) }
         }
@@ -5780,7 +5781,7 @@ if (!app.requestSingleInstanceLock()) {
         if (e.stato === 'bloccato') {
           registro.errore(`[client] ${e.messaggio} Comando: ${e.comando}`)
           // Una sola volta per avvio; l'elevazione parte solo dal tasto «Sistema».
-          try { new Notification({ title: 'SierraDeck', body: 'Il firewall di Windows blocca il telefono sul wifi di casa. Apri Impostazioni → Client e premi «Sistema».' }).show() } catch { /* senza notifiche */ }
+          try { new Notification({ title: 'SierraDeck', body: `Il firewall di Windows blocca il telefono sul wifi di casa. Apri ${PERCORSO.client} e premi «Sistema».` }).show() } catch { /* senza notifiche */ }
         }
       })
       // Il tasto «Sistema»: l'unico punto in cui si chiede l'amministratore, e solo dopo il clic.

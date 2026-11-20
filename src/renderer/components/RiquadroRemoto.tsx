@@ -606,7 +606,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
             Il riquadro riprova da solo, con attese che crescono (1, 2, 5, 10, 30 secondi, poi ogni 30: non si arrende mai), in quest’ordine: la rete di casa e Tailscale (anche gli indirizzi che dà adesso). Se nessuna risponde, quello che scrivi va nella sua posta sul Drive e lo consegna lui quando torna acceso.
             {driveCollegato
               ? ' La conversazione la trovi anche nella copia sul Drive (▦ Progetti → «Il contenuto del Drive»), in sola lettura, aggiornata all’ultimo salvataggio di quel PC.'
-              : ' Il Drive di questo PC è scollegato: niente copia da leggere e niente cassetta finché non lo ricolleghi (Account → Drive → Collega).'}
+              : ' Il Drive di questo PC è scollegato: niente copia da leggere e niente cassetta finché non lo ricolleghi (Impostazioni → Account e Drive → Collega).'}
           </div>
         </div>
       ) : null}
@@ -684,7 +684,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
       </div>
       )}
       {/* 0.92.0: la spiegazione sta sul «?» della testata; qui resta solo ciò che blocca. */}
-      {!cassaforteAperta ? <div className="remoto__nota">La cassaforte di qui è chiusa: senza, non ho la chiave per bussare a quel PC (Account → Cassaforte).</div> : null}
+      {!cassaforteAperta ? <div className="remoto__nota">La cassaforte di qui è chiusa: senza, non ho la chiave per bussare a quel PC (Impostazioni → Account e Drive → Cassaforte).</div> : null}
       {postaAperta && pc !== undefined ? (
         <ModalePosta
           pc={{ pcId: pc.pcId, nome: pc.nome, versione: pc.versione, battito: pc.battito, cartelle: pc.cartelle, chat: pc.chat }}

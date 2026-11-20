@@ -1,4 +1,5 @@
 import type { PartiDomanda } from './domanda-strutturata'
+import { PERCORSO } from './percorsi-menu'
 
 /**
  * **I permessi di Nicholas** (11/11). «Perché hai lasciato i limiti? Devono
@@ -145,7 +146,7 @@ export function partiDomandaPermesso(p: { classe: ClassePermesso; azioni: readon
     scelte: [
       { scelta: SCELTA_PERMESSO_NO, conseguenza: 'resta bloccato, e l’autopilota cambia strada' },
       { scelta: SCELTA_PERMESSO_VOLTA, conseguenza: `per ${DURATA_PERMESSO_MIN} minuti passa solo quello scritto qui sopra, in questo progetto` },
-      ...(sempre ? [{ scelta: SCELTA_PERMESSO_SEMPRE, conseguenza: `in questo progetto «${c.nome.toLowerCase()}» non si chiede più; si rimette in Impostazioni → Limiti` }] : [])
+      ...(sempre ? [{ scelta: SCELTA_PERMESSO_SEMPRE, conseguenza: `in questo progetto «${c.nome.toLowerCase()}» non si chiede più; si rimette in ${PERCORSO.limiti}` }] : [])
     ],
     seNonRispondi: 'resta bloccato: questa domanda non scade e nessuno decide al posto tuo'
   }

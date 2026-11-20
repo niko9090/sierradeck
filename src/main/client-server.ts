@@ -3,6 +3,7 @@ import { networkInterfaces } from 'node:os'
 import { execFile, execFileSync } from 'node:child_process'
 import { daReteLocale } from '@shared/rete-locale'
 import { RIFIUTO_DI_RETE } from '@shared/scoperta-pc'
+import { PERCORSO } from '@shared/percorsi-menu'
 import { leggiCorpoJson } from '@shared/corpo-richiesta'
 import { TETTO_CORPO_PEZZO } from '@shared/aiuto-rete'
 import { createHash, timingSafeEqual } from 'node:crypto'
@@ -280,7 +281,7 @@ async function gestisci(
   // merita nemmeno la fatica di interpretarla.
   if (!daReteLocale(indirizzo) && deps.oltreLaRete?.() !== true) {
     console.warn(`[client] richiesta da fuori la rete locale, rifiutata: ${indirizzo}`)
-    racconta(`rete:${indirizzo}`, `richiesta da fuori la rete locale, rifiutata: ${indirizzo} (per accettarla: Impostazioni → «accetta anche da fuori la rete locale»)`)
+    racconta(`rete:${indirizzo}`, `richiesta da fuori la rete locale, rifiutata: ${indirizzo} (per accettarla: ${PERCORSO.fuoriRete})`)
     rispondi(res, { stato: 403, corpo: { errore: RIFIUTO_DI_RETE } })
     return
   }
@@ -394,7 +395,7 @@ async function gestisci(
   if (dispositivo === undefined) {
     racconta(`chiave:${indirizzo}`, typeof firma === 'string' && firma !== ''
       ? `${indirizzo} (${nomePcDa(req.headers) || 'un PC'}) bussa con una firma di casa che non vale su ${percorso}: un'altra cassaforte, l'orologio sbagliato di più di cinque minuti, o una richiesta ripetuta. Respinto.`
-      : `${indirizzo} bussa con una chiave che non riconosco (${chiaveDa(req.headers) === '' ? 'nessuna chiave' : 'chiave sbagliata o revocata'}) su ${percorso}: il dispositivo va accoppiato di nuovo (Impostazioni → Client)`)
+      : `${indirizzo} bussa con una chiave che non riconosco (${chiaveDa(req.headers) === '' ? 'nessuna chiave' : 'chiave sbagliata o revocata'}) su ${percorso}: il dispositivo va accoppiato di nuovo (${PERCORSO.client})`)
     rispondi(res, { stato: 401, corpo: { errore: 'dispositivo non riconosciuto' } })
     return
   }

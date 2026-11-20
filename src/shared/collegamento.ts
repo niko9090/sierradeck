@@ -561,12 +561,12 @@ const MOTIVI_CHIAVE = ['cassaforte', 'chiave']
 export function cosaFarePc(motivo: string, strada: string, nomePc: string): string {
   const m = motivo.toLowerCase()
   if (strada === 'chiave' || m.includes('cassaforte') || m.includes('chiave')) {
-    return `${nomePc} risponde ma la chiave di casa non torna: i due PC devono avere lo stesso Drive di SierraDeck e la stessa cassaforte aperta. Apri Account → Cassaforte su tutti e due.`
+    return `${nomePc} risponde ma la chiave di casa non torna: i due PC devono avere lo stesso Drive di SierraDeck e la stessa cassaforte aperta. Apri Impostazioni → Account e Drive → Cassaforte su tutti e due.`
   }
   if (m.includes('battito') || m.includes('sconosciuto')) return `${nomePc} non ha ancora lasciato il suo segno sul Drive: aprilo con il Drive collegato e aspetta il primo salvataggio automatico.`
   if (strada === 'lan') return `Controlla che ${nomePc} sia acceso (non in sospensione) con SierraDeck aperto, sulla stessa rete di questo PC, e che il firewall di Windows lasci passare SierraDeck.`
   if (strada === 'tailscale') return 'Controlla che Tailscale sia acceso su tutti e due i PC, con lo stesso account.'
-  if (strada === 'drive') return 'Controlla che il Drive sia collegato su tutti e due i PC (Account → Drive).'
+  if (strada === 'drive') return 'Controlla che il Drive sia collegato su tutti e due i PC (Impostazioni → Account e Drive).'
   return `Riprova; se non cambia, guarda il pannello Salute: dice com'è messo ${nomePc} visto da qui.`
 }
 

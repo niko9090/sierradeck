@@ -65,7 +65,7 @@ describe('com e quel PC dopo il bussare: mai «spento» se non lo so', () => {
     expect(s.titolo).toBe('Non so se PORTATILE-ESEMPIO è acceso')
     expect(`${s.titolo} ${s.cosaFare}`).not.toMatch(/è spento/)
     expect(s.cosaFare).toContain('il Drive di questo PC è scollegato')
-    expect(s.cosaFare).toContain('Account → Drive → Collega')
+    expect(s.cosaFare).toContain('Account e Drive → Collega')
     expect(s.cosaFare).toContain('Tailscale')
   })
   it('battito fresco e nessuno risponde: acceso ma irraggiungibile (rete o firewall)', () => {
@@ -80,7 +80,7 @@ describe('com e quel PC dopo il bussare: mai «spento» se non lo so', () => {
   })
   it('chiave rifiutata e indirizzo rifiutato: il motivo vero', () => {
     expect(titoloDopoIlBussare({ ...base, ping: { esito: 'chiave', indirizzo: 'x' }, battitoVivo: false, driveCollegato: false }).stato).toBe('chiave')
-    expect(titoloDopoIlBussare({ ...base, ping: { esito: 'rifiutato', indirizzo: 'x' }, battitoVivo: false, driveCollegato: false }).cosaFare).toContain('accetta anche da fuori la rete locale')
+    expect(titoloDopoIlBussare({ ...base, ping: { esito: 'rifiutato', indirizzo: 'x' }, battitoVivo: false, driveCollegato: false }).cosaFare).toContain('anche da fuori la rete locale')
   })
 })
 
@@ -146,7 +146,7 @@ describe('la banda del Drive scollegato', () => {
     expect(a?.giorni).toBe(9)
     expect(a?.testo).toContain('invalid_grant')
     expect(a?.testo).toContain('non è un guasto di questo PC')
-    expect(a?.testo).toContain('Account → Drive → Collega')
+    expect(a?.testo).toContain('Account e Drive → Collega')
   })
   it('collegato o non configurato: niente banda', () => {
     expect(avvisoDriveScollegato({ configurato: true, connesso: true, adesso: ADESSO })).toBeUndefined()

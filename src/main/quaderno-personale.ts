@@ -7,6 +7,7 @@ import {
   type ConsensoSempre, type EsitoUso, type RichiestaPersonale, type StatoQuadernoPersonale, type UsoPersonale, type VocePersonale
 } from '@shared/quaderno-personale'
 import type { DomandaPerDomande } from '@shared/domande-telefono'
+import { PERCORSO } from '@shared/percorsi-menu'
 
 /**
  * Il Quaderno personale sul disco (0.57.0). Le regole e i testi stanno in
@@ -191,7 +192,7 @@ export function apriQuadernoPersonale(opz: {
         const nomi = c.voci.map((x) => `«${x.nome}»`).join(', ')
         return {
           testo: `Nel quaderno personale non c’è «${voce.trim()}». ${nomi === '' ? 'Il quaderno è vuoto.' : `Le voci che ci sono: ${nomi}.`} ` +
-            'Se serve un dato nuovo, chiedi a Nicholas di aggiungerlo dal PC (Impostazioni → Quaderno personale) o dall’app. Non inventarlo.',
+            `Se serve un dato nuovo, chiedi a Nicholas di aggiungerlo dal PC (${PERCORSO.quadernoPersonale}) o dall’app. Non inventarlo.`,
           errore: true
         }
       }
