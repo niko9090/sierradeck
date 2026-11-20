@@ -57,6 +57,7 @@ import { quandoInParole, riassuntoOrchestratore } from './riassunto-orchestrator
 import { motivoSpecialistaDoppio, ripresaDopoRiavvio } from './ripresa-riavvio'
 import { AGENTI_ORCHESTRATORE, fileAgenti, fileImpostazioniCli, RUOLI_AGENTI } from './agenti-orchestratore'
 import { percentualeVera, voceOspitata } from './vista-ospitati'
+import { valutaPrimaDiAffidare } from './affida-valuta'
 import { motivoAffidato, motivoPerRestareQui, RUOLI_IN_VIAGGIO, scegliPosto, type Aiutante, type LavoroAffidato, type LavoroOspitato } from '@shared/aiuto-rete'
 import { giudicaGuardiaOrchestratore } from './guardia-orchestratore'
 import type { Giudizio } from './divieti'
@@ -809,7 +810,22 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
     const pause = pauseAiuti(affidati(), oraMs())
     const chiave = chiaveCompito({ ...(compito !== undefined ? { compito } : {}), descrizione: r.descrizione })
     const candidati = aiutanti.lista.filter((h) => pcInPausa(pause, h.pcId, ws, chiave) === undefined)
-    const scelto = scegliPosto(candidati.map((h) => ({ ...h, liberi: h.liberi - inPartenza(h.pcId) })), Math.min(liberiPc(idUso), liberiWs))
+    const conPosti = candidati.map((h) => ({ ...h, liberi: h.liberi - inPartenza(h.pcId) }))
+    // k-166n9: un compito con requisiti va solo a un PC acceso, con posti e con ciò che serve (`valutaPrimaDiAffidare`).
+    // Se nessuno li ha parte qui, e il motivo lo legge l'autopilota. Senza requisiti la scelta è quella di sempre.
+    const requisiti = compito !== undefined ? x.orchestratori.piano(ws).compiti.find((c) => c.id === compito)?.requisiti : undefined
+    let scelto: Aiutante | undefined
+    if (requisiti !== undefined) {
+      const e = valutaPrimaDiAffidare(requisiti, conPosti.filter((h) => h.modo !== 'no'), oraMs())
+      if (e.tipo === 'resta-qui') {
+        console.info(`[aiuto] ${ws} — ${compito ?? r.tipo} resta su questo PC: ${e.motivo}`)
+        evento(ws, { tipo: 'posto', quando: x.adesso(), testo: `${compito ?? cosaDel(r.descrizione)} parte su questo PC, non su un altro: ${e.motivo}.` })
+        return undefined
+      }
+      scelto = conPosti.find((h) => h.pcId === e.pc.pcId)
+    } else {
+      scelto = scegliPosto(conPosti, Math.min(liberiPc(idUso), liberiWs))
+    }
     if (scelto === undefined) return undefined
     const l: LavoroAffidato = {
       id: `r${randomUUID().replace(/-/gu, '').slice(0, 12)}`,
