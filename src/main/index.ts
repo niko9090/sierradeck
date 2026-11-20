@@ -164,6 +164,8 @@ import { creaInvioDoppioni, richiestaDoppioni } from './progetti/doppioni-al-ser
 import { MOTIVO_DRIVE_PIENO_SPOSTA } from '@shared/sposta'
 import { copieNonMie, creaLatoProprietario, creaSposta, giornaleSuDisco, gitDaSalvare, pulisciCopia, saleDaQuestoPc, vistaSposta, type Sposta } from './progetti/sposta'
 import { creaClientPcRemoto, ErroreRemoto } from './pc-remoto'
+import { creaCapacitaLocali } from './capacita-locali'
+import type { CapacitaPc } from '@shared/capacita-pc'
 import { ultimeRighe as ultimeRigheDelRegistro } from './risoluzione'
 import { eFinitaDiAutopilota, motivoChiusaSenzaCartella } from '@shared/chiusa-senza-cartella'
 import { rispostaConPazienza, riquadriDaTogliere, type RiquadroDaTogliere } from '@shared/riquadri-morti'
@@ -663,6 +665,7 @@ let provaTogliProgettoGlobale: ((nome: string) => Promise<{ ok: boolean; messagg
 let registroGlobale: Registro | undefined
 /** Il postino di questo PC: le rotte del telefono lo raggiungono da qui. */
 let postinoGlobale: Postino | undefined
+let capacitaQuiGlobale: (() => CapacitaPc) | undefined
 /** 12/11 (0.105.0): «Proclama PC di sviluppo»: se qui si può, perché no, e se è proclamato. */
 let statoSviluppoGlobale: (() => { puo: boolean; perche?: string; proclamato: boolean }) | undefined
 let proclamatoDalGlobale: (() => string | undefined) | undefined
@@ -2113,7 +2116,10 @@ if (!app.requestSingleInstanceLock()) {
       const proclamatoQui = (): boolean => proclamatoDal() !== undefined && pcProclamato(postinoGlobale?.altrui() ?? [], { id: identitaPc.leggi().id, ...(proclamatoDal() !== undefined ? { dal: proclamatoDal()! } : {}) }) === identitaPc.leggi().id
       statoSviluppoGlobale = () => ({ puo: perchéNonProclama({ cartelleDiSviluppo: cartelleSviluppo }) === undefined, ...(perchéNonProclama({ cartelleDiSviluppo: cartelleSviluppo }) !== undefined ? { perche: perchéNonProclama({ cartelleDiSviluppo: cartelleSviluppo })! } : {}), proclamato: proclamatoQui() })
       proclamatoDalGlobale = proclamatoDal
+      const capacitaQui = creaCapacitaLocali({ aiutante: false })
+      capacitaQuiGlobale = capacitaQui
       const postino: Postino = creaPostino({
+        capacita: capacitaQui,
         scatola: () => sincronia.scatola(),
         pcId: () => identitaPc.leggi().id,
         pcNome: () => identitaPc.leggi().nome,
@@ -4966,7 +4972,7 @@ if (!app.requestSingleInstanceLock()) {
         orchestratoreWorkspace: (ws: string) => clientAutopilota.orchestratore(ws),
         specialistaAutopilota: (ws: string, id: string) => clientAutopilota.specialista(ws, id),
         // 0.103.0: «Aiuta la rete»: il modo scelto qui e la strada verso il servizio per le rotte `/aiuto/*`.
-        aiuto: { modo: () => impostazioni.preferenze().aiutoRete, servizio: (percorso: string, corpo?: Record<string, unknown>) => clientAutopilota.aiuto(percorso, corpo), nomePc: (pcId: string) => { const b = postino.altrui().find((x) => x.pcId === pcId); return b !== undefined ? nomeDaMostrare(b) : undefined } },
+        aiuto: { capacita: () => capacitaQuiGlobale?.(), modo: () => impostazioni.preferenze().aiutoRete,servizio: (percorso: string, corpo?: Record<string, unknown>) => clientAutopilota.aiuto(percorso, corpo), nomePc: (pcId: string) => { const b = postino.altrui().find((x) => x.pcId === pcId); return b !== undefined ? nomeDaMostrare(b) : undefined } },
         attesaSpecialisti: () => clientAutopilota.attesaSpecialisti(),
         prioritaAttesaSpecialisti: (id: string, mossa: import('@shared/attesa-specialisti').MossaAttesa) => clientAutopilota.prioritaAttesa(id, mossa),
         togliAttesaSpecialisti: (id: string) => clientAutopilota.togliAttesa(id),

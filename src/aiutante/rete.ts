@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import type { Server } from 'node:http'
 import { hostname, homedir } from 'node:os'
 import { join } from 'node:path'
+import { creaCapacitaLocali } from '../main/capacita-locali'
 import type { BattitoPc } from '@shared/posta'
 import { nomeDaMostrare, nomeSceltoValido } from '@shared/nome-pc'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
@@ -117,6 +118,8 @@ export function colleghiRete(d: {
   let statoClient: { inAscolto: boolean; errore?: string } = { inAscolto: false }
   let principale: string | undefined
   void indirizzoPrincipale().then((x) => { principale = x }).catch(() => undefined)
+  // k-166n1: cosa sa fare questo PC, in memoria per 10 minuti: nel battito e nei posti.
+  const capacita = creaCapacitaLocali({ aiutante: true })
   const postino = creaPostino({
     scatola: () => sincronia.scatola(),
     pcId: () => identita.leggi().id,
@@ -128,6 +131,7 @@ export function colleghiRete(d: {
     rete: () => ({ indirizzi: indirizziDaAnnunciare(undefined, principale), porta: d.porta() }),
     client: () => statoClient,
     aiutante: () => true,
+    capacita,
     ...(d.blocco !== undefined ? { bloccoAiutante: d.blocco } : {}),
     // Nessuna cartella qui: una voce per una chat fallisce e lo dice a chi l'ha mandata.
     cartellaEsiste: () => false,
@@ -156,7 +160,7 @@ export function colleghiRete(d: {
     driveCollegato: () => contoDrive.stato().connesso,
     log: (m) => registro.info(m)
   })
-  const rotta = rotteAiutante({ aiuto: d.aiuto, versione: d.versione, identita: () => { const i = identita.leggi(); return { nome: i.nome, host: i.host } } })
+  const rotta = rotteAiutante({ aiuto: { ...d.aiuto, capacita },versione: d.versione, identita: () => { const i = identita.leggi(); return { nome: i.nome, host: i.host } } })
 
   let server: Server | undefined
   let portaInUso = d.porta()
