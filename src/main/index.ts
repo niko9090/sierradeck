@@ -1725,7 +1725,8 @@ if (!app.requestSingleInstanceLock()) {
         // Pronte più tardi (servono gli autopiloti): fino ad allora si chiede ogni volta.
         rifiuto: async (nome) => primaDiEliminareGlobale?.rifiuto?.(nome),
         cartella: async (nome, dopo) => primaDiEliminareGlobale?.cartella?.(nome, dopo),
-        lapide: async (nome, verso) => primaDiEliminareGlobale?.lapide?.(nome, verso)
+        lapide: async (nome, verso) => primaDiEliminareGlobale?.lapide?.(nome, verso),
+        ordine: async () => primaDiEliminareGlobale?.ordine?.()
       }, {
         // La cartella del progetto si rinomina col workspace (13/11).
         prima: async (vecchio, nuovo) => gestioneGlobale?.primaDiRinominareWorkspace(vecchio, nuovo)
@@ -4269,6 +4270,12 @@ if (!app.requestSingleInstanceLock()) {
       }
       registerAutopilotaIpc(clientAutopilota, (m) => registro.info(m))
       primaDiEliminareGlobale = {
+        // Il nuovo ordine dei workspace parte subito sul Drive (k-166w3); senza Drive attivo resta qui e parte col prossimo salvataggio.
+        ordine: async () => {
+          try {
+            if (sincronia.driveAttivo()) await sincronia.salva(false, { automatico: true })
+          } catch (err) { registro.info(`[workspace] ordine non inviato al Drive: ${err instanceof Error ? err.message : String(err)}`) }
+        },
         lapide: (nome, verso) => lapideDelWorkspace((n, v) => sincronia.segnaWorkspaceSulDrive(n, v), nome, verso, (m) => registro.info(m)),
         rifiuto: async (nome) => {
           const w = workspaceStore?.leggi().workspace.find((x) => x.nome === nome)

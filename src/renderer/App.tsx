@@ -1431,6 +1431,11 @@ export function App(): React.JSX.Element {
     aggiornaWorkspace({ nomi: s.nomi, attivo: s.attivo })
   }), [])
 
+  // Un riordino (k-166w3): cambia solo l'ordine dei nomi, il workspace davanti resta quello di questa finestra.
+  useEffect(() => window.gestore.workspace.onRiordinato((s) => {
+    setWorkspace((p) => ({ ...p, nomi: s.nomi }))
+  }), [])
+
   // Un workspace rinominato: solo un'etichetta cambia, le chat restano dov'erano.
   // Qui si sposta la chiave della memoria — perché i riquadri vivi del workspace
   // rinominato non restino sotto un nome che nessuno chiede più — e si rilegge lo

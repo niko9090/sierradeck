@@ -1028,6 +1028,14 @@ contextBridge.exposeInMainWorld('gestore', {
       ipcRenderer.on('workspace:rinominato', h)
       return () => ipcRenderer.off('workspace:rinominato', h)
     },
+    /** Riordina i workspace (k-166w3): i nomi nell'ordine voluto; l'ordine viaggia sul Drive. */
+    riordina: (nomi: string[]): Promise<StatoWorkspace> => ipcRenderer.invoke('workspace:riordina', nomi),
+    /** Un riordino fatto altrove (un'altra finestra): arrivano i nomi nell'ordine nuovo. */
+    onRiordinato: (cb: (s: StatoWorkspace) => void): (() => void) => {
+      const h = (_e: unknown, s: StatoWorkspace): void => cb(s)
+      ipcRenderer.on('workspace:riordinato', h)
+      return () => ipcRenderer.off('workspace:riordinato', h)
+    },
     // Il workspace tornato davanti da un ripristino: la finestra vi si riallinea
     // SUBITO, senza seguirlo con una traslocazione — l'archivio è già a posto.
     onRipristinato: (cb: (s: StatoWorkspace) => void): (() => void) => {
