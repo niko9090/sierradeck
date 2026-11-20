@@ -221,6 +221,11 @@ declare global {
         suCambiata: (cb: () => void) => () => void
       }
       /** «Sposta su questo PC» (0.88.0). */
+      credenziali: {
+        elenca: () => Promise<{ aperta: boolean; voci: import('../shared/aiuto-credenziali').VoceCredenziale[] }>
+        aggiungi: (c: { nome: string; tipo: string; valore: string; serveA: string[] }) => Promise<{ ok: boolean; messaggio?: string }>
+        togli: (nome: string) => Promise<boolean>
+      }
       sposta: {
         avvia: (progetto: string) => Promise<import('../shared/sposta').VistaSposta | undefined>
         stato: () => Promise<import('../shared/sposta').VistaSposta | undefined>

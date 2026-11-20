@@ -175,6 +175,23 @@
       ]
     },
     {
+      "id": "credenziali-rete",
+      "sezione": "computer",
+      "titolo": "Credenziali di rete",
+      "spiega": "Chiavi e password che un lavoro mandato a un altro PC può ricevere, per nome. Si aggiungono (nome e valore), si vede solo l’elenco dei nomi, si tolgono con conferma. Il valore resta nella cassaforte cifrata e non si rivede mai.",
+      "parole": [
+        "password",
+        "chiave",
+        "ssh",
+        "token",
+        "cassaforte",
+        "segreti"
+      ],
+      "dove": [
+        "pc"
+      ]
+    },
+    {
       "id": "cambia-computer",
       "sezione": "computer",
       "titolo": "Cambia computer",
@@ -593,6 +610,7 @@
         "accoppiamento",
         "porte",
         "oltre-la-rete",
+        "credenziali-rete",
         "pin",
         "quaderno-personale",
         "iberna",
