@@ -648,6 +648,9 @@
 - `git fetch` fallisce se origin è un .bundle d'arrivo già cancellato: la versione si controlla da package.json e dal log locale, i tag non ci sono. _(2026-11-20)_
 - nel package-lock.json il secondo punto della versione (packages[""]) può restare indietro: nella 0.111.0 era ancora 0.110.2. Controllare entrambi. _(2026-11-20)_
 - Prima di cercare un bug in un rapporto del controllo PC, confronta il testo con `git log -S` e `git tag --contains`: il PC che lo scrive può girare una build senza la correzione già in main. _(2026-11-20)_
+- Prima di pubblicare controllare `.git/MERGE_HEAD` in main: le unioni dell'autopilota lasciano la cartella principale sporca e la punta di main non è un commit stabile. _(2026-11-20)_
+- Il compito può chiedere un worktree separato, in contrasto con la regola «build solo in cartella principale»: serve una conferma esplicita dell'autopilota prima di procedere. _(2026-11-20)_
+- Con unioni continue in main, al rilascio dai un commit unito e pulito (senza MERGE_HEAD), push di quel commit, tag lì e build in un worktree temporaneo fuori dal progetto. _(2026-11-20)_
 
 ## build
 
