@@ -497,6 +497,8 @@ declare global {
           cb: (r: { vecchio: string; nuovo: string; attivo: string }) => void
         ) => () => void
         onRipristinato: (cb: (s: StatoWorkspace) => void) => () => void
+        riordina: (nomi: string[]) => Promise<StatoWorkspace>
+        onRiordinato: (cb: (s: StatoWorkspace) => void) => () => void
       }
       preparazione: {
         stato: () => Promise<StatoPreparazione>

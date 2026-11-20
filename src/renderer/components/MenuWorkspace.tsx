@@ -11,6 +11,7 @@ import { cambiaSoloQui } from '@shared/chat-sul-drive'
 import { salvaPreferenze } from '../salva-preferenze'
 import { apriMenuContestuale } from '../menu-contestuale'
 import { vociWorkspace } from '@shared/menu-contestuale'
+import { spostaDiUno, trascinaSu } from '@shared/riordina-workspace'
 
 type Props = {
   nomi: string[]
@@ -93,6 +94,17 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
 
   const gruppi = gruppiMenuWorkspace({ nomi, attivo, recenti, filtro, nomePc, altrove })
   const fila = vociInFila(gruppi)
+  // Riordinare (k-166w3): solo nel gruppo «Questo PC» e senza ricerca, dove l'ordine dell'elenco si vede intero.
+  const nomiQui = gruppi.find((g) => g.chiave === 'qui')?.voci.map((v) => v.nome) ?? []
+  const riordinabile = filtro.trim() === '' && nomiQui.length > 1
+  const [trascinato, setTrascinato] = useState<string | undefined>(undefined)
+  const [sopra, setSopra] = useState<string | undefined>(undefined)
+  const riordina = (nuovi: string[]): void => {
+    void window.gestore.workspace.riordina(nuovi)
+      .then((s) => { setErrore(undefined); onStato?.({ nomi: s.nomi, attivo }) })
+      .catch((err: unknown) => setErrore(senzaPrefisso(err)))
+  }
+  const sposta = (nome: string, verso: 'su' | 'giu'): void => riordina(spostaDiUno(nomi, nome, verso, nomiQui))
   const chiudi = (): void => { setAzioniDi(undefined); setRinomina(undefined); onAperto(false) }
   const scegli = (v: VoceMenuWs): void => {
     if (!v.qui) { apriDaAltroPc(v); return }
@@ -217,6 +229,17 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
   const suTasto = (e: React.KeyboardEvent): void => {
     if (rinomina !== undefined) return
     if (e.key === 'Escape') { e.preventDefault(); if (azioniDi !== undefined) setAzioniDi(undefined); else chiudi(); return }
+    // Alt+↑ / Alt+↓: sposta su o giù il workspace evidenziato (in «Questo PC»).
+    if (e.altKey && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      e.preventDefault()
+      const v = fila[evidenziato]
+      if (v !== undefined && v.qui && riordinabile && nomiQui.includes(v.nome)) {
+        const su = e.key === 'ArrowUp'
+        sposta(v.nome, su ? 'su' : 'giu')
+        setEvidenziato((i) => Math.max(0, Math.min(fila.length - 1, i + (su ? -1 : 1))))
+      }
+      return
+    }
     if (e.key === 'ArrowDown') { e.preventDefault(); setAzioniDi(undefined); setEvidenziato((i) => (fila.length === 0 ? 0 : (i + 1) % fila.length)); return }
     if (e.key === 'ArrowUp') { e.preventDefault(); setAzioniDi(undefined); setEvidenziato((i) => (fila.length === 0 ? 0 : (i - 1 + fila.length) % fila.length)); return }
     if (e.key === 'Enter') {
@@ -265,14 +288,24 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
         </div>
       )
     }
+    const spostabile = riordinabile && v.qui && nomiQui.includes(v.nome)
+    const posQui = nomiQui.indexOf(v.nome)
     return (
       <div
         key={chiave}
         id={`ws-menu-voce-${i}`}
         role="option"
         aria-selected={v.qui && v.nome === attivo}
+        draggable={spostabile}
+        onDragStart={spostabile ? (e) => { setTrascinato(v.nome); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', v.nome) } : undefined}
+        onDragOver={spostabile && trascinato !== undefined ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (sopra !== v.nome) setSopra(v.nome) } : undefined}
+        onDrop={spostabile && trascinato !== undefined ? (e) => { e.preventDefault(); const da = trascinato; setTrascinato(undefined); setSopra(undefined); if (da !== v.nome) riordina(trascinaSu(nomi, da, v.nome)) } : undefined}
+        onDragEnd={() => { setTrascinato(undefined); setSopra(undefined) }}
         className={[
           'ws-menu__voce',
+          spostabile ? 'ws-menu__voce--spostabile' : '',
+          trascinato === v.nome ? 'ws-menu__voce--trascinata' : '',
+          sopra === v.nome && trascinato !== undefined && trascinato !== v.nome ? 'ws-menu__voce--rilascia' : '',
           v.qui && v.nome === attivo ? 'ws-menu__voce--attiva' : '',
           chiama ? 'ws-menu__voce--chiama' : '',
           !v.qui ? 'ws-menu__voce--altrove' : '',
@@ -304,6 +337,26 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
           ) : null}
           <span className="ws-menu__conta">{porto === v.nome ? '…' : !v.qui ? '' : quante === undefined ? '' : quante === 1 ? '1 chat' : `${quante} chat`}</span>
         </button>
+        {spostabile ? (
+          <span className="ws-menu__sposta">
+            <button
+              className="ws-menu__su"
+              tabIndex={-1}
+              disabled={posQui <= 0}
+              aria-label={`Sposta «${v.nome}» più su`}
+              title="Più su (Alt+↑). Si può anche trascinare"
+              onClick={(e) => { e.stopPropagation(); sposta(v.nome, 'su') }}
+            >▲</button>
+            <button
+              className="ws-menu__giu"
+              tabIndex={-1}
+              disabled={posQui >= nomiQui.length - 1}
+              aria-label={`Sposta «${v.nome}» più giù`}
+              title="Più giù (Alt+↓). Si può anche trascinare"
+              onClick={(e) => { e.stopPropagation(); sposta(v.nome, 'giu') }}
+            >▼</button>
+          </span>
+        ) : null}
         <button
           className="ws-menu__altro"
           tabIndex={-1}
@@ -347,7 +400,7 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
         </div>
         {errore !== undefined ? <div className="ws-menu__vuoto" style={{ color: 'var(--ambra)' }}>{errore}</div> : null}
         <div className="ws-menu__piede">
-          <span className="ws-menu__aiuto">↑↓ e Invio · «⋯» per le azioni</span>
+          <span className="ws-menu__aiuto">↑↓ e Invio · Alt+↑↓ o trascina per riordinare · «⋯» per le azioni</span>
           <button className="tasto" tabIndex={-1} onClick={() => { chiudi(); onGestisci() }}>Crea, rinomina o elimina…</button>
         </div>
       </div>

@@ -3806,6 +3806,15 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .ws-menu__voce:hover .ws-menu__altro, .ws-menu__voce--evidenziata .ws-menu__altro, .ws-menu__altro[aria-expanded="true"] { opacity: 1; }
 .ws-menu__altro:hover, .ws-menu__altro[aria-expanded="true"] { border-color: var(--luce-incisione); color: var(--testo); background: var(--chassis-premuto); }
 .ws-menu__voce:hover { background: var(--luce-tenue); border-color: var(--luce-incisione); }
+/* Riordinare (k-166w3): ▲▼ compaiono su riga evidenziata o col mouse sopra; la riga si trascina. */
+.ws-menu__voce--spostabile { grid-template-columns: 1fr auto auto; cursor: grab; }
+.ws-menu__voce--trascinata { opacity: 0.45; }
+.ws-menu__voce--rilascia { border-color: var(--accento); }
+.ws-menu__sposta { display: inline-flex; opacity: 0; }
+.ws-menu__voce:hover .ws-menu__sposta, .ws-menu__voce--evidenziata .ws-menu__sposta { opacity: 1; }
+.ws-menu__su, .ws-menu__giu { font: inherit; font-size: var(--t0); line-height: 1; padding: 4px 5px; border: 1px solid transparent; border-radius: var(--raggio); background: transparent; color: var(--testo-quieto); cursor: pointer; }
+.ws-menu__su:hover:not(:disabled), .ws-menu__giu:hover:not(:disabled) { border-color: var(--luce-incisione); color: var(--testo); background: var(--chassis-premuto); }
+.ws-menu__su:disabled, .ws-menu__giu:disabled { opacity: 0.3; cursor: default; }
 .ws-menu__voce--attiva { background: var(--chassis-premuto); border-color: var(--incisione); }
 .ws-menu__voce--evidenziata { background: var(--luce-tenue); border-color: var(--luce-incisione); }
 .ws-menu__voce--chiama .ws-menu__voce-nome { color: var(--ambra); }

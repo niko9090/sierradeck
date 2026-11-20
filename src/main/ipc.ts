@@ -20,7 +20,8 @@ import { PtyHostClient } from './pty-host-client'
 import type { HostToCore } from '@shared/protocol'
 import { openDatabase, listSessions, rimuoviSessioni, type Db } from './db'
 import { workspaceDelleSessioni } from '@shared/dove-chiedono'
-import { remotePerWorkspace } from '@shared/workspace'
+import { remotePerWorkspace, riordinaWorkspaceArchivio } from '@shared/workspace'
+import { ordineValido, stessoOrdine } from '@shared/riordina-workspace'
 import { nomeWorkspaceNuovo } from '@shared/progetti-identita'
 import { leggiAnteprima, type Anteprima } from './anteprima'
 import { indexAll } from './indexer/indexer'
@@ -1106,6 +1107,8 @@ export type PrimaDiEliminare = {
   cartella?: (nome: string, dopo: Archivio) => Promise<string | undefined>
   /** La lapide sul Drive: scritta all'eliminazione, tolta al ripristino (k-166w1). Non solleva mai. */
   lapide?: (nome: string, verso: 'togli' | 'rimetti') => Promise<void>
+  /** Dopo un riordino (k-166w3): fa partire la sincronizzazione, così gli altri PC vedono lo stesso ordine. Non solleva mai. */
+  ordine?: () => Promise<void>
 }
 
 /**
@@ -1364,6 +1367,22 @@ export function registerLayoutIpc(
     if (a !== precedente) await elimina.lapide?.(validateNomeWorkspace(raw), 'togli')
     dopoNome(validateNomeWorkspace(raw), undefined)
     if (a.attivo !== precedente.attivo) annunciaCambio(event, a, precedente.attivo)
+    return statoDi(a)
+  })
+
+  // Riordinare (k-166w3): cambia solo l'ordine dell'elenco e lo registra nel campo
+  // `ordine`, che l'unione del Drive porta agli altri PC. Le chat non si toccano,
+  // quindi come per la rinomina nessun annuncio di cambio: le finestre ricevono lo stato.
+  ipcMain.handle('workspace:riordina', (_event, raw: unknown): StatoWorkspace => {
+    if (!Array.isArray(raw) || raw.length > 500) throw new Error('richiesta IPC non valida: serve l’elenco dei nomi')
+    const chiesto = raw.map((n) => validateNomeWorkspace(n))
+    const precedente = store.leggi()
+    const nomi = ordineValido(precedente.workspace.map((w) => w.nome), chiesto)
+    if (stessoOrdine(nomi, precedente.workspace.map((w) => w.nome))) return statoDi(precedente)
+    const a = riordinaWorkspaceArchivio(precedente, nomi, new Date().toISOString())
+    scriviOSolleva(a, 'il nuovo ordine')
+    void elimina.ordine?.()
+    registro.inviaATutte('workspace:riordinato', statoDi(a))
     return statoDi(a)
   })
 
