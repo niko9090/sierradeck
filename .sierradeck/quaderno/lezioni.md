@@ -84,6 +84,8 @@
 - Un default di parametro in un helper di test scatta anche con `undefined` passato a mano: per un battito assente usare un valore non valido (es. 'mai'), non `undefined`. _(2026-11-20)_
 - per provare le rotte loopback senza creaServerClient: funzione pura con indirizzo e autorizzazione in ingresso, più un http.createServer di prova su 127.0.0.1 porta 0. _(2026-11-20)_
 - `index.ts` non si importa nei test: il collegamento lì si protegge con un controllo a regex sul sorgente, più i test sulle funzioni (`collegaCredenziali`, `rispondiAiuto`). _(2026-11-20)_
+- `AGGIORNA=1` sul test delle impostazioni riscrive anche `impostazioni.json`: dopo, `git add -A` mostra solo avvisi di fine riga, non modifiche vere. _(2026-11-20)_
+- `src/aiutante/index.ts` non si importa nei test; `colleghiRete` nemmeno: il collegamento si protegge con un controllo sul sorgente di `rete.ts`. _(2026-11-20)_
 
 ## worktree
 
@@ -321,6 +323,7 @@
 - I test di sorgente (`readFileSync` sul .tsx) bastano per controllare che un pannello non porti più un elenco, senza DOM. _(2026-11-19)_
 - gli orfani vanno cercati con il suffisso `/Nome'` negli import: un controllo su `./Nome'` ignora gli import fatti da App.tsx (`./components/Nome`). _(2026-11-20)_
 - Nel menu dei workspace le azioni dietro «⋯» sono contate da test e pagina servita: il riordino sta in controlli a parte, non come nuova azione di `azioniMenuWorkspace`. _(2026-11-20)_
+- Il menu principale ha già una funzione «Computer» che non è la sezione Computer delle Impostazioni: le voci delle impostazioni stanno solo in impostazioni-struttura.ts. _(2026-11-20)_
 
 ## salute
 
@@ -607,6 +610,7 @@
 - `preferenze:imposta` ora risponde `{ preferenze, salvato }`: chi lo chiama dal renderer usi `salvaPreferenze` (src/renderer/salva-preferenze.ts), non `imposta` diretto. _(2026-11-12)_
 - negli handler IPC di sola lettura la validazione dell'argomento va dentro il catch/guard: un throw prima del .catch finisce nel log di Electron come errore. _(2026-11-16)_
 - Un canale nuovo va dichiarato in `src/preload/index.ts` e in `src/renderer/env.d.ts`, che è la fonte dei tipi di `window.gestore`: solo nel preload il typecheck fallisce. _(2026-11-20)_
+- Per i segreti: il canale fa entrare il valore e non lo restituisce, e la vista del renderer ricopia solo i campi senza valore, così un valore in più si ferma lì. _(2026-11-20)_
 
 ## testo
 
@@ -737,6 +741,7 @@
 - L'Aiutante è una registrazione `pc-<id>` a parte, con `aiutante:true` e lo stesso `host` di SierraDeck: per legare i due si usa `host`, non il pcId. _(2026-11-19)_
 - Per sapere se un PC è acceso solo grazie all'Aiutante usa `vistoDelPc` (stato-pc.ts); se serve una nuova vista sul battito, passa da lì invece di rifare l'abbinamento per host. _(2026-11-19)_
 - SierraDeck Aiutante crea la sincronia dentro `colleghiRete` dopo `aiuto`: per dargli `chiediCredenziali` serve un cambio d'ordine, non l'ho fatto. _(2026-11-20)_
+- L'Aiutante non ha cassaforte di credenziali: per i lavori affidati chiede solo al PC che li ha affidati (`chiedi` senza deposito), collegato in `rete.ts`, non in `index.ts`. _(2026-11-20)_
 
 ## blocco
 
@@ -758,6 +763,7 @@
 - Per rigenerare i JSON dell'app: `AGGIORNA=1` con vitest su menu-principale.test.ts e impostazioni-struttura.test.ts; non c'è altro script di copia. _(2026-11-20)_
 - «Limiti» è una sezione solo PC: se le sottovoci di Impostazioni vanno sul telefono, filtrare con sezioniDi('app'). _(2026-11-20)_
 - Una voce del menu PC senza controparte sul telefono usa `soloPc`. Il menu dell'app (`menu.json`, `MenuPrincipaleTest.kt`) deve restare uguale alle sue schede. _(2026-11-20)_
+- `Correzioni` è `soloPc`: va filtrata (`soloPc !== true`) sia in `menu.json` sia nella pagina; le sottovoci vengono da `COMANDI_CHAT_WORKSPACE` e `SEZIONI`. _(2026-11-20)_
 
 ## panoramica
 
