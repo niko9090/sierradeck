@@ -70,6 +70,13 @@ function statoDalBattito(battitoIso: string | undefined, adesso: number): StatoP
   return { stato: 'spento', spentoDaMs: da, giorniAllaRimozione: giorni, frase: `spento da ${durata(da)} · si toglie fra ${giorni === 1 ? '1 giorno' : `${giorni} giorni`}` }
 }
 
+/** Il nome di rete di un PC per confrontarlo: senza maiuscole, spazi né dominio («PC-1.local» = «pc-1»). */
+export function chiaveHost(host: unknown): string | undefined {
+  if (typeof host !== 'string') return undefined
+  const k = host.trim().toLowerCase().split('.')[0] ?? ''
+  return k === '' ? undefined : k
+}
+
 /**
  * 19/11: un PC che lavora solo con SierraDeck Aiutante («Aiuta la rete») ha il
  * battito di SierraDeck fermo, ma è vivo. SierraDeck e l'Aiutante sullo stesso
@@ -82,7 +89,7 @@ function statoDalBattito(battitoIso: string | undefined, adesso: number): StatoP
 export function vistoConAiutante<T extends { pcId: string; host?: string | undefined; aiutante?: unknown }>(
   lista: readonly T[], battito: (x: T) => string | undefined
 ): Map<string, string | undefined> {
-  const chiave = (x: T): string | undefined => (typeof x.host === 'string' && x.host.trim() !== '' ? x.host.trim().toLowerCase() : undefined)
+  const chiave = (x: T): string | undefined => chiaveHost(x.host)
   const tempo = (iso: string | undefined): number => (iso === undefined ? Number.NaN : Date.parse(iso))
   const out = new Map<string, string | undefined>()
   for (const x of lista) {
