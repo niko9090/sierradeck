@@ -41,6 +41,18 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.111.0',
+    righe: [
+      '**Computer in aggiornamento:** se aggiorni un PC remoto mentre guardi la sua chat, compare «Computer in aggiornamento, attendere» al posto di «non risponde». Quando il PC torna, la chat riprende da sola (PC, pagina del telefono e app).',
+      '**Barra in alto più semplice:** una sola voce «Computer» al posto di «Rete» e «Specialisti».',
+      '**Progetti in una pagina sola:** il Drive sta dentro il dettaglio del progetto («Sul Drive», «Salvataggio e sincronizzazione»).',
+      '**Autopiloti in tre schede:** Chat, Specialisti e Fila, con una tabella per gli autopiloti di tutti i PC.',
+      '**Chat e workspace:** ogni comando compare una volta sola, e c’è «Chat degli altri PC» con lo stato di quel PC.',
+      '**Computer:** albero, elenco e mappa mostrano la stessa scheda per ogni PC. Salute non ripete più l’elenco dei PC.',
+      '**Pagina del telefono e app Android 3.3.0** hanno la stessa struttura, senza doppioni.',
+    ],
+  },
+  {
     versione: '0.110.2',
     righe: [
       '**Un PC che lavora solo con l’Aiutante non risulta più «non risponde»** (SierraDeck chiuso) nel controllo dei PC e nella Salute: adesso è scritto «acceso, lavora solo l’Aiutante».',
