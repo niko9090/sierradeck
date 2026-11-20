@@ -74,6 +74,7 @@
 - Per modificare client-pagina.ts con script node: il file ha fine riga CRLF e backslash doppi nel template; cercare una riga sola, non stringhe multi-riga. _(2026-11-19)_
 - In client-pagina.ts le duplicazioni si vedono dall'HTML generato: `misura-riga` compare anche nel menu specialisti, quindi il test conta la stringa precisa dell'Avanzamento. _(2026-11-20)_
 - molti test leggono Console.tsx e App.tsx come testo: spostando etichette in `@shared` (es. chat-workspace) vanno aggiornati subito, falliscono solo al giro completo. _(2026-11-20)_
+- nei file di test scritti con heredoc i backslash dei percorsi Windows si perdono: scrivere i test con Write. _(2026-11-20)_
 
 ## worktree
 
@@ -392,6 +393,8 @@
 - `npm run pubblica-app` copia da solo app-android.json anche sulla release del PC (v0.109.1): non serve altro per le app vecchie. _(2026-11-16)_
 - L'hook rifiuta run_in_background per `npm run pubblica`: lanciarlo davanti; dopo 600 s passa da solo in sottofondo (non rilanciarlo) e un `until [ -s output ]` attende la fine. _(2026-11-19)_
 - `pubblica` allega da solo json e Aiutante e lascia la release in bozza: alla fine servono `gh release edit --draft=false --latest` e il controllo dei 7 file. _(2026-11-19)_
+- Se `pubblica` dice «mancano installer, blockmap e latest.yml», sono già in dist/ ma con spazi: caricarli con `gh release upload`, rinominati a trattini (SierraDeck-Setup-X.exe). _(2026-11-20)_
+- Con la release creata prima da `gh release create`, serve poi `gh release edit --draft=false --latest`: `pubblica` non la segna Latest da sola. _(2026-11-20)_
 
 ## tsconfig
 
@@ -580,6 +583,7 @@
 - `chiama` ora porta stato e motivo nell'errore: riconoscere i 404 dal motivo, non dal testo del messaggio. _(2026-11-13)_
 - Il registro dell'errore di render (ConfineErrori) è per-PC: la pila di un altro PC non si vede da qui, serve il suo registro. _(2026-11-19)_
 - Specialisti «Aiuta la rete» girano su un altro PC e non vedono il registro di qui: la pila la legge l'autopilota in AppData\Roaming\SierraDeck\log e la mette nel prompt. _(2026-11-19)_
+- la cartella .sierradeck della cartella principale non si legge dalle copie (collegamento non risolvibile): la pila di un errore va chiesta all'autopilota. _(2026-11-20)_
 
 ## voce
 
