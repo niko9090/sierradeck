@@ -120,8 +120,8 @@ export function PannelloSalute({ onChiudi, onApriDrive, onInstalla, onApriAutopi
           <button className="tasto tasto--mini" aria-expanded={menu} onClick={() => setMenu(!menu)}>Strumenti ▾</button>
           {menu ? (
             <TendinaMenu onChiudi={() => setMenu(false)}>
-              <button className="progetti__voce" title="Tutti i computer: albero, elenco e mappa" onClick={() => { setMenu(false); apriComputer() }}>Computer</button>
-              <button className="progetti__voce" title="I token per giorno e per chat, i limiti del piano e le regole del freno" onClick={() => { setMenu(false); setScelta(undefined); setParte('consumi') }}>Consumi per esteso</button>
+              {/* I computer hanno una casa sola (la voce Computer): qui solo la voce «da guardare» con «Apri Computer». */}
+              <button className="progetti__voce" title="I token per giorno e per chat, i limiti del piano e le regole del freno" onClick={() => { setMenu(false); setScelta(undefined); setParte('consumi') }}>Consumi</button>
               <button className="progetti__voce" onClick={() => { setMenu(false); void window.gestore.log.apri() }}>Apri la cartella del registro</button>
             </TendinaMenu>
           ) : null}

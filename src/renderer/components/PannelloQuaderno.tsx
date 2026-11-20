@@ -273,7 +273,7 @@ export function PannelloQuaderno({ cwd, cartelle, onChiudi }: Props): React.JSX.
               <button className="progetti__voce" onClick={() => { setMenu(false); void window.gestore.quaderno.apri(quale) }}>Apri la cartella del quaderno</button>
               <button className="progetti__voce" disabled={aperta === undefined} onClick={() => { setMenu(false); copiaPercorso() }}>Copia il percorso della scheda</button>
               <button className="progetti__voce" disabled={aperta === undefined} onClick={() => { setMenu(false); setConferma(true) }}>Elimina la scheda…</button>
-              <button className="progetti__voce" onClick={() => { setMenu(false); setPersonale(true) }}>🔒 Quaderno personale</button>
+              <button className="progetti__voce" onClick={() => { setMenu(false); setPersonale(true) }}>🔒 Dati riservati</button>
               <button className="progetti__voce" disabled={quale === ''} onClick={() => { setMenu(false); chiediRiordino() }}>Riordina il quaderno…</button>
             </TendinaMenu>
           ) : null}

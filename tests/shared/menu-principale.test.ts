@@ -38,7 +38,7 @@ describe('sul PC: ogni voce dell’inventario si raggiunge', () => {
   const app = leggi('src/renderer/App.tsx')
   it('la barra è il menu principale; il vecchio «☁ Drive» non c’è più', () => {
     // k-u0: la fascia è esattamente il menu principale; gli specialisti stanno dentro Autopiloti.
-    expect(console_).toContain('vociDellaFascia(MENU_PRINCIPALE.filter((v) => v.soloTelefono !== true)).map((v) =>')
+    expect(console_).toContain('MENU_PRINCIPALE.filter((v) => v.soloTelefono !== true).map((v) =>')
     expect(console_).toContain('className="console console--principale"')
     expect(console_).not.toContain('☁ Drive')
     expect(console_).not.toContain('▤ Quaderno')

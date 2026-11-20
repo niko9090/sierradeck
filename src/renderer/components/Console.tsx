@@ -24,7 +24,7 @@ import { salvaPreferenze } from '../salva-preferenze'
 import { azioniDiFinestra } from '../azioni-finestra'
 import { ModaleConferma } from './ModaleConferma'
 import { PostiChat } from './PostiChat'
-import { MENU_PRINCIPALE, type IdMenu, type VoceMenu } from '@shared/menu-principale'
+import { MENU_PRINCIPALE, type IdMenu } from '@shared/menu-principale'
 
 /**
  * I modelli che si possono scegliere.
@@ -86,11 +86,6 @@ type Props = {
   progettiAperti?: boolean
   /** Apre o chiude il pannello Progetti. */
   onProgetti?: () => void
-}
-
-/** Le voci della fascia: esattamente quelle del menu principale (k-u0: gli specialisti stanno dentro Autopiloti). */
-function vociDellaFascia(voci: readonly VoceMenu[]): VoceMenu[] {
-  return [...voci]
 }
 
 /**
@@ -359,7 +354,7 @@ export function Console({
         sempre in vista, uguali sul telefono e nella pagina. Ognuna apre il
         suo pannello; il tasto del pannello aperto resta acceso. */}
     <nav className="console console--principale" aria-label="Menu principale">
-      {vociDellaFascia(MENU_PRINCIPALE.filter((v) => v.soloTelefono !== true)).map((v) => {
+      {MENU_PRINCIPALE.filter((v) => v.soloTelefono !== true).map((v) => {
         const acceso = statoVoce(v.id)
         const numero = v.id === 'autopiloti' ? ledAutopiloti.length : v.id === 'domande' ? domandeInAttesa : 0
         const chiama = (v.id === 'domande' && domandeInAttesa > 0 && !domandeAperte) || (v.id === 'autopiloti' && inAttesa && aperto !== 'autopiloti')
@@ -525,13 +520,7 @@ export function Console({
         >
           v{versione}
         </button>
-        <button
-          className="tasto tasto--icona"
-          onClick={() => { apriStatoAggiornamento(); void window.gestore.aggiornamenti.cerca() }}
-          title="Cerca ora un aggiornamento"
-        >
-          ⟳
-        </button>
+        {/* Niente ⟳ a parte (k-166m1): la ricerca manuale sta nella finestra e in Impostazioni → Aggiornamenti. */}
       </div>
     </nav>
 
