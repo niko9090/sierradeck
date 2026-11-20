@@ -2,18 +2,17 @@ import { createPortal } from 'react-dom'
 import { apriMenuContestuale } from '../menu-contestuale'
 import { vociAutopilota } from '@shared/menu-contestuale'
 import { BordoDettaglio } from './BordoDettaglio'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { TendinaMenu } from './TendinaMenu'
 import { SpecialistiVista } from './SpecialistiVista'
 import { ChatAutopilota } from './ChatAutopilota'
+import { FilaSpecialisti } from './PannelloSpecialisti'
+import { AutopilotaRemotoScelto } from './AutopilotaRemotoScelto'
+import { BarraSchede, COLORE_AP, TabellaAutopiloti, nomeAutopilota, rigaScelta, tuttiIGruppi, type RigaAutopiloti, type SchedaAutopiloti } from './AutopilotiUnificata'
 import { PrimoMessaggio } from './WorkspacePanoramica'
 import { Aiuto } from './Aiuto'
-import { ordinaAutopiloti, vistaAutopilota } from '@shared/autopiloti-vista'
-import { haDomandaAperta } from '@shared/chat-autopilota'
 import type { Autopilota } from '@shared/autopilota'
-import type { Colore } from '@shared/stato-vista'
-
-const COLORE_AP: Record<Colore, string> = { verde: 'var(--verde)', ambra: 'var(--ambra)', rosso: 'var(--rosso)', blu: 'var(--blu)', quieto: 'var(--testo-quieto)' }
+import type { AutopilotiDiPc } from '@shared/autopiloti-altri'
 
 type Props = {
   elenco: Autopilota[]
@@ -29,18 +28,14 @@ type Props = {
   cwdAttivo?: string
 }
 
-/** Il nome con cui si mostra l'autopilota di un workspace. */
-function nomeDi(a: Autopilota): string {
-  if (a.workspace !== undefined && a.workspace !== '') return a.workspace
-  if (a.nome.trim() !== '') return a.nome
-  return a.cwd.split(/[\\/]/).filter((x) => x !== '').pop() ?? a.cwd
-}
-
 /**
- * Il pannello degli autopiloti (30/10: uno solo per workspace, sempre acceso).
- * A sinistra una riga per workspace con il suo stato; a destra quello scelto:
- * l'avanzamento con gli specialisti e le impostazioni, la coda delle richieste
- * e la conversazione con lui (`ChatAutopilota`).
+ * **La pagina Autopiloti** (k-u3: una sola, tre schede). A sinistra una riga
+ * per autopilota, di questo PC e degli altri PC, con gli stessi stati e le
+ * stesse parole; a destra quello scelto, in tre schede: Chat · Specialisti ·
+ * Fila. Gli specialisti hanno una lista sola (`SpecialistiVista` per chi
+ * lavora per l'autopilota scelto, `FilaSpecialisti` per i posti e la fila) e
+ * i comandi (Aggiorna, Riparti al login, il primo messaggio che fa nascere
+ * l'autopilota) stanno qui e non altrove. La parte pura è `AutopilotiUnificata`.
  */
 export function PannelloAutopiloti({
   elenco,
@@ -58,7 +53,19 @@ export function PannelloAutopiloti({
   const [ora, setOra] = useState(() => Date.now())
   useEffect(() => { const t = setInterval(() => setOra(Date.now()), 30_000); return () => clearInterval(t) }, [])
   const [scelto, setScelto] = useState<string | undefined>(undefined)
+  const [scheda, setScheda] = useState<SchedaAutopiloti>('chat')
   const [menu, setMenu] = useState(false)
+  // Gli altri PC: si rileggono ogni tanto; un errore di lettura lascia quello che si vedeva.
+  const [altri, setAltri] = useState<AutopilotiDiPc[]>([])
+  useEffect(() => {
+    let vivo = true
+    const leggi = (): void => {
+      window.gestore.autopilotiAltri.elenco().then((r) => { if (vivo) setAltri((p) => (JSON.stringify(p) === JSON.stringify(r) ? p : r)) }).catch(() => undefined)
+    }
+    leggi()
+    const t = setInterval(leggi, 10_000)
+    return () => { vivo = false; clearInterval(t) }
+  }, [])
 
   useEffect(() => {
     const suTasto = (e: KeyboardEvent): void => { if (e.key === 'Escape') onChiudi() }
@@ -76,15 +83,11 @@ export function PannelloAutopiloti({
       .finally(() => setInCorso(false))
   }
 
-  const vistaDi = (a: Autopilota): ReturnType<typeof vistaAutopilota> => {
-    const segno = Date.parse((a as unknown as { ultimoSegno?: string }).ultimoSegno ?? '')
-    return vistaAutopilota({ ...a, ...(haDomandaAperta(a) ? { domanda: true } : {}) }, ora, Number.isNaN(segno) ? undefined : segno)
-  }
-  const righe = ordinaAutopiloti(elenco.map((a) => ({ ...a, vista: vistaDi(a) })))
-  const delWorkspace = righe.find((r) => r.workspace === workspaceAttivo)
-  // Di partenza quello del workspace davanti.
-  const sel = righe.find((r) => r.id === scelto) ?? (scelto === undefined ? delWorkspace : undefined)
-  const senzaAutopilota = workspaceAttivo.trim() !== '' && delWorkspace === undefined
+  const gruppi = useMemo(() => tuttiIGruppi(elenco, altri, ora), [elenco, altri, ora])
+  const sel = rigaScelta(gruppi, scelto, workspaceAttivo)
+  const senzaAutopilota = workspaceAttivo.trim() !== '' && !gruppi.some((g) => g.pc === undefined && g.righe.some((r) => r.workspace === workspaceAttivo))
+  const locale = sel !== undefined && sel.pc === undefined ? elenco.find((a) => a.id === sel.id) : undefined
+  const scegli = (r: RigaAutopiloti): void => setScelto(r.chiave)
 
   return createPortal(
     <div className="progetti autopiloti" role="dialog" aria-label="Autopiloti">
@@ -117,66 +120,55 @@ export function PannelloAutopiloti({
           ) : null}
         </span>
         <Aiuto di="Autopiloti">
-          Ogni workspace ha il suo autopilota, sempre acceso: gli parli, mette ogni richiesta in coda, fa il piano e lancia gli specialisti. Qui una riga per workspace con il suo stato: <span style={{ color: 'var(--verde)' }}>al lavoro</span>, <span style={{ color: 'var(--ambra)' }}>aspetta te</span> (una domanda nella colonna Domande), <span style={{ color: 'var(--ambra)' }}>senza segni</span>, fermo, <span style={{ color: 'var(--rosso)' }}>guasto</span>. Clic su una riga: l’avanzamento, la coda e la conversazione.
+          Ogni workspace ha il suo autopilota, sempre acceso: gli parli, mette ogni richiesta in coda, fa il piano e lancia gli specialisti. Qui una riga per autopilota, di questo PC e degli altri PC: <span style={{ color: 'var(--verde)' }}>al lavoro</span>, <span style={{ color: 'var(--ambra)' }}>aspetta te</span> (una domanda nella colonna Domande), <span style={{ color: 'var(--ambra)' }}>senza segni</span>, fermo, <span style={{ color: 'var(--rosso)' }}>guasto</span>. Clic su una riga, poi le schede: la chat, i suoi specialisti, la fila dei posti.
         </Aiuto>
         <button className="tasto tasto--mini" onClick={onChiudi} aria-label="Chiudi">×</button>
       </div>
       {errore !== undefined ? <div className="progetti__striscia">⚠ {errore}</div> : null}
 
-      <div className={`progetti__corpo${sel !== undefined || senzaAutopilota ? ' progetti__corpo--destra' : ''}`}>
-        <div className="progetti__tabella" role="grid">
-          <div className="progetti__riga progetti__riga--testa" role="row">
-            <span className="progetti__cella">Workspace</span>
-            <span className="progetti__cella">Chat</span>
-            <span className="progetti__cella">Ultima azione</span>
-            <span className="progetti__cella">Da</span>
-            <span className="progetti__cella">Stato</span>
-          </div>
-          {elenco.length === 0 && errore === undefined ? <div className="progetti__vuoto">Nessun autopilota ancora: nasce con il primo messaggio che gli scrivi.</div> : null}
-          {righe.map((r) => {
-            const acceso = r.id === sel?.id
-            return (
-              <div key={r.id} role="row" tabIndex={0} aria-selected={acceso}
-                className={`progetti__riga${acceso ? ' progetti__riga--scelta' : ''}`}
-                onClick={() => setScelto(r.id)}
-                // Il tasto destro (13/11): il dettaglio, la cartella, rileggi.
-                onContextMenu={(e) => apriMenuContestuale(e, vociAutopilota({ dove: 'elenco', scelto: acceso }), {
-                  dettaglio: () => setScelto(r.id),
-                  nascondi: () => setScelto(''),
-                  cartella: () => { if (r.workspace === undefined) return; void window.gestore.workspace.apriCartella({ workspace: r.workspace }).then((x) => { if (!x.ok) onErrore(x.messaggio) }).catch((err: unknown) => onErrore(String(err))) },
-                  aggiorna: onRicarica
-                })}>
-                <span className="progetti__cella" title={r.cwd}><b>{nomeDi(r)}</b> <span className="progetti__quieto">{r.cwd.split(/[\\/]/).filter((x) => x !== '').pop() ?? ''}</span></span>
-                <span className="progetti__cella">{r.vista.chat.testo}</span>
-                <span className="progetti__cella progetti__quieto" title={r.vista.ultima}>{r.vista.ultima}</span>
-                <span className="progetti__cella progetti__quieto">{r.vista.da}</span>
-                <span className="progetti__cella" title={r.vista.stato.ragione}><span style={{ color: COLORE_AP[r.vista.stato.colore] }}>● {r.vista.stato.parola}</span></span>
-              </div>
-            )
+      <div className="progetti__corpo progetti__corpo--destra">
+        <TabellaAutopiloti
+          gruppi={gruppi}
+          scelta={sel?.chiave}
+          errore={errore}
+          onScegli={scegli}
+          onMenu={(e, r) => apriMenuContestuale(e, vociAutopilota({ dove: 'elenco', scelto: r.chiave === sel?.chiave }), {
+            dettaglio: () => setScelto(r.chiave),
+            nascondi: () => setScelto(''),
+            cartella: () => { if (r.pc !== undefined || r.workspace === undefined) return; void window.gestore.workspace.apriCartella({ workspace: r.workspace }).then((x) => { if (!x.ok) onErrore(x.messaggio) }).catch((err: unknown) => onErrore(String(err))) },
+            aggiorna: onRicarica
           })}
-        </div>
+        />
 
-        {sel !== undefined || senzaAutopilota ? <BordoDettaglio chiave="autopilotiDettaglio" /> : null}
-        {sel !== undefined ? (
-          <div className="progetti__dettaglio">
-            <div className="progetti__dtesta">
-              <span className="progetti__dtitolo" title={sel.cwd}>{nomeDi(sel)}</span>
-              <span className="progetti__pillola" style={{ color: COLORE_AP[sel.vista.stato.colore], borderColor: COLORE_AP[sel.vista.stato.colore] }}>{sel.vista.stato.parola}{sel.vista.da !== '' ? ` · da ${sel.vista.da}` : ''}</span>
-              <button className="tasto tasto--mini" onClick={() => setScelto('')} aria-label="Chiudi il dettaglio">×</button>
-            </div>
-            <div className="progetti__dcorpo">
-              {sel.vista.stato.ragione !== undefined ? <div className="progetti__voceelenco" style={{ color: COLORE_AP[sel.vista.stato.colore] }}>{sel.vista.stato.ragione}</div> : null}
-              <ChatAutopilota key={sel.id} autopilota={sel} onCambiato={onRicarica} />
-              <SpecialistiVista autopilota={sel} onGuarda={onChiudi} />
-            </div>
-          </div>
-        ) : senzaAutopilota ? (
-          <div className="progetti__dettaglio">
-            <div className="progetti__dcorpo">
+        <BordoDettaglio chiave="autopilotiDettaglio" />
+        <div className="progetti__dettaglio">
+          <BarraSchede scheda={scheda} onScheda={setScheda} />
+          <div className="progetti__dcorpo">
+            {scheda === 'fila' ? (
+              <FilaSpecialisti />
+            ) : sel !== undefined ? (
+              <>
+                <div className="progetti__dtesta">
+                  <span className="progetti__dtitolo" title={sel.cwd}>{nomeAutopilota(sel)}{sel.pc !== undefined ? ` · su ${sel.pc.nome}` : ''}</span>
+                  <span className="progetti__pillola" style={{ color: COLORE_AP[sel.vista.stato.colore], borderColor: COLORE_AP[sel.vista.stato.colore] }}>{sel.vista.stato.parola}{sel.vista.da !== '' ? ` · da ${sel.vista.da}` : ''}</span>
+                  <button className="tasto tasto--mini" onClick={() => setScelto('')} aria-label="Chiudi il dettaglio">×</button>
+                </div>
+                {sel.vista.stato.ragione !== undefined ? <div className="progetti__voceelenco" style={{ color: COLORE_AP[sel.vista.stato.colore] }}>{sel.vista.stato.ragione}</div> : null}
+                {sel.pc !== undefined ? (
+                  <AutopilotaRemotoScelto key={sel.chiave + scheda} pcId={sel.pc.id} pcNome={sel.pc.nome} workspace={sel.workspace ?? ''} scheda={scheda} />
+                ) : locale !== undefined ? (
+                  scheda === 'chat'
+                    ? <ChatAutopilota key={locale.id} autopilota={locale} onCambiato={onRicarica} />
+                    : <SpecialistiVista autopilota={locale} onGuarda={onChiudi} />
+                ) : null}
+              </>
+            ) : senzaAutopilota && scelto === undefined ? (
               <PrimoMessaggio workspace={workspaceAttivo} {...(cwdAttivo !== undefined && cwdAttivo !== '' ? { cwd: cwdAttivo } : {})} onRicarica={onRicarica} />
-            </div>
+            ) : (
+              <div className="progetti__vuoto">Scegli un autopilota dalla tabella.</div>
+            )}
           </div>
-        ) : null}
+        </div>
       </div>
     </div>,
     document.body
