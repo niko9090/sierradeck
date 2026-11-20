@@ -29,13 +29,14 @@ enum class VoceBarra(val id: String, val nome: String) {
 }
 
 /**
- * Le sei voci di «Altro» (app 11/11): una per tocco. `impostazione` è l'id
+ * Le sette voci di «Altro» (app 11/11): una per tocco. `impostazione` è l'id
  * della sezione delle impostazioni del PC (`assets/impostazioni.json`).
  */
 enum class SezioneAltro(val titolo: String, val sotto: String, val impostazione: String? = null) {
     AGGIORNAMENTI("Aggiornamenti", "L’app e il computer", "aggiornamenti"),
     AVVISI("Notifiche", "Quali suonano, ore di silenzio", "notifiche"),
-    SALUTE("Computer e salute", "Accesi o spenti, cosa sistemare, consumi", "computer"),
+    COMPUTER("Computer", "Accesi o spenti, chat aperte, guarda dal vivo", "computer"),
+    SALUTE("Salute", "Cosa sistemare, Drive, errori, consumi"),
     CHAT("Tutte le chat", "Rinomina, chiudi"),
     DRIVE("Dati riservati", "Drive, cassaforte, quaderno personale", "drive"),
     INFO("Aiuto", "Versioni, errori, scollega questo telefono", "info");
@@ -44,7 +45,7 @@ enum class SezioneAltro(val titolo: String, val sotto: String, val impostazione:
         /** Dove porta una voce trovata con «Cerca» (l'id della sezione delle impostazioni del PC). */
         fun diImpostazione(id: String, voce: String? = null): SezioneAltro = when (id) {
             "aggiornamenti" -> AGGIORNAMENTI
-            "computer" -> SALUTE
+            "computer" -> COMPUTER
             "chat" -> if (voce == "quaderno-personale") DRIVE else CHAT
             "drive" -> DRIVE
             "notifiche" -> AVVISI
@@ -137,8 +138,8 @@ object Navigazione {
     fun verso(p: Posto, s: Scheda): Posto = when (s) {
         Scheda.DOMANDE, Scheda.AUTOPILOTI, Scheda.CHAT, Scheda.PROGETTI -> p.copy(voce = VoceBarra.LAVORO, pile = p.pile - VoceBarra.LAVORO)
         Scheda.FILE -> p.copy(voce = VoceBarra.FILE, pile = p.pile - VoceBarra.FILE)
-        // Nell'app Computer e Salute sono ancora una sezione sola di Altro (riallineo completo: compito a parte).
-        Scheda.COMPUTER, Scheda.SALUTE -> apri(p.copy(pile = p.pile - VoceBarra.ALTRO), Dettaglio.Sezione(SezioneAltro.SALUTE))
+        Scheda.COMPUTER -> apri(p.copy(pile = p.pile - VoceBarra.ALTRO), Dettaglio.Sezione(SezioneAltro.COMPUTER))
+        Scheda.SALUTE -> apri(p.copy(pile = p.pile - VoceBarra.ALTRO), Dettaglio.Sezione(SezioneAltro.SALUTE))
         Scheda.IMPOSTAZIONI -> p.copy(voce = VoceBarra.ALTRO, pile = p.pile - VoceBarra.ALTRO)
     }
 

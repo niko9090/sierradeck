@@ -80,6 +80,7 @@ class NavigazioneTest {
         for (s in listOf(Scheda.DOMANDE, Scheda.AUTOPILOTI, Scheda.CHAT, Scheda.PROGETTI)) assertEquals(VoceBarra.LAVORO, Navigazione.verso(da, s).voce)
         assertEquals(VoceBarra.FILE, Navigazione.verso(da, Scheda.FILE).voce)
         assertEquals(Dettaglio.Sezione(SezioneAltro.SALUTE), Navigazione.verso(da, Scheda.SALUTE).dettaglio)
+        assertEquals(Dettaglio.Sezione(SezioneAltro.COMPUTER), Navigazione.verso(da, Scheda.COMPUTER).dettaglio)
         Navigazione.verso(da, Scheda.IMPOSTAZIONI).let { assertEquals(VoceBarra.ALTRO, it.voce); assertNull(it.dettaglio) }
     }
 
