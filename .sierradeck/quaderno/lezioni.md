@@ -121,6 +121,7 @@
 - L'app prende le voci del menu da assets/menu.json (scritto dal test TS con AGGIORNA=1): un cambio di menu sul PC rompe solo l'enum Scheda in Apertura.kt e il `when` in Navigazione.kt. _(2026-11-19)_
 - `SuPc.corrente` non era letto da nessuno: il tasto «Chat dal vivo» di Altri computer apriva solo le chat locali. Il ponte vero andrebbe riscritto, non ripristinato. _(2026-11-20)_
 - Le sezioni di Altro (Salute, Computer) non scorrono da sole: vanno avvolte in Column con verticalScroll dentro il Box della Linguetta. _(2026-11-20)_
+- In una copia senza `gh` consentito non si sa se l'app è uscita: la voce in novita-app.txt viene committata dopo la pubblicazione, e può servire come indizio. _(2026-11-20)_
 
 ## release
 
@@ -622,6 +623,7 @@
 - se `pubblica` fallisce sui test, tag e bozza restano senza file: va rilanciato lo stesso comando, non ricreati. _(2026-11-19)_
 - Se `npm run pubblica` si ferma a metà, la bozza resta con i primi 3 file. Rilanciarlo sulla stessa bozza completa gli altri file, compresi quelli dell'Aiutante, senza crearne una seconda. _(2026-11-19)_
 - `gh release view --json` non ha il campo isLatest: per sapere se è Latest usare `gh release list`. _(2026-11-19)_
+- `git fetch` fallisce se origin è un .bundle d'arrivo già cancellato: la versione si controlla da package.json e dal log locale, i tag non ci sono. _(2026-11-20)_
 
 ## build
 
