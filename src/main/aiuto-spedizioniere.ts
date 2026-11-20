@@ -73,7 +73,14 @@ export function pesoInParole(byte: number): string {
   return `${Math.round(byte / 1048576)} MB`
 }
 
-export function creaSpedizioniere(d: DipendenzeSpedizioniere): { giro: () => Promise<void>; ferma: () => void; inMano: () => string[] } {
+export type Spedizioniere = {
+  giro: () => Promise<void>
+  ferma: () => void
+  inMano: () => string[]
+  dichiarate: (lavoro: string) => { pcId: string; nomi: readonly string[] } | undefined
+}
+
+export function creaSpedizioniere(d: DipendenzeSpedizioniere): Spedizioniere {
   const git = d.git ?? gitVero
   const log = d.log ?? ((r: string) => console.info(`[aiuto] ${r}`))
   const blocco = d.errore ?? ((r: string) => console.error(`[aiuto] ${r}`))
@@ -82,6 +89,8 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): { giro: () => Pro
   const registra = (e: EventoAiuto): void => { try { d.registra?.(e) } catch { /* un registro che non si scrive non ferma il lavoro */ } }
   const dorme = d.dorme ?? ((ms: number) => new Promise<void>((ok) => { const t = setTimeout(ok, ms); t.unref?.() }))
   const inMano = new Set<string>()
+  /** I lavori che questo PC ha affidato e segue adesso (per sapere quali credenziali dichiarano e a chi). */
+  const affidati = new Map<string, LavoroAffidato>()
   const fuori = new Map<string, number>()
   let posti: { lista: Aiutante[]; il: number } = { lista: [], il: -Infinity }
   let fermo = false
@@ -228,6 +237,7 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): { giro: () => Pro
   }
 
   const segui = async (l: LavoroAffidato): Promise<void> => {
+    affidati.set(l.id, l)
     if (l.stato === 'da-spedire') {
       try { await spedisci(l) } catch (err) {
         const delProgetto = err instanceof ProgettoNonSpedibile
@@ -315,12 +325,22 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): { giro: () => Pro
       for (const l of lavori) {
         if (!idLavoroValido(l.id) || inMano.has(l.id)) continue
         inMano.add(l.id)
-        void segui(l).catch((err) => log(`${l.id}: ${testo(err)}`)).finally(() => inMano.delete(l.id))
+        void segui(l).catch((err) => log(`${l.id}: ${testo(err)}`)).finally(() => { inMano.delete(l.id); affidati.delete(l.id) })
       }
     } catch { /* servizio giù o vecchio: al prossimo giro */ } finally { inGiro = false }
   }
 
   const timer = setInterval(() => { void giro() }, GIRO_MS)
   timer.unref?.()
-  return { giro, ferma: () => { fermo = true; clearInterval(timer) }, inMano: () => [...inMano] }
+  return {
+    giro,
+    ferma: () => { fermo = true; clearInterval(timer) },
+    inMano: () => [...inMano],
+    /** k-166n7: le credenziali di rete che un lavoro affidato da questo PC dichiara, e il PC a cui è affidato (per `servi`). */
+    dichiarate: (lavoro: string) => {
+      const l = affidati.get(lavoro)
+      if (l === undefined) return undefined
+      return { pcId: l.pcId, nomi: ricavaRisorse(l.prompt, l.risorse ?? [], [l.cwd]).filter((r) => r.tipo === 'credenziale').map((r) => r.valore) }
+    }
+  }
 }

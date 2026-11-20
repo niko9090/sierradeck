@@ -1,5 +1,6 @@
 import type { ModoAiuto, PostiAiuto } from '@shared/aiuto-rete'
 import type { CapacitaPc } from '@shared/capacita-pc'
+import { risorseValide } from '@shared/aiuto-risorse'
 
 /**
  * Le rotte `/api/aiuto/*` sul collegamento sicuro fra i PC («Aiuta la rete»,
@@ -30,6 +31,12 @@ export type FonteAiuto = {
    * Senza: questo PC non ne dà.
    */
   credenziali?: (r: { pcId: string | undefined; corpo: unknown }) => Promise<unknown>
+  /**
+   * k-166n7: per un lavoro che sta per partire qui, i valori delle credenziali che dichiara (cassaforte di
+   * questo PC, poi il PC che l'ha affidato: `chiedi` di `aiuto-credenziali`). Vanno solo al lavoratore,
+   * in memoria; mai nel registro. Senza: il lavoratore non ne riceve.
+   */
+  chiediCredenziali?: (r: { lavoro: string; nomi: string[]; daPc: string }) => Promise<Record<string, string>>
 }
 
 export type RichiestaAiuto = { metodo: string; percorso: string; corpo: unknown; dispositivo?: string }
@@ -66,8 +73,16 @@ export async function rispondiAiuto(r: RichiestaAiuto, aiuto: FonteAiuto | undef
   const ricevuto = (typeof r.corpo === 'object' && r.corpo !== null ? r.corpo : {}) as Record<string, unknown>
   // 12/11: il nome di chi chiede lo mette questo PC, dall'id firmato della richiesta (non da quello che dice il corpo).
   const idChi = r.dispositivo?.startsWith('pc:') === true ? r.dispositivo.slice(3) : undefined
-  const { daNome: _scartato, ...pulito } = ricevuto
-  const corpo = r.percorso === '/api/aiuto/avvia' ? { ...pulito, daNome: (idChi !== undefined ? aiuto.nomePc?.(idChi) : undefined) ?? 'un altro PC' } : pulito
+  // I segreti non arrivano mai dal corpo: li mette solo questo PC, qui sotto.
+  const { daNome: _scartato, segreti: _segreti, ...pulito } = ricevuto
+  let corpo: Record<string, unknown> = r.percorso === '/api/aiuto/avvia' ? { ...pulito, daNome: (idChi !== undefined ? aiuto.nomePc?.(idChi) : undefined) ?? 'un altro PC' } : pulito
+  if (r.percorso === '/api/aiuto/avvia' && aiuto.chiediCredenziali !== undefined && idChi !== undefined && typeof pulito.lavoro === 'string') {
+    const nomi = risorseValide(pulito.risorse).filter((c) => c.tipo === 'credenziale').map((c) => c.valore)
+    if (nomi.length > 0) {
+      const segreti = await aiuto.chiediCredenziali({ lavoro: pulito.lavoro, nomi, daPc: idChi }).catch(() => ({}))
+      if (Object.keys(segreti).length > 0) corpo = { ...corpo, segreti }
+    }
+  }
   try { return { stato: 200, corpo: await aiuto.servizio(dove, corpo) } } catch (err) {
     return { stato: 409, corpo: { errore: (err instanceof Error ? err.message : String(err)).replace(/^il servizio autopilota ha rifiutato la richiesta: /u, '').slice(0, 300) } }
   }

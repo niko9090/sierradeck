@@ -172,3 +172,31 @@ export async function chiedi(d: DatiChiedi): Promise<Record<string, string>> {
   for (const n of mancano) if (dal[n] !== undefined) avute[n] = dal[n]
   return avute
 }
+
+// ---------------------------------------------------------------------------------------------
+// Il collegamento (k-166n7)
+
+/**
+ * Le due mani del programma vero, da mettere nella `FonteAiuto` delle rotte `/api/aiuto/*`:
+ * - `credenziali`: risponde (solo a un PC riconosciuto, solo per un lavoro affidato da qui e per i nomi che dichiara);
+ * - `chiediCredenziali`: per un lavoro che parte qui, cassaforte di questo PC e poi il PC che l'ha affidato.
+ */
+export function collegaCredenziali(x: {
+  deposito: Deposito
+  dichiarate: DatiServi['dichiarate']
+  /** Una rotta di un altro PC sul collegamento autenticato. */
+  chiama: (pcId: string, percorso: string, corpo: Record<string, unknown>) => Promise<unknown>
+}): {
+  credenziali: (r: { pcId: string | undefined; corpo: unknown }) => Promise<unknown>
+  chiediCredenziali: (r: { lavoro: string; nomi: string[]; daPc: string }) => Promise<Record<string, string>>
+} {
+  return {
+    credenziali: (r) => servi({ pcId: r.pcId, corpo: r.corpo, deposito: x.deposito, dichiarate: x.dichiarate }),
+    chiediCredenziali: (r) => chiedi({
+      lavoro: r.lavoro,
+      nomi: r.nomi,
+      deposito: x.deposito,
+      alPcCheAffido: (richiesta) => x.chiama(r.daPc, '/api/aiuto/credenziali', { ...richiesta })
+    })
+  }
+}
