@@ -249,6 +249,7 @@
 
 - SubagentStop senza toccare server.ts: hook `command` con `node -e` e script in base64 (niente virgolette da proteggere), generato da `finePrematura.toString()`; la funzione deve restare autosufficien… _(2026-11-08)_
 - l'hook Bash di SierraDeck blocca sleep e comandi in sottofondo: le attese a intervalli non si possono fare da una chat, serve richiamare o un altro meccanismo. _(2026-11-10)_
+- Il programma blocca l'intero comando Bash se un rmdir o una cancellazione contiene una variabile ($T): scrivere i percorsi per intero. _(2026-11-20)_
 
 ## versioni
 
@@ -649,13 +650,14 @@
 - `npm run pubblica` supera i 10 minuti (prove, build, Aiutante): va in sottofondo da solo. Si controlla con `gh release view --json assets` finché i file sono 7, senza lanciarlo due volte. _(2026-11-19)_
 - se `pubblica` fallisce sui test, tag e bozza restano senza file: va rilanciato lo stesso comando, non ricreati. _(2026-11-19)_
 - Se `npm run pubblica` si ferma a metà, la bozza resta con i primi 3 file. Rilanciarlo sulla stessa bozza completa gli altri file, compresi quelli dell'Aiutante, senza crearne una seconda. _(2026-11-19)_
-- `gh release view --json` non ha il campo isLatest: per sapere se è Latest usare `gh release list`. _(2026-11-19)_
+- `gh release view --json` non ha il campo isLatest: per sapere se è Latest usare `gh release list`. _(confermata 2×, ultima 2026-11-20)_
 - `git fetch` fallisce se origin è un .bundle d'arrivo già cancellato: la versione si controlla da package.json e dal log locale, i tag non ci sono. _(2026-11-20)_
 - nel package-lock.json il secondo punto della versione (packages[""]) può restare indietro: nella 0.111.0 era ancora 0.110.2. Controllare entrambi. _(2026-11-20)_
 - Prima di cercare un bug in un rapporto del controllo PC, confronta il testo con `git log -S` e `git tag --contains`: il PC che lo scrive può girare una build senza la correzione già in main. _(2026-11-20)_
 - Prima di pubblicare controllare `.git/MERGE_HEAD` in main: le unioni dell'autopilota lasciano la cartella principale sporca e la punta di main non è un commit stabile. _(2026-11-20)_
 - Il compito può chiedere un worktree separato, in contrasto con la regola «build solo in cartella principale»: serve una conferma esplicita dell'autopilota prima di procedere. _(2026-11-20)_
 - Con unioni continue in main, al rilascio dai un commit unito e pulito (senza MERGE_HEAD), push di quel commit, tag lì e build in un worktree temporaneo fuori dal progetto. _(2026-11-20)_
+- Dopo un'interruzione la release può essere ancora in bozza anche se il compito dice di no: controllare isDraft. Gli asset arrivano già costruiti nelle cartelle dist e dist-aiutante della copia. _(2026-11-20)_
 
 ## build
 
