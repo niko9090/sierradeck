@@ -561,6 +561,7 @@
 - errori-arrivati.md usa a capo CRLF: una voce aggiunta con Edit entra con LF e il file resta con a capo misti. _(2026-11-16)_
 - errori-arrivati.md è CRLF e le voci si accodano nello stesso punto: due rami che le aggiungono insieme vanno in conflitto, si risolve tenendole tutte e due. _(2026-11-16)_
 - il commit di un compito k-xx non ha il codice nel messaggio: per trovarlo in main si cerca per contenuto (es. `git log --grep=orchestratore`), non per «k-f1» _(2026-11-16)_
+- errori-arrivati.md usa fine riga CRLF: Edit ancorato all'ultima riga funziona, ma controllare che le righe nuove non restino miste. _(2026-11-20)_
 
 ## controllo-pc
 
@@ -685,6 +686,8 @@
 - il PATH e le risorse si guardano solo DOPO che il progetto è arrivato sul PC ospite (`aiuto-risorse.ts`, `verificaRisorse`): la valutazione va spostata prima di affidare. _(2026-11-20)_
 - lo specialista ospitato eredita tutto `process.env` del programma che ospita (`aiuto-lavoratore.ts:460`): è la superficie vera per i segreti. _(2026-11-20)_
 - `SILENZIO_MAX_MS` esiste due volte con valori diversi (`aiuto-rete.ts:256`, `aiuto-scadenza.ts:21`): verificare quale vale. _(2026-11-20)_
+- `SILENZIO_MAX_MS` stava in due file con valori diversi (20 e 60 min): ora è uno solo in aiuto-rete.ts (30 min), aiuto-scadenza lo importa. _(2026-11-20)_
+- Per la lentezza conta l'attività vera (`fermoMs` dal PC ospite, sul suo orologio), non la percentuale: lo specialista spesso non la manda, e senza di lei un lavoro attivo non si sposta. _(2026-11-20)_
 
 ## aiutante
 
@@ -795,6 +798,7 @@
 
 - Le voci nelle cassette `posta-*-da-*` restano 'attesa' per sempre nel file: lo stato vero sta in `posta-<dest>-esiti`, quindi «in coda» va deciso incrociando i due. _(2026-11-19)_
 - `postino.pcSubito()` risponde con la memoria anche se vecchia (anche quella letta dal disco all'avvio): per decisioni a intervalli lunghi, come il controllo ogni 6 ore, serve `postino.pc()`. _(2026-11-20)_
+- la firma del battito esclude `risorse` e l'ora di `capacita`: dati che cambiano a ogni misura farebbero riscrivere il battito sul Drive a ogni giro. _(2026-11-20)_
 
 ## stato-pc
 
@@ -834,11 +838,13 @@
 ## sync
 
 - su Drive viaggiano solo `workspaces.json` (unione per nome) e le chat; coda, piano, autopilota e ordine sono locali per PC. Allineare i PC non è questione di sync, serve un'identità condivisa. _(2026-11-20)_
+- «rimetti» in segnaWorkspaceSulDrive firma il manifesto come file diverso, altrimenti il file locale sembra invariato e il workspace ripristinato non risale sul Drive. _(2026-11-20)_
 
 ## workspace
 
 - «Elimina workspace» non mette la lapide sul Drive: al salvataggio dell'altro PC il workspace ritorna (unioni.ts:78). _(2026-11-20)_
 - Non esiste una UI di riordino dei workspace: l'ordine è l'array. `Archivio.ordine` (nomi+quando) ora viaggia sul Drive; serve un'azione che chiami `riordinaWorkspaceArchivio`. _(2026-11-20)_
+- Una lapide toglie dal Drive, mai dal PC: gli altri PC tengono il workspace nel loro archivio locale ma non lo rimandano su. _(2026-11-20)_
 
 ## adozione
 
@@ -851,3 +857,15 @@
 ## testi
 
 - Gli Aiuto citano ancora «Altri computer» e «Salute → Altri computer»: dopo ogni spostamento di voci, cercare i nomi vecchi nei testi (impostazioni-struttura.ts, SezioneAltriPc.tsx). _(2026-11-20)_
+
+## compatibilità
+
+- campo assente nel battito = «sconosciuto», non «no»: i PC vecchi non lo scrivono, e `haCapacita(undefined, …)` lo rispetta. _(2026-11-20)_
+
+## sicurezza
+
+- lo specialista ospitato prima ereditava tutto process.env; ora `ambienteSpecialista` (shared/aiuto-credenziali.ts) tiene solo base+dichiarate. Nuove variabili di base vanno in ENV_BASE. _(2026-11-20)_
+
+## cassaforte
+
+- scriviAtomico scrive testo, non Buffer: il blob cifrato si salva in base64. Il dispositivo `pc:tel:` è un telefono, mai un PC: le rotte sensibili lo scartano. _(2026-11-20)_
