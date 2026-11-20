@@ -76,6 +76,7 @@
 - molti test leggono Console.tsx e App.tsx come testo: spostando etichette in `@shared` (es. chat-workspace) vanno aggiornati subito, falliscono solo al giro completo. _(2026-11-20)_
 - nei file di test scritti con heredoc i backslash dei percorsi Windows si perdono: scrivere i test con Write. _(2026-11-20)_
 - per riprodurre il controllo dei PC basta `giroControlloPc` con `creaClientPcRemoto` muto e `altri` costruito come in index.ts: vedi tests/main/controllo-pc-aiutante-vivo.test.ts. _(2026-11-20)_
+- Per provare che un test fallisce senza la correzione, rimetti il file di prima del commit con `git show <commit>^:file` e poi ripristinalo (qui ha riprodotto parola per parola il rapporto reale). _(2026-11-20)_
 
 ## worktree
 
@@ -633,6 +634,7 @@
 - `gh release view --json` non ha il campo isLatest: per sapere se è Latest usare `gh release list`. _(2026-11-19)_
 - `git fetch` fallisce se origin è un .bundle d'arrivo già cancellato: la versione si controlla da package.json e dal log locale, i tag non ci sono. _(2026-11-20)_
 - nel package-lock.json il secondo punto della versione (packages[""]) può restare indietro: nella 0.111.0 era ancora 0.110.2. Controllare entrambi. _(2026-11-20)_
+- Prima di cercare un bug in un rapporto del controllo PC, confronta il testo con `git log -S` e `git tag --contains`: il PC che lo scrive può girare una build senza la correzione già in main. _(2026-11-20)_
 
 ## build
 
