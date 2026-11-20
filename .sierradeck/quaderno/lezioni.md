@@ -79,6 +79,7 @@
 - Per provare che un test fallisce senza la correzione, rimetti il file di prima del commit con `git show <commit>^:file` e poi ripristinalo (qui ha riprodotto parola per parola il rapporto reale). _(2026-11-20)_
 - Il rapporto del controllo può dire «dato vecchio» e «non risponde» insieme solo con codice diverso da main: nella 0.111.1 verificare `testoRapporto` prima di fidarsi del testo del rapporto. _(2026-11-20)_
 - menu-principale.test.ts legge Console.tsx come testo (es. la riga `.map((v) =>`): togliere o rinominare un helper della fascia rompe quel test. _(2026-11-20)_
+- `tests/autopilot-host/compiti-chiusi-11-11.test.ts` e `parallelo-12-11.test.ts` usano `riassuntoOrchestratore`: sono la prova di compatibilità del formato quando lo si cambia. _(2026-11-20)_
 
 ## worktree
 
@@ -552,6 +553,8 @@
 - `npm run pubblica` supera i 10 minuti per il caricamento dell'installer dell'Aiutante (circa 100 MB): va in background e non va rilanciato. _(2026-11-20)_
 - `npm run pubblica` supera i 10 minuti: lo strumento lo sposta in sottofondo da solo. Per aspettare senza sleep lunghi, un ciclo `until` su `gh release view ... assets|length -ge 7` (sleep 5) passa. _(2026-11-20)_
 - Con `pubblica` i nomi dei file sono già con i trattini e i sette file arrivano da soli: il caricamento a mano da dist/ non è servito per la 0.111.2. _(2026-11-20)_
+- prima di tag e build controllare `git status` nella cartella principale: altre chat possono lasciare modifiche in staging su main, e finirebbero nell'installer. _(2026-11-20)_
+- Il rilascio non va lanciato mentre il programma prova un'unione nella cartella principale (file in staging = unione in corso): rilanciarlo subito dopo l'evento di unione. _(2026-11-20)_
 
 ## quaderno
 
@@ -746,6 +749,7 @@
 - il tono `riposo` di `fraseStatoOrchestratore` vale sia per «a riposo» sia per «in attesa di unioni»: `autopiloti-vista` lo legge come finito. Serve distinguere dal testo. _(2026-11-16)_
 - Esistono due funzioni `statoPc`: `shared/stato-pc.ts` (battito, soglia 35 min) e `shared/scoperta-pc.ts` (ping). Importare quella sbagliata cambia la soglia senza errori. _(2026-11-19)_
 - il riassunto tronca in coda a 12.000 caratteri: con una coda lunga perdi PRONTI, DOMANDE ed EVENTI senza avviso (riassunto-orchestratore.ts:140). _(2026-11-20)_
+- L'orchestratore costruisce lo stato per sezioni (testata, coda, piano, specialisti, fisse, eventi): una nuova sezione che non deve sparire va in «fisse». _(2026-11-20)_
 
 ## chat
 
