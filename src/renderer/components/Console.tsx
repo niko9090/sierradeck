@@ -50,7 +50,7 @@ import { MENU_PRINCIPALE, type IdMenu } from '@shared/menu-principale'
  * (0.61.0): le sue funzioni stanno in Progetti. «chat» è il pannello «Chat e
  * workspace» del menu principale.
  */
-export type PannelloAperto = 'impostazioni' | 'quaderno' | 'workspace' | 'autopiloti' | 'negozio' | 'salute' | 'chat' | 'computer' | undefined
+export type PannelloAperto = 'impostazioni' | 'quaderno' | 'workspace' | 'autopiloti' | 'negozio' | 'salute' | 'chat' | 'computer' | 'correzioni' | undefined
 
 type Props = {
   onApriSessioni: () => void
@@ -253,7 +253,7 @@ export function Console({
       // Gli specialisti stanno dentro Autopiloti (k-u0); la vecchia «rete» è Computer.
       else if (quale === 'specialisti') onApri('autopiloti')
       else if (quale === 'rete') onApri('computer')
-      else if (quale === 'salute' || quale === 'workspace' || quale === 'autopiloti' || quale === 'chat' || quale === 'computer' || quale === 'negozio' || quale === 'quaderno' || quale === 'impostazioni') onApri(quale)
+      else if (quale === 'salute' || quale === 'workspace' || quale === 'autopiloti' || quale === 'chat' || quale === 'computer' || quale === 'negozio' || quale === 'quaderno' || quale === 'correzioni' || quale === 'impostazioni') onApri(quale)
     }
     window.addEventListener('sierradeck:apri-pannello', suRichiesta)
     return () => window.removeEventListener('sierradeck:apri-pannello', suRichiesta)

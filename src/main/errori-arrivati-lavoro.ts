@@ -344,6 +344,31 @@ export function quandoSpostato(nome: string): number | undefined {
   return Number.isNaN(t) ? undefined : t
 }
 
+/**
+ * La pagina Correzioni (k-166m2): gli errori arrivati e non ancora affidati,
+ * raggruppati come farà il lotto, e i lotti già affidati. Senza cartella di
+ * SierraDeck su questo PC non c'è niente da vedere.
+ */
+export type VistaArrivi = {
+  gruppi: Array<Pick<GruppoErrori, 'chiave' | 'dove' | 'messaggio' | 'volte' | 'ultima' | 'da'> & { ritorna: boolean }>
+  lotti: StatoErroriArrivati['lotti']
+  attesa?: string
+}
+
+export function vistaArrivi(radice: string | undefined, versioneQui: string, adesso: number): VistaArrivi {
+  if (radice === undefined) return { gruppi: [], lotti: [] }
+  const arrivi = cartellaArrivi(radice)
+  if (!existsSync(arrivi)) return { gruppi: [], lotti: [] }
+  const stato = leggiStatoArrivi(arrivi)
+  const letti = arriviInAttesa(arrivi).map((a) => leggiArrivo(arrivi, a.file)).filter((x): x is ArrivoLetto => x !== undefined)
+  const { gruppi } = raggruppa({ arrivi: letti, versioneQui, affidati: stato.affidati, adesso })
+  return {
+    gruppi: gruppi.map((g) => ({ chiave: g.chiave, dove: g.dove, messaggio: g.messaggio.slice(0, 300), volte: g.volte, ultima: g.ultima, da: g.da, ritorna: g.ritorna !== undefined })),
+    lotti: [...stato.lotti].reverse().slice(0, 10),
+    ...(stato.attesa !== undefined ? { attesa: stato.attesa.testo } : {})
+  }
+}
+
 // ─── Il giro ──────────────────────────────────────────────────────────────
 
 export type DepsGiroErrori = {

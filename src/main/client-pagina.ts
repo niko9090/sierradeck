@@ -794,7 +794,7 @@ function legendaAttivita(id) {
   }).join(''), ATT.titolo.toLowerCase())
 }
 // Il menu principale (0.61.0), lo stesso del PC e dell'app: src/shared/menu-principale.ts.
-var MENU = ${JSON.stringify(MENU_PRINCIPALE.map((v) => ({ id: v.id, breve: v.breve, icona: v.icona, spiega: v.spiega })))}
+var MENU = ${JSON.stringify(MENU_PRINCIPALE.filter((v) => v.soloPc !== true).map((v) => ({ id: v.id, breve: v.breve, icona: v.icona, spiega: v.spiega })))}
 // Le quattro voci del telefono (0.83.0), le stesse dell'app: MENU_TELEFONO in
 // src/shared/menu-principale.ts; le regole di dove si va (e di «indietro»)
 // sono quelle di src/shared/navigazione-telefono.ts, uguali a Navigazione.kt.

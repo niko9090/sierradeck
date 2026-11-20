@@ -18,7 +18,8 @@ describe('menu unico del PC', () => {
     expect(new Set(nomi).size).toBe(nomi.length)
     const idBarra = MENU_PRINCIPALE.filter((v) => v.soloTelefono !== true).map((v) => v.id)
     expect(new Set(idBarra).size).toBe(idBarra.length)
-    expect(idBarra).toHaveLength(7)
+    // Sette voci di prima più Correzioni (k-166m2), che vive solo sul PC.
+    expect(idBarra).toHaveLength(8)
     // Il telefono contiene ognuna delle voci una volta sola, con gli stessi id.
     const tel = MENU_TELEFONO.flatMap((v) => v.contiene)
     expect(new Set(tel).size).toBe(tel.length)

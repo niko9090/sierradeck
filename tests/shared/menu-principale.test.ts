@@ -13,7 +13,7 @@ const leggi = (p: string): string => readFileSync(p, 'utf8')
 
 describe('il menu principale', () => {
   it('otto voci (File solo sul telefono), in ordine d’importanza', () => {
-    expect(MENU_PRINCIPALE.map((v) => v.nome)).toEqual(['Progetti', 'Autopiloti', 'Domande', 'Chat e workspace', 'Computer', 'File', 'Salute', 'Impostazioni'])
+    expect(MENU_PRINCIPALE.map((v) => v.nome)).toEqual(['Progetti', 'Autopiloti', 'Domande', 'Chat e workspace', 'Computer', 'File', 'Salute', 'Correzioni', 'Impostazioni'])
     for (const v of MENU_PRINCIPALE) {
       expect(v.spiega.length, v.id).toBeGreaterThan(80)
       expect(v.icona, v.id).not.toBe('')
@@ -21,7 +21,7 @@ describe('il menu principale', () => {
       expect(v.nome.startsWith(v.breve.replace(/­/g, '')), v.id).toBe(true)
     }
     // Le icone non si ripetono (prima ▣ voleva dire due cose, ⧉ altre due).
-    expect(new Set(MENU_PRINCIPALE.map((v) => v.icona)).size).toBe(8)
+    expect(new Set(MENU_PRINCIPALE.map((v) => v.icona)).size).toBe(9)
   })
   it('nessuna funzione di prima resta senza casa, e ogni voce ha qualcosa dentro', () => {
     const id = new Set(MENU_PRINCIPALE.map((v) => v.id))
@@ -98,7 +98,7 @@ describe('nella pagina e nell’app: la stessa struttura', () => {
   })
   it('l’app ha le stesse voci (assets/menu.json): le sette del PC raccolte in quattro (0.83.0)', () => {
     const fatto = {
-      voci: MENU_PRINCIPALE.map((v) => ({ id: v.id, nome: v.nome, breve: v.breve, icona: v.icona, spiega: v.spiega })),
+      voci: MENU_PRINCIPALE.filter((v) => v.soloPc !== true).map((v) => ({ id: v.id, nome: v.nome, breve: v.breve, icona: v.icona, spiega: v.spiega })),
       telefono: MENU_TELEFONO.map((v) => ({ id: v.id, nome: v.nome, contiene: [...v.contiene], linguette: [...v.linguette] }))
     }
     const file = join('android', 'app', 'src', 'main', 'assets', 'menu.json')
@@ -113,7 +113,7 @@ describe('nella pagina e nell’app: la stessa struttura', () => {
   it('il telefono: quattro voci che contengono ognuna delle sette, una volta sola', () => {
     expect(MENU_TELEFONO.map((v) => v.nome)).toEqual(['Workspace', 'Chat', 'Progetti', 'Altro'])
     const tutte = MENU_TELEFONO.flatMap((v) => v.contiene)
-    expect([...tutte].sort()).toEqual(MENU_PRINCIPALE.map((v) => v.id).sort())
+    expect([...tutte].sort()).toEqual(MENU_PRINCIPALE.filter((v) => v.soloPc !== true).map((v) => v.id).sort())
     // Le domande per Nicholas stanno nella prima voce, quella su cui si apre l'app.
     expect(MENU_TELEFONO[0]?.contiene[0]).toBe('domande')
   })

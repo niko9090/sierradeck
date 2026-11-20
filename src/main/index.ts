@@ -224,7 +224,7 @@ import { consoleNelRegistro } from './console-nel-registro'
 import { apriStoricoErrori, conStorico, leggiStoricoDi, type StoricoSuFile } from './storico-errori-file'
 import { testoDaCopiare, type InvioErrori, type StoricoErrori } from '@shared/storico-errori'
 import { cartellaDiSierraDeck, mandaErrori, salvaErroriArrivati } from './errori-arrivati'
-import { giroErroriArrivati } from './errori-arrivati-lavoro'
+import { giroErroriArrivati, vistaArrivi } from './errori-arrivati-lavoro'
 import { eventiPiuRecentiInCima, leggiEventiAiuto, registraEventoAiuto } from '@shared/eventi-aiuto'
 import { GIRO_INVIO_MS, giroInvioErrori, pcSviluppoDi, vistaErrori, type StatoInvio } from './errori-invio-automatico'
 import { eRemotoDiSviluppo, pcProclamato, perchéNonProclama } from '@shared/pc-sviluppo'
@@ -4009,6 +4009,11 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('errori:storico', () => {
         const { voci, inviate } = vistaErrori(leggiStoricoDi(dati, storicoErrori.leggi()), statoInvioErroriGlobale?.())
         return { voci, inviate, testo: testoDaCopiare({ voci }, { versione: app.getVersion() }), ...(rigaArriviGlobale !== undefined ? { arrivi: rigaArriviGlobale } : {}) }
+      })
+      // Correzioni (k-166m2): gli errori arrivati, raggruppati, e il workspace dove l'autopilota li corregge.
+      ipcMain.handle('errori:correzioni', () => {
+        const radice = radiceSierraDeckGlobale?.()
+        return { ...vistaArrivi(radice, app.getVersion(), Date.now()), ...(radice !== undefined ? { workspace: workspaceDellAutopilota('', radice) } : {}) }
       })
       // I passaggi di mano dei lavori mandati ad altri PC: i più recenti in cima.
       ipcMain.handle('aiuto:eventi', () => eventiPiuRecentiInCima(leggiEventiAiuto(dati)))

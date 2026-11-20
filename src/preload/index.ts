@@ -657,6 +657,8 @@ contextBridge.exposeInMainWorld('gestore', {
   /** Lo storico degli errori di questo PC (0.81.0), con il testo di «Copia». */
   errori: {
     storico: (): Promise<{ voci: unknown[]; inviate?: unknown[]; testo: string; arrivi?: string }> => ipcRenderer.invoke('errori:storico'),
+    /** Correzioni (k-166m2): gli errori arrivati dagli altri PC, raggruppati, i lotti già affidati e il workspace che li corregge. */
+    correzioni: (): Promise<{ gruppi: Array<{ chiave: string; dove: string; messaggio: string; volte: number; ultima: string; da: string[]; ritorna: boolean }>; lotti: Array<{ id: string; il: string; gruppi: number; file: number }>; attesa?: string; workspace?: string }> => ipcRenderer.invoke('errori:correzioni'),
     /** Manda subito gli errori non ancora inviati al PC di sviluppo (di solito partono da soli). */
     manda: (): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('errori:manda'),
     /** 12/11 (0.105.0): «Proclama PC di sviluppo»: se qui si può (e perché no), se è proclamato, e chi è il PC di sviluppo. */

@@ -16,7 +16,7 @@ describe('pagina unificata (k-u6)', () => {
     const voci = script.split('\n').find((r) => r.startsWith('var VOCI = ')) ?? ''
     for (const v of MENU_TELEFONO) expect(voci).toContain(JSON.stringify(v.nome))
     const menu = script.split('\n').find((r) => r.startsWith('var MENU = ')) ?? ''
-    for (const v of MENU_PRINCIPALE) expect(menu).toContain(JSON.stringify(v.id))
+    for (const v of MENU_PRINCIPALE.filter((x) => x.soloPc !== true)) expect(menu).toContain(JSON.stringify(v.id))
     expect(MENU_TELEFONO.find((v) => v.id === 'altro')?.contiene).toContain('computer')
   })
 

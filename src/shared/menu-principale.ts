@@ -15,7 +15,7 @@
  * trova adesso. Il test controlla che nessuna resti senza casa. L'inventario
  * per esteso, con il perché, sta nel quaderno: `menu-rifatti-0-61-0-inventario.md`.
  */
-export type IdMenu = 'progetti' | 'autopiloti' | 'domande' | 'chat' | 'computer' | 'file' | 'salute' | 'impostazioni'
+export type IdMenu = 'progetti' | 'autopiloti' | 'domande' | 'chat' | 'computer' | 'file' | 'salute' | 'correzioni' | 'impostazioni'
 
 export type VoceMenu = {
   id: IdMenu
@@ -36,6 +36,12 @@ export type VoceMenu = {
    * PC il pannello dei file con i server (il «FileZilla») è stato tolto.
    */
   soloTelefono?: true
+  /**
+   * Solo nella fascia del PC (k-166m2): Correzioni vive sul PC di sviluppo, dove
+   * arrivano gli errori. Non va nella pagina, nell'app (`assets/menu.json`) né
+   * nelle voci del telefono.
+   */
+  soloPc?: true
 }
 
 export const MENU_PRINCIPALE: readonly VoceMenu[] = [
@@ -65,7 +71,11 @@ export const MENU_PRINCIPALE: readonly VoceMenu[] = [
   },
   {
     id: 'salute', nome: 'Salute', icona: '♥', breve: 'Salute',
-    spiega: 'Come sta il sistema: cosa c’è da sistemare, il Drive, gli errori delle ultime ore e i consumi del piano, con cosa fare per ognuno. I computer hanno la loro voce.'
+    spiega: 'Come sta il sistema: cosa c’è da sistemare, il Drive e i consumi del piano, con cosa fare per ognuno. I computer hanno la loro voce, gli errori e le correzioni pure.'
+  },
+  {
+    id: 'correzioni', nome: 'Correzioni', icona: '✚', breve: 'Correzioni', soloPc: true,
+    spiega: 'Gli errori arrivati dagli altri PC, raggruppati; il lavoro in corso per correggerli e le correzioni già fatte. Tutto in un posto solo: Salute ti rimanda qui.'
   },
   {
     id: 'impostazioni', nome: 'Impostazioni', icona: '⚙', breve: 'Imposta\u00adzioni',
@@ -112,7 +122,9 @@ export const FUNZIONI: readonly Funzione[] = [
   { funzione: 'File mandati al telefono', dove: 'file', prima: '⇅ File' },
   // Salute
   { funzione: 'Salute del sistema', dove: 'salute', prima: '♥ Salute, Impostazioni → Info' },
-  { funzione: 'Da sistemare, Drive, errori', dove: 'salute', prima: '♥ Salute' },
+  { funzione: 'Da sistemare, Drive', dove: 'salute', prima: '♥ Salute' },
+  // Correzioni (k-166m2): gli errori hanno una casa sola
+  { funzione: 'Errori arrivati dagli altri PC, lavoro in corso e correzioni fatte', dove: 'correzioni', prima: '♥ Salute (gruppo Errori), Impostazioni → Errori' },
   { funzione: 'Consumi del piano e del contesto', dove: 'salute', prima: 'Consumi, Impostazioni → Consumi' },
   // Impostazioni
   { funzione: 'Aggiornamenti', dove: 'impostazioni', prima: 'Impostazioni' },
@@ -121,6 +133,9 @@ export const FUNZIONI: readonly Funzione[] = [
   { funzione: 'Aspetto, scorciatoie, notifiche', dove: 'impostazioni', prima: 'Impostazioni' },
   { funzione: 'Registro e Copia i dettagli', dove: 'impostazioni', prima: 'Impostazioni → Info, Account' }
 ]
+
+/** Le voci che vanno anche nella pagina e nell'app (tutte tranne quelle solo del PC). */
+export const MENU_CONDIVISO: readonly VoceMenu[] = MENU_PRINCIPALE.filter((v) => v.soloPc !== true)
 
 export function voceMenu(id: IdMenu): VoceMenu {
   const v = MENU_PRINCIPALE.find((x) => x.id === id)

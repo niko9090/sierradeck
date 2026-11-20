@@ -66,6 +66,7 @@ import { salvaPreferenze } from './salva-preferenze'
 import { decidiFumettiDrive, FUMETTO_ARRIVO_MS, FUMETTO_ESITO_OK_MS } from './fumetti-sync'
 import { PannelloChat } from './components/PannelloChat'
 import { PannelloSalute } from './components/PannelloSalute'
+import { PannelloCorrezioni } from './components/PannelloCorrezioni'
 import { PaginaComputer } from './components/PaginaComputer'
 import { PannelloDomande } from './components/PannelloDomande'
 import { MISURE_LIBERE, MOSAICO_MINIMO_PX } from '@shared/misure-pannelli'
@@ -1842,6 +1843,9 @@ export function App(): React.JSX.Element {
             onApriAutopiloti={() => setAperto('autopiloti')}
             suiConsumi={saluteSuConsumi}
           />
+        ) : null}
+        {aperto === 'correzioni' ? (
+          <PannelloCorrezioni onChiudi={() => setAperto(undefined)} />
         ) : null}
         {aperto === 'computer' ? (
           <PaginaComputer onChiudi={() => setAperto(undefined)} aggiornamento={{ fase: aggiornamento.fase, ...(aggiornamento.versione !== undefined ? { versione: aggiornamento.versione } : {}), ...(aggiornamento.percento !== undefined ? { percento: aggiornamento.percento } : {}) }} />
