@@ -664,6 +664,7 @@
 ## unione
 
 - Un MERGE_HEAD in main è durato circa 5 minuti e poi è sparito senza cambiare HEAD. Più sleep di fila nello stesso comando vengono bloccati, quindi un `sleep 20` per chiamata. _(2026-11-14)_
+- Il nome di un workspace è l'identità anche in `tolti`; l'unione ora confronta con `chiaveNomeWorkspace` (trim, spazi, minuscole) e tiene il nome già sul Drive. _(2026-11-20)_
 
 ## pubblica-app
 
@@ -681,6 +682,9 @@
 - nel registro `daPc` non ha un significato unico: negli eventi di riassegnazione è il PC che ha fallito, nei nuovi è «questo PC»; lo spedizioniere non conosce il nome di chi affida. _(2026-11-16)_
 - la scadenza delle 3 ore non va a orologio da muro: un portatile che dorme la fa scattare al risveglio. Ora conta il tempo da sveglio (src/shared/aiuto-scadenza.ts). _(2026-11-17)_
 - una scadenza dopo un sonno o con lo specialista muto va con causa 'pc': solo così il lavoro passa a un altro PC. 'compito' non si riassegna. _(2026-11-17)_
+- il PATH e le risorse si guardano solo DOPO che il progetto è arrivato sul PC ospite (`aiuto-risorse.ts`, `verificaRisorse`): la valutazione va spostata prima di affidare. _(2026-11-20)_
+- lo specialista ospitato eredita tutto `process.env` del programma che ospita (`aiuto-lavoratore.ts:460`): è la superficie vera per i segreti. _(2026-11-20)_
+- `SILENZIO_MAX_MS` esiste due volte con valori diversi (`aiuto-rete.ts:256`, `aiuto-scadenza.ts:21`): verificare quale vale. _(2026-11-20)_
 
 ## aiutante
 
@@ -712,6 +716,8 @@
 - menu-specialisti.ts finisce nello script della pagina con .toString(): niente helper importati dentro, testi italiani scritti nella funzione stessa. _(2026-11-16)_
 - Il telefono ha tre strutture diverse (PC 7+1 voci, pagina `MENU_TELEFONO` 4 voci, app `Navigazione.kt` 3 voci). Cambiare `MENU_PRINCIPALE` non basta: l'app legge `assets/menu.json` e l'enum va ritocc… _(2026-11-19)_
 - Il test menu-principale.test.ts confronta assets/menu.json con MENU_PRINCIPALE: dopo ogni cambio di voci rigenerarlo con AGGIORNA=1 prima del commit. _(2026-11-19)_
+- Gli errori hanno due fonti: Salute legge il registro, Impostazioni → Errori legge lo storico (storico-errori-file). Possono non coincidere. _(2026-11-20)_
+- Ogni voce di errore in Salute dovrebbe avere l'azione «Apri gli errori», altrimenti la correzione resta sepolta due livelli sotto. _(2026-11-20)_
 
 ## panoramica
 
@@ -732,6 +738,7 @@
 
 - il tono `riposo` di `fraseStatoOrchestratore` vale sia per «a riposo» sia per «in attesa di unioni»: `autopiloti-vista` lo legge come finito. Serve distinguere dal testo. _(2026-11-16)_
 - Esistono due funzioni `statoPc`: `shared/stato-pc.ts` (battito, soglia 35 min) e `shared/scoperta-pc.ts` (ping). Importare quella sbagliata cambia la soglia senza errori. _(2026-11-19)_
+- il riassunto tronca in coda a 12.000 caratteri: con una coda lunga perdi PRONTI, DOMANDE ed EVENTI senza avviso (riassunto-orchestratore.ts:140). _(2026-11-20)_
 
 ## chat
 
@@ -823,3 +830,24 @@
 ## pagina-telefono
 
 - Il riassunto dell'autopilota e la linguetta Avanzamento mostravano la stessa percentuale; ora solo la linguetta. Gli specialisti stanno solo in Autopiloti e nel menu della chat. _(2026-11-20)_
+
+## sync
+
+- su Drive viaggiano solo `workspaces.json` (unione per nome) e le chat; coda, piano, autopilota e ordine sono locali per PC. Allineare i PC non è questione di sync, serve un'identità condivisa. _(2026-11-20)_
+
+## workspace
+
+- «Elimina workspace» non mette la lapide sul Drive: al salvataggio dell'altro PC il workspace ritorna (unioni.ts:78). _(2026-11-20)_
+- Non esiste una UI di riordino dei workspace: l'ordine è l'array. `Archivio.ordine` (nomi+quando) ora viaggia sul Drive; serve un'azione che chiami `riordinaWorkspaceArchivio`. _(2026-11-20)_
+
+## adozione
+
+- le chat adottate non escono mai dallo stato da sole: lo stato le stampa tutte, anche chiuse da mesi. _(2026-11-20)_
+
+## code mode
+
+- claude.exe ha Code Mode sperimentale con riavvio della sessione: non attivarlo sul processo -p dell'autopilota senza una misura. _(2026-11-20)_
+
+## testi
+
+- Gli Aiuto citano ancora «Altri computer» e «Salute → Altri computer»: dopo ogni spostamento di voci, cercare i nomi vecchi nei testi (impostazioni-struttura.ts, SezioneAltriPc.tsx). _(2026-11-20)_
