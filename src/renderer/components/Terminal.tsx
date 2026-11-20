@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNomePc } from '../state/nomi-pc'
+import { PERCORSO } from '@shared/percorsi-menu'
 import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { adattaSePuoi } from '../adatta-terminale'
@@ -696,7 +697,7 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
             </button>
           </div>
           <div className="chat-altrove__nota">
-            Se invece vuoi lavorarci qui con i file, su quel PC metti la cartella sul Drive (Account → Progetti sul Drive):
+            Se invece vuoi lavorarci qui con i file, su quel PC metti la cartella sul Drive (Progetti → Progetti sul Drive):
             allora viaggia, e da qui prendi il testimone.
           </div>
         </div>
@@ -721,7 +722,7 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
             })}
           </div>
           <div className="chat-altrove__nota">
-            Il perché è anche nel registro (Impostazioni → Registro → «Apri i log»). La conversazione non si perde: «Riprova» la riprende da dov’era.
+            Il perché è anche nel registro ({PERCORSO.registro}). La conversazione non si perde: «Riprova» la riprende da dov’era.
           </div>
         </div>
       ) : null}

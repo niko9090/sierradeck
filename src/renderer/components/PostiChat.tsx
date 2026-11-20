@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { avvisoCarico, rigaPosti, spiegaPosti, type PostiChat as Posti } from '@shared/posti-chat'
 import { ModalePostiChat } from './ModalePostiChat'
 import { Aiuto } from './Aiuto'
+import { PERCORSO } from '@shared/percorsi-menu'
 
 /** Ogni quanto si richiede: il servizio ricalcola i posti una volta al minuto. */
 const OGNI_MS = 15_000
@@ -48,7 +49,7 @@ export function PostiChat(): React.JSX.Element | null {
       <Aiuto di="Chat al lavoro insieme">
         <span style={{ whiteSpace: 'pre-line' }}>{spiegaPosti(p)}</span>
         {'\n'}
-        <span style={{ display: 'block', marginTop: 6 }}>Si regola in Impostazioni → Chat e autopiloti: «Meno chat», «Come dice il PC» o «Più chat».</span>
+        <span style={{ display: 'block', marginTop: 6 }}>Si regola in {PERCORSO.chat}:«Meno chat», «Come dice il PC» o «Più chat».</span>
       </Aiuto>
     </span>
   )

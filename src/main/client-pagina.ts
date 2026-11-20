@@ -29,6 +29,7 @@ import {
 import { REGOLE_PUBBLICAZIONE } from '@shared/harness'
 import { normalizza as normalizzaImp, sezioniDi } from '@shared/impostazioni-struttura'
 import { MENU_PRINCIPALE, MENU_TELEFONO, type IdTelefono } from '@shared/menu-principale'
+import { PERCORSO } from '@shared/percorsi-menu'
 import { SPIEGA_STIME, daQuanto, minutiTesto, nomeWorkspace, postiTesto, prioritaTesto, quantoManca, totaleTesto } from '@shared/attesa-vista'
 import { menuSpecialisti } from '@shared/menu-specialisti'
 import { apriSezioneAltro, indietroTelefono, linguettaDi, pannelliDelPosto, postoIniziale, scegliLinguetta, SEZIONI_ALTRO, toccaVoce, versoDestinazione } from '@shared/navigazione-telefono'
@@ -943,7 +944,7 @@ function sezioneErroriPagina() {
   var elenco = voci.slice(0, 5).map(function (v) {
     return '<div class="sotto">' + esc(oraErrore(v.ultima)) + (v.volte > 1 ? ' · ' + v.volte + ' volte' : '') + ' · ' + esc(v.messaggio) + '</div>'
   }).join('')
-  var dove = erroriPc.pcSviluppo ? 'PC di sviluppo: ' + esc(erroriPc.pcSviluppo) : 'Il PC di sviluppo si sceglie sul computer, in Impostazioni → Errori.'
+  var dove = erroriPc.pcSviluppo ? 'PC di sviluppo: ' + esc(erroriPc.pcSviluppo) : 'Il PC di sviluppo si sceglie sul computer, in ${PERCORSO.errori}.'
   return testa + '<div class="sotto">' + esc(conto) + '</div>' + elenco +
     '<div class="riga"><button onclick="leggiErrori()">Aggiorna</button><button onclick="copiaErrori()"' + (voci.length === 0 ? ' disabled' : '') + '>Copia</button>' +
     '<button onclick="mandaErrori()"' + (voci.length === 0 || !erroriPc.pcSviluppo ? ' disabled' : '') + '>Manda al PC di sviluppo</button>' +
@@ -1617,7 +1618,7 @@ function motivoNonCollegoJs(chiaveRifiutata, host) {
   if (chiaveRifiutata) return {
     titolo: 'Il PC risponde ma non riconosce questo telefono',
     rimedio: 'Riprova: se continua, ricollega il telefono.',
-    dettagli: 'Il computer c’è e risponde, ma rifiuta la chiave di questo telefono (401 o 403): il telefono è stato tolto dal computer, o il computer è stato reinstallato. Per ricollegarlo: sul computer apri Impostazioni → Client e accoppia di nuovo con il codice.'
+    dettagli: 'Il computer c’è e risponde, ma rifiuta la chiave di questo telefono (401 o 403): il telefono è stato tolto dal computer, o il computer è stato reinstallato. Per ricollegarlo: sul computer apri ${PERCORSO.client} e accoppia di nuovo con il codice.'
   }
   var tailscale = /^100\\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\\./.test(host || '')
   return {
@@ -1716,7 +1717,7 @@ function ingresso(messaggio) {
     <div class="ingresso">
       ${LOGO}
       <div style="font-size:1.1875rem;margin-bottom:6px">SierraDeck</div>
-      <div class="sotto">Sul computer apri <b>Impostazioni → Client</b> e leggi il codice.</div>
+      <div class="sotto">Sul computer apri <b>${PERCORSO.client}</b> e leggi il codice.</div>
       <input id="codice" inputmode="numeric" maxlength="6" placeholder="······" aria-label="codice">
       <input id="nome" placeholder="nome di questo dispositivo" style="font-size:0.9375rem;letter-spacing:normal">
       <button class="primario" id="entra" style="margin-top:12px">Collega</button>
@@ -2580,7 +2581,7 @@ function pannello(s) {
     if (codaProgetto === null) {
       return '<div class="piastrella"><div class="titolo">Code dei progetti' + aiuto('code', 'Una fila di istruzioni per progetto, sul Drive: le consegna il PC che ha il progetto in mano, una per volta, alla prima chat del progetto che ha finito il turno. Serve a lasciare il lavoro dopo quello di adesso senza stare a guardare.') + '</div>' +
         (progetti.length === 0
-          ? '<div class="sotto" style="margin-top:8px">Nessun progetto sul Drive: le code esistono solo per i progetti portati sul Drive (sul computer: Account → Progetti).</div>'
+          ? '<div class="sotto" style="margin-top:8px">Nessun progetto sul Drive: le code esistono solo per i progetti portati sul Drive (sul computer: Progetti).</div>'
           : progetti.map((p) =>
               '<button class="cartella" onclick="apriCoda(\\'' + escJs(p.id) + '\\')">' + esc(p.nome) +
               '<br><span class="sotto">' + p.inCoda + ' in coda · ' +
@@ -5013,7 +5014,7 @@ function driveScollegatoHtml(s) {
     '<div class="drive-riga__testo">' + esc(d.breve || d.titolo || 'Google Drive scollegato') +
       '<details><summary>Perché e come si sistema</summary>' +
         '<div class="sotto">' + esc(d.testo || '') + '</div>' +
-        '<div class="sotto" style="margin-top:6px"><b>Si ricollega dal computer</b>: Impostazioni → Account → Drive → «Collega» (si apre il browser per il consenso di Google). Dal telefono non si può: il consenso di Google si dà sul PC.</div>' +
+        '<div class="sotto" style="margin-top:6px"><b>Si ricollega dal computer</b>: ${PERCORSO.account} → «Collega» (si apre il browser per il consenso di Google). Dal telefono non si può: il consenso di Google si dà sul PC.</div>' +
       '</details>' +
     '</div>' +
     (d.chiave ? '<button class="drive-riga__chiudi" data-k="' + esc(d.chiave) + '" onclick="chiudiDrive(this.dataset.k)" aria-label="Chiudi l’avviso del Drive" title="Ricompare solo se il Drive si scollega un’altra volta">×</button>' : '') +

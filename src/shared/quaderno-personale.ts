@@ -54,6 +54,8 @@ export type StatoQuadernoPersonale = {
   richieste: RichiestaPersonale[]
 }
 
+import { PERCORSO } from './percorsi-menu'
+
 export const OPZIONI_CONSENSO = ['Consenti una volta', 'Sempre per questa chat', 'No'] as const
 
 /** L'id di una domanda di consenso nelle Domande: si riconosce dal prefisso. */
@@ -109,7 +111,7 @@ export function controllaVoce(nome: string, valore: string, nota: string | undef
 export function testoDomandaConsenso(r: { chat: string; voce: string; motivo: string }): string {
   return `La chat «${r.chat}» chiede il dato «${r.voce}» del tuo quaderno personale.\n\n` +
     `Perché, con le sue parole: «${r.motivo}».\n\n` +
-    '«Consenti una volta» glielo dà adesso e basta. «Sempre per questa chat» glielo dà anche le prossime volte, senza chiedere, finché non lo revochi (Impostazioni → Quaderno personale). ' +
+    `«Consenti una volta» glielo dà adesso e basta. «Sempre per questa chat» glielo dà anche le prossime volte, senza chiedere, finché non lo revochi (${PERCORSO.quadernoPersonale}). ` +
     '«No» non glielo dà. Se non rispondi entro due minuti vale no, e la chat lo sa.'
 }
 

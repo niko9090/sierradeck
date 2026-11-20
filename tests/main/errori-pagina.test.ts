@@ -51,7 +51,7 @@ describe('la voce «Errori» sulla pagina', () => {
   it('senza PC di sviluppo «Manda» è spento e dice dove sceglierlo', () => {
     const s = sezione({ voci: [{ ultima: '2026-10-19T15:00:00.000Z', volte: 1, messaggio: 'boom' }], testo: 't' })
     expect(s).toMatch(/onclick="mandaErrori\(\)" disabled>/)
-    expect(s).toContain('Impostazioni → Errori')
+    expect(s).toContain('Impostazioni → Info e aiuto → Errori')
   })
 
   it('gli errori della pagina vanno al PC con «pagina» come posto, al massimo venti per volta', () => {

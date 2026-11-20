@@ -1,5 +1,6 @@
 import { TESTO_IN_AGGIORNAMENTO, testoAggiornamentoRemoto } from './aggiornamento-remoto'
 import { dataBreve } from './tempo-it'
+import { PERCORSO } from './percorsi-menu'
 
 /**
  * Trovare gli altri PC **senza il Drive** (0.39.3).
@@ -183,14 +184,14 @@ export function titoloDopoIlBussare(p: {
     return {
       stato: 'chiave',
       titolo: `${n} risponde ma non riconosce la chiave`,
-      cosaFare: `Su ${n} la cassaforte è chiusa (aprila là: Account → Cassaforte), oppure i due PC hanno due cassaforti diverse: la chiave si ricava dalla stessa passphrase, deve essere la stessa da tutte e due le parti.${(ping.prove ?? []).length > 0 ? ` Cosa ho provato: ${(ping.prove ?? []).map(testoProva).join('; ')}.` : ''}`
+      cosaFare: `Su ${n} la cassaforte è chiusa (aprila là: Impostazioni → Account e Drive → Cassaforte), oppure i due PC hanno due cassaforti diverse: la chiave si ricava dalla stessa passphrase, deve essere la stessa da tutte e due le parti.${(ping.prove ?? []).length > 0 ? ` Cosa ho provato: ${(ping.prove ?? []).map(testoProva).join('; ')}.` : ''}`
     }
   }
   if (ping?.esito === 'rifiutato') {
     return {
       stato: 'rifiutato',
       titolo: `${n} risponde ma rifiuta questo indirizzo`,
-      cosaFare: `Per ${n} arriviamo da fuori la sua rete locale. Su quel PC, in Impostazioni → Client, accendi «accetta anche da fuori la rete locale», oppure usate la stessa rete o Tailscale su tutti e due.`
+      cosaFare: `Per ${n} arriviamo da fuori la sua rete locale. Su quel PC, in ${PERCORSO.computer}, accendi «Accetta il Client anche da fuori la rete locale», oppure usate la stessa rete o Tailscale su tutti e due.`
     }
   }
   if (ping?.esito === 'altro') {
@@ -227,7 +228,7 @@ export function titoloDopoIlBussare(p: {
   return {
     stato: 'non-so',
     titolo: `Non so se ${n} è acceso`,
-    cosaFare: `Non ne ho notizie recenti: ${perche}. Ho bussato a tutti i suoi indirizzi (${provati}) e nessuno ha risposto: può essere spento, su un’altra rete, o con il firewall che chiude la porta ${p.porta}. Accendilo o controllalo; se è acceso, attiva Tailscale su tutti e due i PC. Questo riquadro riprova da solo.${prove}${p.driveCollegato ? '' : ' E ricollega il Drive (Account → Drive → Collega): senza, gli altri PC non si vedono.'}`
+    cosaFare: `Non ne ho notizie recenti: ${perche}. Ho bussato a tutti i suoi indirizzi (${provati}) e nessuno ha risposto: può essere spento, su un’altra rete, o con il firewall che chiude la porta ${p.porta}. Accendilo o controllalo; se è acceso, attiva Tailscale su tutti e due i PC. Questo riquadro riprova da solo.${prove}${p.driveCollegato ? '' : ' E ricollega il Drive (Impostazioni → Account e Drive → Collega): senza, gli altri PC non si vedono.'}`
   }
 }
 
@@ -273,7 +274,7 @@ export function messaggioErroreRemoto(motivo: string, nome: string, dettaglio?: 
     case 'pin':
       return `Questa chat su ${nome} è protetta dal PIN: inseriscilo qui per vederla e scriverle. Lo controlla ${nome}, e si richiude dopo il tempo di inattività impostato là.`
     case 'cassaforte':
-      return 'La cassaforte di questo PC è chiusa: la chiave per bussare a un altro PC si ricava da lì. Sbloccala (Account → Cassaforte) e riprova.'
+      return 'La cassaforte di questo PC è chiusa: la chiave per bussare a un altro PC si ricava da lì. Sbloccala (Impostazioni → Account e Drive → Cassaforte) e riprova.'
     case 'http':
       return `${nome} risponde con un errore${dettaglio !== undefined && dettaglio !== '' ? `: «${dettaglio}»` : ''}.`
     default:
@@ -370,7 +371,7 @@ export function avvisoDriveScollegato(p: { configurato: boolean; connesso: boole
       : 'Il Drive di questo PC non ha l’autorizzazione.'
   return {
     titolo: `Drive scollegato${da}: gli altri PC non si vedono`,
-    testo: `${perche} Senza Drive: i segni di vita degli altri PC non arrivano (le loro chat possono sembrare spente anche se sono accese: SierraDeck prova lo stesso a bussare direttamente), le chat di qui non si salvano, la cassetta «Scrivile là» non parte. Ricollegalo: Account → Drive → Collega, su ogni PC dove compare questa banda.`,
+    testo: `${perche} Senza Drive: i segni di vita degli altri PC non arrivano (le loro chat possono sembrare spente anche se sono accese: SierraDeck prova lo stesso a bussare direttamente), le chat di qui non si salvano, la cassetta «Scrivile là» non parte. Ricollegalo: Impostazioni → Account e Drive → Collega, su ogni PC dove compare questa banda.`,
     breve: `Google Drive scollegato${da}: Google non riconosce più l’autorizzazione, quindi gli altri PC non si vedono e le chat non si salvano sul Drive. Si sistema ricollegandolo dal PC.`,
     chiave: p.dal.quando,
     ...(giorni !== undefined ? { giorni } : {})

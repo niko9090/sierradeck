@@ -145,7 +145,7 @@ export function ContenutoDrive({ onChiudi, modo = 'progetto', solo }: Props): Re
       {messaggio !== undefined ? <div className="riga__stato" style={{ marginTop: 6 }}>{messaggio}</div> : null}
       {cassaforteDiversa ? (
         <div className="account__scheda" style={{ marginTop: 8 }}>
-          <p className="account__nota">La cassaforte di questo Drive è un’altra: per leggerne il contenuto serve la sua passphrase, e da lì questo PC la adotta. Si fa da Account → Drive.</p>
+          <p className="account__nota">La cassaforte di questo Drive è un’altra: per leggerne il contenuto serve la sua passphrase, e da lì questo PC la adotta. Si fa da Impostazioni → Account e Drive.</p>
         </div>
       ) : null}
 

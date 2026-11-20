@@ -1,4 +1,5 @@
 import { CHI_VALIDO, SFIDA_VALIDA } from '@shared/prova-telefono'
+import { PERCORSO } from '@shared/percorsi-menu'
 import type { Dispositivi } from './dispositivi'
 
 /**
@@ -48,12 +49,12 @@ export function conProva(
 
 /** La riga per un accoppiamento respinto: mai il codice provato. */
 export function rigaAccoppiamentoRespinto(indirizzo: string): string {
-  return `${indirizzo} prova ad accoppiarsi con un codice sbagliato o scaduto (o con l'accoppiamento chiuso): respinto. Per accoppiare: il codice nuovo è in Impostazioni → Client.`
+  return `${indirizzo} prova ad accoppiarsi con un codice sbagliato o scaduto (o con l'accoppiamento chiuso): respinto. Per accoppiare: il codice nuovo è in ${PERCORSO.client}.`
 }
 
 /** La riga per il registro, senza chiavi, segni né sfide. */
 export function rigaProvaMancata(indirizzo: string, perche: ProvaMancata): string {
   return perche === 'chi'
-    ? `${indirizzo} chiede la prova per un telefono che non è nel mio elenco: mai accoppiato con questo PC, o tolto (Impostazioni → Client). Niente prova: l'app non gli manda la chiave.`
+    ? `${indirizzo} chiede la prova per un telefono che non è nel mio elenco: mai accoppiato con questo PC, o tolto (${PERCORSO.client}). Niente prova: l'app non gli manda la chiave.`
     : `${indirizzo} chiede la prova con una sfida che non ha la forma giusta (64 caratteri esadecimali, e chi di 16). Niente prova.`
 }

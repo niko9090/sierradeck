@@ -164,7 +164,7 @@ describe('bussare a un altro PC', () => {
     expect((e401 as ErroreRemoto).message).toContain('stessa passphrase')
     const e403 = await client([PORTATILE], fintoFetch({ '192.168.1.50': { stato: 403, corpo: { errore: 'solo dalla rete locale' } } }).fetch).chiama('B', '/api/stato').catch((e: unknown) => e as ErroreRemoto)
     expect((e403 as ErroreRemoto).motivo).toBe('rifiutato')
-    expect((e403 as ErroreRemoto).message).toContain('accetta anche da fuori la rete locale')
+    expect((e403 as ErroreRemoto).message).toContain('anche da fuori la rete locale')
     const e404 = await client([PORTATILE], fintoFetch({ '192.168.1.50': { stato: 404, corpo: { errore: 'chat non trovata' } } }).fetch).chiama('B', '/api/storia', { chat: 'x' }).catch((e: unknown) => e as ErroreRemoto)
     expect((e404 as ErroreRemoto).motivo).toBe('chat')
     // Il motivo vero, per esteso (0.39.3): risponde, ma la chat la' e' chiusa.

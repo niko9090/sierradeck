@@ -823,7 +823,6 @@ contextBridge.exposeInMainWorld('gestore', {
     /** Secondo passo: il gettone e la parola scritta da Nicholas. */
     svuota: (p: { gettone: string; frase: string; ancheDalDrive: boolean }): Promise<{ ok: boolean; messaggio: string; byte?: number }> =>
       ipcRenderer.invoke('chatGestione:svuota', p),
-    orfane: (): Promise<{ etichette: string[]; archiviate: string[] }> => ipcRenderer.invoke('chatGestione:orfane'),
     onCambiata: (cb: () => void): (() => void) => {
       const h = (): void => cb()
       ipcRenderer.on('chatGestione:cambiata', h)

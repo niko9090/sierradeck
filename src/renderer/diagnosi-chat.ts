@@ -8,6 +8,8 @@
  * **quale caso e'** e si propone l'azione giusta. Puro: si prova senza xterm.
  */
 
+import { PERCORSO } from '@shared/percorsi-menu'
+
 export type SegnaleGuasto =
   /** `pty:spawn` rifiutato dal Core (cartella, PTY host, richiesta). */
   | { tipo: 'spawn-fallito'; messaggio: string }
@@ -86,7 +88,7 @@ export function diagnostica(s: SegnaleGuasto, ultimeRighe: string[]): Diagnosi {
     return {
       caso: 'host',
       titolo: 'Il processo che tiene i terminali è caduto',
-      spiegazione: 'SierraDeck fa girare le chat dentro un processo di servizio (il PTY host), che si è fermato o non è partito. Si riavvia da solo: riprova fra qualche secondo. Se succede a ogni chat, il registro dice perché (Impostazioni → Registro).',
+      spiegazione: `SierraDeck fa girare le chat dentro un processo di servizio (il PTY host), che si è fermato o non è partito. Si riavvia da solo: riprova fra qualche secondo. Se succede a ogni chat, il registro dice perché (${PERCORSO.registro}).`,
       dettaglio: testo,
       azioni: ['riprova', 'avanzata']
     }
@@ -113,7 +115,7 @@ export function diagnostica(s: SegnaleGuasto, ultimeRighe: string[]): Diagnosi {
     return {
       caso: 'trascrizione-assente',
       titolo: 'Claude Code non trova più questa conversazione',
-      spiegazione: 'La trascrizione (il file .jsonl in ~/.claude/projects) non c’è più sotto questa cartella: Claude Code la cancella da sola dopo 30 giorni di inattività, oppure la chat è nata su un altro PC e qui non è mai scesa dal Drive. Puoi aprire una chat nuova nella stessa cartella, o portarla qui dal Drive (Account → Drive → «Porta qui»).',
+      spiegazione: 'La trascrizione (il file .jsonl in ~/.claude/projects) non c’è più sotto questa cartella: Claude Code la cancella da sola dopo 30 giorni di inattività, oppure la chat è nata su un altro PC e qui non è mai scesa dal Drive. Puoi aprire una chat nuova nella stessa cartella, o portarla qui dal Drive (Progetti → «Porta qui»).',
       dettaglio: testo,
       azioni: ['nuova-chat', 'avanzata']
     }
