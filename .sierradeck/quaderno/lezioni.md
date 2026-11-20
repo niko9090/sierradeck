@@ -73,6 +73,7 @@
 - `tests/shared/menu-principale.test.ts` cerca titoli e tasti nel sorgente di VistaProgetti, ContenutoDrive e PannelloAccount: se si rinominano, va aggiornato anche quello. _(2026-11-19)_
 - Per modificare client-pagina.ts con script node: il file ha fine riga CRLF e backslash doppi nel template; cercare una riga sola, non stringhe multi-riga. _(2026-11-19)_
 - In client-pagina.ts le duplicazioni si vedono dall'HTML generato: `misura-riga` compare anche nel menu specialisti, quindi il test conta la stringa precisa dell'Avanzamento. _(2026-11-20)_
+- molti test leggono Console.tsx e App.tsx come testo: spostando etichette in `@shared` (es. chat-workspace) vanno aggiornati subito, falliscono solo al giro completo. _(2026-11-20)_
 
 ## worktree
 
@@ -296,6 +297,7 @@
 - Il Drive nel dettaglio sta dietro un tasto: ContenutoDrive appena montato apre la finestra d'attesa, quindi non va montato a ogni progetto scelto. _(2026-11-19)_
 - ferma/riparti/archivia dell'autopilota non hanno API nel renderer (solo crea, dialoga, avvioAlLogin): per metterli in pagina serve prima l'IPC. _(2026-11-19)_
 - I test di sorgente (`readFileSync` sul .tsx) bastano per controllare che un pannello non porti più un elenco, senza DOM. _(2026-11-19)_
+- gli orfani vanno cercati con il suffisso `/Nome'` negli import: un controllo su `./Nome'` ignora gli import fatti da App.tsx (`./components/Nome`). _(2026-11-20)_
 
 ## salute
 
