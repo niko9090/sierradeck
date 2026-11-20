@@ -40,7 +40,7 @@ export function SezioneQuadernoPersonale(): React.JSX.Element {
   const usi = s === undefined ? [] : tuttiGliUsi ? s.usi : s.usi.slice(0, 15)
   return (
     <section className="impostazioni__gruppo">
-      <h4 className="con-aiuto">Quaderno personale<Aiuto di="Quaderno personale">
+      <h4 className="con-aiuto">Dati riservati<Aiuto di="Dati riservati">
         <p>I tuoi dati riservati che una chat a volte deve scrivere, per esempio in una pagina legale o in un modulo: l’email di contatto, la sede, la partita IVA. Non stanno nel codice, nei progetti o nel Drive: solo su questo PC, in un file cifrato (AES-256) la cui chiave è custodita dal portachiavi di Windows del tuo utente. Copiato su un altro computer, il file non si apre.</p>
         <p><b>Come li usa una chat.</b> Nessuna chat li legge da sola. Una chat (o un autopilota) che ne ha bisogno usa lo strumento «chiedi_dato_personale» e dice quale voce vuole e perché. Nelle Domande, qui di lato, sul telefono e nella pagina, compare la richiesta con tre scelte: «Consenti una volta», «Sempre per questa chat» (vale per quella conversazione finché non lo revochi qui sotto), «No». Se non rispondi entro due minuti vale no, e la chat lo sa. Ogni richiesta, data o negata, resta nell’elenco degli usi.</p>
       </Aiuto></h4>

@@ -30,7 +30,9 @@ function Testa({ id }: { id: IdSezione }): React.JSX.Element | null {
   const sez = SEZIONI.find((x) => x.id === id)
   if (sez === undefined) return null
   // L'àncora (0.70.0): la navigazione a sinistra ci porta.
-  return <h4 id={`imp-${id}`} className="con-aiuto" style={{ scrollMarginTop: 12 }}>{sez.titolo}<Aiuto di={sez.titolo}>{sez.spiega}</Aiuto></h4>
+  // Sul PC un solo nome per l'account e il Drive: «Account e Drive» (come la scheda accanto).
+  const titolo = id === 'drive' ? 'Account e Drive' : sez.titolo
+  return <h4 id={`imp-${id}`} className="con-aiuto" style={{ scrollMarginTop: 12 }}>{titolo}<Aiuto di={titolo}>{sez.spiega}</Aiuto></h4>
 }
 
 /**
@@ -554,8 +556,8 @@ Di lato è larghezza, sopra o sotto è altezza: è sempre la stessa
             <Testa id="drive" />
             {vede('account-google') ? (
               <div className="impostazioni__riga">
-                <span className="con-aiuto">Account Google e passphrase della cassaforte: scheda «Account».<Aiuto di="account Google">Account Google del Drive e passphrase della cassaforte: nella scheda «Account», qui sopra. Il contenuto del Drive, «Porta qui» e il salvataggio stanno in ▦ Progetti.</Aiuto></span>
-                <button className="tasto" onClick={onAccount}>Vai alla scheda Account</button>
+                <span className="con-aiuto">Account Google e cassaforte: scheda «Account e Drive».<Aiuto di="Account e Drive">L’account Google del Drive e la passphrase della cassaforte stanno nella scheda «Account e Drive», qui sopra: è l’unico posto. Il contenuto del Drive, «Porta qui» e il salvataggio stanno in ▦ Progetti.</Aiuto></span>
+                <button className="tasto" onClick={onAccount}>Apri Account e Drive</button>
               </div>
             ) : null}
           </section>
