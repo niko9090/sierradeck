@@ -77,6 +77,7 @@
 - nei file di test scritti con heredoc i backslash dei percorsi Windows si perdono: scrivere i test con Write. _(2026-11-20)_
 - per riprodurre il controllo dei PC basta `giroControlloPc` con `creaClientPcRemoto` muto e `altri` costruito come in index.ts: vedi tests/main/controllo-pc-aiutante-vivo.test.ts. _(2026-11-20)_
 - Per provare che un test fallisce senza la correzione, rimetti il file di prima del commit con `git show <commit>^:file` e poi ripristinalo (qui ha riprodotto parola per parola il rapporto reale). _(2026-11-20)_
+- Il rapporto del controllo può dire «dato vecchio» e «non risponde» insieme solo con codice diverso da main: nella 0.111.1 verificare `testoRapporto` prima di fidarsi del testo del rapporto. _(2026-11-20)_
 
 ## worktree
 
@@ -220,6 +221,7 @@
 - La gravità «guasto» di `pc:<id>` si decide nel singolo PC senza vedere gli altri; il declassamento sta in `criticitaDi`, che vede se il PC ha risposto a chi controlla. _(2026-11-10)_
 - un rapporto «Controllo di tutti i PC» mostra la versione dei PC: prima di aprire un difetto verificare che sia sotto l'ultima versione corretta (qui 0.99.1 vs fix in 0.99.2). _(2026-11-11)_
 - Un rapporto di controllo può venire da una build più vecchia della correzione: prima di cercare un buco, riprodurre il caso nel codice attuale con un test. _(2026-11-20)_
+- Nelle copie mancano i tag: «nessun tag contiene X» va verificato dall'autopilota con git tag --contains. 6f52ac0f (battito Aiutante) è già in v0.110.2+, quindi non spiega l'allarme del 20/11. _(2026-11-20)_
 
 ## strumenti
 
@@ -781,6 +783,7 @@
 ## posta
 
 - Le voci nelle cassette `posta-*-da-*` restano 'attesa' per sempre nel file: lo stato vero sta in `posta-<dest>-esiti`, quindi «in coda» va deciso incrociando i due. _(2026-11-19)_
+- `postino.pcSubito()` risponde con la memoria anche se vecchia (anche quella letta dal disco all'avvio): per decisioni a intervalli lunghi, come il controllo ogni 6 ore, serve `postino.pc()`. _(2026-11-20)_
 
 ## stato-pc
 
