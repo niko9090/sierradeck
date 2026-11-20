@@ -216,7 +216,6 @@
 
 ## autopilota
 
-- La guardia del PC rimanda typecheck e vitest completi anche per minuti di fila: lanciare le misure pesanti presto e tenere pronto il commit prima di misurare. _(2026-11-08)_
 - Non lanciare uno specialista su un compito il cui «dopo» è ancora in unione: non può aspettare (sleep bloccato) e torna a vuoto. Lanciarlo all'evento «unione». _(2026-11-10)_
 - Un revisore lanciato con «k-N:» in testa alla descrizione si lega a quel compito e il programma unisce lui (niente) al posto dello sviluppatore: per le revisioni usare una descrizione senza id. _(2026-11-10)_
 - Il modello dell'autopilota passa da 5 file (ipc, servizio, store, orchestratore, tipo); ora tutti usano `modelloAutopilotaAmmesso` di `shared/modelli`. _(2026-11-10)_
@@ -235,10 +234,6 @@
 - un rapporto «Controllo di tutti i PC» mostra la versione dei PC: prima di aprire un difetto verificare che sia sotto l'ultima versione corretta (qui 0.99.1 vs fix in 0.99.2). _(2026-11-11)_
 - Un rapporto di controllo può venire da una build più vecchia della correzione: prima di cercare un buco, riprodurre il caso nel codice attuale con un test. _(2026-11-20)_
 - Nelle copie mancano i tag: «nessun tag contiene X» va verificato dall'autopilota con git tag --contains. 6f52ac0f (battito Aiutante) è già in v0.110.2+, quindi non spiega l'allarme del 20/11. _(2026-11-20)_
-
-## strumenti
-
-- negli script Python in heredoc `\n` e `\b` nei letterali diventano caratteri veri e rompono le regex: per i sorgenti TS usare Edit. _(2026-11-08)_
 
 ## ambiente
 
@@ -525,6 +520,8 @@
 - `Aiutante` non portava battito né capacità: valutare per requisiti ha richiesto di farli arrivare da index.ts e spedizioniere fino a `/aiuto/giro`. _(2026-11-20)_
 - Il ciclo che segue i lavori affidati è `creaSpedizioniere` in src/main, non in autopilot-host: lì vanno agganciate le regole sui PC remoti. _(2026-11-20)_
 - `LavoroAffidato.percentuale` è una fotografia presa alla partenza del controllo: usarla per la lentezza dà falsi positivi, conta solo `fermoMs` dell'altro PC. _(2026-11-20)_
+- `connesso` del Drive è falso anche per una lettura del token fallita un attimo: ogni controllo che segnala «scollegato» deve ignorare `portachiaviNonPronto` e aspettare 2 giri. _(2026-11-20)_
+- il segno vero di scollegamento è `contoDrive.scollegamento()` (file scritto da `revocata`/`disconnetti`): si segnala subito, senza attendere il secondo giro. _(2026-11-20)_
 
 ## cancello
 
