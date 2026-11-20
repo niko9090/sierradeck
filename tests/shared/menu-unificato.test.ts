@@ -15,7 +15,7 @@ const VECCHI = ['Rete dei PC', 'Gli altri computer', 'Rete ad albero']
 describe('il menu unificato', () => {
   it('la barra del PC: voci e ordine', () => {
     const barra = MENU_PRINCIPALE.filter((v) => v.soloTelefono !== true).map((v) => v.nome)
-    expect(barra).toEqual(['Progetti', 'Autopiloti', 'Domande', 'Chat e workspace', 'Computer', 'Salute', 'Impostazioni'])
+    expect(barra).toEqual(['Progetti', 'Autopiloti', 'Domande', 'Chat e workspace', 'Computer', 'Salute', 'Correzioni', 'Impostazioni'])
     expect(MENU_PRINCIPALE.filter((v) => v.soloTelefono === true).map((v) => v.nome)).toEqual(['File'])
   })
 
@@ -40,7 +40,7 @@ describe('il menu unificato', () => {
 
   it('il menu del telefono è coerente: ogni voce una volta sola, Computer in Altro', () => {
     const tutte = MENU_TELEFONO.flatMap((v) => v.contiene)
-    expect([...tutte].sort()).toEqual(MENU_PRINCIPALE.map((v) => v.id).sort())
+    expect([...tutte].sort()).toEqual(MENU_PRINCIPALE.filter((v) => v.soloPc !== true).map((v) => v.id).sort())
     expect(MENU_TELEFONO.find((v) => v.contiene.includes('computer'))?.id).toBe('altro')
     const dest = versoDestinazione(postoIniziale(), 'computer')
     expect(dest).toMatchObject({ voce: 'altro', sezione: 'pc' })

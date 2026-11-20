@@ -271,6 +271,8 @@ declare global {
       /** Lo storico degli errori di questo PC (0.81.0): programma e servizio insieme. */
       errori: {
         storico: () => Promise<{ voci: import('@shared/storico-errori').VoceErrore[]; inviate?: Array<import('@shared/storico-errori').VoceErrore & { inviatoIl: string }>; testo: string; arrivi?: string }>
+        /** Correzioni (k-166m2): gli errori arrivati, raggruppati, i lotti già affidati e il workspace che li corregge. */
+        correzioni: () => Promise<{ gruppi: Array<{ chiave: string; dove: string; messaggio: string; volte: number; ultima: string; da: string[]; ritorna: boolean }>; lotti: Array<{ id: string; il: string; gruppi: number; file: number }>; attesa?: string; workspace?: string }>
         manda: () => Promise<{ ok: boolean; messaggio: string }>
         sviluppo: () => Promise<{ puo: boolean; perche?: string; proclamato: boolean; pc?: string }>
       }

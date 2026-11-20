@@ -71,8 +71,10 @@ export function PannelloSalute({ onChiudi, onApriDrive, onInstalla, onApriAutopi
   // ── La vista (0.70.0): gruppi, una riga per voce con la sua parola, il dettaglio a destra ──
   // k-u5: senza l'elenco dei PC (sta in Computer) e senza la scheda «Computer».
   const { voci: vociSenzaPc } = saluteSenzaPc(salute?.voci ?? [])
-  const voci = vociSenzaPc as Array<VoceSalute & { stato?: StatoVista; breve?: string }>
-  const gruppiVisti = GRUPPI_SALUTE.filter((g) => g.id !== 'computer')
+  // k-166m2: gli errori hanno una casa sola, la voce Correzioni; qui resta un rimando.
+  const erroriQui = vociSenzaPc.filter((v) => v.gruppo === 'errori').length
+  const voci = vociSenzaPc.filter((v) => v.gruppo !== 'errori') as Array<VoceSalute & { stato?: StatoVista; breve?: string }>
+  const gruppiVisti = GRUPPI_SALUTE.filter((g) => g.id !== 'computer' && g.id !== 'errori')
   const conti = contaGruppiSalute(voci)
   const [gruppoScelto, setGruppoScelto] = useState<GruppoSalute | undefined>(undefined)
   const iniziale = gruppoIniziale(salute)
@@ -126,8 +128,12 @@ export function PannelloSalute({ onChiudi, onApriDrive, onInstalla, onApriAutopi
             </TendinaMenu>
           ) : null}
         </span>
-        <Aiuto di="Salute">Com’è messo SierraDeck: il Drive, un aggiornamento non installato, gli errori delle ultime ore, le istruzioni degli autopiloti non partite, i consumi. Clic su una voce: il perché e cosa fare. I computer (stato, versione, chat, aggiornarli) stanno nella pagina Computer: qui compare solo una voce se ce n’è uno da guardare. Si rilegge da sola ogni minuto.</Aiuto>
+        <Aiuto di="Salute">Com’è messo SierraDeck: il Drive, un aggiornamento non installato, le istruzioni degli autopiloti non partite, i consumi. Clic su una voce: il perché e cosa fare. I computer (stato, versione, chat, aggiornarli) stanno nella pagina Computer: qui compare solo una voce se ce n’è uno da guardare. Si rilegge da sola ogni minuto.</Aiuto>
         <button className="tasto tasto--mini" onClick={onChiudi} aria-label="Chiudi">×</button>
+      </div>
+      <div className="progetti__striscia">
+        Errori e correzioni{erroriQui > 0 ? ` (${erroriQui})` : ''}:{' '}
+        <button className="tasto tasto--mini" onClick={() => window.dispatchEvent(new CustomEvent('sierradeck:apri-pannello', { detail: 'correzioni' }))}>Vedi Correzioni</button>
       </div>
       {errore !== undefined ? <div className="progetti__striscia">⚠ Non riesco a leggere lo stato: {errore}</div> : null}
 
