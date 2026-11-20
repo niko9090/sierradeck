@@ -60,7 +60,7 @@ export function giraSu(nomePc: string): string {
 export function erroreAltroPc(nome: string, messaggio: string, prove: string[]): string {
   const strade = 'Strade provate, in quest’ordine: la rete di casa e Tailscale. I messaggi per quel PC aspettano nella posta sul Drive.'
   const dettaglio = prove.length > 0 ? ` Ultimo tentativo, indirizzo per indirizzo: ${prove.join('; ')}.` : ''
-  return `${nome} non risponde: ${messaggio.replace(/\.\s*$/, '')}. ${strade}${dettaglio} I suoi autopiloti continuano a lavorare là: qui li rivedi appena risponde (il controllo si ripete da solo).`
+  return `${nome} non risponde: ${(messaggio ?? '').replace(/\.\s*$/, '')}. ${strade}${dettaglio} I suoi autopiloti continuano a lavorare là: qui li rivedi appena risponde (il controllo si ripete da solo).`
 }
 
 /** L'elenco da una risposta di `/api/stato` di quel PC (campi storti scartati). */

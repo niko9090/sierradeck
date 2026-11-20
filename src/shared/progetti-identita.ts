@@ -31,13 +31,13 @@ export function stessoProgetto(a: string, b: string): boolean {
 
 /** L'ultimo pezzo di un percorso, con le barre di Windows o di Unix. */
 export function ultimoPezzo(percorso: string): string {
-  const parti = percorso.replace(/[\\/]+$/, '').split(/[\\/]/)
+  const parti = (percorso ?? '').replace(/[\\/]+$/, '').split(/[\\/]/)
   return parti[parti.length - 1] ?? ''
 }
 
 /** La cartella che contiene `percorso` (senza l'ultimo pezzo), con il separatore che usa. */
 export function cartellaMadre(percorso: string): string {
-  const pulito = percorso.replace(/[\\/]+$/, '')
+  const pulito = (percorso ?? '').replace(/[\\/]+$/, '')
   const i = Math.max(pulito.lastIndexOf('\\'), pulito.lastIndexOf('/'))
   return i <= 0 ? pulito : pulito.slice(0, i)
 }

@@ -56,7 +56,7 @@ export function gruppoIniziale(s: Pick<Salute, 'voci'> | undefined): GruppoSalut
 
 /** Un titolo corto, al più `max` caratteri, tagliato su una parola. */
 export function breve(testo: string, max = 80): string {
-  const t = testo.replace(/\s+/g, ' ').trim()
+  const t = (testo ?? '').replace(/\s+/g, ' ').trim()
   if (t.length <= max) return t
   const taglio = t.slice(0, max - 1)
   const spazio = taglio.lastIndexOf(' ')
