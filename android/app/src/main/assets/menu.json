@@ -5,56 +5,170 @@
       "nome": "Progetti",
       "breve": "Progetti",
       "icona": "▦",
-      "spiega": "Tutti i tuoi progetti e le loro chat, su tutti i PC: il PC su cui vive ognuno e come sta. Da qui Apri, Apri su un altro PC, Sposta su questo PC, il contenuto del Drive, il salvataggio e l’arrivo dal Drive, e il quaderno del progetto."
+      "spiega": "Tutti i tuoi progetti e le loro chat, su tutti i PC: il PC su cui vive ognuno e come sta. Da qui Apri, Apri su un altro PC, Sposta su questo PC, il contenuto del Drive, il salvataggio e l’arrivo dal Drive, e il quaderno del progetto.",
+      "sotto": [
+        {
+          "id": "elenco",
+          "nome": "I progetti"
+        },
+        {
+          "id": "drive",
+          "nome": "Contenuto del Drive"
+        },
+        {
+          "id": "salvataggio",
+          "nome": "Salvataggio e sincronizzazione"
+        },
+        {
+          "id": "quaderno",
+          "nome": "Quaderno del progetto"
+        }
+      ]
     },
     {
       "id": "autopiloti",
       "nome": "Autopiloti",
       "breve": "Auto­piloti",
       "icona": "◉",
-      "spiega": "Gli autopiloti di questo PC e quelli degli altri PC: cosa stanno facendo, cosa aspettano da te, i comandi per crearli, fermarli, farli ripartire e archiviarli, e i loro specialisti: chi lavora e chi è in fila per un posto."
+      "spiega": "Gli autopiloti di questo PC e quelli degli altri PC: cosa stanno facendo, cosa aspettano da te, i comandi per crearli, fermarli, farli ripartire e archiviarli, e i loro specialisti: chi lavora e chi è in fila per un posto.",
+      "sotto": [
+        {
+          "id": "autopiloti",
+          "nome": "Gli autopiloti"
+        },
+        {
+          "id": "specialisti",
+          "nome": "Gli specialisti"
+        }
+      ]
     },
     {
       "id": "domande",
       "nome": "Domande",
       "breve": "Domande",
       "icona": "?",
-      "spiega": "Tutto quello che aspetta una tua risposta: chat ferme su una domanda o un permesso, chat che hanno finito, domande degli autopiloti. Si apre accanto alle chat e resta aperta mentre lavori."
+      "spiega": "Tutto quello che aspetta una tua risposta: chat ferme su una domanda o un permesso, chat che hanno finito, domande degli autopiloti. Si apre accanto alle chat e resta aperta mentre lavori.",
+      "sotto": []
     },
     {
       "id": "chat",
       "nome": "Chat e workspace",
       "breve": "Chat",
       "icona": "▭",
-      "spiega": "Le chat e i workspace: nuova chat, riprendi una conversazione, lo spazio delle chat, crea, rinomina ed elimina i workspace, le chat usate da altri PC, una nuova finestra, e il Negozio con gli strumenti delle chat (plugin, skill, MCP)."
+      "spiega": "Le chat e i workspace: nuova chat, riprendi una conversazione, lo spazio delle chat, crea, rinomina ed elimina i workspace, le chat usate da altri PC, una nuova finestra, e il Negozio con gli strumenti delle chat (plugin, skill, MCP).",
+      "sotto": [
+        {
+          "id": "nuova-chat",
+          "nome": "+ Nuova chat"
+        },
+        {
+          "id": "riprendi",
+          "nome": "↺ Riprendi una conversazione"
+        },
+        {
+          "id": "spazio",
+          "nome": "Spazio delle chat"
+        },
+        {
+          "id": "workspace",
+          "nome": "Crea, rinomina, elimina…"
+        },
+        {
+          "id": "panoramica",
+          "nome": "Panoramica di questo workspace"
+        },
+        {
+          "id": "nuova-finestra",
+          "nome": "Nuova finestra"
+        },
+        {
+          "id": "negozio",
+          "nome": "Negozio…"
+        }
+      ]
     },
     {
       "id": "computer",
       "nome": "Computer",
       "breve": "Computer",
       "icona": "⌂",
-      "spiega": "Tutti i tuoi computer ad albero, in elenco e su una mappa: acceso o spento, strada, versione, chat aperte, guarda dal vivo, cassetta e installa là."
+      "spiega": "Tutti i tuoi computer ad albero, in elenco e su una mappa: acceso o spento, strada, versione, chat aperte, guarda dal vivo, cassetta e installa là.",
+      "sotto": []
     },
     {
       "id": "file",
       "nome": "File",
       "breve": "File",
       "icona": "⇅",
-      "spiega": "I file dei progetti dei tuoi PC, da sfogliare e leggere dal telefono, e quelli che un PC ti ha mandato: si guardano e si scaricano."
+      "spiega": "I file dei progetti dei tuoi PC, da sfogliare e leggere dal telefono, e quelli che un PC ti ha mandato: si guardano e si scaricano.",
+      "sotto": [
+        {
+          "id": "progetti",
+          "nome": "Dei progetti"
+        },
+        {
+          "id": "ricevuti",
+          "nome": "Mandati dal PC"
+        }
+      ]
     },
     {
       "id": "salute",
       "nome": "Salute",
       "breve": "Salute",
       "icona": "♥",
-      "spiega": "Come sta il sistema: cosa c’è da sistemare, il Drive e i consumi del piano, con cosa fare per ognuno. I computer hanno la loro voce, gli errori e le correzioni pure."
+      "spiega": "Come sta il sistema: cosa c’è da sistemare, il Drive e i consumi del piano, con cosa fare per ognuno. I computer hanno la loro voce, gli errori e le correzioni pure.",
+      "sotto": [
+        {
+          "id": "sistema",
+          "nome": "Da sistemare"
+        },
+        {
+          "id": "consumi",
+          "nome": "Consumi"
+        }
+      ]
     },
     {
       "id": "impostazioni",
       "nome": "Impostazioni",
       "breve": "Imposta­zioni",
       "icona": "⚙",
-      "spiega": "Solo le preferenze: aggiornamenti, nome del computer e rete, comportamento delle chat, l’account Google, aspetto, notifiche. Niente che abbia già un suo tasto in questa barra."
+      "spiega": "Solo le preferenze: aggiornamenti, nome del computer e rete, comportamento delle chat, l’account Google, aspetto, notifiche. Niente che abbia già un suo tasto in questa barra.",
+      "sotto": [
+        {
+          "id": "aggiornamenti",
+          "nome": "Aggiornamenti"
+        },
+        {
+          "id": "computer",
+          "nome": "Computer"
+        },
+        {
+          "id": "chat",
+          "nome": "Chat e autopiloti"
+        },
+        {
+          "id": "limiti",
+          "nome": "Limiti"
+        },
+        {
+          "id": "drive",
+          "nome": "Drive e salvataggi"
+        },
+        {
+          "id": "aspetto",
+          "nome": "Aspetto"
+        },
+        {
+          "id": "notifiche",
+          "nome": "Notifiche"
+        },
+        {
+          "id": "info",
+          "nome": "Info e aiuto"
+        }
+      ]
     }
   ],
   "telefono": [

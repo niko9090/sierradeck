@@ -98,7 +98,7 @@ describe('nella pagina e nell’app: la stessa struttura', () => {
   })
   it('l’app ha le stesse voci (assets/menu.json): le sette del PC raccolte in quattro (0.83.0)', () => {
     const fatto = {
-      voci: MENU_PRINCIPALE.filter((v) => v.soloPc !== true).map((v) => ({ id: v.id, nome: v.nome, breve: v.breve, icona: v.icona, spiega: v.spiega })),
+      voci: MENU_PRINCIPALE.filter((v) => v.soloPc !== true).map((v) => ({ id: v.id, nome: v.nome, breve: v.breve, icona: v.icona, spiega: v.spiega, sotto: v.sotto.map((s) => ({ id: s.id, nome: s.nome })) })),
       telefono: MENU_TELEFONO.map((v) => ({ id: v.id, nome: v.nome, contiene: [...v.contiene], linguette: [...v.linguette] }))
     }
     const file = join('android', 'app', 'src', 'main', 'assets', 'menu.json')
@@ -109,6 +109,22 @@ describe('nella pagina e nell’app: la stessa struttura', () => {
     expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual(fatto)
     // L'app nuova (11/11) ha tre voci sue (Lavoro · File · Altro): la navigazione
     // la prova NavigazioneTest, sul comportamento, non sul testo dei sorgenti.
+  })
+  it('PC e pagina leggono la stessa fonte: stesso ordine, stessi nomi, sottovoci comprese', () => {
+    const html = paginaClient()
+    const m = /var MENU = (\[.*\])\n/.exec(html)
+    expect(m).not.toBeNull()
+    const pagina = JSON.parse(m![1]!) as { id: string; breve: string; sotto: { id: string; nome: string }[] }[]
+    const condivise = MENU_PRINCIPALE.filter((v) => v.soloPc !== true)
+    expect(pagina.map((v) => ({ id: v.id, breve: v.breve, sotto: v.sotto }))).toEqual(condivise.map((v) => ({ id: v.id, breve: v.breve, sotto: v.sotto.map((s) => ({ id: s.id, nome: s.nome })) })))
+    // Il PC disegna la lista dalla stessa fonte.
+    expect(leggi('src/renderer/components/Console.tsx')).toContain('MENU_PRINCIPALE.filter((v) => v.soloTelefono !== true).map((v) =>')
+    // L'app ha lo stesso ordine.
+    const app = JSON.parse(leggi(join('android', 'app', 'src', 'main', 'assets', 'menu.json'))) as { voci: { id: string }[] }
+    expect(app.voci.map((v) => v.id)).toEqual(condivise.map((v) => v.id))
+    for (const v of MENU_PRINCIPALE) expect(new Set(v.sotto.map((s) => s.id)).size, v.id).toBe(v.sotto.length)
+    expect(voceMenu('chat').sotto.map((s) => s.id)).toContain('negozio')
+    expect(voceMenu('impostazioni').sotto[0]?.nome).toBe('Aggiornamenti')
   })
   it('il telefono: quattro voci che contengono ognuna delle sette, una volta sola', () => {
     expect(MENU_TELEFONO.map((v) => v.nome)).toEqual(['Workspace', 'Chat', 'Progetti', 'Altro'])
