@@ -201,6 +201,7 @@
 - il ramo worktree-agent-r8b9c35b5a04b parte da 881cd23f, indietro rispetto a main: il fast-forward da HEAD fallisce, serve cherry-pick. _(2026-11-17)_
 - il controllo dei comandi scambia `git -C <copia> cherry-pick` per un cherry-pick nella cartella principale; il rifiuto arriva sull'intera riga, anche se contiene altri comandi. _(2026-11-17)_
 - Dalla cartella principale `worktree add` in Temp e `cherry-pick` nella copia passano se sono chiamate separate; il blocco scatta solo sulla cancellazione (`rmdir`, `worktree remove`) fuori dalle cart… _(2026-11-17)_
+- per provare un test senza la correzione: `git stash push -u`, `git stash apply`, `git checkout -- <file>`, poi `git checkout stash@{0} -- <file>` e `git stash drop`. _(2026-11-20)_
 
 ## autopilota
 
@@ -367,6 +368,7 @@
 - le guardie sui campi array dell'autopilota vanno messe anche nei chiamanti di `adessoDi` (es. DalVivoAutopilota): la riga «chat sola» li fa passare anche senza `chats`. _(2026-11-13)_
 - SORGENTE_LOCALE (sorgente-autopilota.tsx) è il punto unico da cui il renderer chiama coda/orchestratore/specialista: le guardie sul workspace vanno lì. _(2026-11-16)_
 - I dati IPC del renderer vanno validati: `setGruppi(g)` senza Array.isArray cadeva su `.length`. Uso `gruppiValidi` in shared/workspace-remoti.ts. _(2026-11-19)_
+- `chiaveWorkspace` riceve dati remoti incompleti: i tipi dicono `cwd: string` ma a runtime può mancare; controllare con `typeof`, non fidarsi del tipo. _(2026-11-20)_
 
 ## fermate
 
@@ -545,6 +547,8 @@
 - `pubblica-app` copia da solo `app-android.json` anche su v0.110.0: dopo, basta controllare con `cmp`, senza `--clobber`. _(2026-11-19)_
 - `gh release create --draft` mostra un URL «untagged-…» ma la release prende il tag giusto alla pubblicazione, se il tag è già sul remoto (`--verify-tag`). _(2026-11-20)_
 - `npm run pubblica` supera i 10 minuti per il caricamento dell'installer dell'Aiutante (circa 100 MB): va in background e non va rilanciato. _(2026-11-20)_
+- `npm run pubblica` supera i 10 minuti: lo strumento lo sposta in sottofondo da solo. Per aspettare senza sleep lunghi, un ciclo `until` su `gh release view ... assets|length -ge 7` (sleep 5) passa. _(2026-11-20)_
+- Con `pubblica` i nomi dei file sono già con i trattini e i sette file arrivano da soli: il caricamento a mano da dist/ non è servito per la 0.111.2. _(2026-11-20)_
 
 ## quaderno
 
