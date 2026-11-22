@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { avvisoCarico, rigaPosti, spiegaPosti, type PostiChat as Posti } from '@shared/posti-chat'
+import { avvisoCarico, motivoCorto, rigaPosti, spiegaPosti, type PostiChat as Posti } from '@shared/posti-chat'
 import { ModalePostiChat } from './ModalePostiChat'
 import { Aiuto } from './Aiuto'
 import { PERCORSO } from '@shared/percorsi-menu'
@@ -36,6 +36,7 @@ export function PostiChat(): React.JSX.Element | null {
     <span className={`posti-chat${pieno ? ' posti-chat--pieno' : ''}`} title="Chat degli autopiloti al lavoro su questo PC">
       <button type="button" className="posti-chat__tasto" aria-haspopup="dialog" title="Cambia quante chat lavorano insieme" onClick={() => setAperta(true)}>
         <span className="posti-chat__riga">{rigaPosti(p)}</span>
+        <span className="posti-chat__motivo"> · {motivoCorto(p)}</span>
       </button>
       {avviso !== undefined ? <span className="posti-modale__avviso" title={avviso}>⚠ PC carico</span> : null}
       {aperta ? (
