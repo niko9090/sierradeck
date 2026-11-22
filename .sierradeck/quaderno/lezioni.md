@@ -237,6 +237,9 @@
 - Uno specialista locale vive dentro il processo `claude` dell'orchestratore: il programma non può ucciderlo da solo, lo segna «fermato» nel flusso e chiede all'autopilota TaskStop. _(2026-11-22)_
 - «resta fermo» e «fermati» non sono una pausa: lavoro-fermo.ts continua a svegliare l'autopilota ogni ora. Serve uno stato di pausa finché non scrive Nicholas. _(2026-11-22)_
 - spingiFermi (servizio-orchestratore.ts:2351) salta il workspace se ha messaggi in riprova: un login scaduto silenzia l'avviso di lavoro fermo. _(2026-11-22)_
+- Una sveglia futura spegne il controllo del lavoro fermo (`spingiFermi`): una sveglia di settimane silenzia il lavoro pronto di tutto il workspace. _(2026-11-22)_
+- I subagenti in sottofondo non hanno né silenzio né tempo massimo: il cane del turno si disarma quando il turno finisce, e lo specialista appeso occupa un posto per sempre. _(2026-11-22)_
+- Uno specialista fermato lascia la sua copia con modifiche non salvate, e nessun evento dice dove sono: il salvataggio automatico gira solo nell'unione. _(2026-11-22)_
 
 ## controllo
 
@@ -247,7 +250,6 @@
 
 ## ambiente
 
-- nei worktree alcuni heredoc Bash con python vengono rifiutati come «troppo complessi»: scrivere lo script con Write ed eseguirlo, oppure usare Edit _(2026-11-09)_
 - Per scrivere stringhe con `\n` nei file non usare heredoc Python: gli escape vengono interpretati. Meglio lo strumento Edit. _(2026-11-10)_
 - Nel worktree gli heredoc con `cat >>` seguiti da altri comandi nella stessa chiamata Bash vengono rifiutati come «troppo complessi»: usare Edit e comandi separati. _(2026-11-10)_
 - Il programma blocca sleep oltre 30 s anche in ciclo o a pezzi; attese lunghe solo con il sì di Nicholas (classe sottofondo). _(2026-11-15)_
@@ -261,13 +263,11 @@
 
 ## versioni
 
-- le versioni dei PC nel rapporto vengono dall'ultimo battito, che non si scrive con il Drive pieno: prima di dire «vecchio» si controlla il PC. _(2026-11-09)_
 - Le voci di versione del quaderno sono file datati (`AAAA-MM-GG-...md`). `errori-arrivati.md` è solo per gli errori arrivati. _(2026-11-19)_
 - Un bump tocca 3 file di note: `src/shared/novita.ts`, `android/novita-app.txt` e `src/aiutante/novita-aiutante.txt` (righe che cominciano con `versione:`); app e Aiutante hanno la loro versione. _(2026-11-20)_
 
 ## drive
 
-- «Drive pieno» nella Salute viene dal freno in memoria che scade dopo 15 minuti (index.ts:2632): va reso uno stato «detto», non «in corso». _(2026-11-09)_
 - Con Drive pieno il freno blocca anche battito, posta e registro insieme; «acceso» in Progetti viene solo dal battito, quindi un PC che risponde appare «non risponde». _(2026-11-09)_
 - A Drive pieno il freno blocca POST/PUT/PATCH ma non DELETE: ogni pulizia va annotata in locale (spazio-intenzioni.json) e il registro sul Drive va riallineato dopo, mai prima. _(2026-11-09)_
 - Il freno blocca solo POST/PUT/PATCH: ogni scrittura fa prima una ricerca GET (google-drive.ts carica), e i ritentativi su rateLimit non guardano il freno. _(2026-11-10)_
