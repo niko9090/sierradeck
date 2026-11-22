@@ -41,13 +41,16 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
-    versione: '0.112.2',
+    versione: '0.113.0',
     righe: [
+      '**Riassunto più chiaro:** il riassunto dell’autopilota ha due parti, «Passaggi» e «Da sapere», ricavate dal suo ultimo messaggio.',
+      '**La chat resta dove sei:** se scorri in su nella chat dell’autopilota, non ti riporta in fondo. Compare il tasto «↓ nuovi messaggi».',
+      '**Autopilota che riparte:** se si spegne con lavoro ancora aperto, riparte da solo.',
+      '**Compiti di questo PC:** i compiti che toccano cose di questo PC restano qui e non vanno su altri PC.',
+      '**Pulizia automatica:** le copie di lavoro rimaste e i rami vecchi si tolgono da soli.',
       '**Specialista a metà:** se uno specialista chiude dicendo «aspetto l’esito e riprendo», non conta più come finito. Il lavoro non viene unito e lo specialista riparte.',
       '**Agenti attivi a destra:** le chat che stanno lavorando ora si vedono nell’elenco a destra.',
       '**Workspace con nomi simili:** nomi che differiscono solo per le maiuscole entrano nel formato autopilota + agenti. La colonna dell’autopilota resta come l’hai lasciata.',
-      '**Rami superati:** i rami di lavori già uniti o chiusi si tolgono da soli, solo su questo PC.',
-      '**Novità su una riga:** le note di rilascio scritte su una riga sola si leggono bene.',
     ],
   },
   {
