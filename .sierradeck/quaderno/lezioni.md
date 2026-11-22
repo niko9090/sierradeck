@@ -91,6 +91,7 @@
 - better-sqlite3 si carica anche in vitest nel progetto: un test può aprire un db temporaneo reale, senza finti. _(2026-11-20)_
 - `npm run pubblica` esegue tutta la suite (~7 min) e basta un test lento sotto carico, come risposta-autopilota-k317, a fermarlo. Rilanciare, non forzare. In tutto serve più di un'ora. _(2026-11-20)_
 - Su una copia sotto `copie/…` il test «PreToolUse dell'unico» di `servizio-orchestratore.test.ts` è rosso già senza modifiche: non è una regressione. _(2026-11-22)_
+- `tests/autopilot-host/servizio-orchestratore.test.ts` («PreToolUse dell'unico») fallisce già su main in una copia worktree: non è una regressione del proprio ramo. _(2026-11-22)_
 
 ## worktree
 
@@ -223,6 +224,7 @@
 - Dalla cartella principale `worktree add` in Temp e `cherry-pick` nella copia passano se sono chiamate separate; il blocco scatta solo sulla cancellazione (`rmdir`, `worktree remove`) fuori dalle cart… _(2026-11-17)_
 - per provare un test senza la correzione: `git stash push -u`, `git stash apply`, `git checkout -- <file>`, poi `git checkout stash@{0} -- <file>` e `git stash drop`. _(2026-11-20)_
 - `git cherry main <ramo>` dà "nuovi=0" solo per i rami identici a main. Per quelli rifatti o unificati serve anche cercare il k-N nel log di main. _(2026-11-22)_
+- `togliCopiaUnita` cancella già il ramo (`branch -d`/`-D` con `forza`): un secondo `branch -D` subito dopo fallisce con «not found», va verificato prima. _(2026-11-22)_
 
 ## autopilota
 
@@ -235,6 +237,7 @@
 - il client segna `scaduto` (timeout) e `spento` (fetch failed/ECONNREFUSED/ECONNRESET): per un errore atteso usare `servizioIndisponibile`, non il solo `scaduto _(2026-11-13)_
 - INATTIVO_MS è 55 minuti: la cache del prompt dura 1 ora e lo spegnimento a 10 minuti la faceva riscrivere a ogni ripresa. _(2026-11-20)_
 - Uno specialista è un sotto-agente: chiudere il turno = «finito» per il programma. Un «riprendo/aspetto l'esito» finale va letto (`promessaSenzaFine`) o si unisce lavoro a metà. _(2026-11-22)_
+- `vistaAttesa` (colonna/menu «Al lavoro adesso») e `TestaOrchestratore` leggono fonti diverse: Agent del flusso contro `u.chats`. Una chat al lavoro può comparire in una e non nell'altra. _(2026-11-22)_
 
 ## controllo
 
@@ -331,30 +334,13 @@
 
 ## aggiornamenti
 
-- con autoDownload attivo electron-updater crea downloadPromise dentro checkForUpdates: il suo rifiuto non passa dal try di cerca(); va agganciato a aggiornamenti.ts:657. _(2026-11-08)_
-- leggiErroreAggiornamento riconosce il 404 «mancante» solo su latest*.yml: il 404 dell'exe durante la pubblicazione conta come errore. _(2026-11-08)_
-- allowDowngrade diventa vero solo col setter di channel in electron-updater: senza, una versione più vecchia del feed non si scarica mai. _(2026-11-08)_
-- un 404 su exe/blockmap è atteso a release a metà pubblicazione: soglia 2 ore in src/shared/aggiornamenti-404.ts, poi errore una volta sola. _(2026-11-08)_
 - pausa-aggiornamento.json era sempre `sessioni: []`: chi parte dopo la quiete (consegna dell'autopilota durante il salvataggio) non si annotava; ora si ricontrolla dopo `prepara` e all'uscita. _(2026-11-09)_
 - Il servizio parte dopo che il Gestore ha letto e cancellato pausa-aggiornamento.json e aggiornamento-in-corso.json: per capire se c'è stato un update servono i segni nell'archivio o il payload di /ge… _(2026-11-09)_
 - il 504 di GitHub passa solo se l'errore ha statusCode o inizia con il codice seguito da Headers; l'HttpError con descrizione o frase vuota non è coperto dai test _(2026-11-10)_
 - `creaAggiornamenti` prende parametri posizionali in coda: un nuovo aggancio (come `annunciaAgliAltri`) va aggiunto per ultimo, senza toccare l'ordine. _(2026-11-19)_
 
-## installa-la
-
-- `da` (versione di partenza) non va mai preso da un battito Drive vecchio: Drive pieno = battito fermo per giorni. Vale solo la versione viva da /api/ciao. _(2026-11-08)_
-
-## specialisti
-
-- Il servizio autopiloti è un processo separato dal main: per spingere eventi non c'era canale. Ho aggiunto un long poll `/orchestratore/cambi`; il telefono resta a richiesta, senza SSE. _(2026-11-08)_
-
-## typecheck
-
-- un canale IPC nuovo va dichiarato in due posti: src/preload/index.ts e src/renderer/env.d.ts. Senza il secondo, il renderer non compila. _(2026-11-08)_
-
 ## guardia
 
-- se la guardia rimanda un comando pesante, il sleep in primo piano è bloccato. Aspetta con un until-loop in background (cronometro) e riprova. _(2026-11-08)_
 - `tipiSpecialisti` nel contesto della guardia è facoltativo: i test vecchi non lo passano e non si rompono. Senza git il controllo del tipo `Agent` è spento di proposito. _(2026-11-08)_
 - il rifiuto delle cancellazioni nelle chat sta in divieti.ts (giudicaCancellazioni), chiamato da /hook/pretool in server.ts; cancella-sicura.ts riguarda solo le pulizie del programma _(2026-11-10)_
 
@@ -588,6 +574,7 @@
 ## preferenze
 
 - impostaPreferenze non tiene nulla in memoria: ogni preferenze() rilegge il disco. Il testo «Valgono fino alla chiusura» (impostazioni-store.ts:98) è falso nel main. _(2026-11-12)_
+- una preferenza booleana con default «vero» si salva solo quando è `false`: normalizzaPreferenze la omette altrimenti, così i file vecchi restano validi. _(2026-11-22)_
 
 ## scritture
 
@@ -681,6 +668,8 @@
 - la pausa per accesso scaduto è calcolata dal file dei lavori affidati, quindi vale anche dopo un riavvio; se un PC viene riprovato dopo pochi minuti, controllare la causa salvata nel lavoro. _(2026-11-14)_
 - la cartella del progetto non è una risorsa da verificare: arriva col pacchetto, va esclusa (`escludi`) nel ricavare i percorsi dal prompt. _(2026-11-16)_
 - un percorso ricavato dal testo non fa fallire il lavoro (informativo, con alternativa); solo le risorse dichiarate esplicitamente sono indispensabili. _(2026-11-16)_
+- I compiti «Aiuta la rete» girano su un repo mirror: i worktree del PC di Nicholas (.claude/worktrees) non ci sono. Prima di agire controllare che i rami nominati esistano. _(2026-11-22)_
+- Compiti che devono leggere i dati veri del PC di Nicholas (registri, preferenze, .claude/worktrees) non vanno su un altro PC: là c'è solo un mirror. Scriverlo nel prompt e verificarlo. _(2026-11-22)_
 
 ## gradle
 
@@ -928,3 +917,11 @@
 ## main
 
 - `chiudiRisorse()` chiude il db mentre le finestre possono ancora interrogare gli ipc: i gestori che usano `db` devono controllare `db.open`. _(2026-11-20)_
+
+## vista-elenco
+
+- i nomi dei workspace vanno confrontati con `inElenco`/`chiaveNomeWorkspace`, mai con includes esatto: il nome dell'autopilota e quello nella preferenza possono differire per maiuscole. _(2026-11-22)_
+
+## progetto
+
+- le chat adottate («solo mia») non hanno ramo né cartella: dal ramo non si risale a loro, la protezione passa da un insieme `protetti` costruito dal servizio. _(2026-11-22)_
