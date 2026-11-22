@@ -622,3 +622,6 @@ button.pan2-compito:focus-visible { border-color: var(--luce-incisione); backgro
 @media (max-width: 1500px) {
   .console--principale .tasto-menu__nome { display: none; }
 }
+
+/* k-176d: il tasto «↓ nuovi messaggi» resta in vista in fondo al riquadro che scorre. */
+.chatap__nuovi { position: sticky; bottom: 4px; align-self: center; flex: none; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); }
