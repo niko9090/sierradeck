@@ -273,6 +273,19 @@ export const SILENZIO_MAX_MS = 30 * 60_000
 export const LAVORO_MAX_MS = 3 * 60 * 60_000
 
 /**
+ * 22/11: `requisiti.rete` con un percorso locale (unità `C:\…`, percorso assoluto `/…`, `~`, variabile `%X%`)
+ * che gli altri PC non raggiungono: il compito resta qui, anche se un PC di versione vecchia
+ * (capacità «sconosciute») passerebbe il controllo. Host e `\\condivisioni` restano raggiungibili da fuori.
+ */
+export function motivoReteSoloQui(rete: readonly string[] | undefined): string | undefined {
+  for (const r of rete ?? []) {
+    const p = r.trim()
+    if (/^(?:[A-Za-z]:[\\/]|\/(?!\/)|~|%[^%]+%|\.{1,2}[\\/])/u.test(p)) return `richiede un percorso di questo PC (${p})`
+  }
+  return undefined
+}
+
+/**
  * **Un compito che va fatto su questo PC** (16/11).
  *
  * Il caso vero: «APRI TU IL FILE HTML», l'autopilota affida al verificatore
@@ -290,6 +303,9 @@ export function motivoPerRestareQui(testo: string, cartellaProgetto: string): st
   // Aprire o mostrare nel browser (non «il tasto apre una finestra»: quello è codice, va bene ovunque).
   if (/\b(?:apr[ei]\w*|mostr\w*|visualizz\w*|open\w*|show\w*)\b[^\n]{0,80}?\b(?:nel|sul|in|into)\s+(?:(?:suo|tuo|his|the)\s+)?browser\b/iu.test(t)) return 'va aperto nel browser di Nicholas'
   if (/\b(?:browser|schermo|desktop)\s+di\s+nicholas\b|\bdavanti\s+a\s+nicholas\b|\bdoppio\s+clic\b|\bstart-process\b|\binvoke-item\b|\bexplorer(?:\.exe)?\s+["']?[a-z]:\\/iu.test(t)) return 'va fatto su questo PC, davanti a Nicholas'
+  // 22/11: cose che esistono solo su questo PC (copie, rami locali, registri e preferenze del programma).
+  if (/\.claude[\\/]+worktrees\b|\bworktree-agent-|%appdata%|\bappdata[\\/]|\$env:appdata|\bimpostazioni\.json\b|\bregistri\s+del\s+servizio\b/iu.test(t)) return 'nomina copie, rami o dati che esistono solo su questo PC'
+  if (/\bsolo\s+(?:su|in)\s+(?:questo|quel)\s+pc\b|\b(?:sul|nel)\s+pc\s+di\s+nicholas\b|\bsolo\s+(?:su|in)\s+locale\b/iu.test(t)) return 'il compito dice di farlo solo su questo PC'
   const base = cartellaProgetto.replace(/\//gu, '\\').replace(/\\+$/u, '').toLowerCase()
   for (const m of t.matchAll(/(?<![\w\\/])([A-Za-z]:[\\/][^\s"'`<>|*?]+)/gu)) {
     const pulito = m[1]!.replace(/[.,;:)\]]+$/u, '')
