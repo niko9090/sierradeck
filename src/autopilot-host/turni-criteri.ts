@@ -69,8 +69,13 @@ export class TurnoScaduto extends Error {
   constructor() { super('l’unione ha superato il tempo massimo nel turno del PC') }
 }
 
-export function creaTurni(opz: { ora?: () => number; unioneMaxMs?: number } = {}): TurniCriteri {
+/** 22/11: oltre questo tempo dalla scadenza, una corsa che non si chiude più lascia comunque libera la cartella (e si registra). */
+export const UNIONE_LIBERA_DOPO_MS = 5 * 60_000
+
+export function creaTurni(opz: { ora?: () => number; unioneMaxMs?: number; liberaDopoMs?: number; registra?: (testo: string) => void } = {}): TurniCriteri {
   const ora = opz.ora ?? (() => Date.now())
+  const liberaDopoMs = opz.liberaDopoMs ?? UNIONE_LIBERA_DOPO_MS
+  const registra = opz.registra ?? ((testo: string): void => { console.warn(testo) })
   let inCorso: string | undefined
   /** Il turno di una chat (`prenota`): chi lo tiene, fino a quando, e il timer che lo rende. */
   let prenotazione: { chi: string; dal: number; fino: number; inSottofondo: boolean; timer?: ReturnType<typeof setTimeout> } | undefined
@@ -119,6 +124,8 @@ export function creaTurni(opz: { ora?: () => number; unioneMaxMs?: number } = {}
       const stop = { scaduto: false }
       let preso = false
       let avviata: Promise<unknown> | undefined
+      const controllo = new AbortController()
+      const controlloScattato = (): boolean => controllo.signal.aborted
       let timer: ReturnType<typeof setTimeout> | undefined
       const scaduta = new Promise<never>((_, no) => {
         timer = setTimeout(() => { stop.scaduto = true; no(new TurnoScaduto()) }, opz.unioneMaxMs ?? UNIONE_TURNO_MAX_MS)
@@ -142,7 +149,6 @@ export function creaTurni(opz: { ora?: () => number; unioneMaxMs?: number } = {}
         // 22/11: alla scadenza chi chiama riceve subito `TurnoScaduto` e il segnale ferma i git figli,
         // ma il posto della cartella si libera solo quando `fai()` si è chiuso davvero: un secondo
         // `git merge` non parte mentre il primo gira ancora.
-        const controllo = new AbortController()
         const lavoro = (async () => fai(controllo.signal))()
         lavoro.catch(() => {})
         avviata = lavoro
@@ -154,15 +160,32 @@ export function creaTurni(opz: { ora?: () => number; unioneMaxMs?: number } = {}
         }
       } finally {
         if (timer !== undefined) clearTimeout(timer)
+        let chiusa = false
+        let sicurezza: ReturnType<typeof setTimeout> | undefined
+        // Il lucchetto sulla cartella si rende una volta sola: alla fine della corsa o, per sicurezza, dopo il tempo massimo.
         const chiudi = (): void => {
+          if (chiusa) return
+          chiusa = true
+          if (sicurezza !== undefined) clearTimeout(sicurezza)
           if (preso) unendo.delete(dove)
           const resto = (unioni.get(dove) ?? 1) - 1
           if (resto > 0) unioni.set(dove, resto)
           else unioni.delete(dove)
           sveglia()
         }
-        if (avviata !== undefined) void avviata.then(chiudi, chiudi)
-        else chiudi()
+        if (avviata !== undefined) {
+          // 22/11 (k-178m): scaduta l'unione, il lucchetto resta finché la corsa vecchia è viva; se muore si libera subito.
+          // Se non si chiude entro il tempo di sicurezza lo si libera lo stesso, e il fatto si registra: la fila non resta ferma per sempre.
+          if (stop.scaduto || controlloScattato()) {
+            sicurezza = setTimeout(() => {
+              if (chiusa) return
+              try { registra(`[unioni] la corsa scaduta in ${dove} non si è chiusa entro ${Math.round(liberaDopoMs / 1000)} s: libero la cartella principale per non fermare la fila`) } catch { /* il registro non ferma la fila */ }
+              chiudi()
+            }, liberaDopoMs)
+            sicurezza.unref?.()
+          }
+          void avviata.then(chiudi, chiudi)
+        } else chiudi()
       }
     },
     prenota(chi, cwd, durataMs, inSottofondo = false) {
