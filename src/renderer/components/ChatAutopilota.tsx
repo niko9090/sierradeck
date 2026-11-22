@@ -3,7 +3,8 @@ import { CodaWorkspace } from './CodaWorkspace'
 import { MenuSpecialisti } from './MenuSpecialisti'
 import { TestaOrchestratore } from './TestaOrchestratore'
 import { chiaveWorkspace } from '@shared/coda-richieste'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
+import { useSegueFondo } from '../segue-fondo'
 import type { Autopilota } from '@shared/autopilota'
 import { conversazione, haDomandaAperta, staPensando } from '@shared/chat-autopilota'
 import { separaConversazione } from '@shared/panoramica'
@@ -72,10 +73,8 @@ export function ChatAutopilota({
   // In fondo, come ogni chat: l'ultima cosa detta è quella che si vuole vedere.
   // Si scorre quando cambia il numero delle righe, non a ogni rilettura, così
   // chi sta rileggendo l'inizio non viene riportato giù ogni cinque secondi.
-  useEffect(() => {
-    const el = flusso.current
-    if (el !== null) el.scrollTop = el.scrollHeight
-  }, [battute.length, pensa])
+  // k-176d: si segue il fondo solo se sei già in fondo; se hai scorso in su, resta ferma.
+  const fondo = useSegueFondo(flusso, battute.length, pensa, battute[battute.length - 1]?.da === 'tu')
 
   return (
     <section className={`chatap${campoPronto ? ' chatap--pronta' : ''}`} aria-label="Chat con l’autopilota">
@@ -110,7 +109,7 @@ export function ChatAutopilota({
           ) : null}
         </div>
       ) : null}
-      <FlussoChat battute={battute} nome={autopilota.nome} pensa={pensa} domanda={domanda} onCambiato={onCambiato} flusso={flusso} rispondi={sorgente.rispondi} rinnovoQui={sorgente.remoto === undefined} />
+      <FlussoChat battute={battute} nome={autopilota.nome} pensa={pensa} domanda={domanda} onCambiato={onCambiato} flusso={flusso} fondo={fondo} rispondi={sorgente.rispondi} rinnovoQui={sorgente.remoto === undefined} />
 
       <CampoChatAutopilota
         autopilotaId={sorgente.remoto !== undefined ? `${sorgente.remoto.pcId}:${autopilota.id}` : autopilota.id}
@@ -127,13 +126,15 @@ export function ChatAutopilota({
  * Le battute della conversazione, con i tasti delle sue domande: le stesse per
  * l'autopilota di qui e per quello di un altro PC (k-60).
  */
-export function FlussoChat({ battute, nome, pensa, domanda, onCambiato, flusso, rispondi, doveLeDomande = 'è nella colonna Domande', rinnovoQui = false }: {
+export function FlussoChat({ battute, nome, pensa, domanda, onCambiato, flusso, fondo, rispondi, doveLeDomande = 'è nella colonna Domande', rinnovoQui = false }: {
   battute: ReturnType<typeof conversazione>
   nome: string
   pensa: boolean
   domanda: boolean
   onCambiato: () => void
   flusso: React.RefObject<HTMLDivElement | null>
+  /** Dal hook `useSegueFondo`: il tasto «↓ nuovi messaggi» e il segnarsi se sei in fondo. */
+  fondo?: ReturnType<typeof useSegueFondo>
   /** Come si risponde a una sua domanda; senza, dal programma di qui. */
   rispondi?: (idDomanda: string, risposta: string) => Promise<unknown>
   doveLeDomande?: string
@@ -145,7 +146,7 @@ export function FlussoChat({ battute, nome, pensa, domanda, onCambiato, flusso, 
   rinnovoQui?: boolean
 }): React.JSX.Element {
   return (
-    <div className="chatap__flusso" ref={flusso} aria-live="polite">
+    <div className="chatap__flusso" ref={flusso} aria-live="polite" {...(fondo !== undefined ? { onScroll: fondo.suScorrimento } : {})}>
       {battute.map((b, i) => (
         <div
           key={`${b.quando}-${i}`}
@@ -179,6 +180,9 @@ export function FlussoChat({ battute, nome, pensa, domanda, onCambiato, flusso, 
       ) : null}
       {domanda ? (
         <p className="chatap__pensa">● ti ha fatto una domanda: {doveLeDomande}.</p>
+      ) : null}
+      {fondo?.nuovi === true ? (
+        <button type="button" className="tasto chatap__nuovi" onClick={fondo.vaiGiu}>↓ nuovi messaggi</button>
       ) : null}
     </div>
   )

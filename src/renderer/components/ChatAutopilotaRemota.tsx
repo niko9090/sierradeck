@@ -7,6 +7,7 @@ import { chiaveWorkspace } from '@shared/coda-richieste'
 import { Aiuto } from './Aiuto'
 import { CampoChatAutopilota } from './CampoChatAutopilota'
 import { FlussoChat } from './ChatAutopilota'
+import { useSegueFondo } from '../segue-fondo'
 import { RigaDalVivo } from './DalVivoAutopilota'
 import { ElencoMenuSpecialisti } from './MenuSpecialisti'
 
@@ -132,10 +133,7 @@ export function ChatAutopilotaRemota({ pcId, pcNome, stato, rileggi }: { pcId: s
   }, [autopilota])
   const pensa = autopilota !== undefined && staPensando(autopilota)
   const domanda = autopilota !== undefined && haDomandaAperta(autopilota)
-  useEffect(() => {
-    const el = flusso.current
-    if (el !== null) el.scrollTop = el.scrollHeight
-  }, [battute.length, pensa])
+  const fondo = useSegueFondo(flusso, battute.length, pensa, battute[battute.length - 1]?.da === 'tu')
   const sul = azioneSu(pcId)
   const rispondi = async (idDomanda: string, risposta: string): Promise<void> => {
     const e = await sul('/api/rispondi', { domanda: idDomanda, risposta })
@@ -169,6 +167,7 @@ export function ChatAutopilotaRemota({ pcId, pcNome, stato, rileggi }: { pcId: s
             domanda={domanda}
             onCambiato={rileggi}
             flusso={flusso}
+            fondo={fondo}
             rispondi={rispondi}
             doveLeDomande="rispondi con i tasti qui sopra, o scrivi qui sotto"
           />
