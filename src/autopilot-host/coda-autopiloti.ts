@@ -69,9 +69,11 @@ export function migraAutopiloti(coda: Coda, autopiloti: Vecchio[], adesso: strin
         quando: r.quando,
         titolo: r.titolo,
         punti: [r.titolo],
-        compiti: r.compiti,
+        // 22/11: `compiti` tiene solo id del piano (k-N); i testi dei compiti di prima restano nei collegamenti.
+        compiti: [],
+        ...(r.compiti.length > 0 && r.fattaIl === undefined ? { stato: 'pianificata' as const } : {}),
         criterio: r.criterio,
-        collegate: [{ autopilota: a.id, richiesta: r.id }],
+        collegate: [{ autopilota: a.id, richiesta: r.id }, ...r.compiti.map((compito) => ({ autopilota: a.id, compito }))],
         ...(r.fattaIl !== undefined ? { fattaIl: r.fattaIl } : {}),
         ...(r.versione !== undefined ? { versione: r.versione } : {}),
         ...(r.commit !== undefined ? { commit: r.commit } : {})
@@ -84,7 +86,7 @@ export function migraAutopiloti(coda: Coda, autopiloti: Vecchio[], adesso: strin
       const k = `c|${chiaveCompito(compito)}`
       if (dopo.has(k)) continue
       dopo.add(k)
-      metti({ testo: compito, quando: a.iniziatoIl, compiti: [compito], collegate: [{ autopilota: a.id, compito }] })
+      metti({ testo: compito, quando: a.iniziatoIl, collegate: [{ autopilota: a.id, compito }] })
     }
   }
   return {

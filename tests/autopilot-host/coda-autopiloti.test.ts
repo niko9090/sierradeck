@@ -46,10 +46,10 @@ describe('la migrazione, una volta sola', () => {
     expect(c.richieste.map((r) => [r.id, r.titolo])).toEqual([
       ['r-1', 'La barra'], ['r-2', 'Non tagliare'], ['r-3', 'Il pannello lento'], ['r-4', 'Altro'], ['r-5', 'La chat al lavoro']
     ])
-    expect(c.richieste[0]).toMatchObject({ stato: 'fatta', fattaIl: '2026-10-22T08:00:00.000Z', versione: '0.85.0', commit: 'abcdef1', collegate: [{ autopilota: 'ap-1', richiesta: 'r-1' }] })
+    expect(c.richieste[0]).toMatchObject({ stato: 'fatta', fattaIl: '2026-10-22T08:00:00.000Z', versione: '0.85.0', commit: 'abcdef1', compiti: [], collegate: [{ autopilota: 'ap-1', richiesta: 'r-1' }, { autopilota: 'ap-1', compito: 'Correggi la barra' }] })
     // Il testo intero torna dal dialogo: il registro lo aveva tagliato a 2000.
     expect(c.richieste[1]!.originali[0]!.testo).toBe(lungo)
-    expect(c.richieste[2]).toMatchObject({ compiti: ['Il pannello lento'], collegate: [{ autopilota: 'ap-1', compito: 'Il pannello lento' }] })
+    expect(c.richieste[2]).toMatchObject({ compiti: [], collegate: [{ autopilota: 'ap-1', compito: 'Il pannello lento' }] })
     expect(m.eventi.at(-1)).toMatchObject({ tipo: 'migrazione', autopiloti: ['ap-1', 'ap-2'] })
 
     // Una seconda volta non fa niente.
