@@ -803,7 +803,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * uniti con il criterio verde** misurati prima e dopo: l'unione si conferma
    * se il ramo non rompe niente di quello che passava, altrimenti si annulla.
    */
-  const provaNelPrincipale = async (a: Autopilota, ramo: string): Promise<EsitoProvaPrincipale> => {
+  const provaNelPrincipale = async (a: Autopilota, ramo: string, altri: string[] = []): Promise<EsitoProvaPrincipale> => {
     const git = deps.git
     if (git === undefined || a.ramoBase === undefined) return { unito: false, motivo: 'senza git non si può fare un’unione di prova' }
     const base = a.ramoBase
@@ -816,8 +816,11 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       return [{ descrizione: k.criterio, comando, soddisfatto: true }]
     })
     // 0.96.1: pochi comandi, solo quelli che il ramo può rompere (criteri-prova.ts).
-    const diff = await gitA(git)(['diff', '--name-only', `${base}...${ramo}`], a.cwd).catch(() => undefined)
-    const cambiati = diff !== undefined && diff.codice === 0 ? diff.uscita.split(/\r?\n/).map((r) => r.trim()).filter((r) => r !== '') : undefined
+    // k-178g: con un lotto (`altri`) i file cambiati sono quelli di tutti i rami.
+    const diffe = await Promise.all([ramo, ...altri].map((r) => gitA(git)(['diff', '--name-only', `${base}...${r}`], a.cwd).catch(() => undefined)))
+    const cambiati = diffe.every((d) => d !== undefined && d.codice === 0)
+      ? diffe.flatMap((d) => d!.uscita.split(/\r?\n/).map((r) => r.trim()).filter((r) => r !== ''))
+      : undefined
     const criteri = criteriPerLaProva(tutti, cambiati)
     const misura = async (criteri: Criterio[], segnale: AbortSignal) => {
       if (criteri.length === 0) return []
@@ -834,7 +837,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       const eScaduta = (): boolean => stato.scaduta || segnale.aborted
       const PER_TEMPO = 'una misura è scaduta per tempo (PC carico), non è colpa del ramo'
       const unisci = async (): Promise<EsitoProvaPrincipale | undefined> => {
-        const inizio = await turni.unione(a.cwd, (segnale) => iniziaProvaAsincrono(gitFermabile(git, segnale), { cwd: a.cwd, ramo, base }))
+        const inizio = await turni.unione(a.cwd, (segnale) => iniziaProvaAsincrono(gitFermabile(git, segnale), { cwd: a.cwd, ramo, base, ...(altri.length > 0 ? { altri } : {}) }))
         if (inizio.ok) return undefined
         // Cartella con file di Nicholas a metà: non si tocca, l'unione aspetta il suo turno.
         return { unito: false, motivo: `l’unione di prova non si è potuta fare (${inizio.motivo})`, ...(inizio.motivo === MOTIVO_CARTELLA_SPORCA ? { ritenta: 'sporca' as const } : {}), ...(inizio.file !== undefined ? { file: inizio.file } : {}) }

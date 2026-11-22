@@ -586,7 +586,7 @@ export type EsitoProva = { ok: true } | { ok: false; motivo: string; file?: stri
  * `MOTIVO_CARTELLA_SPORCA` con i loro nomi); gli altri restano come sono.
  * Dopo la misura `chiudiProva` la conferma o la annulla.
  */
-export function iniziaProvaAsincrono(git: GitAsincrono, p: { cwd: string; ramo: string; base: string }): Promise<EsitoProva> {
+export function iniziaProvaAsincrono(git: GitAsincrono, p: { cwd: string; ramo: string; base: string; altri?: string[] }): Promise<EsitoProva> {
   return aspettando(git, iniziaProvaPassi(p))
 }
 
@@ -666,7 +666,9 @@ function* ripulisciProvaPassi(cwd: string): Passi<'niente' | 'ripulita'> {
   return existsSync(join(dir, 'MERGE_HEAD')) ? 'niente' : 'ripulita'
 }
 
-function* iniziaProvaPassi(p: { cwd: string; ramo: string; base: string }): Passi<EsitoProva> {
+/** `altri` (k-178g): un lotto di rami indipendenti uniti insieme (merge a polpo); un conflitto lo annulla tutto. */
+function* iniziaProvaPassi(p: { cwd: string; ramo: string; base: string; altri?: string[] }): Passi<EsitoProva> {
+  const rami = [p.ramo, ...(p.altri ?? [])]
   const radice = yield* radicePassi(p.cwd)
   if (radice === undefined) return { ok: false, motivo: 'non è un repository git' }
   const qui = yield* ramoPassi(radice)
@@ -706,10 +708,17 @@ function* iniziaProvaPassi(p: { cwd: string; ramo: string; base: string }): Pass
   if (sporchi.length > 0) {
     const inIndice = yield* chiedi(['diff', '--cached', '--name-only'], radice)
     const delRamo = yield* chiedi(['diff', '--name-only', '--no-renames', `${p.base}...${p.ramo}`], radice)
+    let fileDeiRami = delRamo.uscita
+    let diffOk = delRamo.codice === 0
+    for (const altro of p.altri ?? []) {
+      const d = yield* chiedi(['diff', '--name-only', '--no-renames', `${p.base}...${altro}`], radice)
+      if (d.codice !== 0) diffOk = false
+      fileDeiRami += `\n${d.uscita}`
+    }
     // Nel dubbio (git che non risponde) vale la regola di prima: non si unisce.
-    if (inIndice.codice !== 0 || delRamo.codice !== 0) return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA, file: sporchi }
+    if (inIndice.codice !== 0 || !diffOk) return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA, file: sporchi }
     const uguale = (f: string): string => f.trim().replace(/^"|"$/g, '').replace(/\\/g, '/').toLowerCase()
-    const toccati = new Set(soloFile(delRamo.uscita).map(uguale))
+    const toccati = new Set(soloFile(fileDeiRami).map(uguale))
     const fermano = [...new Set([...soloFile(inIndice.uscita).map((f) => f.trim().replace(/^"|"$/g, '')), ...sporchi.filter((f) => toccati.has(uguale(f)))])]
     if (fermano.length > 0) return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA, file: fermano }
   }
@@ -719,7 +728,7 @@ function* iniziaProvaPassi(p: { cwd: string; ramo: string; base: string }): Pass
     try { writeFileSync(join(dir, MARCATORE_PROVA), JSON.stringify({ ramo: p.ramo, testa: testa.codice === 0 ? testa.uscita.trim() : '', il: new Date().toISOString() })) } catch { /* senza segno la prova si fa lo stesso */ }
   }
   // Con file a metà, mai lo stash automatico di git (`merge.autoStash` nella configurazione di chi usa il PC).
-  const r = yield* chiedi([...(yield* firma(radice)), 'merge', '--no-ff', '--no-commit', ...(sporchi.length > 0 ? ['--no-autostash'] : []), p.ramo], radice)
+  const r = yield* chiedi([...(yield* firma(radice)), 'merge', '--no-ff', '--no-commit', ...(sporchi.length > 0 ? ['--no-autostash'] : []), ...rami], radice)
   if (r.codice === 0) return { ok: true }
   const inConflitto = soloFile((yield* chiedi(['diff', '--name-only', '--diff-filter=U'], radice)).uscita)
   yield* chiedi(['merge', '--abort'], radice)
