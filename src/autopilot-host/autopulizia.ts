@@ -386,7 +386,7 @@ const eAsar = (nome: string): boolean => /\.asar$/iu.test(nome)
  * Se anche un solo collegamento non si stacca, git non parte e la copia resta
  * dov'è: la riguarda l'autopulizia. Mai la cartella principale.
  */
-export async function togliCopiaUnita(git: GitAsincrono, p: { cwd: string; cartella: string; ramo: string }): Promise<{ tolta: boolean; staccati: number; motivo?: string }> {
+export async function togliCopiaUnita(git: GitAsincrono, p: { cwd: string; cartella: string; ramo: string; forza?: boolean }): Promise<{ tolta: boolean; staccati: number; motivo?: string }> {
   if (chiavePercorso(p.cartella) === chiavePercorso(p.cwd) || dentroOUguale(p.cwd, p.cartella)) return { tolta: false, staccati: 0, motivo: 'è la cartella principale, o la contiene' }
   let staccati = 0
   if (existsSync(p.cartella) || await eCollegamento(p.cartella)) {
@@ -398,7 +398,8 @@ export async function togliCopiaUnita(git: GitAsincrono, p: { cwd: string; carte
     }
   }
   const r = await git(['worktree', 'remove', '--force', p.cartella], p.cwd)
-  await git(['branch', '-d', p.ramo], p.cwd)
+  // `-D` solo per un ramo superato (22/11, il suo lavoro è già entrato per un'altra strada): il chiamante lo decide.
+  await git(['branch', p.forza === true ? '-D' : '-d', p.ramo], p.cwd)
   return { tolta: r.codice === 0 && !existsSync(p.cartella), staccati, ...(r.codice !== 0 ? { motivo: r.uscita.slice(0, 160) } : {}) }
 }
 

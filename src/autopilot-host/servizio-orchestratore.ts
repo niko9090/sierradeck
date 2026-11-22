@@ -82,6 +82,7 @@ import type { ArchivioAttesa } from './attesa-store'
 import { creaCambi, type Cambi } from '@shared/spinta-specialisti'
 import { attesaDopoScadenza, UNIONE_MAX_MS } from './tempi-unione'
 import { togliCopiaUnita } from './autopulizia'
+import { togliRamiSuperati } from './rami-superati'
 import { causaDelFallimento, causaDelMotivo, chiaveCompito, COMPITI_PER_PAUSA_PC, colpaDelPc, fraseCausa, livelloRigaAiuto, motivoBreve, motivoDelRisultato, motivoSuPc, pauseAiuti, pcInPausa, serieGuasti, type CausaFallimento } from '@shared/aiuto-esito'
 
 /** 0.89.4: dopo quanto il lavoro fermo sveglia l'autopilota. 11/11: senza un tetto di spinte (`lavoro-fermo.ts`). */
@@ -2584,6 +2585,32 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
    * volta per ramo, e decide lui. Quelli senza novità (lo stesso lavoro è entrato per un'altra strada) non si dicono.
    */
   const ultimaSegnalazione = new Map<string, number>()
+  /**
+   * 22/11: i rami il cui compito è già unito (criterio verde, da un altro ramo) o chiuso nel piano si tolgono da soli,
+   * solo in locale: la copia di lavoro e il ramo, mai dal remoto. Restano i rami con uno specialista o una chat vivi
+   * sopra e quelli fermi da meno di qualche minuto. Torna i rami tolti.
+   */
+  const togliSuperati = async (ws: string, g: GitAsincrono, elenco: string, servono: ReadonlySet<string>): Promise<string[]> => {
+    const a = unicoDi(ws)
+    if (a === undefined) return []
+    const protetti = new Set<string>(servono)
+    for (const c of specialistiVivi(a)) { if (c.ramo !== undefined) protetti.add(c.ramo) }
+    for (const s of subagenti(ws)) {
+      const r = ramoDelloSpecialistaFinito(s)
+      if (r !== undefined && (s.stato === 'avviato' || s.stato === 'lavoro')) protetti.add(r)
+    }
+    const rami = elenco.split(/\r?\n/u).map((riga) => {
+      const [ramo, , quando] = riga.trim().split('\t')
+      return { ramo: ramo ?? '', quando: Number(quando) * 1000 }
+    })
+    const { tolti, nonTolti } = await togliRamiSuperati(g, { cwd: a.cwd, compiti: x.orchestratori.piano(ws).compiti, rami, protetti, ora: oraMs() })
+    for (const n of nonTolti) console.info(`[orchestratore] ${ws} — il ramo ${n.ramo} è superato ma non si toglie: ${n.motivo}`)
+    for (const t of tolti) {
+      console.info(`[orchestratore] ${ws} — tolto il ramo ${t.ramo}: ${t.perche}`)
+      ricordaEvento(ws, { tipo: 'unione', quando: x.adesso(), testo: `tolto il ramo ${t.ramo}: ${t.perche}. Tolti la copia di lavoro e il ramo locale (il remoto non si tocca).` })
+    }
+    return tolti.map((t) => t.ramo)
+  }
   const segnalaRamiConLavoro = async (ws: string): Promise<number> => {
     const a = unicoDi(ws)
     const g = gitA()
@@ -2593,6 +2620,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     const lista = await g(['for-each-ref', `--no-merged=refs/heads/${base}`, '--format=%(refname:short)%09%(objectname)%09%(committerdate:unix)', 'refs/heads/worktree-agent-*'], a.cwd)
     if (lista.codice !== 0) return 0
     const servono = ramiCheServono(a.cwd)
+    await togliSuperati(ws, g, lista.uscita, servono)
     const gia = new Set(imp(ws).ramiSegnalati ?? [])
     const guardati: string[] = []
     const trovati: { ramo: string; commit: number; soggetto: string }[] = []
@@ -2622,9 +2650,9 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     })
     console.info(`[orchestratore] ${ws} — ${trovati.length} rami di specialisti con lavoro mai unito: lo dico all’autopilota (non li tocco)`)
     evento(ws, { tipo: 'unione', quando: x.adesso(), testo: [
-      'Ci sono rami di specialisti con lavoro che non è mai entrato nel principale. Il programma non li cancella e non li unisce da solo:',
+      'Ci sono rami di specialisti con lavoro che non è mai entrato nel principale. Il programma non li unisce da solo (toglie da solo, in locale, solo quelli il cui compito è già unito o chiuso):',
       ...righe,
-      'Per ognuno decidi tu: se serve ancora, uniscilo con unisci dando solo il ramo (passa dalla prova, come ogni unione); se è superato, lascialo dov’è. Dillo a Nicholas in due righe, senza chiedergli di fare niente a mano.'
+      'Per ognuno portalo a termine, non lasciarlo lì: se il compito è ancora aperto uniscilo con unisci dando solo il ramo (passa dalla prova, come ogni unione) oppure rilancia lo specialista; se invece il compito è già fatto, chiudilo nel piano e il programma toglie il ramo. Dillo a Nicholas in due righe, senza chiedergli di fare niente a mano.'
     ].join('\n') })
     return trovati.length
   }
