@@ -52,6 +52,7 @@ import { RAMI_SEGNALATI_MAX, SVEGLIE_MAX } from './orchestratore-store'
 import type { LimitiPc } from '@shared/limiti-pc'
 import { POSTI_MAX } from '@shared/posti-chat'
 import { fermataSpecialista } from './stop-specialista'
+import { MEZZE_FINI_MAX, promessaSenzaFine } from './finito-a-meta'
 import { cartellaDelWorkspace, hookAdottato, nuovoUnico, obiettiviInCoda, passaAllUnico, type CampiVecchi, type Vecchio } from './migra-orchestratore'
 import { quandoInParole, riassuntoOrchestratore } from './riassunto-orchestratore'
 import { motivoSpecialistaDoppio, ripresaDopoRiavvio } from './ripresa-riavvio'
@@ -704,6 +705,8 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
   const rifiutatiPerDipendenze = new Map<string, string[]>()
   /** 11/11 (k-133): com'era il compito prima che un Agent partisse per lui: se la guardia lo rifiuta, torna così. */
   const primaDelLancio = new Map<string, CompitoPiano>()
+  /** k-174a: quante volte uno specialista è finito «a metà» (workspace|compito): oltre `MEZZE_FINI_MAX` lo si tratta come finito. */
+  const mezzeFini = new Map<string, number>()
   // ---------------------------------------------------------------- i posti degli altri PC (0.103.0)
   let affidatiMem: LavoroAffidato[] = []
   const archivioAiuti = x.aiuti ?? { leggi: () => affidatiMem, scrivi: (l: LavoroAffidato[]) => { affidatiMem = l } }
@@ -1138,6 +1141,23 @@ ${NOTA_SENZA_GIT}`,
         cambiaCompito(ws, s.compito, (c) => conRamoRicordato(c, suo))
       }
       const k = s.compito !== undefined ? x.orchestratori.piano(ws).compiti.find((c) => c.id === s.compito && c.chat === s.id) : undefined
+      // k-174a: «riprendo…», «aspetto l'esito» come ultima parola non è un compito finito: niente unione, si rilancia.
+      const promessa = s.stato === 'finito' && !RUOLI_SOLA_LETTURA.has(s.ruolo) ? promessaSenzaFine(s.riepilogo) : undefined
+      const chiaveMezza = `${ws}|${s.compito ?? s.id}`
+      if (promessa !== undefined && (mezzeFini.get(chiaveMezza) ?? 0) < MEZZE_FINI_MAX) {
+        mezzeFini.set(chiaveMezza, (mezzeFini.get(chiaveMezza) ?? 0) + 1)
+        if (k !== undefined && k.stato !== 'unito') {
+          cambiaCompito(ws, k.id, (c) => ({ ...c, stato: 'da-fare', esito: `${s.ruolo} si è fermato a metà («${promessa.slice(0, 120)}»): va rilanciato sullo stesso ramo` }))
+        }
+        if (u !== undefined) {
+          const dopo = { ...u }
+          x.annota(dopo, `${s.ruolo} si è fermato a metà: ${promessa.slice(0, 140)}`, avanzamento(s.id, `${chiSpecialista(s.ruolo)} si è fermato a metà: ${cosaDel(s.descrizione)}. Lo rilancio.`))
+          x.salva(dopo)
+        }
+        evento(ws, { tipo: 'fermo', quando: x.adesso(), chat: s.id, testo: `${s.compito ?? chiSpecialista(s.ruolo)} non è finito: lo specialista ha chiuso il turno dicendo «${promessa.slice(0, 200)}», ma nessuno lo risveglia. Il programma non lo unisce. Rilancialo adesso (stesso compito, stesso ramo${ramoDelloSpecialistaFinito(s) !== undefined ? ` ${ramoDelloSpecialistaFinito(s)}` : ''}), dicendogli di fare i comandi di persona e di non chiudere il turno finché non ha finito o è bloccato.` })
+        ricalcola(ws, `${s.compito ?? s.ruolo} a metà`)
+        continue
+      }
       if (k !== undefined && k.stato !== 'unito') {
         cambiaCompito(ws, k.id, (c) => (s.stato === 'finito'
           ? { ...c, stato: 'in-revisione', ...(ramoDelloSpecialistaFinito(s) !== undefined && s.ruolo !== 'rilascio' ? { ramo: ramoDelloSpecialistaFinito(s)! } : {}), esito: `${s.ruolo} ha finito: il programma lo unisce e misura il criterio` }
