@@ -1004,7 +1004,8 @@ export function App(): React.JSX.Element {
   // La Panoramica (0.77.0): la linguetta aperta per ogni workspace («panoramica» o il riquadro di una chat),
   // la colonna sottile dell'autopilota, e per ogni chat il gruppo mostrato e da quando (8 s di quiete).
   const [linguettaPerWs, setLinguettaPerWs] = useState<Record<string, string>>({})
-  const [colonnaAutopilota, setColonnaAutopilota] = useState(false)
+  // k-174b: aperta di suo, come per un workspace di un altro PC: la chat di un workspace ha sempre l'autopilota davanti.
+  const [colonnaAutopilota, setColonnaAutopilota] = useState(true)
   // k-60: in un workspace di un altro PC la colonna dell'autopilota è aperta di suo (Nicholas la vuole
   // sempre in vista); si chiude col tasto della barra. La 0.102.0 l'aveva tolto: torna (13/11).
   const [colonnaRemotaChiusa, setColonnaRemotaChiusa] = useState(false)
@@ -1572,6 +1573,18 @@ export function App(): React.JSX.Element {
   // La larghezza della colonna dell'autopilota, scelta col mouse (13/11): solo su questo PC. Prima di TUTTI i «return» qui sotto (anche quello di «pronto»): è un hook, React #310 nella 0.106.0.
   const misuraColonna = useMisuraTrascinabile('colonnaAutopilota')
   const colonnaRef = useRef<HTMLElement | null>(null)
+  // k-174b (22/11): ogni workspace con un autopilota si mostra nel formato autopilota + agenti a destra
+  // (Panoramica e linguette), anche se nato fuori dall'elenco: workspace aggiunto dopo la migrazione,
+  // chat adottate, vecchie. Una volta per workspace e per sessione: se poi lo spegni da «Tutte le chat
+  // affiancate» non lo riaccendo (la colonna dell'autopilota e gli specialisti restano comunque).
+  const elencoForzato = useRef(new Set<string>())
+  useEffect(() => {
+    const ws = workspace.attivo
+    if (ws === '' || remotoDelWorkspace !== undefined || elencoForzato.current.has(ws)) return
+    if (autopilotaDelWorkspace(autopiloti, ws) === undefined) return
+    elencoForzato.current.add(ws)
+    if (!workspaceElenco.includes(ws)) impostaElenco(ws, true)
+  }, [workspace.attivo, autopiloti, workspaceElenco, remotoDelWorkspace, impostaElenco])
 
   // Finché le trascrizioni non sono state lette non c'è niente di sensato da
   // mostrare: l'elenco sarebbe vuoto, i consumi a zero e i salvataggi da
