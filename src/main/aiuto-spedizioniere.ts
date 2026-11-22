@@ -8,6 +8,7 @@ import {
 import { causaDelMotivo, causaRiassegnabile, fraseCausa, type CausaFallimento } from '@shared/aiuto-esito'
 import { decidiRiassegna, eLento, eventoAffidato, eventoArreso, eventoRifiutato, eventoRiassegnato, eventoRisorsaMancante, MAX_RIASSEGNAZIONI, type DatiLentezza } from '@shared/aiuto-riassegna'
 import { valutaPrimaDiAffidare, type CandidatoPc, type RequisitiCompito } from '../autopilot-host/affida-valuta'
+import { fileDalDiff } from '@shared/dati-pannello-agenti'
 import type { EventoAiuto } from '@shared/eventi-aiuto'
 import { ricavaRisorse } from '@shared/aiuto-risorse'
 import { capacitaValida, type CapacitaPc } from '@shared/capacita-pc'
@@ -283,6 +284,7 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): Spedizioniere {
     }
     let silenzioDa: number | undefined
     let ultima = ''
+    let ultimiDati = ''
     const partitoIl = adesso()
     while (!fermo) {
       let v: VistaLavoroAiutato | undefined
@@ -307,13 +309,26 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): Spedizioniere {
       }
       if (v !== undefined) {
         if (v.attivita !== undefined && v.attivita !== ultima) { ultima = v.attivita; await avanza(l.id, { attivita: v.attivita }) }
+        // k-176b: i file e i token riferiti da quel PC, per il pannello a destra (solo se cambiano).
+        const firmaDati = `${(v.file ?? []).length}|${v.token ?? 0}`
+        if (firmaDati !== ultimiDati && ((v.file ?? []).length > 0 || (v.token ?? 0) > 0)) {
+          ultimiDati = firmaDati
+          await avanza(l.id, { ...((v.file ?? []).length > 0 ? { file: v.file, origineFile: 'remoto' } : {}), ...((v.token ?? 0) > 0 ? { token: v.token } : {}) })
+        }
         if (v.stato === 'finito' || v.stato === 'fallito' || v.stato === 'fermato') {
           let ramo: string | undefined
           let motivo = v.motivo
           // 13/11: la causa che dice quel PC; un PC di prima non la manda, e allora si legge dal motivo.
           let causa: CausaFallimento | undefined = v.stato === 'fermato' ? 'fermato' : v.stato === 'fallito' ? (v.causa ?? causaDelMotivo(v.motivo)) : undefined
+          let fileRamo: string[] | undefined
           if ((v.byte ?? 0) > 0) {
-            try { ramo = await ritira(l, v.byte!) } catch (err) { motivo = `il ramo non è tornato da ${l.pcNome}: ${testo(err)}`; causa = 'pc'; log(`${l.id}: ${motivo}`) }
+            // k-176b: «Invio dati – fine lavori»: da qui finché il ramo non è arrivato (o il lavoro si chiude).
+            await avanza(l.id, { inInvio: true })
+            try {
+              ramo = await ritira(l, v.byte!)
+              // Il diff del ramo tornato dice i file davvero cambiati: prende il posto di quelli riferiti.
+              try { fileRamo = fileDalDiff(await git(['diff', '--name-only', `HEAD...${ramo}`], l.cwd)) } catch { /* restano i file riferiti da quel PC */ }
+            } catch (err) { motivo = `il ramo non è tornato da ${l.pcNome}: ${testo(err)}`; causa = 'pc'; log(`${l.id}: ${motivo}`) }
           }
           // 16/11: fallito per colpa del PC (risorsa mancante, accesso…) e senza lavoro da ritirare: passa a un altro PC.
           if (v.stato === 'fallito' && ramo === undefined && causa !== undefined && causaRiassegnabile(causa)) {
@@ -329,6 +344,8 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): Spedizioniere {
             stato: riuscito ? 'finito' : 'fallito',
             ...(v.riepilogo !== undefined ? { riepilogo: v.riepilogo } : {}),
             ...(ramo !== undefined ? { ramo } : {}),
+            ...(fileRamo !== undefined && fileRamo.length > 0 ? { file: fileRamo, origineFile: 'diff-ramo' } : {}),
+            ...(v.token !== undefined && v.token > 0 ? { token: v.token } : {}),
             ...(motivo !== undefined ? { motivo } : {}),
             ...(!riuscito && causa !== undefined ? { causa } : {})
           })
