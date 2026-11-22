@@ -90,6 +90,7 @@
 - `servizio-orchestratore.test.ts` (PreToolUse, merge negato) è rosso se la suite gira dentro una copia di lavoro: usa `process.cwd()` come radice del progetto. _(2026-11-20)_
 - better-sqlite3 si carica anche in vitest nel progetto: un test può aprire un db temporaneo reale, senza finti. _(2026-11-20)_
 - `npm run pubblica` esegue tutta la suite (~7 min) e basta un test lento sotto carico, come risposta-autopilota-k317, a fermarlo. Rilanciare, non forzare. In tutto serve più di un'ora. _(2026-11-20)_
+- Su una copia sotto `copie/…` il test «PreToolUse dell'unico» di `servizio-orchestratore.test.ts` è rosso già senza modifiche: non è una regressione. _(2026-11-22)_
 
 ## worktree
 
@@ -221,6 +222,7 @@
 - il controllo dei comandi scambia `git -C <copia> cherry-pick` per un cherry-pick nella cartella principale; il rifiuto arriva sull'intera riga, anche se contiene altri comandi. _(2026-11-17)_
 - Dalla cartella principale `worktree add` in Temp e `cherry-pick` nella copia passano se sono chiamate separate; il blocco scatta solo sulla cancellazione (`rmdir`, `worktree remove`) fuori dalle cart… _(2026-11-17)_
 - per provare un test senza la correzione: `git stash push -u`, `git stash apply`, `git checkout -- <file>`, poi `git checkout stash@{0} -- <file>` e `git stash drop`. _(2026-11-20)_
+- `git cherry main <ramo>` dà "nuovi=0" solo per i rami identici a main. Per quelli rifatti o unificati serve anche cercare il k-N nel log di main. _(2026-11-22)_
 
 ## autopilota
 
@@ -232,6 +234,7 @@
 - Mai criteri «la versione di package.json è già su GitHub»: dopo, il programma li rimisura su ogni ramo e respinge il bump successivo (13/11, 0.106.3 bloccata, sbloccata con pre-release vuota). _(2026-11-13)_
 - il client segna `scaduto` (timeout) e `spento` (fetch failed/ECONNREFUSED/ECONNRESET): per un errore atteso usare `servizioIndisponibile`, non il solo `scaduto _(2026-11-13)_
 - INATTIVO_MS è 55 minuti: la cache del prompt dura 1 ora e lo spegnimento a 10 minuti la faceva riscrivere a ogni ripresa. _(2026-11-20)_
+- Uno specialista è un sotto-agente: chiudere il turno = «finito» per il programma. Un «riprendo/aspetto l'esito» finale va letto (`promessaSenzaFine`) o si unisce lavoro a metà. _(2026-11-22)_
 
 ## controllo
 
@@ -249,6 +252,7 @@
 - Per scrivere stringhe con `\n` nei file non usare heredoc Python: gli escape vengono interpretati. Meglio lo strumento Edit. _(2026-11-10)_
 - Nel worktree gli heredoc con `cat >>` seguiti da altri comandi nella stessa chiamata Bash vengono rifiutati come «troppo complessi»: usare Edit e comandi separati. _(2026-11-10)_
 - Il programma blocca sleep oltre 30 s anche in ciclo o a pezzi; attese lunghe solo con il sì di Nicholas (classe sottofondo). _(2026-11-15)_
+- Il blocco di sicurezza rifiuta `$p` nelle cancellazioni: scrivere i percorsi per intero, uno per comando, e le junction con `cmd /c rmdir`. _(2026-11-22)_
 
 ## hook
 
@@ -303,7 +307,6 @@
 
 ## ui
 
-- il pannello «Altri computer» è `AltriComputer` in PannelloAccount.tsx (mostrato in Salute) e legge i battiti da `posta:pc`; la versione viva va chiesta a parte. _(2026-11-08)_
 - «Nessuno al lavoro» in PannelloSpecialisti riguarda i posti di questo PC (VistaAttesa), non la Panoramica: gli affidati non occupano posti qui. _(2026-11-16)_
 - «Usate da altri PC» era sparita dalla fascia con k-u0 senza essere ricollocata: ora sta in PannelloChat (sottofondo.elenco + remoto.pc → righeAltriPc). _(2026-11-19)_
 - Il Drive nel dettaglio sta dietro un tasto: ContenutoDrive appena montato apre la finestra d'attesa, quindi non va montato a ogni progetto scelto. _(2026-11-19)_
@@ -315,7 +318,6 @@
 
 ## salute
 
-- la versione di un altro PC va chiesta dal vivo (`/api/pc`): col Drive pieno i battiti si fermano e «Aggiorna» diventa falso; `frenoDrive.pieno()` dice se il Drive rifiuta scritture. _(2026-11-08)_
 - `IngressiSalute.io` può mancare nei test e in alcuni punti di `index.ts`: per il nome di «questo PC» serve un ripiego («Questo PC»). _(2026-11-09)_
 - «Quanto lavora SierraDeck»: il tono dipende solo dai consumi di questo PC; i dati degli altri PC arrivano dal battito sul Drive e, se vecchio (PC_SPENTO_DOPO_MS), non vanno mostrati come attuali. _(2026-11-10)_
 - Le voci create da `risorse` di un altro PC (consumi, `gpu:`) vanno filtrate col battito recente in `componiSalute`; ogni nuova voce per PC ha lo stesso rischio di dato vecchio. _(2026-11-10)_
@@ -323,20 +325,12 @@
 - Le soglie spento/acceso vanno prese da `statoPc`; con `PC_SPENTO_DOPO_MS` i confronti `<` e `<=` si mischiavano e davano risultati diversi al limite. _(2026-11-19)_
 - L'elenco PC di Salute si toglie nel renderer (`saluteSenzaPc`), non in `salute.ts`: le stesse voci servono a telefono e pagina servita. _(2026-11-19)_
 
-## dipendenze
-
-- @xterm/headless 6.0.0 e @xterm/xterm 6.1.0-beta stanno su versioni diverse: se il terminale della main process si comporta in modo strano, guardare prima questa differenza. _(2026-11-08)_
-
 ## misure
 
-- il gancio PreToolUse rimanda vitest se il PC è carico: attendere col Monitor, non con sleep ripetuti, e fermarsi dopo 3 tentativi. I file singoli passano comunque. _(2026-11-08)_
 - Nel confronto dei token con `claude -p` contano input + cache creata + cache letta insieme: il secondo giro costa meno solo per la cache calda, non per la modifica provata. _(2026-11-20)_
 
 ## aggiornamenti
 
-- la classificazione passeggera sul breve (prima riga, senza contesto) perde il 504 nudo: classificare sul messaggio completo e su statusCode. _(2026-11-08)_
-- la lista di errori di rete passeggeri (ERR_*) va estesa con ERR_CONNECTION_CLOSED/RESET e timeout; eBloccoTemporaneo non esiste in src. _(2026-11-08)_
-- HttpError di electron-updater ha message «504\nHeaders: {…}» e statusCode numerico: classificare sul messaggio completo/statusCode, non sulla prima riga. _(2026-11-08)_
 - con autoDownload attivo electron-updater crea downloadPromise dentro checkForUpdates: il suo rifiuto non passa dal try di cerca(); va agganciato a aggiornamenti.ts:657. _(2026-11-08)_
 - leggiErroreAggiornamento riconosce il 404 «mancante» solo su latest*.yml: il 404 dell'exe durante la pubblicazione conta come errore. _(2026-11-08)_
 - allowDowngrade diventa vero solo col setter di channel in electron-updater: senza, una versione più vecchia del feed non si scarica mai. _(2026-11-08)_
@@ -434,6 +428,7 @@
 
 - copie-di-versione/<ver>-<data> contiene il pausa-aggiornamento.json e aggiornamento-in-corso.json di ogni update: prova utile a capire cosa fu salvato prima dell'uscita. _(2026-11-09)_
 - `Registro` ha solo info ed errore: l'«avviso» è una riga info con prefisso [avviso]; solo `errore` entra nello storico degli errori arrivati. _(2026-11-16)_
+- «riparte con --resume» non basta: investimento è stato spento il 21/11 13:25 senza ripresa nei log, probabilmente perché nessuna sveglia era rimasta fissata. _(2026-11-22)_
 
 ## ripresa
 
@@ -583,6 +578,7 @@
 - errori-arrivati.md è CRLF e le voci si accodano nello stesso punto: due rami che le aggiungono insieme vanno in conflitto, si risolve tenendole tutte e due. _(2026-11-16)_
 - il commit di un compito k-xx non ha il codice nel messaggio: per trovarlo in main si cerca per contenuto (es. `git log --grep=orchestratore`), non per «k-f1» _(2026-11-16)_
 - errori-arrivati.md usa fine riga CRLF: Edit ancorato all'ultima riga funziona, ma controllare che le righe nuove non restino miste. _(2026-11-20)_
+- Il quaderno sul «mai fermo» (0.84–0.85) descrive le chat vecchie: dalla 0.89 gli specialisti sono sotto-agenti dell'orchestratore, la difesa sta in `servizio-orchestratore.ts` e `lavoro-fermo.ts`. _(2026-11-22)_
 
 ## controllo-pc
 
@@ -886,6 +882,7 @@
 - Non esiste una UI di riordino dei workspace: l'ordine è l'array. `Archivio.ordine` (nomi+quando) ora viaggia sul Drive; serve un'azione che chiami `riordinaWorkspaceArchivio`. _(2026-11-20)_
 - Una lapide toglie dal Drive, mai dal PC: gli altri PC tengono il workspace nel loro archivio locale ma non lo rimandano su. _(2026-11-20)_
 - L'ordine dei workspace vive nell'array dell'archivio: PC, pagina e app lo leggono tutti da lì, quindi riordinare l'array basta. Il campo `ordine` serve solo all'unione sul Drive. _(2026-11-20)_
+- workspaceElenco confronta i nomi esattamente, maiuscole comprese: «serverDSM» dell'autopilota non entra in «ServerDSM» della lista. _(2026-11-22)_
 
 ## adozione
 
