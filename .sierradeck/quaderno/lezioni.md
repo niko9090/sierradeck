@@ -4,9 +4,6 @@
 
 ## test
 
-- `npx vitest run` intero dura circa 160 s su questo PC: un rifiuto "vitest rosso" senza nome di prova può essere un tempo scaduto sotto carico, non il codice. _(2026-11-10)_
-- Un 50x di electron-updater può arrivare come testo senza statusCode: «504 <frase>[\ndescrizione]\nHeaders: {…}». Il riconoscimento deve guardare il testo completo, non solo il campo. _(2026-11-10)_
-- il freno predefinito `frenoDrive` è unico per tutto il processo: nei test di `creaArchivioDrive` dare sempre `freno: creaFreno()`, o un 429 sporca i test seguenti. _(2026-11-10)_
 - un comando Bash con heredoc Python e altro insieme può essere rifiutato nel worktree, ma i passi precedenti possono aver girato lo stesso: ricontrollare `git diff` prima di rifare le modifiche. _(2026-11-10)_
 - sposta-fra-pc aspettava 10 ms fissi dopo un lavoro in sottofondo: sotto la suite intera cadeva. Mai un tempo fisso per aspettare un lavoro asincrono. _(2026-11-10)_
 - le prove che cercano stringhe nel sorgente (readFileSync di un .tsx) si rompono a ogni riscrittura della vista: meglio agganciarle al componente o alla funzione, non al dettaglio interno. _(2026-11-10)_
@@ -298,6 +295,7 @@
 - la copia di un compito di «rimettere in pari» può nascere senza il ramo da unire: controllare l'esistenza del ramo prima di assegnare il compito. _(2026-11-20)_
 - Rimettere in pari un ramo nato qui: se il compito va su un altro PC il ramo là non c'è. Incolla nel prompt il diff (git diff main...ramo) e fallo riapplicare sopra main. _(2026-11-20)_
 - Qui le attese da una chiamata Bash sono bloccate: `sleep` va a una chiamata sola, ≤20 s, senza altri comandi dopo. Per i comandi lunghi conviene `run_in_background` e leggere il file di output. _(2026-11-20)_
+- Il ramo da riparare può non esistere nella copia worktree del PC di rete: verificare con `git branch -a` prima di assegnare il compito. _(2026-11-22)_
 
 ## unioni
 
@@ -451,6 +449,8 @@
 - Stop di un lavoro affidato: `fermareIl` sul lavoro, lo spedizioniere inoltra `/api/aiuto/ferma` e riporta «fallito» con causa «fermato», che non conta come guasto e non fa riassegnare. _(2026-11-22)_
 - `avanza` deve dire se il servizio ha ricevuto l'esito: chiudere il PC remoto prima cancella copia e ramo di un lavoro che il servizio non conosce ancora. _(2026-11-22)_
 - Un PC in silenzio non ha perso il lavoro: va aspettato, e riassegnato senza `chiudi`. Con due copie vive vince il primo ramo che arriva (set `vinto`). _(2026-11-22)_
+- un compito di "unione" può arrivare a un PC dove il ramo da unire non è stato trasferito: controllare con `git branch -a` prima di partire. _(2026-11-22)_
+- Una correzione di un ramo locale affidata a un altro PC non trova il ramo: nel prompt metti il diff intero (git diff main...ramo), non solo il nome del ramo. _(2026-11-22)_
 
 ## cancello
 
