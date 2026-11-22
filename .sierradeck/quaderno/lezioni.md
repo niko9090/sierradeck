@@ -86,21 +86,16 @@
 - `inVolo` non deve dipendere dall'ora: il test del lavoro fermo avanza `adesso` di ore con un turno aperto e lo conta occupato. Il turno appeso lo chiude il cane da guardia. _(2026-11-22)_
 - `rifiutata` in attesa-specialisti ha una sola «i»: l'alias `rifiutataDalTetto` nel servizio; un test già esistente pretende che un fallito perda il prompt, solo il fermato lo tiene _(2026-11-22)_
 - il tempo massimo della suite (verifiche.ts:87) è 20 min come il cane da guardia: una soglia di silenzio uguale ferma da sani gli specialisti che aspettano la suite _(2026-11-22)_
+- riassegna-lento-collegato.test.ts sta in tests/autopilot-host, non in tests/main come dice il compito. _(2026-11-22)_
 
 ## worktree
 
-- Il ramo di lavoro può essere indietro a main (manca spazio-drive-pieno): prima di correggere, rebase su main. _(2026-11-10)_
-- con l'harness, ogni comando git che nomina la cartella principale viene rifiutato anche con `git -C` o in una pipe: per leggerla usare percorsi assoluti e comandi non-git. _(2026-11-10)_
 - Una copia con `android/app/build` non si toglie con `git worktree remove` («Filename too long»): staccare la junction di `node_modules`, controllare che dentro non ci siano altri collegamenti, poi `Remove-Item -LiteralPath '\\?\<percorso>' -Recurse -Force` e `git worktree prune`. _(2026-11-11)_
 - per togliere un worktree con giunzione node_modules: verificare LinkType, `cmd /c rmdir` sulla giunzione, poi `git worktree remove` e `prune`; il node_modules principale resta intatto. _(2026-11-17)_
 - Le copie «locked» possono non avere più la cartella su disco: `unlock` e poi `worktree remove --force` toglie il riferimento senza errori. _(2026-11-22)_
 
 ## android
 
-- PonteTest legge ROTTE_PONTE di ponte-telefono.ts con la regex '([^']+)': un apostrofo dritto in un commento dentro la lista la rompe, usare ’ _(2026-11-10)_
-- gradle testDebugUnitTest resta UP-TO-DATE se cambia solo un .ts letto dai test Kotlin (PonteTest): serve --rerun _(2026-11-10)_
-- per l'app le procedure lunghe conviene tenerle sul PC e far rileggere la vista all'app: la pagina le fa girare nel browser, l'app perderebbe il passo con la linea _(2026-11-10)_
-- Se android/ non cambia per una release, versionName resta quello vecchio: la 0.98.0 era ancora 2.96.0. _(2026-11-10)_
 - Sull’emulatore in sessione RDP l’avvio si blocca (Vulkan e finestra dei crash): partire con `-gpu swangle -crash-report-mode disabled`. _(2026-11-11)_
 - Dalla 3.0.0 le foto delle schermate dell’app le fa `gradle testDebugUnitTest` (Robolectric + Roborazzi) in `android/app/build/foto-schermate/`: guardarle prima di pubblicare, hanno trovato difetti che le prove non vedono. _(2026-11-11)_
 - Prova dell’app dal vero: copia del PC con `SIERRADECK_PROVA` e porte 47650/47651 dentro `preferenze`, emulatore su `10.0.2.2:47650`; l’APK 2.99.0 di rilascio installato e poi `adb install -r` della 3.0.0 prova che l’aggiornamento non chiede un nuovo accoppiamento. _(2026-11-11)_
@@ -449,6 +444,7 @@
 - i rami tornati da «Aiuta la rete» arrivano come bundle, senza worktree: un revisore senza terminale non li legge, va passato il diff o un worktree estratto _(2026-11-22)_
 - Rami tornati da «Aiuta la rete» sono solo bundle senza worktree: un revisore (senza terminale) non li legge; per rivederli serve un verificatore o un compito dopo l'unione. _(2026-11-22)_
 - «Rete dei PC», «Altri PC» e la lista in Salute sono ora la sola pagina Computer (`computer-vista.ts`): un dato per PC si aggiunge a `NodoRete` e `SchedaPc`, una volta sola. _(2026-11-22)_
+- nello spedizioniere `inInvio` (k-176b) va mandato prima del ritiro del ramo; `fileRamo` si legge solo dopo un ritiro riuscito. _(2026-11-22)_
 
 ## cancello
 
@@ -611,6 +607,9 @@
 - origin delle copie è un .bundle che può sparire: `git fetch --tags` fallisce e non ci sono tag locali. L'ultima versione si legge dai commit «Versione x.y.z». _(2026-11-22)_
 - un bump tocca package.json, package-lock.json (due punti) e src/shared/novita.ts. Non c'è un file di versione Android da cambiare se android/ è fermo. _(2026-11-22)_
 - `package.json` può essere già avanti dell'ultima release (qui 0.112.2 contro 0.112.1 pubblicata): per il bump guardare `gh release list` e i tag del remoto. _(2026-11-22)_
+- La 0.113.0 ha cambiato noteDi in scripts/note-novita.mjs (vuole `righe: [`): allega-aiutante fallisce su novita-aiutante.txt. Va corretto in main; intanto usare la versione della v0.112.1. _(2026-11-22)_
+- controlla-pacchetto rifiuta node_modules come junction: nel worktree temporaneo togliere la junction con rmdir e fare `npm ci`; serve anche google-oauth.json (ignorato da git) copiato dalla cartella … _(2026-11-22)_
+- Per una versione mancante usare `noteDiOErrore` (errore con messaggio chiaro); `noteDi` dà `[]`. _(2026-11-22)_
 
 ## build
 
@@ -925,3 +924,7 @@
 ## battito
 
 - Un campo nel battito che cambia a ogni misura va tolto dalla firma in `batti`, come `risorse`, o il Drive viene riscritto a ogni giro. _(2026-11-22)_
+
+## script
+
+- `noteDi` ha due formati di input: `righe: [` per novita.ts e novita-app.txt, e stringhe una per riga per novita-aiutante.txt. Cambiandone uno si rompe l'altro. _(2026-11-22)_
