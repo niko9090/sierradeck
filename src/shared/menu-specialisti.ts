@@ -36,6 +36,8 @@ export type RigaMenuSpecialisti = {
   suPc?: string
   /** «in arrivo» o «in preparazione»: un lavoro ospitato non ancora partito (non è al lavoro: niente barra, niente minuti). */
   fase?: string
+  /** k-174c: una chat specialista viva dell'autopilota (non un Agent del flusso): si vede, ma niente «Ferma» né precedenza. */
+  chat?: true
 }
 
 /** 16/11: un lavoro finito che il programma sta provando e unendo. */
@@ -72,6 +74,7 @@ type VoceMenu = {
   fermaRichiesta?: true
   perPc?: string
   suPc?: string
+  chat?: true
   fase?: 'in-arrivo' | 'in-preparazione'
 }
 
@@ -121,6 +124,7 @@ export function menuSpecialisti(vista: VistaMenu, riferimenti: string[]): MenuSp
       fermaRichiesta: v.fermaRichiesta === true,
       ...(v.perPc !== undefined ? { perPc: v.perPc } : {}),
       ...(v.suPc !== undefined ? { suPc: v.suPc } : {}),
+      ...(v.chat === true ? { chat: true as const } : {}),
       ...(v.fase !== undefined ? { fase: v.fase === 'in-arrivo' ? 'in arrivo' : 'in preparazione' } : {})
     }
     if (!inAttesa && v.fase === undefined && v.percentuale !== undefined) r.percentuale = Math.max(0, Math.min(95, Math.round(v.percentuale)))
