@@ -4,7 +4,8 @@ import { vociAutopilota } from '@shared/menu-contestuale'
 import { BordoDettaglio } from './BordoDettaglio'
 import { useEffect, useMemo, useState } from 'react'
 import { TendinaMenu } from './TendinaMenu'
-import { SpecialistiVista } from './SpecialistiVista'
+import { PannelloAgenti } from './PannelloAgenti'
+import { chiaveWorkspace } from '@shared/coda-richieste'
 import { ChatAutopilota } from './ChatAutopilota'
 import { FilaSpecialisti } from './PannelloSpecialisti'
 import { AutopilotaRemotoScelto } from './AutopilotaRemotoScelto'
@@ -159,7 +160,7 @@ export function PannelloAutopiloti({
                 ) : locale !== undefined ? (
                   scheda === 'chat'
                     ? <ChatAutopilota key={locale.id} autopilota={locale} onCambiato={onRicarica} />
-                    : <SpecialistiVista autopilota={locale} onGuarda={onChiudi} />
+                    : <PannelloAgenti riferimenti={[chiaveWorkspace(locale), locale.cwd ?? '', locale.workspace ?? '']} />
                 ) : null}
               </>
             ) : senzaAutopilota && scelto === undefined ? (

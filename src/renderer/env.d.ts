@@ -459,6 +459,8 @@ declare global {
         specialista: (ws: string, id: string) => Promise<import('@shared/piano-orchestratore').TrascrizioneSpecialista | undefined>
         attesaSpecialisti: () => Promise<import('@shared/attesa-specialisti').VistaAttesa | undefined>
         prioritaAttesa: (id: string, mossa: import('@shared/attesa-specialisti').MossaAttesa) => Promise<import('@shared/attesa-specialisti').VistaAttesa | undefined>
+        /** k-176i: ferma davvero uno specialista al lavoro (o affidato a un altro PC); il lavoro fatto resta salvato. */
+        fermaSpecialista: (id: string) => Promise<import('@shared/aiuto-rete').EsitoFerma>
         togliAttesa: (id: string) => Promise<import('@shared/attesa-specialisti').VistaAttesa | undefined>
         impostaOrchestratore: (ws: string, p: { modello?: string; tettoSpecialisti?: number; permessi?: import('@shared/permessi-nicholas').PermessiScelti }) => Promise<import('@shared/piano-orchestratore').VistaOrchestratore>
         /** 11/11: i limiti del PC e i permessi «sempre» dei progetti, per la sezione «Limiti». */

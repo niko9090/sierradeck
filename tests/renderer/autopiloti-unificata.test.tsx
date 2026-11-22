@@ -103,7 +103,8 @@ describe('una sola lista di specialisti, i comandi in un posto solo', () => {
   const pannello = leggi('src/renderer/components/PannelloAutopiloti.tsx')
 
   it('la pagina usa la lista degli specialisti e la fila, una volta ciascuna', () => {
-    expect(pannello.match(/<SpecialistiVista /g)).toHaveLength(1)
+    // k-176a: la scheda Specialisti è il pannello degli agenti (solo chi lavora, unioni, Ferma).
+    expect(pannello.match(/<PannelloAgenti /g)).toHaveLength(1)
     expect(pannello.match(/<FilaSpecialisti /g)).toHaveLength(1)
     expect(pannello.match(/<TabellaAutopiloti/g)).toHaveLength(1)
     // La chat non porta più la lista degli specialisti sotto di sé: sta nella sua scheda.
