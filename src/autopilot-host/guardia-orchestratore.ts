@@ -56,7 +56,7 @@ export type ContestoGuardia = {
    * passa, o in che posizione sta in fila (con `davanti` voci prima di lui).
    * Assente: i posti pieni rifiutano e basta, come prima.
    */
-  fila?: (r: { descrizione: string; tipo: string }) => { passa: true } | { passa: false; posizione: number; davanti: number }
+  fila?: (r: { descrizione: string; tipo: string; prompt?: string }) => { passa: true } | { passa: false; posizione: number; davanti: number }
   /**
    * 0.103.0: un altro PC ha un posto libero (Aiuta la rete) e il lavoro può viaggiare: il programma
    * glielo affida. Torna il motivo da dire all'autopilota (l'Agent non parte qui), o `undefined`.
@@ -241,7 +241,8 @@ export function giudicaGuardiaOrchestratore(corpo: Record<string, unknown>, c: C
       const altrove = c.affida?.({ descrizione: s(input.description) ?? s(input.prompt)?.slice(0, 120) ?? 'specialista', tipo, prompt: s(input.prompt) ?? '' })
       if (altrove !== undefined) return { ok: false, motivo: altrove }
       if (c.fila !== undefined) {
-        const r = c.fila({ descrizione: s(input.description) ?? s(input.prompt)?.slice(0, 120) ?? 'specialista', tipo: s(input.subagent_type) ?? 'general-purpose' })
+        const promptFila = s(input.prompt)
+        const r = c.fila({ descrizione: s(input.description) ?? s(input.prompt)?.slice(0, 120) ?? 'specialista', tipo: s(input.subagent_type) ?? 'general-purpose', ...(promptFila !== undefined ? { prompt: promptFila } : {}) })
         if (!r.passa) return { ok: false, motivo: motivoPostiPieni(c, r) }
       } else if (c.specialistiSulPc >= c.tettoPc) {
         return { ok: false, motivo: motivoPostiPieni(c) }

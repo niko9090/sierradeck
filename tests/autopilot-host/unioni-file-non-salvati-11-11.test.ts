@@ -153,7 +153,7 @@ function specialista(id: string, task: string, descrizione: string): void {
   const p = processi[0]!
   p.emetti({ type: 'assistant', parent_tool_use_id: null, message: { content: [{ type: 'tool_use', id, name: 'Agent', input: { subagent_type: 'sviluppatore', description: descrizione } }] } })
   p.emetti({ type: 'system', subtype: 'task_started', task_id: task, tool_use_id: id, task_type: 'local_agent', description: descrizione })
-  p.emetti({ type: 'system', subtype: 'task_notification', task_id: task, tool_use_id: id, status: 'completed', summary: descrizione })
+  p.emetti({ type: 'system', subtype: 'task_notification', task_id: task, tool_use_id: id, status: 'completed', summary: `${descrizione}\nRAPPORTO: finita — fatto` })
 }
 
 async function strumento(nome: string, argomenti: Record<string, unknown>): Promise<string> {

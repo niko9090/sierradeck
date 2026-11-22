@@ -352,7 +352,7 @@ describe('autopilota unico nel servizio', () => {
     expect(secondo.hookSpecificOutput?.permissionDecision).toBe('deny')
     expect(secondo.hookSpecificOutput?.permissionDecisionReason).toContain('uno specialista alla volta')
     // Finito il primo, il posto è libero: il rifiutato tu-2 non lo tiene (0.89.3).
-    processi[0]!.emetti({ type: 'system', subtype: 'task_notification', task_id: 't-1', tool_use_id: 'tu-1', status: 'completed', summary: 'fatto' })
+    processi[0]!.emetti({ type: 'system', subtype: 'task_notification', task_id: 't-1', tool_use_id: 'tu-1', status: 'completed', summary: 'fatto\nRAPPORTO: finita — fatto' })
     processi[0]!.emetti({ type: 'assistant', parent_tool_use_id: null, message: { content: [{ type: 'tool_use', id: 'tu-3', name: 'Agent', input: { subagent_type: 'verificatore', description: 'k-2: prova' } }] } })
     const terzo = (await (await posta(`/hook/pretool?ap=${v.autopilota!}`, { ...base, tool_use_id: 'tu-3', tool_name: 'Agent', tool_input: { subagent_type: 'verificatore' } })).json()) as { hookSpecificOutput?: { permissionDecision: string } }
     expect(terzo.hookSpecificOutput?.permissionDecision).not.toBe('deny')
@@ -420,7 +420,7 @@ describe('unisci per compito: lo specialista che porta il lavoro (30/10, k-1)', 
     const p = processi[0]!
     p.emetti({ type: 'assistant', parent_tool_use_id: null, message: { content: [{ type: 'tool_use', id, name: 'Agent', input: { subagent_type: 'sviluppatore', description: descrizione } }] } })
     p.emetti({ type: 'system', subtype: 'task_started', task_id: task, tool_use_id: id, task_type: 'local_agent', description: descrizione })
-    p.emetti({ type: 'system', subtype: 'task_notification', task_id: task, tool_use_id: id, status: 'completed', summary: descrizione })
+    p.emetti({ type: 'system', subtype: 'task_notification', task_id: task, tool_use_id: id, status: 'completed', summary: `${descrizione}\nRAPPORTO: finita — fatto` })
   }
 
   async function preparaK1(git: Git): Promise<string> {
@@ -557,7 +557,7 @@ describe('il motore non si ferma (0.89.4)', () => {
     p0.emetti({ type: 'assistant', parent_tool_use_id: null, message: { content: [{ type: 'tool_use', id: 'tu-1', name: 'Agent', input: { subagent_type: 'sviluppatore', description: 'sistema il menu' } }] } })
     p0.emetti({ type: 'system', subtype: 'task_started', task_id: 't-1', tool_use_id: 'tu-1' })
     fine('Lanciato.')
-    p0.emetti({ type: 'system', subtype: 'task_notification', task_id: 't-1', tool_use_id: 'tu-1', status: 'completed', summary: 'fatto' })
+    p0.emetti({ type: 'system', subtype: 'task_notification', task_id: 't-1', tool_use_id: 'tu-1', status: 'completed', summary: 'fatto\nRAPPORTO: finita — fatto' })
     fine('Finito.')
     // Nessun unisci dall'autopilota: l'esito dell'unione gli arriva da solo.
     await attendi(() => p0.scritte.some((x) => testoScritto(x).includes('unione')), { cosa: 'evento unione' })
@@ -589,7 +589,7 @@ describe('il motore non si ferma (0.89.4)', () => {
     p0.emetti({ type: 'assistant', parent_tool_use_id: null, message: { content: [{ type: 'tool_use', id: 'tu-1', name: 'Agent', input: { subagent_type: 'sviluppatore', description: 'k-1: il reset' } }] } })
     p0.emetti({ type: 'system', subtype: 'task_started', task_id: 't-1', tool_use_id: 'tu-1' })
     fine('Lanciato k-1.')
-    p0.emetti({ type: 'system', subtype: 'task_notification', task_id: 't-1', tool_use_id: 'tu-1', status: 'completed', summary: 'fatto' })
+    p0.emetti({ type: 'system', subtype: 'task_notification', task_id: 't-1', tool_use_id: 'tu-1', status: 'completed', summary: 'fatto\nRAPPORTO: finita — fatto' })
     // La CLI apre un turno da sé per la notifica del task: lo chiude il suo result.
     fine('k-1 finito.')
     // Nessun unisci dall'autopilota: il programma unisce e misura da solo.
@@ -906,7 +906,7 @@ describe('i posti degli altri PC (0.103.0, Aiuta la rete)', () => {
 
     // Torna il ramo: il compito passa in revisione con quel ramo, e l'autopilota lo sa con un evento.
     expect((await (await posta('/aiuto/avanza', { id: l.id, stato: 'spedito', attivita: 'Edit: pulsante.tsx' })).json())).toEqual({ fatto: true })
-    expect((await (await posta('/aiuto/avanza', { id: l.id, stato: 'finito', riepilogo: 'Fatto il pulsante.', ramo: `worktree-agent-${l.id}` })).json())).toEqual({ fatto: true })
+    expect((await (await posta('/aiuto/avanza', { id: l.id, stato: 'finito', riepilogo: 'Fatto il pulsante.\nRAPPORTO: finita — pulsante fatto', ramo: `worktree-agent-${l.id}` })).json())).toEqual({ fatto: true })
     const k = orch.piano('Lavoro').compiti[0]!
     expect(k.stato).toBe('in-revisione')
     expect(k.ramo).toBe(`worktree-agent-${l.id}`)

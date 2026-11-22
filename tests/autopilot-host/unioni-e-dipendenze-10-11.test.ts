@@ -186,7 +186,7 @@ const rifiutato = (d: Decisione): boolean => d.hookSpecificOutput?.permissionDec
 const motivo = (d: Decisione): string => d.hookSpecificOutput?.permissionDecisionReason ?? ''
 const turnoChiuso = (): void => { processi[0]!.emetti({ type: 'result', result: 'Aspetto.', total_cost_usd: 0.001, session_id: 'sess-1', usage: { input_tokens: 100 } }) }
 const finisciUltimo = (): void => {
-  processi[0]!.emetti({ type: 'system', subtype: 'task_notification', task_id: ultimoTask, tool_use_id: ultimoId, status: 'completed', summary: 'fatto' })
+  processi[0]!.emetti({ type: 'system', subtype: 'task_notification', task_id: ultimoTask, tool_use_id: ultimoId, status: 'completed', summary: 'fatto\nRAPPORTO: finita — fatto' })
   turnoChiuso()
 }
 const scritteDa = (da: number): string => processi[0]!.scritte.slice(da).join('\n')

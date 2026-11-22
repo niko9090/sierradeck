@@ -196,8 +196,12 @@ export function passo(stato: StatoAttesa, r: RichiestaSpecialista, p: { liberi: 
   const rivista = rivedi(stato, p.liberi, p.adesso)
   let s = rivista.stato
   const mossa = (): Mossa => ({ stato: s, svegli: rivista.svegli, cadute: rivista.cadute })
-  const esistente = trovaVoce(s, r)
+  const trovata = trovaVoce(s, r)
   const prenotati = s.voci.filter((v) => prenotata(v, p.adesso)).length
+  // k-178l: il prompt di chi finisce in fila non si perde: sta nella voce, e a posto libero si rilancia con quello.
+  const prompt = r.prompt !== undefined && r.prompt.trim() !== '' ? r.prompt : undefined
+  const esistente = trovata !== undefined && prompt !== undefined && trovata.prompt !== prompt ? { ...trovata, prompt } : trovata
+  if (esistente !== trovata && esistente !== undefined) s = { ...s, voci: s.voci.map((v) => (v.id === esistente.id ? esistente : v)) }
 
   if (esistente !== undefined) {
     // 11/11: anche chi riposa (senza prenotazione): se rilancia e c'è un posto che nessuno ha prenotato, passa.
@@ -218,7 +222,8 @@ export function passo(stato: StatoAttesa, r: RichiestaSpecialista, p: { liberi: 
     id: p.id(), workspace: r.workspace, ...(r.autopilota !== undefined ? { autopilota: r.autopilota } : {}),
     ...(compitoDi(r.descrizione) !== undefined ? { compito: compitoDi(r.descrizione)! } : {}),
     descrizione: r.descrizione.replace(/\s+/gu, ' ').trim().slice(0, 200), tipo: r.tipo,
-    dal: iso(p.adesso), priorita: s.precedenze?.[r.workspace] ?? 0, ordine: s.prossimo, sveglie: 0
+    dal: iso(p.adesso), priorita: s.precedenze?.[r.workspace] ?? 0, ordine: s.prossimo, sveglie: 0,
+    ...(prompt !== undefined ? { prompt } : {})
   }
   s = { ...s, voci: [...s.voci, voce], prossimo: s.prossimo + 1 }
   const posizione = inFila(s, p.adesso).find((v) => v.id === voce.id)!.posizione
