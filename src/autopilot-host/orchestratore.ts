@@ -299,8 +299,8 @@ export type DipendenzeOrchestratore = {
   globaliMax?: number | (() => number)
   sogliaRotazione?: number
   inattivoMs?: number
-  /** k-174g: il processo è stato spento per inattività: chi ha lavoro aperto fissa qui la ripresa. */
-  spentoPerInattivita?: (ws: string) => void
+  /** k-178a: c'è lavoro aperto che si può portare avanti (compiti pronti, unioni, specialisti)? Allora niente spegnimento per inattività. */
+  lavoroDaPortareAvanti?: (ws: string) => boolean
   /** Il cane da guardia: un turno senza righe per tanto si dà per appeso. */
   mutoMs?: number
   /** Attesa prima di riprovare dopo l'n-esimo errore di rete di fila (n da 1): cresce, ha un tetto. */
@@ -538,11 +538,13 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
     s.inattivo = setTimeout(() => {
       s.inattivo = undefined
       if (inTurno(s) || specialistiAlLavoro(s.flusso).length > 0) return
-      const c = s.proc !== undefined
+      // k-178a: con lavoro che si può portare avanti il processo non si spegne mai (un compito non resta fermo
+      // ad aspettare una ripresa): si ricontrolla al prossimo giro. Si spegne con la coda vuota o se il lavoro
+      // aperto aspetta solo Nicholas (una sua risposta è un messaggio: risveglia comunque).
+      let tieni = false
+      try { tieni = d.lavoroDaPortareAvanti?.(ws) === true } catch (err) { console.error(`[orchestratore] ${ws} — lavoro aperto non controllato, non spengo:`, err); tieni = true }
+      if (tieni) { riposo(ws, s); return }
       spegniSe(ws, s, `fermo da ${Math.round(inattivoMs / 60_000)} minuti; riparte con --resume`)
-      // k-174g: «riparte con --resume» non basta, il processo non si rialza da solo. Lo spegnimento fissa sempre
-      // una ripresa (sul disco, sopravvive al riavvio del servizio) se c'è lavoro aperto.
-      if (c) try { d.spentoPerInattivita?.(ws) } catch (err) { console.error(`[orchestratore] ${ws} — ripresa dopo lo spegnimento non fissata:`, err) }
     }, inattivoMs)
     s.inattivo.unref?.()
   }

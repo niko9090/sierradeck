@@ -92,7 +92,7 @@ describe('il lavoro fermo (0.89.4)', () => {
 
   it('una richiesta senza piano conta; una fatta no; niente da muovere: niente', () => {
     const c = aggiungi(coda(), { testo: 'e poi il menu', quando: T }).coda
-    expect(lavoroFermo({ coda: c, piano: piano(compito('k-1', { stato: 'unito', criterioVerde: true })), alLavoro: new Set() })?.righe).toEqual([expect.stringContaining('r-2 senza piano')])
+    expect(lavoroFermo({ coda: c, piano: piano(compito('k-1', { stato: 'unito', criterioVerde: true }), compito('k-2', { stato: 'in-corso', chat: 'vivo' })), alLavoro: new Set(['vivo']) })?.righe).toEqual([expect.stringContaining('r-2 senza piano')])
     const fatta = conRichiesta(coda(), 'r-1', (r) => ({ ...r, stato: 'fatta' }))
     expect(lavoroFermo({ coda: fatta, piano: piano(compito('k-2')), alLavoro: new Set() })).toBeUndefined()
   })
