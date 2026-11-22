@@ -1713,6 +1713,10 @@ export function registerAutopilotaIpc(client: ClientAutopilota, log?: (m: string
   ipcMain.handle('autopilota:specialista', async (_e, ws: unknown, id: unknown) => (typeof id === 'string' && id !== '' ? leggiConWorkspace(ws, (w) => client.specialista(w, id)) : undefined))
   // k-48: la lista d'attesa degli specialisti: la vista, la priorità di una voce, togliere una voce.
   ipcMain.handle('autopilota:attesaSpecialisti', async () => client.attesaSpecialisti().catch(() => undefined))
+  // k-176i: «Ferma» su uno specialista (id della colonna a destra). Sempre un esito con una frase, mai un errore.
+  ipcMain.handle('autopilota:fermaSpecialista', async (_e, id: unknown) => (typeof id === 'string' && id.trim() !== '' && id.length <= 100
+    ? client.fermaSpecialista(id.trim())
+    : { fermato: false, messaggio: 'Non so quale specialista fermare.' }))
   ipcMain.handle('autopilota:prioritaAttesa', async (_e, id: unknown, mossa: unknown) => (typeof id === 'string' && id !== '' && id.length <= 100 && (mossa === 'su' || mossa === 'giu' || mossa === 'cima' || mossa === 'ferma') ? client.prioritaAttesa(id, mossa).catch(() => undefined) : undefined))
   ipcMain.handle('autopilota:togliAttesa', async (_e, id: unknown) => (typeof id === 'string' && id !== '' && id.length <= 100 ? client.togliAttesa(id).catch(() => undefined) : undefined))
   ipcMain.handle('autopilota:impostaOrchestratore', async (_e, ws: unknown, p: unknown) => {

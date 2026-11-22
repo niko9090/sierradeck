@@ -5,7 +5,7 @@ import { POSTI_MAX } from '@shared/posti-chat'
 import { separaAvvisiNode } from '@shared/avvisi-node'
 import { eErroreDiRete } from '@shared/errori-rete'
 import { attesaLimiteMs, azzeramentoDalTesto, eLimiteDelPiano } from '@shared/limite-del-piano'
-import { applicaRiga, flussoVuoto, specialistiAlLavoro, type EffettoFlusso, type StatoFlusso } from '@shared/flusso-orchestratore'
+import { applicaRiga, flussoVuoto, specialistiAlLavoro, type EffettoFlusso, type Specialista, type StatoFlusso } from '@shared/flusso-orchestratore'
 import type { ImpostazioniOrchestratore, RigaDialogo } from './orchestratore-store'
 
 // 12/11: `ambientePulito` sta in `@shared/ambiente-figli` (lo usa anche l'Aiutante); qui si riesporta per chi lo importava da qui.
@@ -335,6 +335,11 @@ export type Orchestratore = {
   stato: (ws: string) => StatoFlusso
   /** Gli specialisti (subagenti) al lavoro su tutto il PC, in ogni workspace; `escludi`: quello che sta partendo (il suo Agent è già nel flusso quando arriva il PreToolUse). */
   specialistiSulPc: (escludi?: string) => number
+  /**
+   * k-176i: Nicholas ferma uno specialista di questo PC. Lo segna «fermato» nel flusso (libera il posto, il suo
+   * Agent non conta più al lavoro) e lo restituisce; `undefined` se non c'è o è già finito. Non tocca ramo né copia.
+   */
+  segnaFermato: (ws: string, id: string) => Specialista | undefined
   /** Per i test e lo spegnimento: si risolve quando nessun turno è in corso né pronto. */
   quiete: () => Promise<void>
   /**
@@ -693,6 +698,14 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
     vivo: (ws) => stati.get(ws)?.proc !== undefined,
     stato: (ws) => stati.get(ws)?.flusso ?? flussoVuoto(),
     specialistiSulPc: (escludi) => [...stati.values()].reduce((n, s) => n + (s.proc !== undefined ? specialistiAlLavoro(s.flusso).filter((x) => x.id !== escludi).length : 0), 0),
+    segnaFermato: (ws, id) => {
+      const s = stati.get(ws)
+      const vivo = s === undefined ? undefined : specialistiAlLavoro(s.flusso).find((y) => y.id === id)
+      if (s === undefined || vivo === undefined) return undefined
+      const fermato = { ...vivo, stato: 'fermato' as const, fine: adesso() }
+      s.flusso = { ...s.flusso, specialisti: s.flusso.specialisti.map((y) => (y.id === id ? fermato : y)) }
+      return fermato
+    },
     quiete: () => new Promise<void>((r) => { attese.push(r); forseQuiete() }),
     accessoCambiato: ({ riavvia }) => {
       let quanti = 0

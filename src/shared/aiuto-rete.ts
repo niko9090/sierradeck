@@ -218,7 +218,12 @@ export type LavoroAffidato = {
   /** 16/11: i PC già provati per questo lavoro (non ci torna) e quante volte è passato di mano (al più 2). */
   provati?: string[]
   riassegnazioni?: number
+  /** k-176i: Nicholas ha chiesto di fermarlo (quando): il programma inoltra lo stop a quel PC e, a lavoro chiuso, non lo conta come guasto. */
+  fermareIl?: string
 }
+
+/** k-176i: l'esito di «Ferma» su uno specialista, per l'interfaccia: sempre una frase in italiano. */
+export type EsitoFerma = { fermato: boolean; messaggio: string }
 
 export function lavoroAffidatoValido(x: unknown): LavoroAffidato | undefined {
   if (typeof x !== 'object' || x === null) return undefined
@@ -250,7 +255,8 @@ export function lavoroAffidatoValido(x: unknown): LavoroAffidato | undefined {
     ...(t('motivo') !== undefined ? { motivo: t('motivo')!.slice(0, 1000) } : {}),
     ...(causaValida(o.causa) ? { causa: o.causa } : {}),
     ...(Array.isArray(o.provati) && o.provati.some((p) => typeof p === 'string') ? { provati: o.provati.filter((p): p is string => typeof p === 'string').slice(0, 10) } : {}),
-    ...(typeof o.riassegnazioni === 'number' && o.riassegnazioni > 0 ? { riassegnazioni: Math.min(10, Math.floor(o.riassegnazioni)) } : {})
+    ...(typeof o.riassegnazioni === 'number' && o.riassegnazioni > 0 ? { riassegnazioni: Math.min(10, Math.floor(o.riassegnazioni)) } : {}),
+    ...(t('fermareIl') !== undefined ? { fermareIl: t('fermareIl')! } : {})
   }
 }
 
