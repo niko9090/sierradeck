@@ -10,6 +10,7 @@ import { causaDalTesto, fraseCausa, motivoDelRisultato, type CausaFallimento } f
 import { causaScadenza, scadenzaIniziale, scadenzaRaggiunta, scadenzaSegno, scadenzaTick, TICK_SCADENZA_MS } from '@shared/aiuto-scadenza'
 import { ambienteSpecialista, eNomeCredenziale, oscura } from '@shared/aiuto-credenziali'
 import { motivoRisorsa, risorseValide, risorsaMancante, sezioneRisorse, verificaRisorse, type Risorsa, type StrumentiVerifica } from '@shared/aiuto-risorse'
+import { aggiungiFile, fileDaChiamata, percorsoRelativo, tokenDaUso } from '@shared/dati-pannello-agenti'
 import type { AvviaProcesso } from './processo-claude'
 import { cancellaSicuraAsincrona } from '@shared/cancella-sicura'
 import { CARTELLA_PROVE } from '@shared/disco-prove'
@@ -505,6 +506,7 @@ export function creaLavoratoreAiuto(x: {
     }, TICK_SCADENZA_MS)
     scadenza.unref?.()
     l.ferma = () => proc.uccidi()
+    const tokenPerMessaggio = new Map<string, number>()
     proc.suRiga((rigaGrezza) => {
       const riga = valoriSegreti.length > 0 ? oscura(rigaGrezza, valoriSegreti) : rigaGrezza
       let o: Record<string, unknown>
@@ -514,8 +516,18 @@ export function creaLavoratoreAiuto(x: {
         const m = o.message as { content?: unknown } | undefined
         const pezzi = Array.isArray(m?.content) ? m!.content as Record<string, unknown>[] : []
         if (pezzi.length > 0) l.ultimaAttivita = adesso()
+        // k-176b: token (un messaggio ripetuto vale una volta, il più alto visto) e file modificati, per il pannello di chi ha chiesto il lavoro.
+        const mm = o.message as { id?: unknown; usage?: unknown } | undefined
+        const k = tokenDaUso(mm?.usage)
+        if (k > 0) {
+          const idm = typeof mm?.id === 'string' ? mm.id : `#${tokenPerMessaggio.size}`
+          tokenPerMessaggio.set(idm, Math.max(tokenPerMessaggio.get(idm) ?? 0, k))
+          l.token = [...tokenPerMessaggio.values()].reduce((a, b) => a + b, 0)
+        }
         for (const c of pezzi) {
           if (c.type === 'tool_use' && typeof c.name === 'string') {
+            const modificato = fileDaChiamata(c.name, c.input)
+            if (modificato !== undefined) l.file = aggiungiFile(l.file, percorsoRelativo(modificato, [l.copia]))
             const inp = (c.input ?? {}) as Record<string, unknown>
             const cosa = typeof inp.file_path === 'string' ? inp.file_path.split(/[\\/]/u).pop() : typeof inp.command === 'string' ? corto(inp.command, 80) : typeof inp.pattern === 'string' ? inp.pattern : ''
             l.attivita = `${c.name}${cosa !== '' && cosa !== undefined ? `: ${cosa}` : ''}`
@@ -667,7 +679,9 @@ export function creaLavoratoreAiuto(x: {
         ...(l.byte !== undefined ? { byte: l.byte } : {}),
         ...(l.commit !== undefined ? { commit: l.commit } : {}),
         ...(l.stato === 'lavoro' && l.ultimaAttivita !== undefined ? { fermoMs: Math.max(0, adesso() - l.ultimaAttivita) } : {}),
-        ...(l.causa !== undefined ? { causa: l.causa } : {})
+        ...(l.causa !== undefined ? { causa: l.causa } : {}),
+        ...(l.file !== undefined && l.file.length > 0 ? { file: l.file } : {}),
+        ...(l.token !== undefined && l.token > 0 ? { token: l.token } : {})
       }
     },
     ritira(p) {

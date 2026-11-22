@@ -20,6 +20,8 @@
  * eventi `task_*` non sono documentati: si leggono con prudenza, per nome.
  */
 
+import { aggiungiFile, fileDaChiamata, percorsoRelativo, tokenDaUso } from './dati-pannello-agenti'
+
 export type StatoSpecialista = 'avviato' | 'lavoro' | 'finito' | 'fallito' | 'fermato'
 
 export type Specialista = {
@@ -48,6 +50,10 @@ export type Specialista = {
   prompt?: string
   /** 0.103.0: lavora su un altro PC (Aiuta la rete): il suo nome. */
   pc?: string
+  /** k-176b: i file che ha modificato (dalle sue chiamate Edit, Write, MultiEdit), relativi alla sua copia, senza doppioni. */
+  file?: string[]
+  /** k-176b: i token consumati finora (l'`usage` cumulativo di `task_progress`). */
+  token?: number
 }
 
 export type RigaRegistro = { quando: string; tipo: 'turno' | 'specialista' | 'strumento' | 'costo' | 'errore'; testo: string; specialista?: string }
@@ -215,8 +221,11 @@ export function applicaRiga(prima: StatoFlusso, riga: string, quando: string): {
           ? s(ev.description) ?? s(ev.last_tool_name) ?? s(ev.activity)
           : sotto === 'task_started' || sotto === 'task_notification' ? undefined : s(ev.activity) ?? s(ev.last_tool_name)
         const agente = d.agente ?? ((s(ev.task_type) ?? 'local_agent') === 'local_agent' ? task : undefined)
+        // k-176b: l'`usage` di task_progress è cumulativo: vale il più alto visto, mai una somma.
+        const token = tokenDaUso(ev.usage)
         const x = cambia(id, (y) => ({
           ...y,
+          ...(token > (y.token ?? 0) ? { token } : {}),
           ...(task !== undefined && y.task === undefined ? { task } : {}),
           ...(d.cartella !== undefined ? { cartella: d.cartella } : {}),
           ...(d.ramo !== undefined ? { ramo: d.ramo } : {}),
@@ -247,6 +256,11 @@ export function applicaRiga(prima: StatoFlusso, riga: string, quando: string): {
       if (ultimo !== undefined) {
         const att = ultimo.type === 'tool_use' ? attivitaDi(s(ultimo.name) ?? 'strumento', ultimo.input) : corto(String(ultimo.text), 140)
         cambia(genitore, (y) => ({ ...y, attivita: att, ...(terminale(y.stato) ? {} : { stato: 'lavoro' as const }) }))
+      }
+      // k-176b: i file che modifica, dalle chiamate Edit, Write e MultiEdit (anche se l'ultimo blocco è un altro).
+      const modificati = blocchi.map(o).flatMap((b) => { const f = b.type === 'tool_use' ? fileDaChiamata(s(b.name) ?? '', b.input) : undefined; return f === undefined ? [] : [f] })
+      if (modificati.length > 0) {
+        cambia(genitore, (y) => ({ ...y, file: modificati.reduce((acc, f) => aggiungiFile(acc, percorsoRelativo(f, [y.cartella])), y.file ?? []) }))
       }
       return { stato: st, effetti }
     }

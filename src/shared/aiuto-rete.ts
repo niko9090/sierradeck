@@ -184,6 +184,9 @@ export type VistaLavoroAiutato = {
   fermoMs?: number
   /** 13/11: la causa riconosciuta di un lavoro non riuscito (manca nei PC di prima: si legge dal motivo). */
   causa?: CausaFallimento
+  /** k-176b: i file che lo specialista ha modificato (dalle sue chiamate Edit, Write, MultiEdit) e i token consumati, misurati da quel PC. */
+  file?: string[]
+  token?: number
 }
 
 /** Un lavoro affidato, dal lato di chi chiede (lo tiene il servizio, sopravvive ai riavvii). */
@@ -218,6 +221,14 @@ export type LavoroAffidato = {
   /** 16/11: i PC già provati per questo lavoro (non ci torna) e quante volte è passato di mano (al più 2). */
   provati?: string[]
   riassegnazioni?: number
+  /** k-176b: i file che lo specialista sta modificando là, come li riferisce quel PC (relativi al progetto). Dopo il ritorno del ramo, il diff del ramo li sostituisce. */
+  file?: string[]
+  /** k-176b: dove si sono letti i file: `remoto` (riferiti da quel PC) o `diff-ramo` (dal ramo arrivato). */
+  origineFile?: 'remoto' | 'diff-ramo'
+  /** k-176b: i token consumati là, riferiti da quel PC. */
+  token?: number
+  /** k-176b: l'altro PC ha finito e il ramo sta tornando («Invio dati – fine lavori»). Cade quando il lavoro si chiude. */
+  inInvio?: true
 }
 
 export function lavoroAffidatoValido(x: unknown): LavoroAffidato | undefined {
@@ -250,7 +261,11 @@ export function lavoroAffidatoValido(x: unknown): LavoroAffidato | undefined {
     ...(t('motivo') !== undefined ? { motivo: t('motivo')!.slice(0, 1000) } : {}),
     ...(causaValida(o.causa) ? { causa: o.causa } : {}),
     ...(Array.isArray(o.provati) && o.provati.some((p) => typeof p === 'string') ? { provati: o.provati.filter((p): p is string => typeof p === 'string').slice(0, 10) } : {}),
-    ...(typeof o.riassegnazioni === 'number' && o.riassegnazioni > 0 ? { riassegnazioni: Math.min(10, Math.floor(o.riassegnazioni)) } : {})
+    ...(typeof o.riassegnazioni === 'number' && o.riassegnazioni > 0 ? { riassegnazioni: Math.min(10, Math.floor(o.riassegnazioni)) } : {}),
+    ...(Array.isArray(o.file) && o.file.some((f) => typeof f === 'string') ? { file: o.file.filter((f): f is string => typeof f === 'string' && f !== '').slice(0, 200) } : {}),
+    ...(o.origineFile === 'remoto' || o.origineFile === 'diff-ramo' ? { origineFile: o.origineFile } : {}),
+    ...(typeof o.token === 'number' && Number.isFinite(o.token) && o.token > 0 ? { token: Math.floor(o.token) } : {}),
+    ...(o.inInvio === true ? { inInvio: true as const } : {})
   }
 }
 

@@ -58,6 +58,7 @@ import { quandoInParole, riassuntoOrchestratore } from './riassunto-orchestrator
 import { motivoSpecialistaDoppio, ripresaDopoRiavvio } from './ripresa-riavvio'
 import { AGENTI_ORCHESTRATORE, fileAgenti, fileImpostazioniCli, RUOLI_AGENTI } from './agenti-orchestratore'
 import { percentualeVera, voceOspitata } from './vista-ospitati'
+import { datiPannello, totaliPannello } from '@shared/dati-pannello-agenti'
 import { valutaPrimaDiAffidare } from './affida-valuta'
 import { motivoAffidato, motivoPerRestareQui, RUOLI_IN_VIAGGIO, scegliPosto, type Aiutante, type LavoroAffidato, type LavoroOspitato } from '@shared/aiuto-rete'
 import { giudicaGuardiaOrchestratore } from './guardia-orchestratore'
@@ -294,7 +295,7 @@ export type ServizioUnico = {
    */
   aiutoGiro: (aiutanti: Aiutante[]) => LavoroAffidato[]
   /** 0.103.0: com'è andato un lavoro affidato (spedito, cosa fa, finito con il suo ramo, non riuscito). */
-  aiutoAvanza: (id: string, p: { stato?: 'spedito' | 'finito' | 'fallito'; attivita?: string; riepilogo?: string; ramo?: string; motivo?: string; causa?: CausaFallimento; riassegna?: { pcId: string; pcNome: string } }) => boolean
+  aiutoAvanza: (id: string, p: { stato?: 'spedito' | 'finito' | 'fallito'; attivita?: string; riepilogo?: string; ramo?: string; motivo?: string; causa?: CausaFallimento; file?: string[]; origineFile?: 'remoto' | 'diff-ramo'; token?: number; inInvio?: true; riassegna?: { pcId: string; pcNome: string } }) => boolean
   /** k-48: chi lavora adesso sui posti del PC e chi aspetta, in ordine. */
   attesa: () => VistaAttesa
   /** La spinta a evento: cambia a ogni specialista che parte, finisce o cambia posto in lista. */
@@ -726,6 +727,8 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
     attivita: `su ${l.pcNome}${l.attivita !== undefined ? ` — ${l.attivita}` : ''}`,
     ...(l.ramo !== undefined ? { ramo: l.ramo } : {}),
     ...(l.riepilogo !== undefined ? { riepilogo: l.riepilogo } : {}),
+    ...(l.file !== undefined ? { file: l.file } : {}),
+    ...(l.token !== undefined ? { token: l.token } : {}),
     pc: l.pcNome
   })
   const subagenti =(ws: string): Specialista[] => [
@@ -939,6 +942,7 @@ Il posto è tuo per 5 minuti.` })
           workspaceNome: nomeWorkspace(l.ws), titolo: titoloDi(l.ws, l.s.compito, l.s.descrizione),
           ...(cosaFa !== '' ? { cosaFa } : {}),
           percentuale: st.percentuale, minutiStimati: st.minuti, peso: pesoDi(l.ws, l.s.compito),
+          pannello: datiPannello({ titolo: titoloDi(l.ws, l.s.compito, l.s.descrizione), ultimaAzione: cosaFa, file: l.s.file, origineFile: 'chiamate', token: l.s.token }),
           ...(st.inRitardo ? { inRitardo: true as const } : {}),
           ...(prec !== undefined ? { precedenza: prec } : {}),
           ...(fermaChiesta.has(l.s.id) ? { fermaRichiesta: true as const } : {})
@@ -951,11 +955,16 @@ Il posto è tuo per 5 minuti.` })
           descrizione: c.compito, tipo: c.ruolo !== undefined ? RUOLI[c.ruolo].nome : 'chat', dal: c.dal ?? x.adesso(),
           workspaceNome: nomeWorkspace(ws), titolo: titoloDi(ws, c.compitoId, c.compito),
           ...(cosaFa !== '' ? { cosaFa } : {}),
-          peso: pesoDi(ws, c.compitoId), chat: true as const
+          peso: pesoDi(ws, c.compitoId), chat: true as const,
+          pannello: datiPannello({ titolo: titoloDi(ws, c.compitoId, c.compito), ultimaAzione: cosaFa })
         }
       }), (x.ospitati?.() ?? []).map((o, j) => {
         // 12/11 (Nicholas: «nel PC che ospita gli agenti di altri PC voglio che nella lista vengano visualizzati»).
-        return voceOspitata(o, lavorano.length + chatVive.length + j + 1, rigaUltimaAzione(o.attivita ?? ''), titoloBreve(o.descrizione), PESO_PREDEFINITO)
+        const cosaFa = rigaUltimaAzione(o.attivita ?? '')
+        return {
+          ...voceOspitata(o, lavorano.length + chatVive.length + j + 1, cosaFa, titoloBreve(o.descrizione), PESO_PREDEFINITO),
+          pannello: datiPannello({ perPc: o.perPc, titolo: titoloBreve(o.descrizione), ultimaAzione: cosaFa })
+        }
       }), affidati().filter((l) => l.stato === 'da-spedire' || l.stato === 'spedito').map((l, j) => {
         // 16/11 (Nicholas: «due specialisti che lavorano e nel menu vedo nessuno»): gli affidati ad altri PC lavorano per questo workspace.
         const cosaFa = rigaUltimaAzione(l.attivita ?? '')
@@ -966,8 +975,16 @@ Il posto è tuo per 5 minuti.` })
           workspaceNome: nomeWorkspace(l.workspace), titolo: titoloDi(l.workspace, l.compito, l.descrizione),
           ...(cosaFa !== '' ? { cosaFa } : {}),
           ...percentualeVera(l.percentuale), peso: pesoDi(l.workspace, l.compito),
-          suPc: l.pcNome
+          suPc: l.pcNome,
+          pannello: datiPannello({
+            suPc: l.pcNome, titolo: titoloDi(l.workspace, l.compito, l.descrizione), ultimaAzione: cosaFa,
+            file: l.file, ...(l.origineFile !== undefined ? { origineFile: l.origineFile } : {}), token: l.token, inInvio: l.inInvio === true
+          })
         }
+      })),
+      pannelloTotali: Object.fromEntries(unici().map((u) => {
+        const ws = wsDi(u)
+        return [ws, totaliPannello(orchestratore.stato(ws).costi, subagenti(ws), x.adesso().slice(0, 10))] as const
       })),
       inUnione: [...filaUnioni.entries()].flatMap(([ws, lista]) => lista.map((l) => ({
         id: l.chiave, workspace: ws, workspaceNome: nomeWorkspace(ws),
@@ -3094,8 +3111,13 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       const dalRiepilogo = fallito && nudo && p.riepilogo !== undefined && p.riepilogo.trim() !== '' ? motivoDelRisultato({ testo: p.riepilogo }) : undefined
       const motivo = fallito ? (dalRiepilogo?.motivo ?? p.motivo ?? fraseCausa('sconosciuta')).slice(0, 1000) : undefined
       const causa: CausaFallimento | undefined = fallito ? (dalRiepilogo?.causa ?? causaDelFallimento(p.causa, motivo, p.riepilogo)) : undefined
+      // k-176b: «Invio dati» dura finché il lavoro non si chiude: alla chiusura cade, qualunque sia l'esito.
+      const { inInvio: _invio, ...senzaInvio } = l
       const nuovo: LavoroAffidato = {
-        ...l,
+        ...senzaInvio,
+        ...((p.inInvio === true || l.inInvio === true) && !chiuso ? { inInvio: true as const } : {}),
+        ...(p.file !== undefined && p.file.length > 0 ? { file: p.file, ...(p.origineFile !== undefined ? { origineFile: p.origineFile } : {}) } : {}),
+        ...(p.token !== undefined ? { token: p.token } : {}),
         ...(p.stato !== undefined ? { stato: p.stato } : {}),
         ...(p.attivita !== undefined ? { attivita: p.attivita.slice(0, 200) } : {}),
         // Nella vista la frase corta; il motivo intero sta nella conversazione dello specialista.

@@ -18,6 +18,8 @@
  * - la voce esce dalla lista quando lo Agent passa davvero la guardia.
  */
 
+import type { DatiPannelloAgente, TotaliPannello } from './dati-pannello-agenti'
+
 export const PRENOTAZIONE_MS = 5 * 60_000
 /** Dopo così tante sveglie a vuoto la voce va a riposo (non cade più, 11/11). */
 export const SVEGLIE_MAX = 3
@@ -404,6 +406,8 @@ export type VistaAttesa = {
     suPc?: string
     /** k-174c: una chat specialista viva dell'autopilota (adottata o lanciata da lui), non un Agent del flusso: si vede, ma niente «Ferma» né stime. */
     chat?: true
+    /** k-176b: i dati del pannello a destra per questo agente (PC, file, azioni, token, invio). Stessa fonte della lista. */
+    pannello?: DatiPannelloAgente
   } & StimaVoce>
   /** 16/11: i lavori finiti che il programma sta provando e unendo (in coda o in corso): non sono né al lavoro né in fila, ma non sono ancora chiusi. */
   inUnione?: Array<{ id: string; workspace: string; workspaceNome: string; titolo: string; inCorso: boolean }>
@@ -427,4 +431,6 @@ export type VistaAttesa = {
   } & StimaVoce>
   /** Il lavoro che resta per svuotare la lista, con i posti in parallelo (k-53). */
   totale?: { minuti: number; compiti: number }
+  /** k-176b: i contatori di token per workspace (chiave = id del workspace): totale e di oggi. */
+  pannelloTotali?: Record<string, TotaliPannello>
 }
