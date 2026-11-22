@@ -4,8 +4,6 @@
 
 ## test
 
-- un comando Bash con heredoc Python e altro insieme può essere rifiutato nel worktree, ma i passi precedenti possono aver girato lo stesso: ricontrollare `git diff` prima di rifare le modifiche. _(2026-11-10)_
-- sposta-fra-pc aspettava 10 ms fissi dopo un lavoro in sottofondo: sotto la suite intera cadeva. Mai un tempo fisso per aspettare un lavoro asincrono. _(2026-11-10)_
 - le prove che cercano stringhe nel sorgente (readFileSync di un .tsx) si rompono a ogni riscrittura della vista: meglio agganciarle al componente o alla funzione, non al dettaglio interno. _(2026-11-10)_
 - il freno Drive alza l'attesa al primo 429, quindi un test che si aspetta ritentativi su 429/rateLimit va scritto con 503 (transitorio), non con 429 _(2026-11-10)_
 - `tests/main/sposta-fra-pc.test.ts` (caricamento lungo) è fallita una volta sola nella serie completa sotto carico e passa da sola: probabile instabilità di tempi _(2026-11-10)_
@@ -95,6 +93,7 @@
 - `tests/shared/novita.test.ts` ammette al massimo 8 righe per voce: portando più novità in una versione sola, accorpare le righe doppie. _(2026-11-22)_
 - l'orologio di prova del servizio avanza di qualche ms: le durate vanno confrontate con un margine, non con un valore esatto _(2026-11-22)_
 - in creaTurni anche l'unione che aspetta ha la sua scadenza (unioneMaxMs): nei test di attesa usare un valore più largo del ritardo di chiusura, o la seconda scade da sola _(2026-11-22)_
+- il «PreToolUse dell'unico» rosso nelle copie worktree era un bug vero (percorso con spazi), non un problema del test. _(2026-11-22)_
 
 ## worktree
 
@@ -342,6 +341,7 @@
 
 - il rifiuto delle cancellazioni nelle chat sta in divieti.ts (giudicaCancellazioni), chiamato da /hook/pretool in server.ts; cancella-sicura.ts riguarda solo le pulizie del programma _(2026-11-10)_
 - in `guardia` `riavviaSeMorto` va dopo `suonaSveglie`: se prima, il turno di ripresa è in volo e la sveglia aspetta in coda dietro di lui. _(2026-11-22)_
+- `comandiGit` ha il flag `i`: `-c <x>` e `-C "<percorso con spazi>"` si confondono se l'alternativa `-c` viene prima. Tenere `-C` prima. _(2026-11-22)_
 
 ## renderer
 
