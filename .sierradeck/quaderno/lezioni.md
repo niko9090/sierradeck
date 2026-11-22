@@ -88,6 +88,7 @@
 - il tempo massimo della suite (verifiche.ts:87) è 20 min come il cane da guardia: una soglia di silenzio uguale ferma da sani gli specialisti che aspettano la suite _(2026-11-22)_
 - riassegna-lento-collegato.test.ts sta in tests/autopilot-host, non in tests/main come dice il compito. _(2026-11-22)_
 - per testare lotti di unioni nel servizio serve un cancello sul primo comando git: il primo ramo parte da solo con la fila vuota, il lotto lo formano quelli accodati dopo _(2026-11-22)_
+- `autopiloti-unificata.test.tsx` conta i componenti in `PannelloAutopiloti.tsx` con una regex: se cambi la scheda, aggiorna anche quel controllo. _(2026-11-22)_
 
 ## worktree
 
@@ -135,10 +136,6 @@
 
 ## release
 
-- Il bump di versione fa fallire `tests/shared/novita.test.ts` se in `src/shared/novita.ts` manca la voce della nuova versione: aggiungerla nello stesso commit del bump. _(2026-11-10)_
-- In una copia di lavoro `npm run pubblica` rifiuta la junction di node_modules (serve `npm ci`) e vuole `google-oauth.json` (gitignorato) copiato dalla cartella principale. _(2026-11-10)_
-- Se la release è creata prima con `gh release create`, electron-builder salta il caricamento (draft vs release): caricare installer, blockmap e latest.yml con `gh release upload`. _(2026-11-10)_
-- il bump di versione richiede anche la voce in `src/shared/novita.ts`: senza, `tests/shared/novita.test.ts` si rompe (successo con la 0.99.1). _(2026-11-10)_
 - `gh release upload` con `file#etichetta` non cambia il nome dell'asset: GitHub mette i punti al posto degli spazi. Rinominare il file in `SierraDeck-Setup-X.exe` prima di caricarlo, come in `latest.y… _(2026-11-11)_
 - `npm run pubblica` vuole GH_TOKEN nell'ambiente: `export GH_TOKEN=$(gh auth token)`. Crea una bozza col solo blockmap: carica a mano exe e latest.yml, poi `gh release edit --draft=false`. _(2026-11-11)_
 - in `src/shared/novita.ts` il file ha fine riga CRLF: un replace con `\n` non trova nulla, quindi rileggere il fine riga prima di inserire la voce. _(2026-11-11)_
@@ -183,8 +180,6 @@
 
 ## git
 
-- main locale può avere commit non ancora su origin/main (merge e note del quaderno): prima di un push di release controllare `git log origin/main..main`. _(2026-11-10)_
-- Il git del programma (gitAsincronoReale) mescola stderr e stdout e fa trim: gli avvisi CRLF finiscono nello status e la prima riga perde lo spazio di testa. Filtrare le voci «XY percorso». _(2026-11-10)_
 - Gli specialisti sono chiusi nel loro worktree: non possono leggere né salvare file nella cartella principale. Un'unione ferma per file non salvati in main la ritenta il programma ogni 30s. _(2026-11-10)_
 - un agente isolato nel worktree non può usare `git -C` sulla cartella principale: il compito di salvare lì le note va dato a chi non è isolato. _(2026-11-10)_
 - Note del quaderno non salvate in main = fila unioni ferma, e nessuno specialista può salvarle (isolati nella copia; general-purpose rifiutato). Serve la correzione del programma (k-133). _(2026-11-11)_
@@ -343,6 +338,7 @@
 - `chiaveWorkspace` riceve dati remoti incompleti: i tipi dicono `cwd: string` ma a runtime può mancare; controllare con `typeof`, non fidarsi del tipo. _(2026-11-20)_
 - Il formato Panoramica+agenti dipende da `workspaceElenco` (preferenza per nome), che la migrazione riempie una volta sola: i workspace nuovi restavano fuori. _(2026-11-22)_
 - Gli hook di App.tsx vanno prima di `if (!pronto)`: un effetto dopo causa React #310. _(2026-11-22)_
+- Il tipo di `window.gestore` è in `src/renderer/env.d.ts`, a mano: una funzione nuova del preload va aggiunta anche lì, o il typecheck fallisce. _(2026-11-22)_
 
 ## shell
 
@@ -445,6 +441,9 @@
 - Rami tornati da «Aiuta la rete» sono solo bundle senza worktree: un revisore (senza terminale) non li legge; per rivederli serve un verificatore o un compito dopo l'unione. _(2026-11-22)_
 - «Rete dei PC», «Altri PC» e la lista in Salute sono ora la sola pagina Computer (`computer-vista.ts`): un dato per PC si aggiunge a `NodoRete` e `SchedaPc`, una volta sola. _(2026-11-22)_
 - nello spedizioniere `inInvio` (k-176b) va mandato prima del ritiro del ramo; `fileRamo` si legge solo dopo un ritiro riuscito. _(2026-11-22)_
+- Sul PC «Aiuta la rete» i rami degli altri PC non ci sono: prima di assegnare un cherry-pick, verificare che il ramo sorgente sia stato inviato a quel repository. _(2026-11-22)_
+- un compito che nomina un ramo locale di un altro PC non si può eseguire qui: prima di assegnarlo va portato il ramo (bundle o patch) nella copia. _(2026-11-22)_
+- Un conflitto da risolvere affidato a un altro PC non vede i rami locali: nel prompt va messo il diff completo (git diff main...ramo), non il nome del ramo da cui fare cherry-pick. _(2026-11-22)_
 
 ## cancello
 
@@ -920,6 +919,7 @@
 ## pannello
 
 - unioni, durata e stato dopo il lavoro passano da `VistaAttesa` (`dati-pannello-agenti.ts`); gli esiti recenti stanno solo in memoria e si perdono al riavvio _(2026-11-22)_
+- I dati `inUnione`, `esitiUnioni` e `dopoLavoro` di `VistaAttesa` hanno per chiave il workspace del servizio: per filtrare per autopilota si confrontano i riferimenti normalizzati. _(2026-11-22)_
 
 ## battito
 
