@@ -341,13 +341,10 @@
 
 ## guardia
 
-- `tipiSpecialisti` nel contesto della guardia è facoltativo: i test vecchi non lo passano e non si rompono. Senza git il controllo del tipo `Agent` è spento di proposito. _(2026-11-08)_
 - il rifiuto delle cancellazioni nelle chat sta in divieti.ts (giudicaCancellazioni), chiamato da /hook/pretool in server.ts; cancella-sicura.ts riguarda solo le pulizie del programma _(2026-11-10)_
 
 ## renderer
 
-- i canali nuovi di window.gestore vanno dichiarati opzionali in env.d.ts e chiamati con `?.`: i finti dei test e le app più vecchie non li hanno. _(2026-11-08)_
-- La Panoramica non ha una lettura propria: gli specialisti li legge `ChatSpecialisti` col sondaggio dell'orchestratore, e l'evento specialistiCambiati si aggancia con `sond.rileggi()`. _(2026-11-08)_
 - scriviQuandoPronta guarda solo i riquadri del workspace corrente: un avviso mandato a una chat di un workspace tenuto dietro sparisce in silenzio, quindi non va segnato come consegnato. _(2026-11-09)_
 - PannelloDomande mostra String(e) grezzo invece di testoErroreDialogo: a Nicholas arriva il messaggio tecnico con «Error invoking remote method». _(2026-11-10)_
 - le chiamate preferenze.imposta hanno un .catch vuoto (App.tsx:979 e simili): un salvataggio fallito non si vede. _(2026-11-12)_
@@ -358,10 +355,6 @@
 - `chiaveWorkspace` riceve dati remoti incompleti: i tipi dicono `cwd: string` ma a runtime può mancare; controllare con `typeof`, non fidarsi del tipo. _(2026-11-20)_
 - Il formato Panoramica+agenti dipende da `workspaceElenco` (preferenza per nome), che la migrazione riempie una volta sola: i workspace nuovi restavano fuori. _(2026-11-22)_
 - Gli hook di App.tsx vanno prima di `if (!pronto)`: un effetto dopo causa React #310. _(2026-11-22)_
-
-## fermate
-
-- Causa n.1 delle fermate (08/11): la guardia rimanda, ma lo specialista non può aspettare (sleep bloccato, niente Monitor), quindi chiude senza prove e il criterio diventa rosso. _(2026-11-08)_
 
 ## guardia-pc
 
@@ -496,6 +489,9 @@
 - `LavoroAffidato.percentuale` è una fotografia presa alla partenza del controllo: usarla per la lentezza dà falsi positivi, conta solo `fermoMs` dell'altro PC. _(2026-11-20)_
 - `connesso` del Drive è falso anche per una lettura del token fallita un attimo: ogni controllo che segnala «scollegato» deve ignorare `portachiaviNonPronto` e aspettare 2 giri. _(2026-11-20)_
 - il segno vero di scollegamento è `contoDrive.scollegamento()` (file scritto da `revocata`/`disconnetti`): si segnala subito, senza attendere il secondo giro. _(2026-11-20)_
+- k-175c richiede la cartella principale di Nicholas (E:\...\SierraDeck): su un mirror `git worktree list` non mostra le copie `agent-*`. Va controllato prima di assegnarlo. _(2026-11-22)_
+- `requisiti.rete` con un percorso locale non bastava: un PC con capacità sconosciute (versione vecchia) passa il filtro. Il controllo va fatto prima di valutaPrimaDiAffidare. _(2026-11-22)_
+- Il riconoscimento «resta qui» sta in motivoPerRestareQui (src/shared/aiuto-rete.ts): estenderlo lì, un solo punto per i compiti locali. _(2026-11-22)_
 
 ## cancello
 
@@ -670,6 +666,7 @@
 - un percorso ricavato dal testo non fa fallire il lavoro (informativo, con alternativa); solo le risorse dichiarate esplicitamente sono indispensabili. _(2026-11-16)_
 - I compiti «Aiuta la rete» girano su un repo mirror: i worktree del PC di Nicholas (.claude/worktrees) non ci sono. Prima di agire controllare che i rami nominati esistano. _(2026-11-22)_
 - Compiti che devono leggere i dati veri del PC di Nicholas (registri, preferenze, .claude/worktrees) non vanno su un altro PC: là c'è solo un mirror. Scriverlo nel prompt e verificarlo. _(2026-11-22)_
+- «Aiuta la rete» manda via anche i compiti che nel prompt dicono «solo sul PC di Nicholas» (k-175c, 22/11, 2 volte): serve un modo per tenere un compito in locale. _(2026-11-22)_
 
 ## gradle
 
