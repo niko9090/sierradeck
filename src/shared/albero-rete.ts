@@ -4,6 +4,7 @@ import { nomeDaMostrare } from './nome-pc'
 import { quantoFa, versionePcInBreve, prima } from './salute'
 import { inCorso, type AvanzamentoInstallaLa } from './installa-la'
 import type { MappaPc } from './collegamento'
+import { vistaPostiPc, type VistaPostiPc } from './posti-chat'
 
 /**
  * **La rete dei PC, ad albero** (16/11). Nicholas: «voglio che aggiungiamo una
@@ -34,6 +35,8 @@ export type NodoRete = {
   aggiornamento?: { testo: string; tono: Tono; percento?: number }
   /** Si può chiedere «Aggiorna da remoto»: PC completo, acceso, più vecchio, nessuna installazione in corso. */
   aggiornabile: boolean
+  /** k-179b: i posti delle chat con il motivo breve e la spiegazione; assente se quel PC non li manda (versione vecchia). */
+  posti?: VistaPostiPc
 }
 
 export type RamoRete = { id: 'pc' | 'aiutanti'; titolo: string; accesi: number; nodi: NodoRete[] }
@@ -155,7 +158,9 @@ export function alberoRete(d: DatiAlbero): AlberoRete {
     const inst = installazioni.get(b.pcId)
     const agg = aggiornamentoRemoto(inst, d.adesso)
     const versioneVera = d.vive?.[b.pcId] ?? b.versione
+    const posti = !eAiutante(b) ? vistaPostiPc(b.posti) : undefined
     const nodo: NodoRete = {
+      ...(posti !== undefined ? { posti } : {}),
       id: b.pcId,
       nome,
       tipo: eAiutante(b) ? 'aiutante' : 'pc',

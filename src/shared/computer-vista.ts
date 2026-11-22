@@ -45,6 +45,8 @@ export type SchedaPc = {
   versioneIndietro: boolean
   chat: ChatDiScheda[]
   aspettano: number
+  /** k-179b: il numero di chat, il motivo breve e la spiegazione (dietro «?»); assente per un PC che non li manda. */
+  posti?: NodoRete['posti']
   /** Le altre righe di dettaglio (ultimo segno, carico, lavori). */
   righe: RigaNodo[]
   aggiornamento?: NodoRete['aggiornamento']
@@ -98,6 +100,7 @@ export function computerDa(d: DatiComputer): Computer {
       versioneIndietro: ver?.tono === 'attenzione',
       chat,
       aspettano: chat.filter((c) => c.aspetta).length,
+      ...(n.posti !== undefined ? { posti: n.posti } : {}),
       righe: n.righe.filter((r) => r.etichetta !== 'Versione' && r.etichetta !== 'Collegamento' && r.etichetta !== 'Chat'),
       ...(n.aggiornamento !== undefined ? { aggiornamento: n.aggiornamento } : {}),
       azioni: {
