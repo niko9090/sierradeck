@@ -87,6 +87,7 @@
 - `rifiutata` in attesa-specialisti ha una sola «i»: l'alias `rifiutataDalTetto` nel servizio; un test già esistente pretende che un fallito perda il prompt, solo il fermato lo tiene _(2026-11-22)_
 - il tempo massimo della suite (verifiche.ts:87) è 20 min come il cane da guardia: una soglia di silenzio uguale ferma da sani gli specialisti che aspettano la suite _(2026-11-22)_
 - riassegna-lento-collegato.test.ts sta in tests/autopilot-host, non in tests/main come dice il compito. _(2026-11-22)_
+- per testare lotti di unioni nel servizio serve un cancello sul primo comando git: il primo ramo parte da solo con la fila vuota, il lotto lo formano quelli accodati dopo _(2026-11-22)_
 
 ## worktree
 
@@ -134,8 +135,6 @@
 
 ## release
 
-- `npm run pubblica` dopo un `gh release create` salta gli upload: servono `gh release upload` con i nomi a trattini di latest.yml. _(2026-11-10)_
-- Da un worktree servono google-oauth.json copiato dalla cartella principale e un node_modules vero (npm ci): la junction fa fermare controlla-pacchetto. _(2026-11-10)_
 - Il bump di versione fa fallire `tests/shared/novita.test.ts` se in `src/shared/novita.ts` manca la voce della nuova versione: aggiungerla nello stesso commit del bump. _(2026-11-10)_
 - In una copia di lavoro `npm run pubblica` rifiuta la junction di node_modules (serve `npm ci`) e vuole `google-oauth.json` (gitignorato) copiato dalla cartella principale. _(2026-11-10)_
 - Se la release è creata prima con `gh release create`, electron-builder salta il caricamento (draft vs release): caricare installer, blockmap e latest.yml con `gh release upload`. _(2026-11-10)_
@@ -296,6 +295,7 @@
 - rami con rotte nuove: il conflitto sta nel tipo `FonteAiuto` di `src/main/rotte-aiuto.ts`; tenere i campi opzionali di entrambi i lati. _(2026-11-20)_
 - `turni.unione` rende `TurnoScaduto` subito ma libera cartella e conteggio solo a `fai()` chiuso; pulizia della prova scaduta sempre dentro `turni.unione _(2026-11-22)_
 - il lucchetto della cartella principale sta in turni.unione (turni-criteri.ts): si rende a corsa chiusa o dopo UNIONE_LIBERA_DOPO_MS dalla scadenza, mai prima _(2026-11-22)_
+- i rami entrati in un lotto ripartono da `ramoUnito`: senza, cancelloOra li dice «fuori dai rami» e cambia il testo dell'evento «unione» _(2026-11-22)_
 
 ## ui
 
