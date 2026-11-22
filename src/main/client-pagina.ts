@@ -2092,7 +2092,7 @@ function postiChatHtml(s) {
       (p.avviso ? '<div class="posti-chat--pieno">⚠ ' + esc(p.avviso) + '</div>' : '') +
       (postiNota ? '<div>' + esc(postiNota) + '</div>' : '') + '</div>'
   }
-  return '<div class="posti-chat' + (pieno ? ' posti-chat--pieno' : '') + '" role="status"><button class="posti-chat__tasto" aria-haspopup="dialog" title="Cambia quante chat lavorano insieme" onclick="postiApri()"><span class="posti-chat__riga">' + esc(p.riga) + '</span></button>' +
+  return '<div class="posti-chat' + (pieno ? ' posti-chat--pieno' : '') + '" role="status"><button class="posti-chat__tasto" aria-haspopup="dialog" title="Cambia quante chat lavorano insieme" onclick="postiApri()"><span class="posti-chat__riga">' + esc(p.riga) + '</span>' + (p.motivo ? '<span class="posti-chat__motivo"> · ' + esc(p.motivo) + '</span>' : '') + '</button>' +
     (p.avviso && !postiAperto ? '<span class="posti-chat--pieno"> ⚠ PC carico</span>' : '') +
     aiuto('posti-chat', esc(p.spiega || '').split(String.fromCharCode(10)).join('<br>') + '<br>Da 1 a 8, vale subito; «Automatico» torna a decidere il PC. Il limite degli specialisti vale al prossimo avvio dell’autopilota, a turno finito.', 'Chat al lavoro insieme') + pannelloPosti + '</div>'
 }

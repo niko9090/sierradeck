@@ -129,6 +129,8 @@ export type StatoPosti = {
  * aspettare le chat a ogni giro.
  */
 export function prossimiPosti(prec: StatoPosti | undefined, calcolo: CalcoloPosti, ora: number): StatoPosti {
+  // Il numero scelto a mano non varia mai: né la discesa né la salita lenta lo toccano.
+  if (calcolo.perche === 'scelto') return { posti: calcolo.posti, perche: 'scelto', cambiatoIl: prec?.posti === calcolo.posti && prec.perche === 'scelto' ? prec.cambiatoIl : ora }
   if (prec === undefined) return { posti: calcolo.posti, perche: calcolo.perche, cambiatoIl: ora }
   if (calcolo.posti < prec.posti) return { posti: calcolo.posti, perche: calcolo.perche, cambiatoIl: ora }
   if (calcolo.posti === prec.posti) return { posti: prec.posti, perche: calcolo.perche, cambiatoIl: prec.cambiatoIl }
@@ -175,6 +177,20 @@ export function avvisoCarico(p: PostiChat): string | undefined {
 /** La riga corta: «3 di 6 chat», con la fila se c'è. */
 export function rigaPosti(p: PostiChat): string {
   return `${p.attive} di ${p.posti} chat${p.inFila > 0 ? ` · ${p.inFila} in fila` : ''}`
+}
+
+/** Il motivo corto accanto al numero, sempre visibile (senza il «·» davanti): uguale ovunque. */
+export function motivoCorto(p: Pick<PostiChat, 'perche' | 'risale' | 'regolazione' | 'misura'>): string {
+  if (p.perche === 'scelto') return 'scelto da te'
+  if (p.risale) return 'risale'
+  const m = p.misura
+  switch (p.perche) {
+    case 'memoria': return m !== undefined ? `poca memoria (${gb(m.memoriaLiberaMb)} GB liberi)` : 'poca memoria'
+    case 'carico': return m !== undefined ? `PC carico (${Math.round(m.caricoPercento)}%)` : 'PC carico'
+    case 'processori': return '3 ogni 4 processori'
+    case 'minimo': return 'minimo'
+    case 'massimo': return p.regolazione === 1 ? 'massimo' : 'massimo di serie'
+  }
 }
 
 /** Il testo dietro «?»: com'è fatto il numero, in parole semplici. */

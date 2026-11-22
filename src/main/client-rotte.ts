@@ -1,6 +1,6 @@
 import { vistaAccount } from '@shared/account-vista'
 import { PERCORSO } from '@shared/percorsi-menu'
-import { avvisoCarico, leggiPostiScelti, origineCorta, rigaPosti, spiegaPosti, POSTI_SCELTI_MAX, POSTI_SCELTI_MIN, type PostiChat } from '@shared/posti-chat'
+import { avvisoCarico, leggiPostiScelti, motivoCorto, origineCorta, rigaPosti, spiegaPosti, POSTI_SCELTI_MAX, POSTI_SCELTI_MIN, type PostiChat } from '@shared/posti-chat'
 import { attivitaDaSegnali } from '@shared/attivita-chat'
 import type { Segnale } from '@shared/segnali-chat'
 import { colonnePiano, numeraUguali, ordinaSchede, pianoAutopilota, riassuntoAlLavoro, riassuntoAutopilota, righeDalVivo, situazioneAutopilota, ultimaAzioneDalVivo, type StatoScheda } from '@shared/panoramica'
@@ -1295,7 +1295,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         domandeInAttesa,
         // 0.82.0: «N di M chat» su questo PC, con il perché per il «?».
         // Con i testi già scritti: la pagina e l'app li mostrano come il PC.
-        ...(postiChat !== undefined ? { postiChat: { ...postiChat, riga: rigaPosti(postiChat), spiega: spiegaPosti(postiChat), origine: origineCorta(postiChat), ...(avvisoCarico(postiChat) !== undefined ? { avviso: avvisoCarico(postiChat) } : {}) } } : {}),
+        ...(postiChat !== undefined ? { postiChat: { ...postiChat, riga: rigaPosti(postiChat), motivo: motivoCorto(postiChat), spiega: spiegaPosti(postiChat), origine: origineCorta(postiChat), ...(avvisoCarico(postiChat) !== undefined ? { avviso: avvisoCarico(postiChat) } : {}) } } : {}),
         // Quanti file aspettano questo telefono (0.54.0): l'app li ritira subito.
         ...(depsPieni.alTelefono !== undefined && eTelefono(visore) ? { consegne: depsPieni.alTelefono.perTelefono(visore).length } : {}),
         // Senza la coda delle righe: l'elenco si chiede ogni due secondi, e
