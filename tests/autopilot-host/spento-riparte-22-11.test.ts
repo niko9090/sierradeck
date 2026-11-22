@@ -11,13 +11,10 @@ import { apriOrchestratori } from '../../src/autopilot-host/orchestratore-store'
 import type { AvviaProcesso, ProcessoClaude } from '../../src/autopilot-host/orchestratore'
 import type { Git } from '../../src/autopilot-host/worktree'
 import { nuovoAutopilota } from '@shared/autopilota'
-import { RIPRESA_DOPO_INATTIVITA_MS } from '../../src/autopilot-host/servizio-orchestratore'
 import { attendi } from '../setup/attendi'
 
 /**
- * k-174g (22/11). Un autopilota spento per inattività con lavoro aperto non ripartiva: «riparte con --resume»
- * era solo una frase, nessuno lo risvegliava se il piano non mostrava niente di fermo. Adesso lo spegnimento
- * fissa sul disco una sveglia: la suona la guardia, anche dopo un riavvio del servizio.
+ * k-174g (22/11), rivisto da k-178a: niente sveglia a +20 minuti. Con lavoro aperto lo spegnimento per inattività non avviene; se il processo non c'è (riavvio del servizio) la guardia lo rilancia subito.
  */
 
 type Finto = ProcessoClaude & { scritte: string[]; emetti: (o: unknown) => void; ucciso: boolean }
@@ -92,40 +89,35 @@ const zitto = (): void => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
 }
 
-describe('autopilota spento per inattività (k-174g)', () => {
-  it('con lavoro aperto lo spegnimento fissa una ripresa sul disco', async () => {
+describe('autopilota spento per inattività (k-174g, rivisto da k-178a)', () => {
+  it('con lavoro aperto non si spegne e non lascia nessuna sveglia sul disco', async () => {
     zitto()
     const c = cartelle()
     await conPrimoTurno(c)
-    await attendi(() => processi[0]!.ucciso, { cosa: 'spegnimento per inattività' })
-    const sveglie = apriOrchestratori(c.orch).impostazioni('Lavoro').sveglie ?? []
-    expect(sveglie).toHaveLength(1)
-    expect(Date.parse(sveglie[0]!.il)).toBe(base + RIPRESA_DOPO_INATTIVITA_MS)
-  })
-
-  it('dopo un riavvio del servizio la ripresa suona e l’autopilota riparte', async () => {
-    zitto()
-    const c = cartelle()
-    await conPrimoTurno(c)
-    await attendi(() => processi[0]!.ucciso, { cosa: 'spegnimento per inattività' })
-    server!.close()
-    processi = []
-    await avviaServizio(c)
-    // Il servizio è ripartito: la memoria è vuota, il processo non c'è. Passa il tempo della ripresa.
-    avanti = RIPRESA_DOPO_INATTIVITA_MS + 1000
-    server!.controllaChatFerme()
-    await attendi(() => processi.length > 0, { cosa: 'processo ripartito' })
-    await attendi(() => processi[0]!.scritte.some((r) => testoScritto(r).includes('spento per inattività')), { cosa: 'evento di ripresa' })
+    await new Promise((r) => setTimeout(r, 150))
+    expect(processi[0]!.ucciso).toBe(false)
     expect(apriOrchestratori(c.orch).impostazioni('Lavoro').sveglie).toBeUndefined()
   })
 
-  it('con la coda vuota nessuna ripresa', async () => {
+  it('dopo un riavvio del servizio con lavoro aperto l’autopilota riparte subito, senza attese', async () => {
+    zitto()
+    const c = cartelle()
+    await conPrimoTurno(c)
+    server!.close()
+    processi = []
+    await avviaServizio(c)
+    server!.controllaChatFerme()
+    await attendi(() => processi.length > 0, { cosa: 'processo ripartito' })
+    await attendi(() => processi[0]!.scritte.some((r) => /riprend|fermo|riavviato/iu.test(testoScritto(r))), { cosa: 'evento di ripresa' })
+    expect(apriOrchestratori(c.orch).impostazioni('Lavoro').sveglie).toBeUndefined()
+  })
+
+  it('con la coda vuota si spegne e nessuno lo riavvia', async () => {
     zitto()
     const c = cartelle()
     await conPrimoTurno(c, false)
     await attendi(() => processi[0]!.ucciso, { cosa: 'spegnimento per inattività' })
-    expect(apriOrchestratori(c.orch).impostazioni('Lavoro').sveglie).toBeUndefined()
-    avanti = 3 * RIPRESA_DOPO_INATTIVITA_MS
+    avanti = 3_600_000
     server!.controllaChatFerme()
     await new Promise((r) => setTimeout(r, 50))
     expect(processi).toHaveLength(1)

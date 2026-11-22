@@ -89,8 +89,13 @@ import { causaDelFallimento, causaDelMotivo, chiaveCompito, COMPITI_PER_PAUSA_PC
 
 /** 0.89.4: dopo quanto il lavoro fermo sveglia l'autopilota. 11/11: senza un tetto di spinte (`lavoro-fermo.ts`). */
 export const FERMO_DOPO_MS = 3 * 60_000
-/** k-174g: dopo quanto si riprende un autopilota spento per inattività con lavoro aperto. */
-export const RIPRESA_DOPO_INATTIVITA_MS = 20 * 60_000
+/**
+ * k-178a: il riavvio dell'autopilota morto con lavoro da portare avanti. Il primo è subito (primo giro della guardia),
+ * poi 1, 2, 4 minuti fino a `RISVEGLIO_MAX_MS` se non cambia niente; dopo `RISVEGLI_VELOCI` risvegli uguali, ogni `RISVEGLIO_LENTO_MS`.
+ */
+export const RISVEGLIO_MAX_MS = 5 * 60_000
+export const RISVEGLI_VELOCI = 10
+export const RISVEGLIO_LENTO_MS = 15 * 60_000
 /** 0.89.4: dopo quanto una domanda dell'autopilota senza risposta si chiude. */
 export const DOMANDA_VECCHIA_MS = 24 * 60 * 60_000
 /** 06/11, fila delle unioni: un'unione (prova, unione, criterio) che supera questo tempo si chiude e si rimette in fila. 11/11: 60 minuti, in `tempi-unione.ts`. */
@@ -1276,7 +1281,7 @@ ${NOTA_SENZA_GIT}`,
     // 11/11: quanti autopiloti hanno il turno insieme lo decide Nicholas, e vale subito.
     ...(x.chiamateMax !== undefined ? { globaliMax: x.chiamateMax } : x.limiti !== undefined ? { globaliMax: () => x.limiti!().turniAutopilota } : {}),
     ...(x.inattivoMs !== undefined ? { inattivoMs: x.inattivoMs } : {}),
-    spentoPerInattivita: (ws) => fissaRipresaDopoInattivita(ws),
+    lavoroDaPortareAvanti: (ws) => lavoroDaPortareAvanti(ws),
     // 11/11: nessun permesso aspetta più Nicholas (decide il programma): niente `attendeNicholas`.
     limite: limiteRaggiunto,
     azzeramentoLimite: (_ws, motivo) => azzeramentoDaiLimiti(x.limitiPiano?.(), motivo, Date.parse(x.adesso()))
@@ -2739,22 +2744,53 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
 
   const conLavoroAperto = (ws: string): boolean => coda(ws).richieste.some((r) => r.stato !== 'fatta')
   /**
-   * k-174g: il processo dell'autopilota si è spento per inattività. Con lavoro aperto (una richiesta non chiusa)
-   * si fissa **sul disco** una sveglia: la suona la guardia anche dopo un riavvio del servizio (quelle scadute
-   * a servizio spento suonano al primo giro). Perché non tenere il processo acceso: sono PC con poca memoria.
-   * Non si fissa se c'è già una sveglia futura (una pausa voluta) o se Nicholas ha domande aperte: l'autopilota
-   * sta aspettando lui e una sua risposta è un messaggio, che risveglia comunque.
+   * k-178a (sostituisce la sveglia a +20 minuti di k-174g: un compito non resta mai fermo ad aspettarla).
+   * Il lavoro aperto si può portare avanti? Sì se la coda ha richieste aperte e c'è uno specialista al lavoro
+   * (qui o su un altro PC), un'unione in corso o in fila, o qualcosa che `lavoroFermo` dice che si muove
+   * (compiti pronti, orfani, da unire, richieste da pianificare o da chiudere). No con la coda vuota, o se
+   * resta solo una decisione di Nicholas (o unioni ferme che il programma riprova da sé).
    */
-  const fissaRipresaDopoInattivita = (ws: string): void => {
-    if (!conLavoroAperto(ws)) return
-    const ora = oraMs()
-    if (prossimaSveglia(ws, ora) !== undefined) return
-    const u = unicoDi(ws)
-    if (u !== undefined && x.domande.aperte(u.id).length > 0) return
-    if ((imp(ws).sveglie ?? []).length >= SVEGLIE_MAX) return
-    const il = new Date(ora + RIPRESA_DOPO_INATTIVITA_MS).toISOString()
-    x.orchestratori.cambiaImpostazioni(ws, (i) => ({ ...i, sveglie: [...(i.sveglie ?? []), { il, perche: 'ti eri spento per inattività con lavoro aperto in coda o nel piano: guarda coda e piano e porta avanti quello che si può muovere', chiesta: x.adesso() }].sort((p, q) => p.il.localeCompare(q.il)) }))
-    console.info(`[orchestratore] ${ws} — spento per inattività con lavoro aperto: ripresa fissata sul disco`)
+  const chatAdottateAlLavoro = (ws: string): number => specialistiVivi(unicoDi(ws)).filter((c) => c.stato === 'lavoro').length
+  const lavoroDaPortareAvanti = (ws: string, ora: number = oraMs()): boolean => {
+    if (!conLavoroAperto(ws)) return false
+    if (alLavoroNel(ws) > 0 || unioniIn(ws) > 0 || chatAdottateAlLavoro(ws) > 0) return true
+    return firmaLavoroPortabile(ws, ora) !== undefined
+  }
+  /** La firma di quello che si può muovere, `undefined` se non c'è niente (o aspetta solo unioni che il programma riprova da sé). */
+  const firmaLavoroPortabile = (ws: string, ora: number): string | undefined => {
+    const vivi = new Set(subagenti(ws).filter((y) => y.stato === 'avviato' || y.stato === 'lavoro').map((y) => y.id))
+    const ferme = (filaUnioni.get(ws) ?? []).filter((l) => unioneFerma(l, ora) && l.compito !== undefined)
+    const f = lavoroFermo({ coda: coda(ws), piano: x.orchestratori.piano(ws), alLavoro: vivi, inUnione: new Set(unioniVive(ws, ora).flatMap((l) => (l.compito !== undefined ? [l.compito] : []))), unioniFerme: new Map(ferme.map((l) => [l.compito!, 'ferma'])) })
+    if (f === undefined || f.firma.split('|').every((t) => t.endsWith(':unione-ferma'))) return undefined
+    return f.firma
+  }
+  /**
+   * k-178a: il processo dell'autopilota è morto (crash, riavvio del servizio, spegnimento per altri motivi) e
+   * c'è lavoro da portare avanti: lo si rilancia **subito** con --resume (l'evento forza il turno) e un messaggio
+   * che dice di riprendere dallo stato. Giro della guardia, quindi entro un minuto. Contro i giri a vuoto: se
+   * dopo un risveglio non cambia niente (stessa firma) la quiete richiesta cresce (`attesaRisveglio`).
+   */
+  const risvegliVisti = new Map<string, { firma: string; n: number; ultima: number }>()
+  const attesaRisveglio = (n: number): number => (n === 0 ? 0 : n >= RISVEGLI_VELOCI ? RISVEGLIO_LENTO_MS : Math.min(RISVEGLIO_MAX_MS, 60_000 * 2 ** (n - 1)))
+  const riavviaSeMorto = (ora: number): void => {
+    for (const a of unici()) {
+      if (a.archiviato === true) continue
+      const ws = wsDi(a)
+      if (!lavoroDaPortareAvanti(ws, ora)) { risvegliVisti.delete(ws); continue }
+      if (orchestratore.vivo(ws) || orchestratore.inVolo(ws)) continue
+      const attesa = orchestratore.inAttesa(ws)
+      if (attesa.messaggi > 0 || attesa.eventi > 0) continue
+      // Una pausa voluta (sveglia futura) o una quota finita: l'autopilota riparte quando deve, non lo si forza.
+      if (prossimaSveglia(ws, ora) !== undefined) continue
+      const firma = firmaLavoroPortabile(ws, ora) ?? `specialisti:${alLavoroNel(ws)}|adottate:${chatAdottateAlLavoro(ws)}|unioni:${unioniIn(ws)}`
+      let v = risvegliVisti.get(ws)
+      // Un risveglio di molte ore fa non conta: il conto riparte.
+      if (v === undefined || v.firma !== firma || ora - v.ultima > 2 * 3_600_000) v = { firma, n: 0, ultima: -Infinity }
+      if (ora - v.ultima < attesaRisveglio(v.n)) { risvegliVisti.set(ws, v); continue }
+      risvegliVisti.set(ws, { firma, n: v.n + 1, ultima: ora })
+      console.info(`[orchestratore] ${ws} — l’autopilota non è acceso e c’è lavoro da portare avanti: lo riavvio (risveglio ${v.n + 1})`)
+      evento(ws, { tipo: 'fermo', quando: x.adesso(), testo: 'Ti ho riavviato: il processo si era fermato (spegnimento, errore o riavvio del servizio) e in coda e nel piano c’è lavoro che si può portare avanti. Riprendi dallo stato: guarda coda e piano, affida i compiti pronti, unisci quelli finiti, chiudi le richieste concluse. Non aspettare una conferma di Nicholas per quello che si può muovere.' }, true)
+    }
   }
   const giroRiallineo = (ora: number): void => {
     const ogni = x.riallineoOgniMs ?? RIALLINEO_OGNI_MS
@@ -2776,6 +2812,8 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     try { rimisuraNonMisurati(ora) } catch (err) { console.error('[orchestratore] rimisura dei criteri non misurati non riuscita:', err) }
     try { giroRiallineo(ora) } catch (err) { console.info('[orchestratore] giro di riallineo col remoto non riuscito, riprovo al prossimo:', err) }
     try { suonaSveglie(ora) } catch (err) { console.error('[orchestratore] sveglie non suonate, riprovo al prossimo giro:', err) }
+    // Dopo le sveglie: se una suona è lei il messaggio con cui riparte; altrimenti lo dice il promemoria di ripresa.
+    try { riavviaSeMorto(ora) } catch (err) { console.error('[orchestratore] riavvio dell’autopilota non riuscito:', err) }
     for (const a of unici()) {
       for (const c of specialistiVivi(a)) {
         if (c.stato !== 'lavoro') continue

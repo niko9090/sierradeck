@@ -38,8 +38,10 @@ export function lavoroFermo(p: { coda: Coda; piano: Piano; alLavoro: ReadonlySet
   const verde = new Set(p.piano.compiti.filter((c) => (c.stato === 'unito' && c.criterioVerde === true) || c.chiuso !== undefined).map((c) => c.id))
   const firma: string[] = []
   const righe: string[] = []
+  // k-178a: un «dopo» che nel piano non c'è più non aspetta niente: il compito è pronto lo stesso.
+  const nelPiano = new Set(p.piano.compiti.map((c) => c.id))
   for (const c of compiti) {
-    if (c.stato === 'da-fare' && c.dopo.every((d) => verde.has(d))) {
+    if (c.stato === 'da-fare' && c.dopo.every((d) => verde.has(d) || !nelPiano.has(d))) {
       firma.push(`${c.id}:pronto`)
       righe.push(`- ${c.id} pronto da affidare: ${corto(c.titolo, 100)}`)
     } else if (c.stato === 'in-corso' && (c.chat === undefined || !p.alLavoro.has(c.chat))) {
@@ -61,9 +63,16 @@ export function lavoroFermo(p: { coda: Coda; piano: Piano; alLavoro: ReadonlySet
     }
   }
   for (const r of p.coda.richieste) {
-    if (r.stato === 'fatta' || r.compiti.length > 0) continue
-    firma.push(`${r.id}:senza-piano`)
-    righe.push(`- ${r.id} senza piano: «${corto(r.titolo, 100)}» — pianificala, o chiudila con coda_chiudi se non è lavoro`)
+    if (r.stato === 'fatta') continue
+    const suoi = p.piano.compiti.filter((c) => c.richiesta === r.id)
+    if (r.compiti.length === 0 && suoi.length === 0) {
+      firma.push(`${r.id}:senza-piano`)
+      righe.push(`- ${r.id} senza piano: «${corto(r.titolo, 100)}» — pianificala, o chiudila con coda_chiudi se non è lavoro`)
+    } else if (suoi.length > 0 && suoi.every((c) => verde.has(c.id))) {
+      // k-178a: tutti i compiti uniti (o chiusi) e la richiesta ancora aperta: nessuno la chiude, resterebbe così per sempre.
+      firma.push(`${r.id}:da-chiudere`)
+      righe.push(`- ${r.id} ha tutti i compiti uniti ma è ancora aperta: «${corto(r.titolo, 100)}» — verifica che sia davvero finita e chiudila con coda_chiudi`)
+    }
   }
   return righe.length === 0 ? undefined : { firma: firma.join('|'), righe }
 }
