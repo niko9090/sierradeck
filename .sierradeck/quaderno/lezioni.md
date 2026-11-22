@@ -92,6 +92,8 @@
 - Per un test a livello di server il workspace nasce dalla migrazione di un vecchio autopilota con una chat viva (`migraVecchi`), che adotta la chat e apre una richiesta in coda. Per una coda vuota va … _(2026-11-22)_
 - `servizio-orchestratore.test.ts` «il PreToolUse dell'unico…» fallisce anche senza modifiche quando si lancia dalla copia (worktree): dipende dal percorso, non è una regressione. _(2026-11-22)_
 - `servizio-orchestratore.test.ts` («PreToolUse dell'unico») fallisce già sulla base nel worktree: dipende dal percorso della copia, non è una regressione. _(2026-11-22)_
+- per provare il silenzio del lavoratore bastano fake timer solo su setInterval/clearInterval, creati prima di `avvia`; avanzare di 30 s per volta, un salto più lungo conta come sonno. _(2026-11-22)_
+- test «unione scaduta»: dopo la scadenza il posto resta occupato fino a git chiuso, quindi i finti `fai` vanno chiusi col segnale _(2026-11-22)_
 
 ## worktree
 
@@ -220,6 +222,7 @@
 - `togliCopiaUnita` cancella già il ramo (`branch -d`/`-D` con `forza`): un secondo `branch -D` subito dopo fallisce con «not found», va verificato prima. _(2026-11-22)_
 - Le cartelle di build di Android fanno fallire `git worktree remove` con «Filename too long»: usare Remove-Item su `\\?\percorso`, poi `git worktree prune`. _(2026-11-22)_
 - turni.unione rilascia il posto allo scadere mentre il git continua: un'altra unione nella stessa cartella può sovrapporsi (turni-criteri.ts:141-145). _(2026-11-22)_
+- un git di prova che resta appeso deve chiudersi sul segnale, altrimenti con la fila nuova il posto della cartella non si libera mai _(2026-11-22)_
 
 ## autopilota
 
@@ -268,8 +271,6 @@
 
 ## drive
 
-- Con Drive pieno il freno blocca anche battito, posta e registro insieme; «acceso» in Progetti viene solo dal battito, quindi un PC che risponde appare «non risponde». _(2026-11-09)_
-- A Drive pieno il freno blocca POST/PUT/PATCH ma non DELETE: ogni pulizia va annotata in locale (spazio-intenzioni.json) e il registro sul Drive va riallineato dopo, mai prima. _(2026-11-09)_
 - Il freno blocca solo POST/PUT/PATCH: ogni scrittura fa prima una ricerca GET (google-drive.ts carica), e i ritentativi su rateLimit non guardano il freno. _(2026-11-10)_
 - Il 403 storageQuotaExceeded non entra in «rifiutate» (risorse.ts 179-183): le rifiutate sono solo limiti di velocità. _(2026-11-10)_
 - `conFreno` alza il freno sulla prima risposta 429/rateLimit, quindi un controllo `attesaMs() > 0` dentro `conRitenta` equivale a «mai ritentare i limiti»; i test che si aspettano il ritentativo vanno… _(2026-11-10)_
@@ -278,7 +279,6 @@
 
 ## tooling
 
-- Nel worktree i comandi Bash/sed composti con più modifiche vengono rifiutati come «troppo complessi»: usare Edit per le modifiche multiple. _(2026-11-09)_
 - Edit su una riga di import senza il newline finale la incolla alla successiva: dopo ogni Edit di import controllare con typecheck. _(2026-11-20)_
 
 ## criteri
@@ -303,6 +303,7 @@
 - Fino alla 0.99.1 installata una nota del quaderno con righe cambiate o tolte ferma tutta la fila: la sblocca solo un commit di `.sierradeck/quaderno` fatto da una chat aperta nella cartella principale (dalla 0.99.2 la salva il programma). _(2026-11-11)_
 - Dalla 0.100.0 un file non salvato nella cartella principale ferma un’unione solo se il ramo lo tocca; in quel caso dopo 5 minuti è il programma a chiedere a Nicholas «Salvali e unisci», non l’autopilota. _(2026-11-11)_
 - rami con rotte nuove: il conflitto sta nel tipo `FonteAiuto` di `src/main/rotte-aiuto.ts`; tenere i campi opzionali di entrambi i lati. _(2026-11-20)_
+- `turni.unione` rende `TurnoScaduto` subito ma libera cartella e conteggio solo a `fai()` chiuso; pulizia della prova scaduta sempre dentro `turni.unione _(2026-11-22)_
 
 ## ui
 
@@ -318,7 +319,6 @@
 
 ## salute
 
-- `IngressiSalute.io` può mancare nei test e in alcuni punti di `index.ts`: per il nome di «questo PC» serve un ripiego («Questo PC»). _(2026-11-09)_
 - «Quanto lavora SierraDeck»: il tono dipende solo dai consumi di questo PC; i dati degli altri PC arrivano dal battito sul Drive e, se vecchio (PC_SPENTO_DOPO_MS), non vanno mostrati come attuali. _(2026-11-10)_
 - Le voci create da `risorse` di un altro PC (consumi, `gpu:`) vanno filtrate col battito recente in `componiSalute`; ogni nuova voce per PC ha lo stesso rischio di dato vecchio. _(2026-11-10)_
 - «non so se è acceso» valeva anche con battito fresco; ora «acceso secondo il Drive, ma non si raggiunge». Le righe unite del controllo (controllo-pc.ts `generica`) vanno aggiornate con ogni nuova dic… _(2026-11-15)_
@@ -331,8 +331,6 @@
 
 ## aggiornamenti
 
-- pausa-aggiornamento.json era sempre `sessioni: []`: chi parte dopo la quiete (consegna dell'autopilota durante il salvataggio) non si annotava; ora si ricontrolla dopo `prepara` e all'uscita. _(2026-11-09)_
-- Il servizio parte dopo che il Gestore ha letto e cancellato pausa-aggiornamento.json e aggiornamento-in-corso.json: per capire se c'è stato un update servono i segni nell'archivio o il payload di /ge… _(2026-11-09)_
 - il 504 di GitHub passa solo se l'errore ha statusCode o inizia con il codice seguito da Headers; l'HttpError con descrizione o frase vuota non è coperto dai test _(2026-11-10)_
 - `creaAggiornamenti` prende parametri posizionali in coda: un nuovo aggancio (come `annunciaAgliAltri`) va aggiunto per ultimo, senza toccare l'ordine. _(2026-11-19)_
 
@@ -342,7 +340,6 @@
 
 ## renderer
 
-- scriviQuandoPronta guarda solo i riquadri del workspace corrente: un avviso mandato a una chat di un workspace tenuto dietro sparisce in silenzio, quindi non va segnato come consegnato. _(2026-11-09)_
 - PannelloDomande mostra String(e) grezzo invece di testoErroreDialogo: a Nicholas arriva il messaggio tecnico con «Error invoking remote method». _(2026-11-10)_
 - le chiamate preferenze.imposta hanno un .catch vuoto (App.tsx:979 e simili): un salvataggio fallito non si vede. _(2026-11-12)_
 - Un hook che cambia sorgente (workspace o PC) non deve tenere il valore di prima: `useSondaggio` lo legava al sondaggio vecchio, e `useAutopilotaRemoto` lasciava scrivere una lettura in viaggio del workspace precedente. Ogni lettura va legata al suo giro. _(2026-11-13)_
@@ -367,14 +364,6 @@
 - `pubblica` allega da solo json e Aiutante e lascia la release in bozza: alla fine servono `gh release edit --draft=false --latest` e il controllo dei 7 file. _(2026-11-19)_
 - Se `pubblica` dice «mancano installer, blockmap e latest.yml», sono già in dist/ ma con spazi: caricarli con `gh release upload`, rinominati a trattini (SierraDeck-Setup-X.exe). _(2026-11-20)_
 - Con la release creata prima da `gh release create`, serve poi `gh release edit --draft=false --latest`: `pubblica` non la segna Latest da sola. _(2026-11-20)_
-
-## tsconfig
-
-- con noUncheckedIndexedAccess `aree[0]` è `T | undefined`: annotare il tipo (`let area: Rettangolo = x ?? aree[0]!`), altrimenti gli errori si propagano a ogni uso. _(2026-11-09)_
-
-## finestra
-
-- Electron maximizza sul display che contiene i bounds normali: se questi sono fuori dai monitor, anche la finestra ingrandita finisce nel posto sbagliato. _(2026-11-09)_
 
 ## servizio
 
@@ -499,6 +488,7 @@
 ## flusso
 
 - Un rifiuto dell'hook che contiene «sottofondo/async/background» viene letto dal flusso come Agent partito in sottofondo: nessun «finito», il compito resta «in-corso». Evitare quelle parole nei motivi. _(2026-11-10)_
+- `usage` di `task_progress` è cumulativo per task: per i token di un agente vale il massimo visto. Nel `result` dell'orchestratore invece l'`usage` somma il turno. _(2026-11-22)_
 
 ## piano
 
@@ -687,6 +677,7 @@
 - il lavoratore gira nel servizio autopilota, senza cassaforte: le credenziali vanno chieste dal main (rotta `/api/aiuto/avvia` → campo `segreti` nel corpo) e consumate in `lancia`. _(2026-11-20)_
 - Il ritiro del ramo che fallisce non deve chiudere il lavoro remoto: chiudi() cancella copia e ramo (aiuto-lavoratore.ts:315, aiuto-spedizioniere.ts:336). _(2026-11-22)_
 - Il riavvio dell'Aiutante fallisce il lavoro senza causa: resta «sconosciuta» e non si riassegna (aiuto-lavoratore.ts:230, aiuto-esito.ts:64). _(2026-11-22)_
+- `pulisciCopia` cancella anche il pacchetto di uscita: per un lavoro con commit da ritirare serve passargli `tieniUscita`, non basta tenere il ramo. _(2026-11-22)_
 
 ## aiutante
 
@@ -922,3 +913,12 @@
 ## coda
 
 - Le richieste migrate hanno il testo del compito dentro «compiti» (coda-autopiloti.ts:72/87): piano-orchestratore.ts:436 le conta come aperte, e la richiesta resta «in-corso» anche se è tutto unito. _(2026-11-22)_
+- `compiti` di una richiesta deve avere solo id k-N: i testi dei compiti di prima stanno in `collegate`, che serve anche ai doppioni. _(2026-11-22)_
+
+## aiuti
+
+- In `server.ts` lo store dei lavori affidati (`apriAiuti`) è interno e tiene la lista in memoria dopo la prima lettura: nei test si scrive il file prima di avviare il server. _(2026-11-22)_
+
+## percorsi
+
+- `coda-autopiloti.ts` sta in `src/autopilot-host/`, non in `src/shared/`: i percorsi nei compiti possono essere sbagliati, si cercano con Glob. _(2026-11-22)_
