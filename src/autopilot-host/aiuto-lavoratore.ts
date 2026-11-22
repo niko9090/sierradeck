@@ -7,7 +7,7 @@ import {
   quantiPezzi, ramoDiRitorno, ramoValido, STRUMENTI_AIUTO, autoreValido, type AutoreGit, strumentiAmmessi, VIETATI_AIUTO, type LavoroOspitato, type StatoAiuto, type VistaLavoroAiutato
 } from '@shared/aiuto-rete'
 import { causaDalTesto, fraseCausa, motivoDelRisultato, type CausaFallimento } from '@shared/aiuto-esito'
-import { causaScadenza, scadenzaIniziale, scadenzaRaggiunta, scadenzaSegno, scadenzaTick, TICK_SCADENZA_MS } from '@shared/aiuto-scadenza'
+import { causaScadenza, causaSilenzio, scadenzaIniziale, scadenzaRaggiunta, scadenzaSegno, scadenzaTick, TICK_SCADENZA_MS } from '@shared/aiuto-scadenza'
 import { ambienteSpecialista, eNomeCredenziale, oscura } from '@shared/aiuto-credenziali'
 import { motivoRisorsa, risorseValide, risorsaMancante, sezioneRisorse, verificaRisorse, type Risorsa, type StrumentiVerifica } from '@shared/aiuto-risorse'
 import type { AvviaProcesso } from './processo-claude'
@@ -151,6 +151,32 @@ function npmCi(cartella: string, extra: string[]): Promise<void> {
   })
 }
 
+/** Quante voci al massimo si guardano per la sonda dei file (una copia grande non rallenta il giro). */
+const SONDA_VOCI_MAX = 20_000
+
+/**
+ * L'ultima modifica a un file della copia (ms), per sapere se una build lunga sta lavorando anche senza
+ * scrivere righe. Salta `node_modules` (una giunzione) e `.git`, e non segue i collegamenti.
+ */
+export async function ultimaModificaCopia(copia: string): Promise<number | undefined> {
+  let ultima: number | undefined
+  let viste = 0
+  const pila = [copia]
+  while (pila.length > 0 && viste < SONDA_VOCI_MAX) {
+    const dir = pila.pop()!
+    let voci: import('node:fs').Dirent[]
+    try { voci = readdirSync(dir, { withFileTypes: true }) } catch { continue }
+    for (const v of voci) {
+      if (++viste > SONDA_VOCI_MAX) break
+      if (v.name === 'node_modules' || v.name === '.git' || v.isSymbolicLink()) continue
+      const p = join(dir, v.name)
+      if (v.isDirectory()) pila.push(p)
+      try { const m = lstatSync(p).mtimeMs; if (ultima === undefined || m > ultima) ultima = m } catch { /* sparito */ }
+    }
+  }
+  return ultima
+}
+
 const eCollegamento = (p: string): boolean => { try { return lstatSync(p).isSymbolicLink() } catch { return false } }
 
 /** Le risorse guardate davvero: il file system (anche di rete), il PATH, l'ambiente. */
@@ -182,6 +208,8 @@ export function creaLavoratoreAiuto(x: {
    * vanno solo nell'ambiente dello specialista di quel lavoro e si dimenticano alla fine.
    */
   credenziali?: (r: { lavoro: string; nomi: string[]; perPc?: string }) => Promise<Record<string, string>>
+  /** k-178f: l'ultima modifica ai file della copia (ms, orologio di `adesso`), se più recente di `dal`; nelle prove, un finto. */
+  attivitaFile?: (copia: string, dal: number) => Promise<number | undefined>
 }): LavoratoreAiuto {
   const adesso = x.adesso ?? Date.now
   const log = x.log ?? ((r: string) => console.info(`[aiuto] ${r}`))
@@ -227,7 +255,8 @@ export function creaLavoratoreAiuto(x: {
       if (!idLavoroValido(l.id)) continue
       if (radiceAccettabile(l.radice)) radici.add(l.radice)
       if (terminato(l)) { lavori.set(l.id, l); continue }
-      const fallito: Lavoro = { ...l, stato: 'fallito', motivo: 'il servizio del PC che aiutava si è riavviato a metà lavoro', attivita: 'non riuscito', fine: adesso() }
+      // k-178f: la colpa è del PC (si è riavviato), non del compito: `pc` lo rende riassegnabile.
+      const fallito: Lavoro = { ...l, stato: 'fallito', motivo: `${fraseCausa('pc')} — il servizio del PC che aiutava si è riavviato a metà lavoro`, causa: 'pc', attivita: 'non riuscito', fine: adesso() }
       lavori.set(l.id, fallito)
       daPulire.push(fallito)
     }
@@ -305,18 +334,49 @@ export function creaLavoratoreAiuto(x: {
   }
 
   /** Tutto quello che un lavoro lascia: la copia, il ramo, i pacchetti. Anche per un lavoro rimasto a metà (senza `copia`). */
-  const pulisciCopia = async (l: Lavoro): Promise<void> => {
+  const pulisciCopia = async (l: Lavoro, tieniRamo = false, tieniUscita = false): Promise<void> => {
     const r = radiceDi(l)
     const base = l.progetto !== '' ? join(r, 'progetti', l.progetto) : undefined
     const repo = l.repo ?? (base !== undefined ? join(base, 'repo') : undefined)
     const copia = l.copia ?? (base !== undefined ? join(base, 'copie', l.id) : undefined)
     const via = async (): Promise<void> => {
       if (copia !== undefined) await togliCopia(copia, repo, r)
-      if (repo !== undefined && existsSync(join(repo, '.git'))) await git(['branch', '-D', ramoDiRitorno(l.id)], repo).catch(() => undefined)
+      if (!tieniRamo && repo !== undefined && existsSync(join(repo, '.git'))) await git(['branch', '-D', ramoDiRitorno(l.id)], repo).catch(() => undefined)
     }
     if (l.progetto !== '') await inProgetto(l.progetto, via)
     else await via()
-    for (const f of pacchettiDi(l)) { try { rmSync(f, { force: true }) } catch { /* resta */ } }
+    // k-178f: il pacchetto di uscita con commit da ritirare resta (lo toglie la chiusura o la dimenticanza dopo 2 giorni).
+    for (const f of tieniUscita ? [pacchettiDi(l)[0]!] : pacchettiDi(l)) { try { rmSync(f, { force: true }) } catch { /* resta */ } }
+  }
+
+  /**
+   * k-178f: un lavoro rimasto a metà (riavvio) può avere commit già fatti nel suo ramo: si mettono in un
+   * pacchetto da ritirare, come per un lavoro finito. Torna vero se i commit ci sono ma il pacchetto non
+   * si è potuto fare: allora il ramo non si cancella.
+   */
+  const salvaCommit = async (l: Lavoro): Promise<boolean> => {
+    if (l.base === undefined || l.progetto === '') return false
+    const repo = l.repo ?? join(radiceDi(l), 'progetti', l.progetto, 'repo')
+    if (!existsSync(join(repo, '.git'))) return false
+    const ramo = ramoDiRitorno(l.id)
+    const base = l.base
+    return inProgetto(l.progetto, async () => {
+      let commit = 0
+      try { commit = Number((await git(['rev-list', '--count', `${base}..${ramo}`], repo)).trim()) || 0 } catch { return false }
+      if (commit === 0) return false
+      try {
+        const out = pacchettiDi(l)[1]!
+        mkdirSync(dirname(out), { recursive: true })
+        await git(['bundle', 'create', out, ramo, `^${base}`], repo)
+        const byte = statSync(out).size
+        cambia(l, { ramo, commit, byte, attivita: `non riuscito, ${commit} commit da ritirare` })
+        log(`${l.id}: riavvio a metà lavoro, ${commit} commit salvati (${byte} byte da ritirare)`)
+        return false
+      } catch (err) {
+        log(`${l.id}: i ${commit} commit del ramo non si sono impacchettati (${String(err).slice(0, 160)}): il ramo resta`)
+        return true
+      }
+    })
   }
 
   /** I `node_modules` di un progetto oltre i più recenti `MODULI_DA_TENERE`, e quelli rimasti a metà: via, se nessuna copia al lavoro li usa. */
@@ -386,7 +446,10 @@ export function creaLavoratoreAiuto(x: {
   }
 
   const spazza = async (): Promise<void> => {
-    for (const l of daPulire.splice(0)) await pulisciCopia(l).catch(() => undefined)
+    for (const l of daPulire.splice(0)) {
+      const tieni = await salvaCommit(l).catch(() => true)
+      await pulisciCopia(l, tieni, (l.byte ?? 0) > 0).catch(() => undefined)
+    }
     const ora = adesso()
     for (const l of lavori.values()) {
       if (l.stato !== 'ricevo' || ora - (l.ultimoPezzo ?? l.inizio) < RICEZIONE_FERMA_MS) continue
@@ -494,14 +557,32 @@ export function creaLavoratoreAiuto(x: {
     // 17/11: le 3 ore contano solo col PC sveglio (un portatile addormentato di notte non fa scadere il lavoro),
     // e se la scadenza arriva dopo un sonno o con lo specialista muto la colpa è del PC (il lavoro passa a un altro).
     let tempo = scadenzaIniziale(adesso())
+    // k-178f: il silenzio si guarda a ogni giro, non solo alle 3 ore: un processo muto non resta acceso per ore.
+    // Prima di dichiararlo perso si guardano i file della copia: una build o una prova lunga scrive anche quando tace.
+    let controllo = false
     const scadenza = setInterval(() => {
-      if (finale !== undefined) return
+      if (finale !== undefined || controllo) return
       const ora = adesso()
       tempo = scadenzaTick(tempo, ora)
-      if (!scadenzaRaggiunta(tempo, LAVORO_MAX_MS)) return
-      clearInterval(scadenza)
-      cambia(l, causaScadenza(tempo, ora))
-      proc.uccidi()
+      const scaduto = scadenzaRaggiunta(tempo, LAVORO_MAX_MS)
+      let muto = causaSilenzio(tempo, ora)
+      if (!scaduto && muto === undefined) return
+      controllo = true
+      void (async () => {
+        try {
+          if (muto !== undefined) {
+            const ultima = await (x.attivitaFile ?? ultimaModificaCopia)(copia, tempo.ultimoSegno).catch(() => undefined)
+            if (ultima !== undefined && ultima > tempo.ultimoSegno) {
+              tempo = scadenzaSegno(tempo, Math.min(ultima, ora))
+              muto = causaSilenzio(tempo, ora)
+            }
+          }
+          if (finale !== undefined || (muto === undefined && !scaduto)) return
+          clearInterval(scadenza)
+          cambia(l, muto ?? causaScadenza(tempo, ora))
+          proc.uccidi()
+        } finally { controllo = false }
+      })()
     }, TICK_SCADENZA_MS)
     scadenza.unref?.()
     l.ferma = () => proc.uccidi()
