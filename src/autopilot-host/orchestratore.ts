@@ -299,6 +299,8 @@ export type DipendenzeOrchestratore = {
   globaliMax?: number | (() => number)
   sogliaRotazione?: number
   inattivoMs?: number
+  /** k-174g: il processo è stato spento per inattività: chi ha lavoro aperto fissa qui la ripresa. */
+  spentoPerInattivita?: (ws: string) => void
   /** Il cane da guardia: un turno senza righe per tanto si dà per appeso. */
   mutoMs?: number
   /** Attesa prima di riprovare dopo l'n-esimo errore di rete di fila (n da 1): cresce, ha un tetto. */
@@ -533,7 +535,15 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
       spegniSe(ws, s, `contesto oltre ${limite} token: la prossima volta una sessione nuova, con lo stato e le ultime ${BATTUTE_SEMINA} battute`)
       return
     }
-    s.inattivo = setTimeout(() => { s.inattivo = undefined; if (!inTurno(s) && specialistiAlLavoro(s.flusso).length === 0) spegniSe(ws, s, `fermo da ${Math.round(inattivoMs / 60_000)} minuti; riparte con --resume`) }, inattivoMs)
+    s.inattivo = setTimeout(() => {
+      s.inattivo = undefined
+      if (inTurno(s) || specialistiAlLavoro(s.flusso).length > 0) return
+      const c = s.proc !== undefined
+      spegniSe(ws, s, `fermo da ${Math.round(inattivoMs / 60_000)} minuti; riparte con --resume`)
+      // k-174g: «riparte con --resume» non basta, il processo non si rialza da solo. Lo spegnimento fissa sempre
+      // una ripresa (sul disco, sopravvive al riavvio del servizio) se c'è lavoro aperto.
+      if (c) try { d.spentoPerInattivita?.(ws) } catch (err) { console.error(`[orchestratore] ${ws} — ripresa dopo lo spegnimento non fissata:`, err) }
+    }, inattivoMs)
     s.inattivo.unref?.()
   }
 

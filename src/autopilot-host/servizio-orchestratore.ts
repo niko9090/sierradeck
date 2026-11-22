@@ -88,6 +88,8 @@ import { causaDelFallimento, causaDelMotivo, chiaveCompito, COMPITI_PER_PAUSA_PC
 
 /** 0.89.4: dopo quanto il lavoro fermo sveglia l'autopilota. 11/11: senza un tetto di spinte (`lavoro-fermo.ts`). */
 export const FERMO_DOPO_MS = 3 * 60_000
+/** k-174g: dopo quanto si riprende un autopilota spento per inattività con lavoro aperto. */
+export const RIPRESA_DOPO_INATTIVITA_MS = 20 * 60_000
 /** 0.89.4: dopo quanto una domanda dell'autopilota senza risposta si chiude. */
 export const DOMANDA_VECCHIA_MS = 24 * 60 * 60_000
 /** 06/11, fila delle unioni: un'unione (prova, unione, criterio) che supera questo tempo si chiude e si rimette in fila. 11/11: 60 minuti, in `tempi-unione.ts`. */
@@ -1257,6 +1259,7 @@ ${NOTA_SENZA_GIT}`,
     // 11/11: quanti autopiloti hanno il turno insieme lo decide Nicholas, e vale subito.
     ...(x.chiamateMax !== undefined ? { globaliMax: x.chiamateMax } : x.limiti !== undefined ? { globaliMax: () => x.limiti!().turniAutopilota } : {}),
     ...(x.inattivoMs !== undefined ? { inattivoMs: x.inattivoMs } : {}),
+    spentoPerInattivita: (ws) => fissaRipresaDopoInattivita(ws),
     // 11/11: nessun permesso aspetta più Nicholas (decide il programma): niente `attendeNicholas`.
     limite: limiteRaggiunto,
     azzeramentoLimite: (_ws, motivo) => azzeramentoDaiLimiti(x.limitiPiano?.(), motivo, Date.parse(x.adesso()))
@@ -2718,6 +2721,24 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
   }
 
   const conLavoroAperto = (ws: string): boolean => coda(ws).richieste.some((r) => r.stato !== 'fatta')
+  /**
+   * k-174g: il processo dell'autopilota si è spento per inattività. Con lavoro aperto (una richiesta non chiusa)
+   * si fissa **sul disco** una sveglia: la suona la guardia anche dopo un riavvio del servizio (quelle scadute
+   * a servizio spento suonano al primo giro). Perché non tenere il processo acceso: sono PC con poca memoria.
+   * Non si fissa se c'è già una sveglia futura (una pausa voluta) o se Nicholas ha domande aperte: l'autopilota
+   * sta aspettando lui e una sua risposta è un messaggio, che risveglia comunque.
+   */
+  const fissaRipresaDopoInattivita = (ws: string): void => {
+    if (!conLavoroAperto(ws)) return
+    const ora = oraMs()
+    if (prossimaSveglia(ws, ora) !== undefined) return
+    const u = unicoDi(ws)
+    if (u !== undefined && x.domande.aperte(u.id).length > 0) return
+    if ((imp(ws).sveglie ?? []).length >= SVEGLIE_MAX) return
+    const il = new Date(ora + RIPRESA_DOPO_INATTIVITA_MS).toISOString()
+    x.orchestratori.cambiaImpostazioni(ws, (i) => ({ ...i, sveglie: [...(i.sveglie ?? []), { il, perche: 'ti eri spento per inattività con lavoro aperto in coda o nel piano: guarda coda e piano e porta avanti quello che si può muovere', chiesta: x.adesso() }].sort((p, q) => p.il.localeCompare(q.il)) }))
+    console.info(`[orchestratore] ${ws} — spento per inattività con lavoro aperto: ripresa fissata sul disco`)
+  }
   const giroRiallineo = (ora: number): void => {
     const ogni = x.riallineoOgniMs ?? RIALLINEO_OGNI_MS
     for (const a of unici()) {
