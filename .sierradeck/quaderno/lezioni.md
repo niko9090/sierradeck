@@ -4,17 +4,6 @@
 
 ## test
 
-- le prove che cercano stringhe nel sorgente (readFileSync di un .tsx) si rompono a ogni riscrittura della vista: meglio agganciarle al componente o alla funzione, non al dettaglio interno. _(2026-11-10)_
-- il freno Drive alza l'attesa al primo 429, quindi un test che si aspetta ritentativi su 429/rateLimit va scritto con 503 (transitorio), non con 429 _(2026-11-10)_
-- `tests/main/sposta-fra-pc.test.ts` (caricamento lungo) è fallita una volta sola nella serie completa sotto carico e passa da sola: probabile instabilità di tempi _(2026-11-10)_
-- Per provare «zero richieste» su `apriSincronia`, avvolgi l'archivio in un Proxy che conta le chiamate; l'orologio del freno si inietta con `creaFreno(() => t)`. _(2026-11-10)_
-- Dopo la correzione della Salute (46ce0845) un PC senza `battito` non mostra più i suoi consumi: le prove con altri PC e `risorse` devono dare un battito recente. _(2026-11-10)_
-- Il rifiuto «prove vitest dei compiti già uniti» può non riprodursi: su main isolato la suite era verde. Prima di cambiare codice rilanciare la suite sul ramo da solo. _(2026-11-10)_
-- giudicaStrumento accetta {ambiente} per le prove: con percorsi finti Windows (C:\Users\mario) non serve toccare le variabili d'ambiente _(2026-11-10)_
-- I test del servizio con raccolta eventi lunga provano il «subito»: per far arrivare un evento va chiuso il turno finto con un result, altrimenti resta in attesa. _(2026-11-10)_
-- In `tests/autopilot-host` una `blocca` che non si risolve mai tiene il lucchetto di prova globale (per cwd) e fa fallire per timeout i test dopo: risolvere sempre la promessa. _(2026-11-10)_
-- in copia nessuna prova fallisce né sotto la suite intera ripetuta né in tests/autopilot-host (5389 + 740 verdi). Se il cancello rifiuta, cercare il motivo nel suo log, non nei test. _(2026-11-10)_
-- Nei test sul repo di prova `ls-files` restituisce per primo `.sierradeck/...` se esiste: per scegliere un file di codice escludere quel prefisso. _(2026-11-10)_
 - il cane da guardia (20 min) e il backoff si sommano: nei test con fake timer il secondo riavvio parte 30 s dopo lo scatto del cane, non subito. _(2026-11-11)_
 - per la regola del quaderno usare un repository git vero (repositoryDiPartenza): i mock non vedono il comportamento di `git status`/`add`/`commit` sui file riscritti. _(2026-11-11)_
 - la suite completa (vitest, circa 620 file) richiede circa 3,5 minuti: usare un timeout ampio. _(2026-11-12)_
@@ -94,6 +83,9 @@
 - l'orologio di prova del servizio avanza di qualche ms: le durate vanno confrontate con un margine, non con un valore esatto _(2026-11-22)_
 - in creaTurni anche l'unione che aspetta ha la sua scadenza (unioneMaxMs): nei test di attesa usare un valore più largo del ritardo di chiusura, o la seconda scade da sola _(2026-11-22)_
 - il «PreToolUse dell'unico» rosso nelle copie worktree era un bug vero (percorso con spazi), non un problema del test. _(2026-11-22)_
+- `inVolo` non deve dipendere dall'ora: il test del lavoro fermo avanza `adesso` di ore con un turno aperto e lo conta occupato. Il turno appeso lo chiude il cane da guardia. _(2026-11-22)_
+- `rifiutata` in attesa-specialisti ha una sola «i»: l'alias `rifiutataDalTetto` nel servizio; un test già esistente pretende che un fallito perda il prompt, solo il fermato lo tiene _(2026-11-22)_
+- il tempo massimo della suite (verifiche.ts:87) è 20 min come il cane da guardia: una soglia di silenzio uguale ferma da sani gli specialisti che aspettano la suite _(2026-11-22)_
 
 ## worktree
 
@@ -244,6 +236,8 @@
 - Una sveglia futura spegne il controllo del lavoro fermo (`spingiFermi`): una sveglia di settimane silenzia il lavoro pronto di tutto il workspace. _(2026-11-22)_
 - I subagenti in sottofondo non hanno né silenzio né tempo massimo: il cane del turno si disarma quando il turno finisce, e lo specialista appeso occupa un posto per sempre. _(2026-11-22)_
 - Uno specialista fermato lascia la sua copia con modifiche non salvate, e nessun evento dice dove sono: il salvataggio automatico gira solo nell'unione. _(2026-11-22)_
+- la pausa di Nicholas sta in `impostazioni.pausa` e `lavoroDaPortareAvanti` risponde falso: con pausa l'inattività può spegnere il processo. Qualsiasi suo messaggio la toglie. _(2026-11-22)_
+- un sotto-agente in sottofondo non fa mai partire il cane da turno: va armato anche a turno chiuso, e le righe con parent_tool_use_id sono i suoi segni di vita _(2026-11-22)_
 
 ## controllo
 
@@ -451,6 +445,10 @@
 - Un PC in silenzio non ha perso il lavoro: va aspettato, e riassegnato senza `chiudi`. Con due copie vive vince il primo ramo che arriva (set `vinto`). _(2026-11-22)_
 - un compito di "unione" può arrivare a un PC dove il ramo da unire non è stato trasferito: controllare con `git branch -a` prima di partire. _(2026-11-22)_
 - Una correzione di un ramo locale affidata a un altro PC non trova il ramo: nel prompt metti il diff intero (git diff main...ramo), non solo il nome del ramo. _(2026-11-22)_
+- `aiuto-rete.ts` e `servizio-orchestratore.ts` sono toccati da quasi tutti i filoni: i rami lunghi vanno uniti presto, o i conflitti tornano. _(2026-11-22)_
+- i rami tornati da «Aiuta la rete» arrivano come bundle, senza worktree: un revisore senza terminale non li legge, va passato il diff o un worktree estratto _(2026-11-22)_
+- Rami tornati da «Aiuta la rete» sono solo bundle senza worktree: un revisore (senza terminale) non li legge; per rivederli serve un verificatore o un compito dopo l'unione. _(2026-11-22)_
+- «Rete dei PC», «Altri PC» e la lista in Salute sono ora la sola pagina Computer (`computer-vista.ts`): un dato per PC si aggiunge a `NodoRete` e `SchedaPc`, una volta sola. _(2026-11-22)_
 
 ## cancello
 
@@ -484,6 +482,7 @@
 - Dalla 0.100.0 un compito che non va più fatto si chiude con `piano_chiudi` (superato o annullato): prima restava «in revisione» per sempre e teneva aperta la richiesta. _(2026-11-11)_
 - Criterio «gh release view v<versione>»: se un'altra chat pubblica quella versione, il cancello lo prova su ogni ramo e respinge unioni giuste. Escludere la versione già uscita. _(2026-11-13)_
 - Mai criterio «gh release view v»+versione di package.json: dopo l'uscita il cancello respinge ogni bump (k-149 ha bloccato la 0.106.3). Usare la versione fissa: `gh release view v0.X.Y`. _(2026-11-13)_
+- i campi nuovi di CompitoPiano vanno letti anche in leggiCompitoPiano (piano-orchestratore.ts), altrimenti si perdono alla rilettura da disco _(2026-11-22)_
 
 ## orchestratore
 
@@ -922,3 +921,7 @@
 ## pannello
 
 - unioni, durata e stato dopo il lavoro passano da `VistaAttesa` (`dati-pannello-agenti.ts`); gli esiti recenti stanno solo in memoria e si perdono al riavvio _(2026-11-22)_
+
+## battito
+
+- Un campo nel battito che cambia a ogni misura va tolto dalla firma in `batti`, come `risorse`, o il Drive viene riscritto a ogni giro. _(2026-11-22)_
