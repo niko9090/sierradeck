@@ -1315,6 +1315,14 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             rispondi(res, 200, servizio().attesa())
             return
           }
+          // k-176i: «Ferma» su uno specialista al lavoro (di qui o affidato a un altro PC); l'esito è sempre una frase.
+          if (metodo === 'POST' && percorso === '/orchestratore/specialista/ferma') {
+            const corpo = (await leggiCorpo(req)) as Record<string, unknown> | undefined
+            const id = testoDi(corpo?.id).trim()
+            if (id === '' || id.length > 100) { rispondi(res, 400, { errore: 'serve l’id dello specialista' }); return }
+            rispondi(res, 200, servizio().fermaSpecialista(id))
+            return
+          }
           if (metodo === 'POST' && percorso === '/orchestratore/attesa/priorita') {
             const corpo = (await leggiCorpo(req)) as Record<string, unknown> | undefined
             const id = testoDi(corpo?.id).trim()

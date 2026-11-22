@@ -262,8 +262,20 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): Spedizioniere {
     return { ...l, pcId: mossa.a.pcId, pcNome: mossa.a.nome, stato: 'da-spedire', provati, riassegnazioni: (l.riassegnazioni ?? 0) + 1 }
   }
 
+  /** k-176i: i lavori che Nicholas ha chiesto di fermare (lo dice il servizio a ogni giro); lo stop parte per il PC che li ha. */
+  const daFermare = new Set<string>()
+  /** Lo stop è già arrivato a quel PC: non si manda due volte. */
+  const stopInviato = new Set<string>()
+
   const segui = async (l: LavoroAffidato): Promise<void> => {
     affidati.set(l.id, l)
+    if (l.fermareIl !== undefined) daFermare.add(l.id)
+    // Fermato prima ancora di partire: non si spedisce niente.
+    if (l.stato === 'da-spedire' && daFermare.has(l.id)) {
+      await avanza(l.id, { stato: 'fallito', causa: 'fermato', motivo: 'fermato da Nicholas' })
+      log(`${l.id} (${l.compito ?? l.ruolo}): fermato da Nicholas prima di partire`)
+      return
+    }
     if (l.stato === 'da-spedire') {
       try { await spedisci(l) } catch (err) {
         const delProgetto = err instanceof ProgettoNonSpedibile
@@ -285,6 +297,9 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): Spedizioniere {
     let ultima = ''
     const partitoIl = adesso()
     while (!fermo) {
+      if (daFermare.has(l.id) && !stopInviato.has(l.id)) {
+        try { await d.chiama(l.pcId, '/api/aiuto/ferma', { lavoro: l.id }); stopInviato.add(l.id); log(`${l.id} (${l.compito ?? l.ruolo}): stop inoltrato a ${l.pcNome}`) } catch (err) { avviso(`${l.id}: stop non arrivato a ${l.pcNome}, riprovo: ${testo(err)}`) }
+      }
       let v: VistaLavoroAiutato | undefined
       try {
         v = await d.chiama(l.pcId, '/api/aiuto/stato', { lavoro: l.id }) as VistaLavoroAiutato
@@ -292,6 +307,11 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): Spedizioniere {
       } catch (err) {
         const sconosciuto = /lavoro sconosciuto/u.test(testo(err))
         silenzioDa ??= adesso()
+        if (daFermare.has(l.id) && (sconosciuto || adesso() - silenzioDa > SILENZIO_MAX_MS)) {
+          // Nicholas voleva fermarlo e quel PC non c'è più: il lavoro è fermo comunque, non si passa a un altro PC.
+          await avanza(l.id, { stato: 'fallito', causa: 'fermato', motivo: 'fermato da Nicholas' })
+          return
+        }
         if (sconosciuto || adesso() - silenzioDa > SILENZIO_MAX_MS) {
           fuori.set(l.pcId, adesso() + FUORI_PER_MS)
           posti = { lista: [], il: -Infinity }
@@ -316,7 +336,7 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): Spedizioniere {
             try { ramo = await ritira(l, v.byte!) } catch (err) { motivo = `il ramo non è tornato da ${l.pcNome}: ${testo(err)}`; causa = 'pc'; log(`${l.id}: ${motivo}`) }
           }
           // 16/11: fallito per colpa del PC (risorsa mancante, accesso…) e senza lavoro da ritirare: passa a un altro PC.
-          if (v.stato === 'fallito' && ramo === undefined && causa !== undefined && causaRiassegnabile(causa)) {
+          if (v.stato === 'fallito' && ramo === undefined && causa !== undefined && causaRiassegnabile(causa) && !daFermare.has(l.id)) {
             // Prima del passaggio: il registro dice perché quel PC non ha potuto (risorsa indispensabile mancante, o rifiuto).
             if (causa === 'risorsa') registra(eventoRisorsaMancante({ ...base0(l), motivo: motivo ?? fraseCausa(causa), dichiarate: l.risorse ?? [] }))
             else if (causa !== 'pc') registra(eventoRifiutato({ ...base0(l), motivo: motivo ?? fraseCausa(causa) }))
@@ -372,9 +392,11 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): Spedizioniere {
       const r = await d.servizio('/aiuto/giro', { aiutanti }) as { lavori?: unknown }
       const lavori = Array.isArray(r?.lavori) ? r.lavori.map(lavoroAffidatoValido).filter((l): l is LavoroAffidato => l !== undefined) : []
       for (const l of lavori) {
-        if (!idLavoroValido(l.id) || inMano.has(l.id)) continue
+        if (!idLavoroValido(l.id)) continue
+        if (l.fermareIl !== undefined) daFermare.add(l.id)
+        if (inMano.has(l.id)) continue
         inMano.add(l.id)
-        void segui(l).catch((err) => log(`${l.id}: ${testo(err)}`)).finally(() => { inMano.delete(l.id); affidati.delete(l.id) })
+        void segui(l).catch((err) => log(`${l.id}: ${testo(err)}`)).finally(() => { inMano.delete(l.id); affidati.delete(l.id); daFermare.delete(l.id); stopInviato.delete(l.id) })
       }
     } catch { /* servizio giù o vecchio: al prossimo giro */ } finally { inGiro = false }
   }

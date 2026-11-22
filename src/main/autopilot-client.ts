@@ -8,6 +8,7 @@ import type { AggiornamentoInCorso } from '@shared/fasi-aggiornamento'
 import type { PuntoProposto, VistaCoda } from '@shared/coda-richieste'
 import { ATTESA_CAMBI_MS } from '@shared/spinta-specialisti'
 import type { MossaAttesa, VistaAttesa } from '@shared/attesa-specialisti'
+import type { EsitoFerma } from '@shared/aiuto-rete'
 import type { TrascrizioneSpecialista, VistaOrchestratore } from '@shared/piano-orchestratore'
 import type { RichiestaDoppioni } from '@shared/autopiloti-doppioni'
 import type { LimitiPc, VistaLimiti } from '@shared/limiti-pc'
@@ -184,6 +185,8 @@ export type ClientAutopilota = {
   aiuto: (percorso: string, corpo?: Record<string, unknown>) => Promise<unknown>
   prioritaAttesa: (id: string, mossa: MossaAttesa) => Promise<VistaAttesa | undefined>
   togliAttesa: (id: string) => Promise<VistaAttesa | undefined>
+  /** k-176i: «Ferma» su uno specialista al lavoro (di questo PC o affidato a un altro). Mai un errore: l'esito è una frase in italiano. */
+  fermaSpecialista: (id: string) => Promise<EsitoFerma>
   /**
    * Spinta a evento: `f` parte appena il servizio segna che uno specialista è
    * partito, finito o ha cambiato posto in lista. Si ferma con la funzione
@@ -546,6 +549,13 @@ export function creaClientAutopilota(p: {
     // 0.103.0: un pezzo del progetto (fino a 4 MB) o un `git bundle` da preparare chiedono più del solito.
     aiuto: (percorso, corpo) => chiama(percorso, corpo === undefined ? 'GET' : 'POST', corpo, 60_000),
     // Voce già partita o tolta (404): la lista com'è adesso.
+    fermaSpecialista: async (id) => {
+      try {
+        const r = (await chiama('/orchestratore/specialista/ferma', 'POST', { id }, attesaScrittura)) as Partial<EsitoFerma> | undefined
+        if (typeof r?.fermato === 'boolean' && typeof r.messaggio === 'string') return { fermato: r.fermato, messaggio: r.messaggio }
+      } catch { /* sotto */ }
+      return { fermato: false, messaggio: 'Il servizio degli autopiloti non ha risposto: non so se si è fermato. Riprova fra qualche secondo.' }
+    },
     prioritaAttesa: async (id, mossa) => { try { return vistaAttesaValida(await chiama('/orchestratore/attesa/priorita', 'POST', { id, mossa }, attesaScrittura)) } catch { return vistaAttesaValida(await chiama('/orchestratore/attesa', 'GET').catch(() => undefined)) } },
     suCambioSpecialisti(f) {
       let fermo = false

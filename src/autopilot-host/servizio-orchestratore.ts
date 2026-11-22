@@ -59,7 +59,7 @@ import { motivoSpecialistaDoppio, ripresaDopoRiavvio } from './ripresa-riavvio'
 import { AGENTI_ORCHESTRATORE, fileAgenti, fileImpostazioniCli, RUOLI_AGENTI } from './agenti-orchestratore'
 import { percentualeVera, voceOspitata } from './vista-ospitati'
 import { valutaPrimaDiAffidare } from './affida-valuta'
-import { motivoAffidato, motivoPerRestareQui, RUOLI_IN_VIAGGIO, scegliPosto, type Aiutante, type LavoroAffidato, type LavoroOspitato } from '@shared/aiuto-rete'
+import { motivoAffidato, motivoPerRestareQui, RUOLI_IN_VIAGGIO, scegliPosto, type Aiutante, type EsitoFerma, type LavoroAffidato, type LavoroOspitato } from '@shared/aiuto-rete'
 import { giudicaGuardiaOrchestratore } from './guardia-orchestratore'
 import type { Giudizio } from './divieti'
 import { doppioniDaArchiviare, rigaDoppione, type Doppione, type RichiestaDoppioni } from '@shared/autopiloti-doppioni'
@@ -88,6 +88,8 @@ import { causaDelFallimento, causaDelMotivo, chiaveCompito, COMPITI_PER_PAUSA_PC
 
 /** 0.89.4: dopo quanto il lavoro fermo sveglia l'autopilota. 11/11: senza un tetto di spinte (`lavoro-fermo.ts`). */
 export const FERMO_DOPO_MS = 3 * 60_000
+/** k-176i: l'esito scritto nel piano di un compito il cui specialista è stato fermato a mano. */
+export const ESITO_FERMATO_DA_NICHOLAS = 'fermato da Nicholas'
 /** 0.89.4: dopo quanto una domanda dell'autopilota senza risposta si chiude. */
 export const DOMANDA_VECCHIA_MS = 24 * 60 * 60_000
 /** 06/11, fila delle unioni: un'unione (prova, unione, criterio) che supera questo tempo si chiude e si rimette in fila. 11/11: 60 minuti, in `tempi-unione.ts`. */
@@ -294,6 +296,13 @@ export type ServizioUnico = {
    */
   aiutoGiro: (aiutanti: Aiutante[]) => LavoroAffidato[]
   /** 0.103.0: com'è andato un lavoro affidato (spedito, cosa fa, finito con il suo ramo, non riuscito). */
+  /**
+   * k-176i: Nicholas ferma uno specialista al lavoro (id = quello della colonna a destra). Di questo PC: lo segna
+   * fermato e dice all'autopilota di chiudere il suo task; affidato a un altro PC: la richiesta di stop parte per
+   * quel PC al prossimo giro. Il compito torna «da-fare» con l'esito «fermato da Nicholas»; ramo e modifiche restano.
+   * Già finito o sconosciuto: nessun danno, una frase che spiega.
+   */
+  fermaSpecialista: (id: string) => EsitoFerma
   aiutoAvanza: (id: string, p: { stato?: 'spedito' | 'finito' | 'fallito'; attivita?: string; riepilogo?: string; ramo?: string; motivo?: string; causa?: CausaFallimento; riassegna?: { pcId: string; pcNome: string } }) => boolean
   /** k-48: chi lavora adesso sui posti del PC e chi aspetta, in ordine. */
   attesa: () => VistaAttesa
@@ -348,6 +357,15 @@ export function permessoConcesso(risposta: string): boolean {
 
 const EVENTI_RICORDATI = 30
 
+
+/**
+ * k-176i: l'evento per l'autopilota dopo lo stop di Nicholas. Chiaro su tre cose: è voluto (non è un guasto),
+ * il lavoro fatto resta sul ramo, e non si rilancia da solo. Il resto lo racconta a Nicholas.
+ */
+export function testoFermatoDaNicholas(compito: string, doveOCome: string, ramo: string | undefined, task?: string): string {
+  return `Nicholas ha fermato ${compito}${doveOCome}. Non è un guasto e non è un errore: l’ha voluto lui. Il compito è tornato «da fare» con l’esito «${ESITO_FERMATO_DA_NICHOLAS}»; il suo lavoro resta salvato${ramo !== undefined ? ` sul ramo ${ramo}` : ' nel suo ramo'} e non si cancella. `
+    + `${task !== undefined ? `Se il task ${task} risulta ancora attivo, chiudilo con TaskStop. ` : ''}Non rilanciarlo da solo e non rifare quello che c’è già: raccontalo a Nicholas in due righe e aspetta che dica lui se riprenderlo.`
+}
 
 /** Il compito senza il ramo ricordato: torna da fare o in corso, il ramo di prima non vale più. */
 export function senzaRamo(c: CompitoPiano): CompitoPiano {
@@ -720,7 +738,7 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
     ruolo: l.ruolo,
     descrizione: l.descrizione,
     ...(l.compito !== undefined ? { compito: l.compito } : {}),
-    stato: l.stato === 'finito' ? 'finito' : l.stato === 'fallito' ? 'fallito' : l.stato === 'spedito' ? 'lavoro' : 'avviato',
+    stato: l.stato === 'finito' ? 'finito' : l.stato === 'fallito' ? (l.causa === 'fermato' ? 'fermato' : 'fallito') : l.stato === 'spedito' ? 'lavoro' : 'avviato',
     inizio: l.inizio,
     ...(l.fine !== undefined ? { fine: l.fine } : {}),
     attivita: `su ${l.pcNome}${l.attivita !== undefined ? ` — ${l.attivita}` : ''}`,
@@ -889,6 +907,8 @@ Il posto è tuo per 5 minuti.` })
     if (prima.voci.length === 0) return
     applicaAttesa(rivediPosti(prima, liberiPc(), oraMs()), prima)
   }
+  /** k-176i: gli specialisti a cui Nicholas ha premuto «Ferma»: il loro compito torna da fare con l'esito detto, e l'autopilota non li rilancia da solo. */
+  const fermatiDaNicholas = new Set<string>()
   /** Gli specialisti a cui Nicholas ha chiesto «Ferma e metti in cima»: finché il flusso non li dà per fermati contano ancora al lavoro. */
   const fermaChiesta = new Set<string>()
   /** Le durate vere dei compiti già uniti, di tutti i workspace: dall'inizio dello specialista (o dalla creazione) all'unione. */
@@ -1162,7 +1182,7 @@ ${NOTA_SENZA_GIT}`,
       if (k !== undefined && k.stato !== 'unito') {
         cambiaCompito(ws, k.id, (c) => (s.stato === 'finito'
           ? { ...c, stato: 'in-revisione', ...(ramoDelloSpecialistaFinito(s) !== undefined && s.ruolo !== 'rilascio' ? { ramo: ramoDelloSpecialistaFinito(s)! } : {}), esito: `${s.ruolo} ha finito: il programma lo unisce e misura il criterio` }
-          : { ...senzaRamo(c), stato: 'da-fare', esito: `${s.ruolo} ${s.stato === 'fallito' ? 'non è riuscito' : 'è stato fermato'}` }))
+          : { ...senzaRamo(c), stato: 'da-fare', esito: fermatiDaNicholas.has(s.id) ? ESITO_FERMATO_DA_NICHOLAS : `${s.ruolo} ${s.stato === 'fallito' ? 'non è riuscito' : 'è stato fermato'}` }))
         // 0.89.4: l'unione parte da sola. Prima aspettava che l'autopilota chiamasse
         // unisci, e se non lo faceva il compito restava «finito» per sempre.
         if (s.stato === 'finito' && x.unioneDaSola !== false) avviaUnione(ws, { compito: k.id })
@@ -1177,7 +1197,7 @@ ${NOTA_SENZA_GIT}`,
         const quanto = durata(s, Date.parse(x.adesso()))
         const detto = s.stato === 'finito'
           ? `${chiSpecialista(s.ruolo)} ha finito dopo ${quanto}: ${cosaDel(s.descrizione)}. Adesso provo il suo lavoro e, se le prove passano, lo unisco.`
-          : `${chiSpecialista(s.ruolo)} ${s.stato === 'fallito' ? 'non è riuscito' : 'è stato fermato'} dopo ${quanto}: ${cosaDel(s.descrizione)}. L’autopilota lo rilancia o cambia strada.`
+          : `${chiSpecialista(s.ruolo)} ${s.stato === 'fallito' ? 'non è riuscito' : 'è stato fermato'} dopo ${quanto}: ${cosaDel(s.descrizione)}. ${fermatiDaNicholas.has(s.id) ? 'Lo ha fermato Nicholas: non lo rilancio da solo.' : 'L’autopilota lo rilancia o cambia strada.'}`
         x.annota(dopo, `${s.ruolo} ${s.stato === 'finito' ? 'ha finito' : s.stato === 'fallito' ? 'non è riuscito' : 'è stato fermato'} dopo ${quanto}: ${s.descrizione.slice(0, 120)}`, avanzamento(s.id, detto))
         x.salva(dopo)
       }
@@ -3053,7 +3073,8 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       if (dopo.length !== prima.length) archivioAiuti.scrivi(dopo)
       return dopo.filter((l) => l.stato === 'da-spedire' || l.stato === 'spedito')
     },
-    aiutoAvanza(id, p) {
+    aiutoAvanza(id, pIn) {
+      let p = pIn
       const l = affidati().find((v) => v.id === id)
       if (l === undefined || l.stato === 'finito' || l.stato === 'fallito') return false
       // 16/11: il PC non ha potuto agire: il lavoro passa a un altro PC (si rispedisce), il vecchio resta tra i provati.
@@ -3070,6 +3091,9 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
         return true
       }
       const chiuso =p.stato === 'finito' || p.stato === 'fallito'
+      // k-176i: Nicholas aveva chiesto lo stop e il lavoro si è chiuso senza riuscire: è «fermato», non un guasto (niente pause, niente passaggio a un altro PC).
+      const daNicholas = l.fermareIl !== undefined && p.stato === 'fallito'
+      if (daNicholas) { fermatiDaNicholas.add(id); p = { ...p, motivo: ESITO_FERMATO_DA_NICHOLAS, causa: 'fermato' } }
       const fallito = p.stato === 'fallito'
       // 13/11: il perché resta nel lavoro (e quindi nel file, anche dopo un riavvio): ne seguono le pause.
       // Un Aiutante di prima (1.0.1) manda solo «lo specialista ha chiuso con un errore», ma il testo del
@@ -3096,7 +3120,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
         // 13/11: il motivo intero nel registro di questo PC (prima 160 caratteri di «ha chiuso con un errore»).
         const motivoPc = motivo !== undefined ? motivoSuPc(motivo, causa, l.pcNome) : undefined
         const riga = `[aiuto] ${l.workspace} — ${l.compito ?? l.id} da ${l.pcNome}: ${p.stato}${p.ramo !== undefined ? `, ramo ${p.ramo}` : ''}${motivoPc !== undefined ? ` — ${motivoPc}` : ''}`
-        if (fallito) (livelloRigaAiuto(causa) === 'avviso' ? console.warn : console.error)(riga)
+        if (fallito && !daNicholas) (livelloRigaAiuto(causa) === 'avviso' ? console.warn : console.error)(riga)
         else console.info(riga)
         if (fallito) {
           const pause = pauseAiuti(affidati(), oraMs()).filter((q) => q.tipo !== 'spedizione' && q.pcId === l.pcId)
@@ -3113,15 +3137,50 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
         suFlusso(l.workspace, [{ tipo: 'specialista-finito', specialista: specialistaAffidato(nuovo) }], orchestratore.stato(l.workspace))
         // Lo specialista di là non ha un Agent qui che torna all'autopilota: glielo dice il programma.
         evento(l.workspace, {
-          tipo: p.stato === 'finito' ? 'finito' : 'bloccato',
+          tipo: p.stato === 'finito' ? 'finito' : daNicholas ? 'fermo' : 'bloccato',
           quando: x.adesso(),
           chat: l.id,
-          testo: p.stato === 'finito'
+          testo: daNicholas
+            ? testoFermatoDaNicholas(l.compito ?? 'il lavoro', `, affidato a ${l.pcNome}`, p.ramo)
+            : p.stato === 'finito'
             ? `${l.compito ?? 'il lavoro'} affidato a ${l.pcNome} è finito${p.ramo !== undefined ? ` (ramo ${p.ramo}, già qui: il programma lo prova e lo unisce da solo)` : ' senza commit'}. Riepilogo:\n${(p.riepilogo ?? '').slice(0, 4000)}`
             : `${l.compito ?? 'il lavoro'} affidato a ${l.pcNome} non è riuscito: ${(motivoPc ?? 'motivo sconosciuto').slice(0, 400)}. ${causa !== undefined && colpaDelPc(causa) ? `Non è colpa del compito: rilancialo uguale, il programma per un po’ non lo rimanda a ${l.pcNome} (lo fa qui o su un altro PC).` : 'Rilancialo (il programma sceglie di nuovo dove, e per un po’ non lo rimanda a quel PC).'}${p.riepilogo !== undefined && p.riepilogo !== '' ? `\nRiepilogo:\n${p.riepilogo.slice(0, 2000)}` : ''}`
         }, true)
       }
       return true
+    },
+    fermaSpecialista(id) {
+      // Affidato a un altro PC: si segna la richiesta, il programma la inoltra a quel PC (rotta «ferma» dell'Aiutante).
+      const l = affidati().find((v) => v.id === id)
+      if (l !== undefined) {
+        if (l.stato === 'finito' || l.stato === 'fallito') {
+          return { fermato: false, messaggio: `Questo lavoro è già ${l.stato === 'finito' ? 'finito' : l.causa === 'fermato' ? 'fermato' : 'chiuso senza riuscire'}: non c’è niente da fermare.` }
+        }
+        if (l.fermareIl !== undefined) return { fermato: true, messaggio: `Ho già chiesto a ${l.pcNome} di fermarlo: aspetto che confermi.` }
+        archivioAiuti.scrivi(affidati().map((v) => (v.id === id ? { ...v, fermareIl: x.adesso(), attivita: `stop chiesto da Nicholas a ${v.pcNome}`.slice(0, 200) } : v)))
+        fermatiDaNicholas.add(id)
+        cambiSpecialisti.segna()
+        console.info(`[aiuto] ${l.workspace} — ${l.compito ?? l.id}: stop chiesto a ${l.pcNome}`)
+        return { fermato: true, messaggio: `Ho chiesto a ${l.pcNome} di fermarlo. Il lavoro già fatto non si cancella: il ramo torna qui e il compito resta da fare.` }
+      }
+      // Di questo PC.
+      for (const u of unici()) {
+        const ws = wsDi(u)
+        const s = orchestratore.stato(ws).specialisti.find((y) => y.id === id)
+        if (s === undefined) continue
+        if (s.stato !== 'avviato' && s.stato !== 'lavoro') {
+          return { fermato: false, messaggio: `Questo specialista ${s.stato === 'finito' ? 'ha già finito' : s.stato === 'fermato' ? 'è già fermo' : 'ha già chiuso senza riuscire'}: non c’è niente da fermare.` }
+        }
+        const fermato = orchestratore.segnaFermato(ws, id)
+        if (fermato === undefined) return { fermato: false, messaggio: 'Questo specialista non sta più lavorando: non c’è niente da fermare.' }
+        fermatiDaNicholas.add(id)
+        fermaChiesta.delete(id)
+        suFlusso(ws, [{ tipo: 'specialista-finito', specialista: fermato }], orchestratore.stato(ws))
+        evento(ws, { tipo: 'fermo', quando: x.adesso(), chat: id, testo: testoFermatoDaNicholas(s.compito ?? cosaDel(s.descrizione), '', ramoDelloSpecialistaFinito(s), s.task) }, true)
+        console.info(`[orchestratore] ${ws} — ${s.compito ?? s.ruolo}: fermato da Nicholas`)
+        return { fermato: true, messaggio: 'Fermato. Il lavoro già fatto non si cancella: il compito resta da fare e l’autopilota non lo rilancia da solo.' }
+      }
+      return { fermato: false, messaggio: 'Non trovo questo specialista: forse ha già finito o è stato tolto dall’elenco.' }
     },
     attesa: () => { rivediFila(); return vistaAttesa() },
     prioritaAttesa(id, mossa) {
