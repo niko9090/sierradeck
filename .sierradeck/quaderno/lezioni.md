@@ -91,6 +91,7 @@
 - nei test renderer non c'è DOM: le regole di scorrimento stanno in funzioni pure in `segue-fondo.ts`, e le chat si controllano leggendo il sorgente. _(2026-11-22)_
 - Per un test a livello di server il workspace nasce dalla migrazione di un vecchio autopilota con una chat viva (`migraVecchi`), che adotta la chat e apre una richiesta in coda. Per una coda vuota va … _(2026-11-22)_
 - `servizio-orchestratore.test.ts` «il PreToolUse dell'unico…» fallisce anche senza modifiche quando si lancia dalla copia (worktree): dipende dal percorso, non è una regressione. _(2026-11-22)_
+- `servizio-orchestratore.test.ts` («PreToolUse dell'unico») fallisce già sulla base nel worktree: dipende dal percorso della copia, non è una regressione. _(2026-11-22)_
 
 ## worktree
 
@@ -102,7 +103,6 @@
 
 ## android
 
-- `tests/android/rotte-lente-app.test.ts` impone che `ROTTE_LENTE` sia contenuta nella lista dell'app: ogni rotta lenta nuova va aggiunta anche in `android/`. _(2026-11-09)_
 - PonteTest legge ROTTE_PONTE di ponte-telefono.ts con la regex '([^']+)': un apostrofo dritto in un commento dentro la lista la rompe, usare ’ _(2026-11-10)_
 - gradle testDebugUnitTest resta UP-TO-DATE se cambia solo un .ts letto dai test Kotlin (PonteTest): serve --rerun _(2026-11-10)_
 - per l'app le procedure lunghe conviene tenerle sul PC e far rileggere la vista all'app: la pagina le fa girare nel browser, l'app perderebbe il passo con la linea _(2026-11-10)_
@@ -145,11 +145,6 @@
 
 ## release
 
-- il rapporto controllo-*.md sta nella cartella principale (.sierradeck/errori-arrivati/), non nei worktree: leggerlo da lì, non copiarlo. _(2026-11-09)_
-- un bump patch tocca solo package.json, package-lock.json (2 punti), src/shared/novita.ts e, se serve, il quaderno errori-arrivati. _(2026-11-09)_
-- Se la release esiste già (gh release create prima), npm run pubblica compila ma non carica niente (vuole una bozza): exe, blockmap e latest.yml vanno caricati con gh release upload. _(2026-11-09)_
-- Dal worktree `npm run pubblica` vuole `google-oauth.json` e un `node_modules` vero, non una junction. Copiarli dalla principale e toglierli dopo; `google-oauth.json` è ignorato da git. _(2026-11-09)_
-- Con la release già creata, electron-builder non carica nulla. Gli asset vanno caricati a mano con `gh release upload` e nomi coi trattini (`SierraDeck-Setup-X.exe`), non quelli con lo spazio di `dist… _(2026-11-09)_
 - `npm run pubblica` dopo un `gh release create` salta gli upload: servono `gh release upload` con i nomi a trattini di latest.yml. _(2026-11-10)_
 - Da un worktree servono google-oauth.json copiato dalla cartella principale e un node_modules vero (npm ci): la junction fa fermare controlla-pacchetto. _(2026-11-10)_
 - Il bump di versione fa fallire `tests/shared/novita.test.ts` se in `src/shared/novita.ts` manca la voce della nuova versione: aggiungerla nello stesso commit del bump. _(2026-11-10)_
@@ -200,8 +195,6 @@
 
 ## git
 
-- `main` locale può essere avanti su origin con lavoro non pubblicato. Dal worktree: `git merge --ff-only main`, bump, poi `git push origin HEAD:main`. _(2026-11-09)_
-- un agente lanciato in un worktree isolato non può usare `git -C <cartella principale>`: il sistema lo rifiuta. Le operazioni sulla cartella principale vanno affidate a chi non è isolato. _(2026-11-09)_
 - main locale può avere commit non ancora su origin/main (merge e note del quaderno): prima di un push di release controllare `git log origin/main..main`. _(2026-11-10)_
 - Il git del programma (gitAsincronoReale) mescola stderr e stdout e fa trim: gli avvisi CRLF finiscono nello status e la prima riga perde lo spazio di testa. Filtrare le voci «XY percorso». _(2026-11-10)_
 - Gli specialisti sono chiusi nel loro worktree: non possono leggere né salvare file nella cartella principale. Un'unione ferma per file non salvati in main la ritenta il programma ogni 30s. _(2026-11-10)_
@@ -226,6 +219,7 @@
 - `git cherry main <ramo>` dà "nuovi=0" solo per i rami identici a main. Per quelli rifatti o unificati serve anche cercare il k-N nel log di main. _(2026-11-22)_
 - `togliCopiaUnita` cancella già il ramo (`branch -d`/`-D` con `forza`): un secondo `branch -D` subito dopo fallisce con «not found», va verificato prima. _(2026-11-22)_
 - Le cartelle di build di Android fanno fallire `git worktree remove` con «Filename too long»: usare Remove-Item su `\\?\percorso`, poi `git worktree prune`. _(2026-11-22)_
+- turni.unione rilascia il posto allo scadere mentre il git continua: un'altra unione nella stessa cartella può sovrapporsi (turni-criteri.ts:141-145). _(2026-11-22)_
 
 ## autopilota
 
@@ -240,12 +234,12 @@
 - Uno specialista è un sotto-agente: chiudere il turno = «finito» per il programma. Un «riprendo/aspetto l'esito» finale va letto (`promessaSenzaFine`) o si unisce lavoro a metà. _(2026-11-22)_
 - `vistaAttesa` (colonna/menu «Al lavoro adesso») e `TestaOrchestratore` leggono fonti diverse: Agent del flusso contro `u.chats`. Una chat al lavoro può comparire in una e non nell'altra. _(2026-11-22)_
 - Lo spegnimento per inattività uccideva solo il processo: il risveglio dipendeva da `lavoroFermo`, che non vede richieste aperte con compiti tutti uniti o bloccati. Ora fissa una sveglia su disco. _(2026-11-22)_
+- Uno specialista locale vive dentro il processo `claude` dell'orchestratore: il programma non può ucciderlo da solo, lo segna «fermato» nel flusso e chiede all'autopilota TaskStop. _(2026-11-22)_
+- «resta fermo» e «fermati» non sono una pausa: lavoro-fermo.ts continua a svegliare l'autopilota ogni ora. Serve uno stato di pausa finché non scrive Nicholas. _(2026-11-22)_
+- spingiFermi (servizio-orchestratore.ts:2351) salta il workspace se ha messaggi in riprova: un login scaduto silenzia l'avviso di lavoro fermo. _(2026-11-22)_
 
 ## controllo
 
-- una criticità con i numeri nel titolo cambia firma a ogni giro: il rapporto all'autopilota si riscrive ogni 6 ore (controllo-pc.ts:133). _(2026-11-09)_
-- Le versioni dei PC nel controllo vengono dall'ultimo battito sul Drive: con il Drive pieno restano vecchie. Prima di dire «PC vecchio» si controlla sul PC. _(2026-11-09)_
-- Un rapporto controllo-*.md scritto da un PC con versione vecchia ripete criticità già corrette: guardare «questo PC la 0.x» nel rapporto prima di aprire lavoro nuovo. _(2026-11-09)_
 - La gravità «guasto» di `pc:<id>` si decide nel singolo PC senza vedere gli altri; il declassamento sta in `criticitaDi`, che vede se il PC ha risposto a chi controlla. _(2026-11-10)_
 - un rapporto «Controllo di tutti i PC» mostra la versione dei PC: prima di aprire un difetto verificare che sia sotto l'ultima versione corretta (qui 0.99.1 vs fix in 0.99.2). _(2026-11-11)_
 - Un rapporto di controllo può venire da una build più vecchia della correzione: prima di cercare un buco, riprodurre il caso nel codice attuale con un test. _(2026-11-20)_
@@ -481,6 +475,7 @@
 - k-175c richiede la cartella principale di Nicholas (E:\...\SierraDeck): su un mirror `git worktree list` non mostra le copie `agent-*`. Va controllato prima di assegnarlo. _(2026-11-22)_
 - `requisiti.rete` con un percorso locale non bastava: un PC con capacità sconosciute (versione vecchia) passa il filtro. Il controllo va fatto prima di valutaPrimaDiAffidare. _(2026-11-22)_
 - Il riconoscimento «resta qui» sta in motivoPerRestareQui (src/shared/aiuto-rete.ts): estenderlo lì, un solo punto per i compiti locali. _(2026-11-22)_
+- Stop di un lavoro affidato: `fermareIl` sul lavoro, lo spedizioniere inoltra `/api/aiuto/ferma` e riporta «fallito» con causa «fermato», che non conta come guasto e non fa riassegnare. _(2026-11-22)_
 
 ## cancello
 
@@ -638,6 +633,8 @@
 - Con unioni continue in main, al rilascio dai un commit unito e pulito (senza MERGE_HEAD), push di quel commit, tag lì e build in un worktree temporaneo fuori dal progetto. _(2026-11-20)_
 - Dopo un'interruzione la release può essere ancora in bozza anche se il compito dice di no: controllare isDraft. Gli asset arrivano già costruiti nelle cartelle dist e dist-aiutante della copia. _(2026-11-20)_
 - `git fetch` fallisce se origin è un .bundle sparito: il controllo «c'è già una 0.112.x?» va fatto su `arrivo/main`, e `v0.111.3` non esiste come tag locale. _(2026-11-20)_
+- origin delle copie è un .bundle che può sparire: `git fetch --tags` fallisce e non ci sono tag locali. L'ultima versione si legge dai commit «Versione x.y.z». _(2026-11-22)_
+- un bump tocca package.json, package-lock.json (due punti) e src/shared/novita.ts. Non c'è un file di versione Android da cambiare se android/ è fermo. _(2026-11-22)_
 
 ## build
 
@@ -688,6 +685,8 @@
 - `SILENZIO_MAX_MS` stava in due file con valori diversi (20 e 60 min): ora è uno solo in aiuto-rete.ts (30 min), aiuto-scadenza lo importa. _(2026-11-20)_
 - Per la lentezza conta l'attività vera (`fermoMs` dal PC ospite, sul suo orologio), non la percentuale: lo specialista spesso non la manda, e senza di lei un lavoro attivo non si sposta. _(2026-11-20)_
 - il lavoratore gira nel servizio autopilota, senza cassaforte: le credenziali vanno chieste dal main (rotta `/api/aiuto/avvia` → campo `segreti` nel corpo) e consumate in `lancia`. _(2026-11-20)_
+- Il ritiro del ramo che fallisce non deve chiudere il lavoro remoto: chiudi() cancella copia e ramo (aiuto-lavoratore.ts:315, aiuto-spedizioniere.ts:336). _(2026-11-22)_
+- Il riavvio dell'Aiutante fallisce il lavoro senza causa: resta «sconosciuta» e non si riassegna (aiuto-lavoratore.ts:230, aiuto-esito.ts:64). _(2026-11-22)_
 
 ## aiutante
 
@@ -919,3 +918,7 @@
 ## riassunto
 
 - Il riassunto dell'autopilota non usa il modello: è costruito in src/shared/riassunto-autopilota.ts da diario e dialogo; «ripiego» = quella stessa costruzione. _(2026-11-22)_
+
+## coda
+
+- Le richieste migrate hanno il testo del compito dentro «compiti» (coda-autopiloti.ts:72/87): piano-orchestratore.ts:436 le conta come aperte, e la richiesta resta «in-corso» anche se è tutto unito. _(2026-11-22)_
