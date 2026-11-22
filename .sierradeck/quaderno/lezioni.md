@@ -4,8 +4,6 @@
 
 ## test
 
-- i test usano oggetti con statusCode o testi costruiti a mano; la forma reale di createHttpError (node_modules/builder-util-runtime/out/httpExecutor.js:52) va testata così com'è _(2026-11-10)_
-- un worktree può partire indietro rispetto a main: fare `git merge --ff-only main` prima di misurare, altrimenti mancano i test appena entrati. _(2026-11-10)_
 - `npx vitest run` intero dura circa 160 s su questo PC: un rifiuto "vitest rosso" senza nome di prova può essere un tempo scaduto sotto carico, non il codice. _(2026-11-10)_
 - Un 50x di electron-updater può arrivare come testo senza statusCode: «504 <frase>[\ndescrizione]\nHeaders: {…}». Il riconoscimento deve guardare il testo completo, non solo il campo. _(2026-11-10)_
 - il freno predefinito `frenoDrive` è unico per tutto il processo: nei test di `creaArchivioDrive` dare sempre `freno: creaFreno()`, o un 429 sporca i test seguenti. _(2026-11-10)_
@@ -99,6 +97,7 @@
 - i test che simulano la fine di uno specialista devono chiudere con «RAPPORTO: finita»: senza, per sviluppatore/interfaccia/android/verificatore il compito torna da fare e l'unione non parte _(2026-11-22)_
 - `tests/shared/novita.test.ts` ammette al massimo 8 righe per voce: portando più novità in una versione sola, accorpare le righe doppie. _(2026-11-22)_
 - l'orologio di prova del servizio avanza di qualche ms: le durate vanno confrontate con un margine, non con un valore esatto _(2026-11-22)_
+- in creaTurni anche l'unione che aspetta ha la sua scadenza (unioneMaxMs): nei test di attesa usare un valore più largo del ritardo di chiusura, o la seconda scade da sola _(2026-11-22)_
 
 ## worktree
 
@@ -310,6 +309,7 @@
 - Dalla 0.100.0 un file non salvato nella cartella principale ferma un’unione solo se il ramo lo tocca; in quel caso dopo 5 minuti è il programma a chiedere a Nicholas «Salvali e unisci», non l’autopilota. _(2026-11-11)_
 - rami con rotte nuove: il conflitto sta nel tipo `FonteAiuto` di `src/main/rotte-aiuto.ts`; tenere i campi opzionali di entrambi i lati. _(2026-11-20)_
 - `turni.unione` rende `TurnoScaduto` subito ma libera cartella e conteggio solo a `fai()` chiuso; pulizia della prova scaduta sempre dentro `turni.unione _(2026-11-22)_
+- il lucchetto della cartella principale sta in turni.unione (turni-criteri.ts): si rende a corsa chiusa o dopo UNIONE_LIBERA_DOPO_MS dalla scadenza, mai prima _(2026-11-22)_
 
 ## ui
 
