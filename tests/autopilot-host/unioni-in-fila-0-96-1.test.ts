@@ -124,10 +124,13 @@ function gitDiProva(porte: Porte): { git: Git; asinc: GitAsincrono } {
     if (args.includes('commit')) return { codice: 0, uscita: '' }
     return { codice: 1, uscita: '' }
   }
-  const asinc: GitAsincrono = async (args, cwd) => {
+  const asinc: GitAsincrono = async (args, cwd, segnale) => {
     if (args.includes('merge') && args.includes('--no-commit')) {
       porte.merge.push(args.at(-1)!)
-      if (porte.appesa === 'sempre' || porte.appesi?.includes(args.at(-1)!) === true || (typeof porte.appesa === 'number' && porte.merge.length <= porte.appesa)) return new Promise(() => {})
+      // 22/11: appeso finché il segnale della fila non lo ferma (come un git vero, che si uccide).
+      if (porte.appesa === 'sempre' || porte.appesi?.includes(args.at(-1)!) === true || (typeof porte.appesa === 'number' && porte.merge.length <= porte.appesa)) {
+        return new Promise((ris) => { segnale?.addEventListener('abort', () => ris({ codice: 1, uscita: 'fermato' }), { once: true }) })
+      }
       if (porte.blocca !== undefined) await porte.blocca
     }
     return git(args, cwd)

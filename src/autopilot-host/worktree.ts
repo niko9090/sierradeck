@@ -36,15 +36,19 @@ export const gitReale: Git = (args, cwd) => {
  * worktree) si scrivono una volta sola come «passi» che chiedono git, e girano
  * sia col git sincrono (test, creazione) sia con questo.
  */
-export type GitAsincrono = (args: string[], cwd: string) => Promise<EsitoGit>
+export type GitAsincrono = (args: string[], cwd: string, segnale?: AbortSignal) => Promise<EsitoGit>
 
-export const gitAsincronoReale: GitAsincrono = (args, cwd) => new Promise((ris) => {
+export const gitAsincronoReale: GitAsincrono = (args, cwd, segnale) => new Promise((ris) => {
   let uscita = ''
   let finito = false
-  const fine = (codice: number): void => { if (finito) return; finito = true; clearTimeout(tempo); ris({ codice, uscita: uscita.trim() }) }
+  const fine = (codice: number): void => { if (finito) return; finito = true; clearTimeout(tempo); segnale?.removeEventListener('abort', ferma); ris({ codice, uscita: uscita.trim() }) }
+  // 22/11: il segnale ferma il git figlio (unione scaduta): non resta un `git merge` orfano.
+  const ferma = (): void => { p.kill(); fine(1) }
+  if (segnale?.aborted === true) { ris({ codice: 1, uscita: 'git fermato: tempo scaduto' }); return }
   // Niente stdin: git che chiede qualcosa (credenziali) deve fallire subito, non aspettare 120 s.
   const p = spawn('git', args, { cwd, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
   const tempo = setTimeout(() => { p.kill(); fine(1) }, 120_000)
+  segnale?.addEventListener('abort', ferma, { once: true })
   // setEncoding: un carattere multibyte spezzato fra due pezzi resta intero.
   p.stdout.setEncoding('utf8')
   p.stderr.setEncoding('utf8')
