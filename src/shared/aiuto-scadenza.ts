@@ -51,8 +51,13 @@ export function scadenzaRaggiunta(s: StatoScadenza, maxMs: number): boolean {
   return s.svegliMs >= maxMs
 }
 
-/** La causa alla scadenza: `pc` (riassegnabile) o `compito`; e la frase per il motivo. */
-export function causaScadenza(s: StatoScadenza, ora: number): { causa: CausaFallimento; motivo: string } {
+/**
+ * Il silenzio che basta a dichiarare il PC perso (causa `pc`), o `undefined` se lo specialista
+ * è ancora dentro i limiti. Si guarda a ogni giro, non solo alla scadenza delle 3 ore.
+ * Il chiamante, prima, registra con `scadenzaSegno` ogni attività vera che non passa dalle righe
+ * (file della copia scritti da una build lunga): solo il silenzio senza alcun segno conta.
+ */
+export function causaSilenzio(s: StatoScadenza, ora: number): { causa: CausaFallimento; motivo: string } | undefined {
   const silenzio = Math.max(0, ora - s.ultimoSegno)
   const minuti = Math.round(silenzio / 60_000)
   if (s.dormito && silenzio > SILENZIO_DOPO_SONNO_MS) {
@@ -61,5 +66,10 @@ export function causaScadenza(s: StatoScadenza, ora: number): { causa: CausaFall
   if (silenzio > SILENZIO_MAX_MS) {
     return { causa: 'pc', motivo: `lo specialista non dava segni da ${String(minuti)} minuti` }
   }
-  return { causa: 'compito', motivo: 'ha superato le 3 ore' }
+  return undefined
+}
+
+/** La causa alla scadenza: `pc` (riassegnabile) o `compito`; e la frase per il motivo. */
+export function causaScadenza(s: StatoScadenza, ora: number): { causa: CausaFallimento; motivo: string } {
+  return causaSilenzio(s, ora) ?? { causa: 'compito', motivo: 'ha superato le 3 ore' }
 }
