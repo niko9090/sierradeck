@@ -59,7 +59,7 @@ export function ElencoMenuSpecialisti({ vista, riferimenti, daFermare, onMossa, 
             <button className="tasto tasto--mini" onClick={() => onMossa(r.id, 'ferma')}>Sì, ferma</button>
             <button className="tasto tasto--mini" onClick={onAnnullaFerma}>No</button>
           </>
-        ) : r.suPc !== undefined ? <span className="menuspec__ritardo">su {r.suPc}</span> : r.perPc !== undefined ? <span className="menuspec__ritardo">per {r.perPc}</span> : (
+        ) : r.chat === true ? <span className="menuspec__ritardo">chat</span> : r.suPc !== undefined ? <span className="menuspec__ritardo">su {r.suPc}</span> : r.perPc !== undefined ? <span className="menuspec__ritardo">per {r.perPc}</span> : (
           <>
             <button className="tasto tasto--mini" title="Passa davanti a chi aspetta" disabled={!lavora && r.posizione === 1} onClick={() => onMossa(r.id, 'cima')}>↑ Precedenza</button>
             {lavora && !r.fermaRichiesta ? <button className="tasto tasto--mini" title="Lo ferma e lo mette in cima alla fila" onClick={() => onFerma(r.id)}>Ferma</button> : null}

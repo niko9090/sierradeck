@@ -913,6 +913,12 @@ Il posto è tuo per 5 minuti.` })
       .filter((s) => (s.stato === 'avviato' || s.stato === 'lavoro') && s.pc === undefined)
       .map((s) => ({ s, ws: wsDi(u), ap: u.id })))
       .sort((a, b) => Date.parse(a.s.inizio) - Date.parse(b.s.inizio))
+    // k-174c (Nicholas: «ci sono chat che stanno lavorando e non vedo a destra gli agenti attivi»): anche le chat
+    // specialiste vive dell'autopilota (adottate o lanciate da lui) lavorano, e la testa della chat già le conta:
+    // qui mancavano perché l'elenco guardava solo gli Agent del flusso. Niente stima né tasti: non sono Agent del flusso.
+    const chatVive = unici().flatMap((u) => specialistiVivi(u)
+      .filter((c) => c.stato === 'lavoro')
+      .map((c) => ({ c, ws: wsDi(u), ap: u.id })))
     const stato = archivioAttesa.leggi()
     const fila = inFila(stato, adesso)
     const stima = stimaLista({
@@ -937,14 +943,24 @@ Il posto è tuo per 5 minuti.` })
           ...(prec !== undefined ? { precedenza: prec } : {}),
           ...(fermaChiesta.has(l.s.id) ? { fermaRichiesta: true as const } : {})
         }
+      }), chatVive.map(({ c, ws, ap }, j) => {
+        const cosaFa = rigaUltimaAzione(c.ultimaAzione ?? '')
+        return {
+          posto: lavorano.length + j + 1, id: c.id, workspace: ws, autopilota: ap,
+          ...(c.compitoId !== undefined ? { compito: c.compitoId } : {}),
+          descrizione: c.compito, tipo: c.ruolo !== undefined ? RUOLI[c.ruolo].nome : 'chat', dal: c.dal ?? x.adesso(),
+          workspaceNome: nomeWorkspace(ws), titolo: titoloDi(ws, c.compitoId, c.compito),
+          ...(cosaFa !== '' ? { cosaFa } : {}),
+          peso: pesoDi(ws, c.compitoId), chat: true as const
+        }
       }), (x.ospitati?.() ?? []).map((o, j) => {
         // 12/11 (Nicholas: «nel PC che ospita gli agenti di altri PC voglio che nella lista vengano visualizzati»).
-        return voceOspitata(o, lavorano.length + j + 1, rigaUltimaAzione(o.attivita ?? ''), titoloBreve(o.descrizione), PESO_PREDEFINITO)
+        return voceOspitata(o, lavorano.length + chatVive.length + j + 1, rigaUltimaAzione(o.attivita ?? ''), titoloBreve(o.descrizione), PESO_PREDEFINITO)
       }), affidati().filter((l) => l.stato === 'da-spedire' || l.stato === 'spedito').map((l, j) => {
         // 16/11 (Nicholas: «due specialisti che lavorano e nel menu vedo nessuno»): gli affidati ad altri PC lavorano per questo workspace.
         const cosaFa = rigaUltimaAzione(l.attivita ?? '')
         return {
-          posto: lavorano.length + (x.ospitati?.().length ?? 0) + j + 1, id: l.id, workspace: l.workspace,
+          posto: lavorano.length + chatVive.length + (x.ospitati?.().length ?? 0) + j + 1, id: l.id, workspace: l.workspace,
           ...(l.compito !== undefined ? { compito: l.compito } : {}),
           descrizione: l.descrizione, tipo: l.ruolo, dal: l.inizio,
           workspaceNome: nomeWorkspace(l.workspace), titolo: titoloDi(l.workspace, l.compito, l.descrizione),

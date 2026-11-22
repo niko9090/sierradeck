@@ -148,7 +148,8 @@ describe('lista d’attesa degli specialisti nel servizio (k-48)', () => {
     expect(motivo(await lanciaAgent(a, 'k-11: la sezione, ripetuta'))).toContain('Sei 2° in fila')
     const v = await attesa()
     expect(v.posti).toEqual({ usati: SPECIALISTI_PC_MAX, tetto: SPECIALISTI_PC_MAX })
-    expect(v.alLavoro.map((x) => [x.posto, x.compito, x.workspace])).toEqual(Array.from({ length: SPECIALISTI_PC_MAX }, (_, i) => [i + 1, `k-${i + 1}`, WS]))
+    // k-174c: la chat adottata `c-1` del fixture lavora anche lei, e si vede (con `chat: true`): qui si contano gli Agent.
+    expect(v.alLavoro.filter((x) => x.chat !== true).map((x) => [x.posto, x.compito, x.workspace])).toEqual(Array.from({ length: SPECIALISTI_PC_MAX }, (_, i) => [i + 1, `k-${i + 1}`, WS]))
     expect(v.alLavoro[0]).toMatchObject({ autopilota: a, tipo: 'sviluppatore', descrizione: 'k-1: lavoro 1' })
     expect(v.inFila.map((x) => [x.posizione, x.compito, x.priorita, x.prenotata])).toEqual([[1, 'k-10', 0, false], [2, 'k-11', 0, false]])
     expect(v.inFila[0]).toMatchObject({ workspace: WS, autopilota: a, tipo: 'sviluppatore', descrizione: 'k-10: la lista' })
@@ -262,7 +263,7 @@ describe('lista d’attesa degli specialisti nel servizio (k-48)', () => {
     salto += 5 * 60_000
     const v = await attesa()
     expect(v.alLavoro[0]).toMatchObject({ workspaceNome: WS, titolo: 'lavoro 1', peso: 2, percentuale: 20, minutiStimati: 20 })
-    for (const l of v.alLavoro) expect(l.percentuale).toBeLessThanOrEqual(95)
+    for (const l of v.alLavoro.filter((x) => x.chat !== true)) expect(l.percentuale).toBeLessThanOrEqual(95)
     expect(v.inFila[0]).toMatchObject({ workspaceNome: WS, titolo: 'la lista', percentuale: 0 })
     // I posti sono pieni: chi è in fila include l'attesa del primo posto libero.
     expect(v.inFila[0]!.minutiStimati!).toBeGreaterThan(25)

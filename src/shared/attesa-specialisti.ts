@@ -402,6 +402,8 @@ export type VistaAttesa = {
     fase?: FaseOspitato
     /** 16/11: un lavoro di questo workspace affidato a un altro PC (Aiuta la rete): il nome di quel PC. Conta come al lavoro, ma non tiene un posto qui. */
     suPc?: string
+    /** k-174c: una chat specialista viva dell'autopilota (adottata o lanciata da lui), non un Agent del flusso: si vede, ma niente «Ferma» né stime. */
+    chat?: true
   } & StimaVoce>
   /** 16/11: i lavori finiti che il programma sta provando e unendo (in coda o in corso): non sono né al lavoro né in fila, ma non sono ancora chiusi. */
   inUnione?: Array<{ id: string; workspace: string; workspaceNome: string; titolo: string; inCorso: boolean }>
