@@ -437,12 +437,13 @@ export function allineaConPiano(coda: Coda, piano: Piano, adesso: string): Modif
     // 11/11: un compito chiuso senza unirlo non tiene aperta la richiesta (di norma non è nemmeno più fra i suoi).
     const suoi = delPiano.filter((c) => c.chiuso === undefined)
     if (suoi.length === 0) return r
-    const altri = r.compiti.length - delPiano.length
+    // 22/11: le voci di `compiti` che non sono id del piano (testi delle code migrate) non contano:
+    // la richiesta ha almeno un compito nel piano, e si misura su quelli.
     const verdi = suoi.every((c) => c.stato === 'unito' && c.criterioVerde === true)
     let stato: StatoCoda
-    if (verdi && altri === 0) stato = 'fatta'
+    if (verdi) stato = 'fatta'
     else if (suoi.some((c) => c.stato === 'in-corso')) stato = 'in-corso'
-    else if (suoi.every((c) => c.stato === 'unito' || c.stato === 'in-revisione') && altri === 0) stato = 'in-verifica'
+    else if (suoi.every((c) => c.stato === 'unito' || c.stato === 'in-revisione')) stato = 'in-verifica'
     else if (suoi.some((c) => c.stato !== 'da-fare')) stato = 'in-corso'
     else stato = r.stato === 'in-coda' ? 'pianificata' : r.stato
     if (stato === r.stato) return r
