@@ -381,8 +381,7 @@ type StatoWs = {
   /** 11/11: il limite del piano è già stato detto; vale finché un turno non riesce. */
   limite?: boolean
   /** Il cane da guardia del turno: riparte a ogni riga. */
-  cane?: ReturnType<typeof setTimeout>
-}
+  cane?: ReturnType<typeof setTimeout>}
 
 export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
   const stati = new Map<string, StatoWs>()
@@ -694,6 +693,8 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
       }, raccoltaMs)
       s.timer.unref?.()
     },
+    // k-178h: «occupato» solo con un turno davvero in corso (processo vivo con il turno aperto). Un turno finito, o il cui
+    // processo è morto o spento, non conta; uno appeso lo chiude il cane da guardia dopo `mutoMs`.
     inVolo: (ws) => { const s = stati.get(ws); return s !== undefined && inTurno(s) },
     chiamateInVolo: turniPc,
     inAttesa: (ws) => ({ messaggi: stati.get(ws)?.messaggi.length ?? 0, eventi: stati.get(ws)?.eventi.length ?? 0 }),

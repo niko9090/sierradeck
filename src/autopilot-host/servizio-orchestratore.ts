@@ -68,7 +68,7 @@ import { giudicaGuardiaOrchestratore } from './guardia-orchestratore'
 import type { Giudizio } from './divieti'
 import { doppioniDaArchiviare, rigaDoppione, type Doppione, type RichiestaDoppioni } from '@shared/autopiloti-doppioni'
 import type { ArchivioDoppioni } from './doppioni-store'
-import { intervalloSpinta, lavoroFermo, rigaFermoPerNicholas, SPINTE_PRIMA_DI_DIRLO, testoLavoroFermo } from './lavoro-fermo'
+import { chiedeDiFermarsi, intervalloSpinta, lavoroFermo, rigaFermoPerNicholas, SPINTE_PRIMA_DI_DIRLO, testoLavoroFermo } from './lavoro-fermo'
 import { aspettaDipendenze, righeDopoUnione, rigaUnioneEPoi } from './dipendenze'
 import { promemoriaRosso, type RossoVisto } from './criterio-rosso'
 import { permessoDaSolo } from './permessi-automatici'
@@ -1106,6 +1106,7 @@ ${v.prompt}` : ''}` })
       domande: u === undefined ? [] : x.domande.aperte(u.id).map((q) => ({ id: q.id, testo: q.parti?.domanda ?? q.testo, apertaIl: q.apertaIl })),
       subagenti: subagenti(ws),
       ...((i.sveglie ?? []).length > 0 ? { sveglie: i.sveglie as { il: string; perche: string }[] } : {}),
+      ...(i.pausa !== undefined ? { pausa: i.pausa } : {}),
       unioni: [...righeUnioni(ws), ...[rigaUnioneEPoi(x.orchestratori.piano(ws), compitiInUnione(ws))].flatMap((r) => (r !== undefined ? [r] : []))],
       adesso: Date.parse(x.adesso())
     })
@@ -2319,6 +2320,14 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     x.salva(conTua)
     // 11/11: `nicholas` segna le righe scritte da lui a mano (serve a sapere se installare l'ha chiesto lui).
     x.orchestratori.aggiungiDialogo(ws, { quando, da: 'tu', testo, ...(opz.daProgramma === true ? {} : { nicholas: true as const }) })
+    // k-178h: un messaggio di Nicholas toglie la pausa; se dice «resta fermo» ne mette una nuova.
+    if (opz.daProgramma !== true) {
+      const frase = chiedeDiFermarsi(testo)
+      x.orchestratori.cambiaImpostazioni(ws, (i) => {
+        const { pausa: _via, ...senza } = i
+        return frase !== undefined ? { ...senza, pausa: { dal: quando, frase } } : senza
+      })
+    }
     ricalcola(ws, `richiesta nuova: «${testo.replace(/\s+/gu, ' ').slice(0, 60)}»`)
     // k-44: se Nicholas scrive nel dialogo, le domande rimaste aperte prima del suo messaggio sono superate
     // (ha parlato lui): spariscono dalle Domande e l'autopilota lo legge qui.
@@ -2430,9 +2439,12 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
   /** 0.102.1: la prossima sveglia futura del workspace (una pausa voluta), se c'è. */
   const prossimaSveglia = (ws: string, ora: number): { il: string; perche: string } | undefined =>
     (imp(ws).sveglie ?? []).filter((s) => Date.parse(s.il) > ora).sort((p, q) => p.il.localeCompare(q.il))[0]
+  /** k-178h: in pausa per ordine di Nicholas: nessuna spinta, sveglia o rilancio finché non riscrive. */
+  const inPausa = (ws: string): boolean => imp(ws).pausa !== undefined
   const spingiFermi = (ora: number): void => {
     for (const a of unici()) {
       const ws = wsDi(a)
+      if (inPausa(ws)) { fermiVisti.delete(ws); continue }
       // 0.102.1: con una sveglia futura il fermo è voluto («riprendo stasera, come mi hai chiesto»):
       // prima lo si svegliava lo stesso ogni ora, ~2,5 $ a turno per sentirsi dire «aspetto la sveglia».
       if (prossimaSveglia(ws, ora) !== undefined) { fermiVisti.delete(ws); continue }
@@ -2471,6 +2483,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
   const ricordaRossi = (ora: number): void => {
     for (const a of unici()) {
       const ws = wsDi(a)
+      if (inPausa(ws)) continue
       const attesa = orchestratore.inAttesa(ws)
       const occupato = orchestratore.inVolo(ws) || attesa.messaggi > 0 || attesa.eventi > 0 || unioniIn(ws) > 0
       const vivi = subagenti(ws).filter((y) => (y.stato === 'avviato' || y.stato === 'lavoro') && y.compito !== undefined)
@@ -2787,6 +2800,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     for (const a of unici()) {
       if (a.archiviato === true) continue
       const ws = wsDi(a)
+      if (inPausa(ws)) continue
       const scadute = (imp(ws).sveglie ?? []).filter((s) => Date.parse(s.il) <= ora)
       if (scadute.length === 0) continue
       x.orchestratori.cambiaImpostazioni(ws, (i) => {
@@ -2811,7 +2825,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
    */
   const chatAdottateAlLavoro = (ws: string): number => specialistiVivi(unicoDi(ws)).filter((c) => c.stato === 'lavoro').length
   const lavoroDaPortareAvanti = (ws: string, ora: number = oraMs()): boolean => {
-    if (!conLavoroAperto(ws)) return false
+    if (!conLavoroAperto(ws) || inPausa(ws)) return false
     if (alLavoroNel(ws) > 0 || unioniIn(ws) > 0 || chatAdottateAlLavoro(ws) > 0) return true
     return firmaLavoroPortabile(ws, ora) !== undefined
   }
@@ -2835,6 +2849,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     for (const a of unici()) {
       if (a.archiviato === true) continue
       const ws = wsDi(a)
+      if (inPausa(ws)) { risvegliVisti.delete(ws); continue }
       if (!lavoroDaPortareAvanti(ws, ora)) { risvegliVisti.delete(ws); continue }
       if (orchestratore.vivo(ws) || orchestratore.inVolo(ws)) continue
       const attesa = orchestratore.inAttesa(ws)
@@ -3085,6 +3100,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
         ...(i.percento?.calo !== undefined ? { calo: i.percento.calo } : {}),
         pensa: orchestratore.inVolo(ws) || orchestratore.inAttesa(ws).messaggi > 0,
         ...(() => { const s = prossimaSveglia(ws, ora); return s !== undefined ? { sveglia: { il: s.il, perche: s.perche } } : {} })(),
+        ...(i.pausa !== undefined ? { pausa: i.pausa } : {}),
         vivo: orchestratore.vivo(ws),
         // 12/11 (Nicholas: «la chat dice che l’autopilota è fermo ma continuano a vedersi prove sotto»).
         ...(() => {

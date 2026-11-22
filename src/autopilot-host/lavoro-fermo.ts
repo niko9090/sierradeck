@@ -114,3 +114,13 @@ export function testoLavoroFermo(f: LavoroFermo, minuti: number, domandeAperte: 
       : 'Non chiedere «procedo?»: se un compito aspetta davvero una decisione di Nicholas, chiedila con chiedi_utente e intanto porta avanti il resto.'
   ].join('\n')
 }
+
+/**
+ * k-178h: Nicholas chiede di restare fermi? Solo messaggi brevi che sono quel comando («resta fermo», «fermati», «stop»,
+ * «ok stop», «aspetta»): una frase lunga che contiene «stop» per altro non mette in pausa. Restituisce la frase, o niente.
+ */
+export function chiedeDiFermarsi(testo: string): string | undefined {
+  const t = testo.trim().replace(/\s+/gu, ' ')
+  if (t.length > 40) return undefined
+  return /^(ok[, ]+|per ora[, ]+|adesso[, ]+)?(resta(re)? fermo|restate fermi|fermati|fermatevi|stop|basta|aspetta|pausa|fermo cos[iì])([ ,]+(per ora|adesso|un attimo|che ti dico io))?[\s.!]*$/iu.test(t) ? t : undefined
+}

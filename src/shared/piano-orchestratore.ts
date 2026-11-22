@@ -479,6 +479,8 @@ export type VistaOrchestratore = {
    * 19:02, come mi hai chiesto»). Fino ad allora il fermo è voluto: «In pausa fino alle…».
    */
   sveglia?: { il: string; perche: string }
+  /** k-178h: Nicholas ha scritto «resta fermo»/«fermati»/«stop»: pausa vera fino al suo prossimo messaggio. */
+  pausa?: { dal: string; frase: string }
   /** Gli specialisti: subagenti (con ruolo, attività, stato e durata) e chat adottate. */
   specialisti: { id: string; ruolo?: string; compito: string; stato: string; compitoId?: string; attivita?: string; durata?: string; adottata?: true; fine?: string; pc?: string }[]
   /** Il processo `claude` del workspace è acceso. */

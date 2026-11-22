@@ -36,6 +36,8 @@ export type DatiRiassunto = {
   unioni?: string[]
   /** 11/11: le sveglie in attesa, salvate sul disco: le suona il programma. */
   sveglie?: { il: string; perche: string }[]
+  /** k-178h: Nicholas ha chiesto di restare fermi: finché non riscrive, niente sveglie, spinte o rilanci. */
+  pausa?: { dal: string; frase: string }
   adesso: number
 }
 
@@ -172,6 +174,10 @@ function costruisci(d: DatiRiassunto, liv: Livello): Sezioni {
   if (d.domande !== undefined && d.domande.length > 0) {
     righe.push('DOMANDE APERTE (le vede Nicholas: ritira con ritira_domanda quelle che non servono più — hai già deciso, il lavoro è andato avanti, ti ha risposto nel dialogo):')
     for (const q of d.domande) righe.push(`- ${q.id} (da ${minuti(new Date(q.apertaIl).toISOString(), d.adesso)}): ${corto(q.testo, 200)}`)
+  }
+
+  if (d.pausa !== undefined) {
+    righe.push(`PAUSA: Nicholas ha scritto «${corto(d.pausa.frase, 60)}» (${minuti(d.pausa.dal, d.adesso)} fa). Resta fermo: niente sveglie, niente spinte, niente rilanci da parte del programma. Riprendi solo quando Nicholas ti scrive di nuovo.`)
   }
 
   if (d.sveglie !== undefined && d.sveglie.length > 0) {
