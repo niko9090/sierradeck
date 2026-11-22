@@ -22,6 +22,10 @@ export type Riassunto = {
   titolo: string
   /** Le righe da leggere, corte, in parole semplici. */
   righe: string[]
+  /** 22/11: «Passaggi», una riga per passo fatto dal tuo ultimo messaggio, in ordine (solo «dal tuo ultimo messaggio»). */
+  passaggi?: string[]
+  /** 22/11: «Da sapere», le poche cose che servono a te: problemi aperti, cosa tocca a te, versioni uscite. */
+  daSapere?: string[]
   /** Lo stesso, da dire a voce: frasi intere, niente simboli. */
   parlato: string
 }
@@ -140,6 +144,41 @@ function eventiDopo(a: DatiRiassuntoAutopilota['autopilota'], da: number): Recor
   return g
 }
 
+/** Quanti passaggi al più si elencano: i più recenti, gli altri si contano. */
+const PASSAGGI_MAX = 8
+
+/**
+ * 22/11: la didascalia dei passi fatti dopo `da`, in ordine di tempo, una riga
+ * per passo («Unito: …, prove passate»). Dal diario; senza sigle.
+ */
+export function passaggiDopo(a: DatiRiassuntoAutopilota['autopilota'], da: number): string[] {
+  const passi: string[] = []
+  const ordinate = a.decisioni
+    .map((d) => ({ d, t: Date.parse(d.quando) }))
+    .filter((x) => !Number.isNaN(x.t) && x.t > da)
+    .sort((x, y) => x.t - y.t)
+  for (const { d } of ordinate) {
+    const gruppo = gruppoDi(d)
+    if (gruppo === undefined || gruppo === 'altro') continue
+    const riga = rigaTraguardo(a, d.traguardo!)
+    if (riga === undefined) continue
+    const cosa = cosaDi(riga)
+    let passo: string
+    switch (gruppo) {
+      case 'partiti': passo = `Partito: ${cosa}`; break
+      case 'finiti': passo = `Finito, da provare: ${cosa}`; break
+      case 'uniti': passo = `Unito, prove passate: ${cosa}`; break
+      case 'fatte': passo = `Richiesta fatta: ${cosa}`; break
+      case 'rilasci': passo = corto(riga, 100); break
+      default: passo = `Non è andata: ${corto(riga, 100)}`
+    }
+    if (passi[passi.length - 1] !== passo) passi.push(passo)
+  }
+  if (passi.length <= PASSAGGI_MAX) return passi
+  const tolti = passi.length - PASSAGGI_MAX
+  return [`Prima: ${tolti === 1 ? 'un altro passo' : `altri ${tolti} passi`}`, ...passi.slice(-PASSAGGI_MAX)]
+}
+
 /** Le sue domande ancora aperte nella chat, dalla più vecchia. */
 function domandeAperte(a: DatiRiassuntoAutopilota['autopilota']): string[] {
   return a.dialogo.filter((s) => s.da === 'lui' && s.domanda !== undefined && s.domanda.chiusa !== true).map((s) => corto(s.testo, 140))
@@ -214,7 +253,19 @@ export function riassuntoDaUltimo(d: DatiRiassuntoAutopilota): Riassunto {
   righe.push(...righeDomande(d))
   const adesso = rigaAdesso(d)
   if (adesso !== undefined) righe.push(adesso)
-  return { tipo: 'da-ultimo', titolo, righe, parlato: perLaVoce(titolo, righe) }
+  // 22/11: le due parti, «Passaggi» e «Da sapere».
+  const passaggi = passaggiDopo(d.autopilota, da)
+  const daSapere: string[] = []
+  for (const v of versioni) daSapere.push(`Versione ${v} pubblicata: tocca a te installarla.`)
+  if (g.problemi.length > 0) daSapere.push(`${g.problemi.length === 1 ? 'Problema aperto' : 'Problemi aperti'}: ${g.problemi[g.problemi.length - 1]!}`)
+  daSapere.push(...righeDomande(d))
+  if (ultima !== undefined) daSapere.push(`Ultima sua risposta: ${corto(ultima.testo, 160)}`)
+  if (nuove.length > 0) daSapere.push(`In coda: ${elenco(nuove.map((r) => corto(r.titolo, 70)))}.`)
+  if (adesso !== undefined) daSapere.push(adesso)
+  if (passaggi.length === 0) passaggi.push(tuo !== undefined ? 'Da allora nessun passo fatto.' : 'Nelle ultime 24 ore nessun passo fatto.')
+  if (daSapere.length === 0) daSapere.push('Niente che richieda te.')
+  const parlato = perLaVoce(titolo, ['Passaggi.', ...passaggi, 'Da sapere.', ...daSapere])
+  return { tipo: 'da-ultimo', titolo, righe, passaggi, daSapere, parlato }
 }
 
 /**

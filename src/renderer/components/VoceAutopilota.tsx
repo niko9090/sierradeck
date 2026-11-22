@@ -154,9 +154,22 @@ export function VoceAutopilota({ autopilota, workspace, battute, richiesta, invi
             <Aiuto di="il riassunto">{AIUTO_RIASSUNTO}</Aiuto>
             <button className="tasto tasto--mini" aria-label="Chiudi il riassunto" onClick={() => setAperto(undefined)}>×</button>
           </div>
-          <ul className="voceap__righe">
-            {aperto.righe.map((r, i) => <li key={i}>{r}</li>)}
-          </ul>
+          {aperto.passaggi !== undefined && aperto.daSapere !== undefined ? (
+            <>
+              <div className="voceap__sezione">Passaggi</div>
+              <ul className="voceap__righe">
+                {aperto.passaggi.map((r, i) => <li key={i}>{r}</li>)}
+              </ul>
+              <div className="voceap__sezione">Da sapere</div>
+              <ul className="voceap__righe">
+                {aperto.daSapere.map((r, i) => <li key={i}>{r}</li>)}
+              </ul>
+            </>
+          ) : (
+            <ul className="voceap__righe">
+              {aperto.righe.map((r, i) => <li key={i}>{r}</li>)}
+            </ul>
+          )}
         </div>
       ) : null}
     </div>
