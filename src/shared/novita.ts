@@ -41,6 +41,16 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.112.2',
+    righe: [
+      '**Specialista a metà:** se uno specialista chiude dicendo «aspetto l’esito e riprendo», non conta più come finito. Il lavoro non viene unito e lo specialista riparte.',
+      '**Agenti attivi a destra:** le chat che stanno lavorando ora si vedono nell’elenco a destra.',
+      '**Workspace con nomi simili:** nomi che differiscono solo per le maiuscole entrano nel formato autopilota + agenti. La colonna dell’autopilota resta come l’hai lasciata.',
+      '**Rami superati:** i rami di lavori già uniti o chiusi si tolgono da soli, solo su questo PC.',
+      '**Novità su una riga:** le note di rilascio scritte su una riga sola si leggono bene.',
+    ],
+  },
+  {
     versione: '0.112.1',
     righe: ['**Chiusura più pulita:** chiudendo il programma non compare più un errore finto nel registro.'],
   },
