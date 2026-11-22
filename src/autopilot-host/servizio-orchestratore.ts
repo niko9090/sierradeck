@@ -52,7 +52,7 @@ import { RAMI_SEGNALATI_MAX, SVEGLIE_MAX } from './orchestratore-store'
 import type { LimitiPc } from '@shared/limiti-pc'
 import { POSTI_MAX } from '@shared/posti-chat'
 import { fermataSpecialista } from './stop-specialista'
-import { MEZZE_FINI_MAX, promessaSenzaFine } from './finito-a-meta'
+import { MEZZE_FINI_MAX, fermoAMeta } from './finito-a-meta'
 import { cartellaDelWorkspace, hookAdottato, nuovoUnico, obiettiviInCoda, passaAllUnico, type CampiVecchi, type Vecchio } from './migra-orchestratore'
 import { quandoInParole, riassuntoOrchestratore } from './riassunto-orchestratore'
 import { motivoSpecialistaDoppio, ripresaDopoRiavvio } from './ripresa-riavvio'
@@ -891,7 +891,9 @@ ${v.prompt}` : ''}
 Il posto è tuo per 5 minuti.` })
         continue
       }
-      evento(v.workspace, { tipo: 'posto', quando, testo: `si è liberato un posto: rilancia ora ${cosa}${v.compito !== undefined ? ` («${cosaDel(v.descrizione)}»)` : ''}. Il posto è tuo per 5 minuti; se non rilanci passa al successivo.` })
+      evento(v.workspace, { tipo: 'posto', quando, testo: `si è liberato un posto: rilancia ora ${cosa}${v.compito !== undefined ? ` («${cosaDel(v.descrizione)}»)` : ''}. Il posto è tuo per 5 minuti; se non rilanci passa al successivo.${v.prompt !== undefined ? `
+PROMPT SALVATO (rilancia con questo, senza riscriverlo):
+${v.prompt}` : ''}` })
     }
     // 11/11: non cade più dalla lista. Resta in fila e riposa: lo si dice una volta.
     for (const v of m.cadute) {
@@ -1188,7 +1190,7 @@ ${NOTA_SENZA_GIT}`,
       }
       const k = s.compito !== undefined ? x.orchestratori.piano(ws).compiti.find((c) => c.id === s.compito && c.chat === s.id) : undefined
       // k-174a: «riprendo…», «aspetto l'esito» come ultima parola non è un compito finito: niente unione, si rilancia.
-      const promessa = s.stato === 'finito' && !RUOLI_SOLA_LETTURA.has(s.ruolo) ? promessaSenzaFine(s.riepilogo) : undefined
+      const promessa = s.stato === 'finito' && !RUOLI_SOLA_LETTURA.has(s.ruolo) ? fermoAMeta(s.ruolo, s.riepilogo) : undefined
       const chiaveMezza = `${ws}|${s.compito ?? s.id}`
       if (promessa !== undefined && (mezzeFini.get(chiaveMezza) ?? 0) < MEZZE_FINI_MAX) {
         mezzeFini.set(chiaveMezza, (mezzeFini.get(chiaveMezza) ?? 0) + 1)
