@@ -59,6 +59,11 @@ export type ImpostazioniOrchestratore = {
    */
   sveglie?: Sveglia[]
   /**
+   * k-178h: Nicholas ha scritto «resta fermo», «fermati», «stop»: pausa vera. Niente sveglie, spinte del lavoro
+   * fermo o rilanci finché lui non scrive di nuovo (qualsiasi suo messaggio la toglie).
+   */
+  pausa?: { dal: string; frase: string }
+  /**
    * 11/11: le classi di azioni protette che Nicholas ha tolto per questo progetto con «Sì, sempre»
    * (`@shared/permessi-nicholas`). Le scrive solo il programma, da una sua risposta o dalle impostazioni.
    */
@@ -116,6 +121,9 @@ export function leggiImpostazioni(x: unknown): ImpostazioniOrchestratore {
     ...(Array.isArray(o.assorbiti) ? { assorbiti: o.assorbiti.filter((q): q is string => typeof q === 'string') } : {}),
     ...(Array.isArray(o.ramiSegnalati) ? { ramiSegnalati: o.ramiSegnalati.filter((q): q is string => typeof q === 'string').slice(-RAMI_SEGNALATI_MAX) } : {}),
     ...(leggiSveglie(o.sveglie).length > 0 ? { sveglie: leggiSveglie(o.sveglie) } : {}),
+    ...(typeof o.pausa === 'object' && o.pausa !== null && typeof (o.pausa as { dal?: unknown }).dal === 'string'
+      ? { pausa: { dal: (o.pausa as { dal: string }).dal, frase: String((o.pausa as { frase?: unknown }).frase ?? '').slice(0, 80) } }
+      : {}),
     ...(Object.keys(leggiPermessi(o.permessi)).length > 0 ? { permessi: leggiPermessi(o.permessi) } : {})
   }
 }
