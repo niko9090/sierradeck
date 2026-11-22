@@ -58,7 +58,10 @@ import { quandoInParole, riassuntoOrchestratore } from './riassunto-orchestrator
 import { motivoSpecialistaDoppio, ripresaDopoRiavvio } from './ripresa-riavvio'
 import { AGENTI_ORCHESTRATORE, fileAgenti, fileImpostazioniCli, RUOLI_AGENTI } from './agenti-orchestratore'
 import { percentualeVera, voceOspitata } from './vista-ospitati'
-import { datiPannello, totaliPannello } from '@shared/dati-pannello-agenti'
+import {
+  aggiungiEsitoUnione, datiPannello, durataAgenteMs, ESITI_UNIONE_MAX, esitoDelRifiuto, PAROLE_STATO_DOPO, statoDopoLavoro, totaliPannello,
+  type EsitoUnione, type VoceDopoLavoro
+} from '@shared/dati-pannello-agenti'
 import { valutaPrimaDiAffidare } from './affida-valuta'
 import { motivoAffidato, motivoPerRestareQui, motivoReteSoloQui, RUOLI_IN_VIAGGIO, scegliPosto, type Aiutante, type LavoroAffidato, type LavoroOspitato } from '@shared/aiuto-rete'
 import { giudicaGuardiaOrchestratore } from './guardia-orchestratore'
@@ -956,7 +959,7 @@ ${v.prompt}` : ''}` })
           workspaceNome: nomeWorkspace(l.ws), titolo: titoloDi(l.ws, l.s.compito, l.s.descrizione),
           ...(cosaFa !== '' ? { cosaFa } : {}),
           percentuale: st.percentuale, minutiStimati: st.minuti, peso: pesoDi(l.ws, l.s.compito),
-          pannello: datiPannello({ titolo: titoloDi(l.ws, l.s.compito, l.s.descrizione), ultimaAzione: cosaFa, file: l.s.file, origineFile: 'chiamate', token: l.s.token }),
+          pannello: datiPannello({ titolo: titoloDi(l.ws, l.s.compito, l.s.descrizione), ultimaAzione: cosaFa, file: l.s.file, origineFile: 'chiamate', token: l.s.token, dal: l.s.inizio, adesso: x.adesso() }),
           ...(st.inRitardo ? { inRitardo: true as const } : {}),
           ...(prec !== undefined ? { precedenza: prec } : {}),
           ...(fermaChiesta.has(l.s.id) ? { fermaRichiesta: true as const } : {})
@@ -970,7 +973,7 @@ ${v.prompt}` : ''}` })
           workspaceNome: nomeWorkspace(ws), titolo: titoloDi(ws, c.compitoId, c.compito),
           ...(cosaFa !== '' ? { cosaFa } : {}),
           peso: pesoDi(ws, c.compitoId), chat: true as const,
-          pannello: datiPannello({ titolo: titoloDi(ws, c.compitoId, c.compito), ultimaAzione: cosaFa })
+          pannello: datiPannello({ titolo: titoloDi(ws, c.compitoId, c.compito), ultimaAzione: cosaFa, ...(c.dal !== undefined ? { dal: c.dal, adesso: x.adesso() } : {}) })
         }
       }), (x.ospitati?.() ?? []).map((o, j) => {
         // 12/11 (Nicholas: «nel PC che ospita gli agenti di altri PC voglio che nella lista vengano visualizzati»).
@@ -992,7 +995,8 @@ ${v.prompt}` : ''}` })
           suPc: l.pcNome,
           pannello: datiPannello({
             suPc: l.pcNome, titolo: titoloDi(l.workspace, l.compito, l.descrizione), ultimaAzione: cosaFa,
-            file: l.file, ...(l.origineFile !== undefined ? { origineFile: l.origineFile } : {}), token: l.token, inInvio: l.inInvio === true
+            file: l.file, ...(l.origineFile !== undefined ? { origineFile: l.origineFile } : {}), token: l.token, inInvio: l.inInvio === true,
+            dal: l.inizio, adesso: x.adesso()
           })
         }
       })),
@@ -1000,10 +1004,12 @@ ${v.prompt}` : ''}` })
         const ws = wsDi(u)
         return [ws, totaliPannello(orchestratore.stato(ws).costi, subagenti(ws), x.adesso().slice(0, 10))] as const
       })),
-      inUnione: [...filaUnioni.entries()].flatMap(([ws, lista]) => lista.map((l) => ({
+      inUnione: [...filaUnioni.entries()].flatMap(([ws, lista]) => lista.map((l, i) => ({
         id: l.chiave, workspace: ws, workspaceNome: nomeWorkspace(ws),
-        titolo: titoloDi(ws, l.compito, l.chi), inCorso: l.inCorso
+        titolo: titoloDi(ws, l.compito, l.chi), inCorso: l.inCorso, posizione: i + 1
       }))),
+      esitiUnioni: Object.fromEntries([...esitiUnioni.entries()].filter(([, e]) => e.length > 0)),
+      dopoLavoro: dopoLavoro(),
       inFila: fila.map((v) => ({
         id: v.id, posizione: v.posizione, workspace: v.workspace,
         ...(v.autopilota !== undefined ? { autopilota: v.autopilota } : {}),
@@ -1347,6 +1353,35 @@ ${NOTA_SENZA_GIT}`,
     ramoUnito?: string
   }
   const filaUnioni = new Map<string, LavoroUnione[]>()
+  /** k-176h: gli esiti recenti delle unioni per workspace (il più recente prima), per il pannello a destra. Solo in memoria. */
+  const esitiUnioni = new Map<string, EsitoUnione[]>()
+  const ricordaEsitoUnione = (ws: string, e: Omit<EsitoUnione, 'quando'>): void => {
+    esitiUnioni.set(ws, aggiungiEsitoUnione(esitiUnioni.get(ws), { ...e, quando: x.adesso() }))
+  }
+  /**
+   * k-176h: gli specialisti finiti da poco (al più 10 per workspace) con la durata e lo stato del loro lavoro dopo la fine:
+   * in fila per l'unione, in unione, unito, criterio rosso, conflitto. Chi non ha ancora uno stato non compare.
+   */
+  const dopoLavoro = (): VoceDopoLavoro[] => unici().flatMap((u) => {
+    const ws = wsDi(u)
+    return subagenti(ws)
+      .filter((s) => s.stato === 'finito' && s.fine !== undefined)
+      .sort((a, b) => Date.parse(b.fine!) - Date.parse(a.fine!))
+      .flatMap((s) => {
+        const compito = compitoDelPiano(ws, s.compito)
+        const unione = (filaUnioni.get(ws) ?? []).find((l) => (s.compito !== undefined && l.compito === s.compito) || l.p.specialista === s.id)
+        const ultimo = (esitiUnioni.get(ws) ?? []).find((e) => s.compito !== undefined && e.compito === s.compito)
+        const stato = statoDopoLavoro({
+          ...(unione !== undefined ? { unione } : {}),
+          ...(compito !== undefined ? { compito } : s.unito === true ? { compito: { stato: 'unito', criterioVerde: true } } : {}),
+          ...(ultimo !== undefined ? { ultimoEsito: ultimo.esito } : {})
+        })
+        if (stato === undefined) return []
+        const durataMs = durataAgenteMs(s.inizio, s.fine, x.adesso())
+        return [{ id: s.id, workspace: ws, titolo: titoloDi(ws, s.compito, s.descrizione), ...(durataMs !== undefined ? { durataMs } : {}), stato, parole: PAROLE_STATO_DOPO[stato] }]
+      })
+      .slice(0, ESITI_UNIONE_MAX)
+  })
   /** Workspace per cui si è già detto che la cartella principale ha file di Nicholas a metà (una volta sola). */
   const sporcoDetto = new Set<string>()
   /** 11/11: la fila che dorme aspettando il momento di riprovare si sveglia se arriva un'unione nuova, o la risposta di Nicholas. */
@@ -1825,6 +1860,7 @@ ${NOTA_SENZA_GIT}`,
       }
       if (motivo !== undefined) {
         if (compito !== undefined) cambiaCompito(ws, compito.id, (k) => ({ ...k, esito: `unione non fatta: ${motivo}` }))
+        ricordaEsitoUnione(ws, { id: `${ws}|${compito?.id ?? nome}`, titolo: titoloDi(ws, compito?.id, nome), esito: esitoDelRifiuto(motivo), ...(compito !== undefined ? { compito: compito.id } : {}) })
         return `${nome}: unione NON fatta — ${motivo}. Il ramo ${ramo} resta com’è: affida la correzione a uno specialista.${fraseSalvati(prendiSalvati())}`
       }
     }
@@ -1897,6 +1933,7 @@ ${NOTA_SENZA_GIT}`,
     }
     if (compito !== undefined) {
       cambiaCompito(ws, compito.id, (k) => ({ ...k, stato: 'unito', criterioVerde: verde, unitoIl: il, esito: dettaglio }))
+      ricordaEsitoUnione(ws, { id: `${ws}|${compito.id}`, titolo: titoloDi(ws, compito.id, nome), esito: verde ? 'verde' : 'rosso', verde, ...(comando !== undefined ? { comando } : {}), compito: compito.id })
     }
     for (const o of assorbiti) {
       const s = uniti.get(ws) ?? new Set<string>()

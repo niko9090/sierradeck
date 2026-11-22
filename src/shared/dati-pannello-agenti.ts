@@ -62,6 +62,8 @@ export type DatiPannelloAgente = {
   token?: TokenAgente
   /** «Invio dati – fine lavori»: solo per un agente di un altro PC che ha finito e rimanda il ramo. */
   invio?: FaseInvio
+  /** k-176h: da quanto lavora (ms), o quanto è durato se ha finito. */
+  durataMs?: number
 }
 
 /** I contatori del workspace, accanto all'elenco degli agenti. */
@@ -130,7 +132,93 @@ export function tokenDaUso(uso: unknown): number {
   return totale > 0 ? totale : n(u.input_tokens) + n(u.output_tokens) + n(u.cache_read_input_tokens) + n(u.cache_creation_input_tokens)
 }
 
+/** Da quanto lavora un agente (in millisecondi), o quanto è durato se ha finito. Mai negativo; senza date valide, niente. */
+export function durataAgenteMs(inizio: string | undefined, fine: string | undefined, adesso: string): number | undefined {
+  if (inizio === undefined) return undefined
+  const da = Date.parse(inizio)
+  const a = Date.parse(fine ?? adesso)
+  if (!Number.isFinite(da) || !Number.isFinite(a)) return undefined
+  return Math.max(0, a - da)
+}
+
+/** Dopo che lo specialista ha finito: dove è arrivato il suo lavoro. */
+export type StatoDopoLavoro = 'in-fila' | 'in-unione' | 'unito' | 'criterio-rosso' | 'conflitto'
+
+/** Le parole per dirlo a Nicholas. */
+export const PAROLE_STATO_DOPO: Record<StatoDopoLavoro, string> = {
+  'in-fila': 'in fila per l’unione',
+  'in-unione': 'in unione',
+  unito: 'unito',
+  'criterio-rosso': 'criterio rosso',
+  conflitto: 'conflitto'
+}
+
+/** Come è finita un'unione: verde, criterio rosso, conflitto, o ramo non unito per un altro motivo. */
+export type EsitoUnioneTipo = 'verde' | 'rosso' | 'conflitto' | 'non-unita'
+
+/** Un'unione conclusa, per la lista degli esiti recenti. */
+export type EsitoUnione = {
+  /** La chiave dell'unione (stessa di `inUnione`). */
+  id: string
+  titolo: string
+  esito: EsitoUnioneTipo
+  /** Il criterio misurato: verde se passa. Assente se non si è misurato. */
+  verde?: boolean
+  /** Il comando misurato, quando il criterio ne ha uno. */
+  comando?: string
+  /** Il compito del piano, se c'è. */
+  compito?: string
+  /** Quando (ISO). */
+  quando: string
+}
+
+/** Quanti esiti recenti si ricordano per workspace. */
+export const ESITI_UNIONE_MAX = 10
+
+/** Aggiunge un esito in testa (il più recente prima), senza passare {@link ESITI_UNIONE_MAX}. */
+export function aggiungiEsitoUnione(elenco: readonly EsitoUnione[] | undefined, e: EsitoUnione): EsitoUnione[] {
+  return [e, ...(elenco ?? [])].slice(0, ESITI_UNIONE_MAX)
+}
+
+/** L'esito di un'unione non fatta: un conflitto si riconosce dal motivo di git. */
+export function esitoDelRifiuto(motivo: string): EsitoUnioneTipo {
+  return /conflitt/iu.test(motivo) ? 'conflitto' : 'non-unita'
+}
+
+/**
+ * Lo stato del lavoro di uno specialista che ha finito. Ordine: prima l'unione che va
+ * adesso (in unione, in fila), poi l'esito del compito (unito verde o rosso), poi
+ * l'ultimo tentativo non riuscito (conflitto). Niente se non si sa.
+ */
+export function statoDopoLavoro(o: {
+  unione?: { inCorso: boolean }
+  compito?: { stato: string; criterioVerde?: boolean }
+  ultimoEsito?: EsitoUnioneTipo
+}): StatoDopoLavoro | undefined {
+  if (o.unione !== undefined) return o.unione.inCorso ? 'in-unione' : 'in-fila'
+  if (o.compito?.stato === 'unito') return o.compito.criterioVerde === true ? 'unito' : 'criterio-rosso'
+  if (o.ultimoEsito === 'conflitto') return 'conflitto'
+  return undefined
+}
+
+/** Uno specialista finito, con quanto è durato e dove è arrivato il suo lavoro. */
+export type VoceDopoLavoro = {
+  id: string
+  workspace: string
+  titolo: string
+  /** Quanto è durato (ms). */
+  durataMs?: number
+  stato: StatoDopoLavoro
+  /** Le parole dello stato. */
+  parole: string
+}
+
 export type OrigineDati = {
+  /** Quando è partito (ISO) e, se ha finito, quando ha finito: danno la durata. */
+  dal?: string
+  fine?: string
+  /** L'ora di adesso (ISO), per la durata di chi lavora ancora. */
+  adesso?: string
   /** Gira su un altro PC (Aiuta la rete): il suo nome. */
   suPc?: string
   /** Gira qui per conto di un altro PC: il nome di quel PC. */
@@ -148,6 +236,7 @@ export type OrigineDati = {
 /** Compone i dati del pannello di un agente da quello che il programma sa di lui. */
 export function datiPannello(o: OrigineDati): DatiPannelloAgente {
   const file = o.file ?? []
+  const durataMs = o.adesso !== undefined ? durataAgenteMs(o.dal, o.fine, o.adesso) : undefined
   return {
     pc: {
       questoPc: o.suPc === undefined,
@@ -158,7 +247,8 @@ export function datiPannello(o: OrigineDati): DatiPannelloAgente {
     ...(file.length > 0 && o.origineFile !== undefined ? { origineFile: o.origineFile } : {}),
     azione: { titolo: o.titolo, ...(o.ultimaAzione !== undefined && o.ultimaAzione !== '' ? { ultima: o.ultimaAzione } : {}) },
     ...(o.token !== undefined && o.token > 0 ? { token: { totale: o.token } } : {}),
-    ...(o.inInvio === true ? { invio: 'invio' as const } : {})
+    ...(o.inInvio === true ? { invio: 'invio' as const } : {}),
+    ...(durataMs !== undefined ? { durataMs } : {})
   }
 }
 
