@@ -25,7 +25,7 @@ export type TurniCriteri = {
   /** Esegue `fai` quando tocca a lui: nessun altro pesante, nessuna unione in `cwd`. */
   pesante: <T>(cwd: string, fai: () => Promise<T>) => Promise<T>
   /** Esegue l'unione quando nella cartella non gira nessun pesante né un'altra unione; intanto non ne parte nessuno lì. */
-  unione: <T>(cwd: string, fai: () => T | Promise<T>) => Promise<T>
+  unione: <T>(cwd: string, fai: (segnale: AbortSignal) => T | Promise<T>) => Promise<T>
   /**
    * **Il turno di un comando pesante lanciato da una chat** (0.85.2). Non
    * aspetta: o il turno è libero e la chat lo prende subito, per al più
@@ -118,6 +118,7 @@ export function creaTurni(opz: { ora?: () => number; unioneMaxMs?: number } = {}
       // posto si libera e chi chiama riceve `TurnoScaduto` (l'unione si rimette in fila, senza riavvii).
       const stop = { scaduto: false }
       let preso = false
+      let avviata: Promise<unknown> | undefined
       let timer: ReturnType<typeof setTimeout> | undefined
       const scaduta = new Promise<never>((_, no) => {
         timer = setTimeout(() => { stop.scaduto = true; no(new TurnoScaduto()) }, opz.unioneMaxMs ?? UNIONE_TURNO_MAX_MS)
@@ -138,17 +139,30 @@ export function creaTurni(opz: { ora?: () => number; unioneMaxMs?: number } = {}
           preso = true
           return true
         }), scaduta])
+        // 22/11: alla scadenza chi chiama riceve subito `TurnoScaduto` e il segnale ferma i git figli,
+        // ma il posto della cartella si libera solo quando `fai()` si è chiuso davvero: un secondo
+        // `git merge` non parte mentre il primo gira ancora.
+        const controllo = new AbortController()
+        const lavoro = (async () => fai(controllo.signal))()
+        lavoro.catch(() => {})
+        avviata = lavoro
         try {
-          return await Promise.race([fai(), scaduta])
-        } finally {
-          if (preso) unendo.delete(dove)
+          return await Promise.race([lavoro, scaduta])
+        } catch (err) {
+          if (err instanceof TurnoScaduto) controllo.abort()
+          throw err
         }
       } finally {
         if (timer !== undefined) clearTimeout(timer)
-        const resto = (unioni.get(dove) ?? 1) - 1
-        if (resto > 0) unioni.set(dove, resto)
-        else unioni.delete(dove)
-        sveglia()
+        const chiudi = (): void => {
+          if (preso) unendo.delete(dove)
+          const resto = (unioni.get(dove) ?? 1) - 1
+          if (resto > 0) unioni.set(dove, resto)
+          else unioni.delete(dove)
+          sveglia()
+        }
+        if (avviata !== undefined) void avviata.then(chiudi, chiudi)
+        else chiudi()
       }
     },
     prenota(chi, cwd, durataMs, inSottofondo = false) {

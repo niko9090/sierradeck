@@ -119,7 +119,8 @@ describe('turni: una sola unione per cartella (Revisione 0.84.0)', () => {
 describe('un’unione appesa non tiene il turno per sempre (06/11)', () => {
   it('scaduto il tempo il posto si libera e la seguente passa; chi era appeso riceve TurnoScaduto', async () => {
     const turni = creaTurni({ unioneMaxMs: 30 })
-    const appesa = turni.unione('C:/principale', () => new Promise<void>(() => {}))
+    // 22/11: il posto si libera quando `fai` si chiude: qui si chiude col segnale.
+    const appesa = turni.unione('C:/principale', (segnale) => new Promise<void>((ris) => { segnale.addEventListener('abort', () => ris(), { once: true }) }))
     await expect(appesa).rejects.toBeInstanceOf(TurnoScaduto)
     await expect(turni.unione('C:/principale', () => Promise.resolve('passata'))).resolves.toBe('passata')
     expect(turni.stato().unioni).toBe(0)

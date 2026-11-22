@@ -36,7 +36,13 @@ export async function conScadenza<T>(
   let esito: { scaduta: false; valore: T } | { scaduta: true }
   try {
     const r = await Promise.race([lavoro, scadenza])
-    if (r === 'scaduta') { controllo.abort(); esito = { scaduta: true } } else esito = { scaduta: false, valore: r }
+    if (r === 'scaduta') {
+      controllo.abort()
+      // 22/11: si torna solo a corpo chiuso (il segnale lo ferma): la prova non esce da chi la tiene
+      // in conto mentre i suoi comandi girano ancora.
+      await lavoro.catch(() => {})
+      esito = { scaduta: true }
+    } else esito = { scaduta: false, valore: r }
   } finally {
     if (timer !== undefined) clearTimeout(timer)
     const fine = ora()

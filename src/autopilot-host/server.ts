@@ -277,6 +277,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   const memoria = deps.memoria ?? apriMemoria(undefined)
   const memoriaCriteri: MemoriaCriteri = new Map()
   const gitA = (git: Git): GitAsincrono => deps.gitAsincrono ?? comeAsincrono(git)
+  /** 22/11: il git di un passo dell'unione si ferma col segnale del turno (scaduto: niente comandi nuovi, i figli si fermano). */
+  const gitFermabile = (git: Git, segnale: AbortSignal): GitAsincrono => (args, cwd) => segnale.aborted
+    ? Promise.resolve({ codice: 1, uscita: 'git fermato: tempo scaduto' })
+    : gitA(git)(args, cwd, segnale)
   // L'ultimo salvato di ogni autopilota, per datare gli stati delle chat senza rileggere il file.
   const salvati = new Map<string, Autopilota>()
 
@@ -830,7 +834,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       const eScaduta = (): boolean => stato.scaduta || segnale.aborted
       const PER_TEMPO = 'una misura è scaduta per tempo (PC carico), non è colpa del ramo'
       const unisci = async (): Promise<EsitoProvaPrincipale | undefined> => {
-        const inizio = await turni.unione(a.cwd, () => iniziaProvaAsincrono(gitA(git), { cwd: a.cwd, ramo, base }))
+        const inizio = await turni.unione(a.cwd, (segnale) => iniziaProvaAsincrono(gitFermabile(git, segnale), { cwd: a.cwd, ramo, base }))
         if (inizio.ok) return undefined
         // Cartella con file di Nicholas a metà: non si tocca, l'unione aspetta il suo turno.
         return { unito: false, motivo: `l’unione di prova non si è potuta fare (${inizio.motivo})`, ...(inizio.motivo === MOTIVO_CARTELLA_SPORCA ? { ritenta: 'sporca' as const } : {}), ...(inizio.file !== undefined ? { file: inizio.file } : {}) }
@@ -840,7 +844,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       iniziata()
       // 11/11: scaduta mentre git univa: l'unione appena aperta si richiude qui, non al tentativo dopo.
       if (eScaduta()) {
-        try { await ripulisciProvaAsincrono(gitA(git), { cwd: a.cwd }) } catch { /* la prossima prova la ripulisce */ }
+        try { await turni.unione(a.cwd, (s) => ripulisciProvaAsincrono(gitFermabile(git, s), { cwd: a.cwd })) } catch { /* la prossima prova la ripulisce */ }
         return { unito: false, motivo: 'prova scaduta', ritenta: 'scaduta' }
       }
       // 0.96.1: prima si misura con il ramo dentro. Solo quello che non passa si
@@ -852,11 +856,11 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         // 11/11: una misura interrotta per tempo non dice niente sul ramo (07/11: rami respinti
         // a PC carico). La prova si chiude e l'unione torna in fila.
         if (rossi.some((e) => interrottoPerTempo(e.uscita))) {
-          await turni.unione(a.cwd, () => chiudiProvaAsincrono(gitA(git), { cwd: a.cwd, tieni: false }))
+          await turni.unione(a.cwd, (segnale) => chiudiProvaAsincrono(gitFermabile(git, segnale), { cwd: a.cwd, tieni: false }))
           return { unito: false, motivo: PER_TEMPO, ritenta: 'scaduta' }
         }
         if (rossi.length > 0) {
-          await turni.unione(a.cwd, () => chiudiProvaAsincrono(gitA(git), { cwd: a.cwd, tieni: false }))
+          await turni.unione(a.cwd, (segnale) => chiudiProvaAsincrono(gitFermabile(git, segnale), { cwd: a.cwd, tieni: false }))
           const prima = await misura(criteri.filter((c) => rossi.some((r) => r.descrizione === c.descrizione)), segnale)
           if (eScaduta()) return { unito: false, motivo: 'prova scaduta', ritenta: 'scaduta' }
           if (prima.some((e) => !e.passato && interrottoPerTempo(e.uscita))) return { unito: false, motivo: PER_TEMPO, ritenta: 'scaduta' }
@@ -873,7 +877,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         peggiorati = [`misura non riuscita: ${err instanceof Error ? err.message : String(err)}`]
       }
       if (eScaduta()) return { unito: false, motivo: 'prova scaduta', ritenta: 'scaduta' }
-      const tenuta = await turni.unione(a.cwd, () => chiudiProvaAsincrono(gitA(git), { cwd: a.cwd, tieni: peggiorati.length === 0 }))
+      const tenuta = await turni.unione(a.cwd, (segnale) => chiudiProvaAsincrono(gitFermabile(git, segnale), { cwd: a.cwd, tieni: peggiorati.length === 0 }))
       // Qui arriva solo una misura che non è riuscita (un errore del programma): non dice che il ramo rompe qualcosa.
       if (peggiorati.length > 0) return { unito: false, motivo: `l’unione di prova non si è potuta misurare (${peggiorati.join('; ')}): non è detto che sia colpa del ramo` }
       return tenuta ? { unito: true } : { unito: false, motivo: 'i criteri passavano, ma il commit dell’unione non è riuscito' }
@@ -889,7 +893,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       )
       if (!r.scaduta && r.valore !== 'scaduta') return r.valore
       stato.scaduta = true
-      try { await ripulisciProvaAsincrono(gitA(git), { cwd: a.cwd }) } catch { /* la prossima prova la ripulisce */ }
+      // 22/11: conScadenza ha aspettato la fine del corpo; la pulizia passa dal turno delle unioni (una per cartella).
+      try { await turni.unione(a.cwd, (segnale) => ripulisciProvaAsincrono(gitFermabile(git, segnale), { cwd: a.cwd })) } catch { /* la prossima prova la ripulisce */ }
       return { unito: false, motivo: 'l’unione di prova ha superato il tempo massimo: chiusa, la cartella è stata ripulita', ritenta: 'scaduta' }
     } finally {
       proveInCorso.delete(chiaveProva(a.cwd))
@@ -912,7 +917,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     let fine = (): void => {}
     proveInCorso.set(chiaveProva(a.cwd), new Promise<void>((r) => { fine = r }))
     try {
-      return await (deps.turni ?? TURNI_PC).unione(a.cwd, () => riallineaAsincrono(gitA(git), { cwd: a.cwd, base }))
+      return await (deps.turni ?? TURNI_PC).unione(a.cwd, (segnale) => riallineaAsincrono(gitFermabile(git, segnale), { cwd: a.cwd, base }))
     } catch (err) {
       return { esito: 'occupata', perche: err instanceof Error ? err.message : String(err) }
     } finally {
