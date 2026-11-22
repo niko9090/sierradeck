@@ -98,6 +98,7 @@
 - nei test con processo finto, un `muori()` durante un turno attiva il ritorno immediato di `guasto` (primi 2 tentativi): per provare la guardia chiudere prima il turno con `fine()`. _(2026-11-22)_
 - i test che simulano la fine di uno specialista devono chiudere con «RAPPORTO: finita»: senza, per sviluppatore/interfaccia/android/verificatore il compito torna da fare e l'unione non parte _(2026-11-22)_
 - `tests/shared/novita.test.ts` ammette al massimo 8 righe per voce: portando più novità in una versione sola, accorpare le righe doppie. _(2026-11-22)_
+- l'orologio di prova del servizio avanza di qualche ms: le durate vanno confrontate con un margine, non con un valore esatto _(2026-11-22)_
 
 ## worktree
 
@@ -397,13 +398,11 @@
 
 ## pagina
 
-- una funzione condivisa che arriva nella pagina con toString() non può avere funzioni annidate né costanti di modulo: i dati le arrivano come parametri. _(2026-11-09)_
 - La pagina del telefono è una stringa gigante: i testi condivisi vanno iniettati con `${JSON.stringify(...)}` e le funzioni si provano estraendole dallo script, come in tests/main/client-pagina-domand… _(2026-11-19)_
 - pannelliDelPosto (shared/navigazione-telefono) decide quali pannelli sono «aperti»: 'specialisti' ora è aperto su tutta la voce Workspace, quindi la lista si rilegge ogni 4 s lì. _(2026-11-19)_
 
 ## merge
 
-- client-pagina.ts: la lista di firme che fa ridisegnare la pagina del telefono è il punto dove si scontrano le funzioni nuove; tenere sempre le righe di entrambe. _(2026-11-09)_
 - Più gruppi di correzioni sugli stessi file grossi (servizio-orchestratore.ts): una copia per gruppo, poi un ramo di integrazione; i conflitti stanno negli import e nel cancello, e dopo ogni unione vanno rilanciati typecheck e l’intera suite. _(2026-11-11)_
 
 ## verifica
@@ -919,3 +918,7 @@
 
 - «N di M posti occupati» degli altri PC (`postiTesto`, `PostiAiuto`) non porta `perche`, `misura` né `scelti`: per mostrarvi il motivo servono questi campi nel messaggio dal PC remoto. _(2026-11-22)_
 - `rigaPosti` ha test che ne bloccano il testo esatto: il motivo è un campo a parte (`motivoCorto`), non va dentro `rigaPosti`. _(2026-11-22)_
+
+## pannello
+
+- unioni, durata e stato dopo il lavoro passano da `VistaAttesa` (`dati-pannello-agenti.ts`); gli esiti recenti stanno solo in memoria e si perdono al riavvio _(2026-11-22)_
