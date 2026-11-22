@@ -130,6 +130,8 @@ export type Preferenze = {
    * Valgono anche prima che l'autopilota nasca; dopo, sta anche nel suo file.
    */
   chatSoloMie?: string[]
+  /** k-174f: la colonna dell'autopilota è aperta? Assente = aperta; si scrive solo quando Nicholas la chiude. */
+  colonnaAutopilotaAperta?: boolean
   /**
    * I workspace «solo su questo PC» (0.96.0): le loro chat non vanno mai sul
    * Drive, e quelle già caricate ne vengono tolte (sul PC restano intatte).
@@ -343,6 +345,7 @@ export function normalizzaPreferenze(raw: unknown): Preferenze {
     ...(o.codeMode === true ? { codeMode: true } : {}),
     ...(o.postiChat === 1 || o.postiChat === -1 ? { postiChat: o.postiChat } : {}),
     ...(leggiPostiScelti(o.postiScelti) !== undefined ? { postiScelti: leggiPostiScelti(o.postiScelti) } : {}),
+    ...(o.colonnaAutopilotaAperta === false ? { colonnaAutopilotaAperta: false } : {}),
     ...(Array.isArray(o.chatSoloMie)
       ? { chatSoloMie: [...new Set(o.chatSoloMie.filter((c): c is string => typeof c === 'string' && c !== '' && c.length <= 80))].slice(-500) }
       : {}),

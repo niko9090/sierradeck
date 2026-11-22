@@ -1,4 +1,5 @@
 import { RUOLI } from './ruoli-agenti'
+import { chiaveNomeWorkspace } from './workspace'
 
 /**
  * La vista a elenco di un workspace (0.74.0). Nicholas, 15/10: «impostiamo di
@@ -14,16 +15,24 @@ import { RUOLI } from './ruoli-agenti'
  * rinomina, quale chat sta davanti.
  */
 
+/** Il workspace è nell'elenco? Senza badare a maiuscole e spazi («serverDSM» = «ServerDSM»). */
+export function inElenco(lista: readonly string[], nome: string): boolean {
+  const k = chiaveNomeWorkspace(nome)
+  return lista.some((n) => chiaveNomeWorkspace(n) === k)
+}
+
 /** La lista dopo una rinomina (`nuovo`) o un'eliminazione (`undefined`) di un workspace. */
 export function rinominaInElenco(lista: string[], vecchio: string, nuovo: string | undefined): string[] {
-  if (!lista.includes(vecchio)) return lista
-  const senza = lista.filter((n) => n !== vecchio)
-  return nuovo === undefined || senza.includes(nuovo) ? senza : [...senza, nuovo]
+  if (!inElenco(lista, vecchio)) return lista
+  const k = chiaveNomeWorkspace(vecchio)
+  const senza = lista.filter((n) => chiaveNomeWorkspace(n) !== k)
+  return nuovo === undefined || inElenco(senza, nuovo) ? senza : [...senza, nuovo]
 }
 
 /** Accende o spegne la vista a elenco per un workspace. */
 export function cambiaVistaElenco(lista: string[], nome: string, accesa: boolean): string[] {
-  const senza = lista.filter((n) => n !== nome)
+  const k = chiaveNomeWorkspace(nome)
+  const senza = lista.filter((n) => chiaveNomeWorkspace(n) !== k)
   return accesa ? [...senza, nome] : senza
 }
 

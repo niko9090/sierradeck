@@ -88,7 +88,7 @@ import { gruppoStabile, numeraUguali, righeDalVivo, ultimaAzioneDalVivo, type St
 import { ruoloDaContenuto } from '@shared/adozione'
 import { RUOLI, RUOLI_ORDINE } from '@shared/ruoli-agenti'
 import { specialistiDi } from '@shared/specialisti'
-import { autopilotaDelWorkspace, cambiaVistaElenco, chatDavantiStabile, ruoloDalTitolo, vociInOrdine, type VoceElenco } from '@shared/vista-elenco'
+import { autopilotaDelWorkspace, cambiaVistaElenco, chatDavantiStabile, inElenco, ruoloDalTitolo, vociInOrdine, type VoceElenco } from '@shared/vista-elenco'
 import { listPaneIds } from '@shared/layout-tree'
 import { chatDaSistemare } from '@shared/chat-governate'
 import type { StatoMigrazione } from '@shared/migrazione-elenco'
@@ -982,7 +982,7 @@ export function App(): React.JSX.Element {
   // Le chat «solo mia» (0.78.0): l'autopilota del workspace non le tocca.
   const [chatSoloMie, setChatSoloMie] = useState<string[]>([])
   useEffect(() => {
-    const applica = (p: { workspaceElenco?: string[]; chatSoloMie?: string[] }): void => { setWorkspaceElenco(Array.isArray(p.workspaceElenco) ? p.workspaceElenco : []); setChatSoloMie(Array.isArray(p.chatSoloMie) ? p.chatSoloMie : []) }
+    const applica = (p: { workspaceElenco?: string[]; chatSoloMie?: string[]; colonnaAutopilotaAperta?: boolean }): void => { setColonnaAutopilota(p.colonnaAutopilotaAperta !== false); setWorkspaceElenco(Array.isArray(p.workspaceElenco) ? p.workspaceElenco : []); setChatSoloMie(Array.isArray(p.chatSoloMie) ? p.chatSoloMie : []) }
     window.gestore.preferenze.leggi().then(applica).catch(() => undefined)
     return window.gestore.preferenze.suCambio(applica)
   }, [])
@@ -1583,7 +1583,7 @@ export function App(): React.JSX.Element {
     if (ws === '' || remotoDelWorkspace !== undefined || elencoForzato.current.has(ws)) return
     if (autopilotaDelWorkspace(autopiloti, ws) === undefined) return
     elencoForzato.current.add(ws)
-    if (!workspaceElenco.includes(ws)) impostaElenco(ws, true)
+    if (!inElenco(workspaceElenco, ws)) impostaElenco(ws, true)
   }, [workspace.attivo, autopiloti, workspaceElenco, remotoDelWorkspace, impostaElenco])
 
   // Finché le trascrizioni non sono state lette non c'è niente di sensato da
@@ -1608,7 +1608,7 @@ export function App(): React.JSX.Element {
   // La vista a elenco (0.74.0) del workspace davanti: le voci e la chat che sta davanti.
   const vistaElenco = ((): { voci: VoceElenco[]; davanti: string | undefined } | undefined => {
     // Un workspace di un altro PC si apre sempre nella Panoramica, con l'autopilota di là (13/11).
-    if (!workspaceElenco.includes(workspace.attivo) && remotoDelWorkspace === undefined) return undefined
+    if (!inElenco(workspaceElenco, workspace.attivo) && remotoDelWorkspace === undefined) return undefined
     const tutte: VoceElenco[] = Object.values(riquadriAperti).map((p) => ({
       paneId: p.id,
       titolo: p.title,
@@ -1640,7 +1640,7 @@ export function App(): React.JSX.Element {
     ...(remotoDelWorkspace !== undefined ? { pcNome: remotoDelWorkspace.pcNome } : {})
   }
   const colonnaVista = remotoDelWorkspace !== undefined ? !colonnaRemotaChiusa : colonnaAutopilota
-  const cambiaColonna = (v: boolean): void => { if (remotoDelWorkspace !== undefined) setColonnaRemotaChiusa(!v); else setColonnaAutopilota(v) }
+  const cambiaColonna = (v: boolean): void => { if (remotoDelWorkspace !== undefined) setColonnaRemotaChiusa(!v); else { setColonnaAutopilota(v); void salvaPreferenze((p) => ({ ...p, colonnaAutopilotaAperta: v ? undefined : false })) } }
   // La Panoramica (0.77.0): una scheda per chat del workspace, più gli specialisti che hanno finito.
   const linguetta = vistaElenco !== undefined ? (linguettaPerWs[workspace.attivo] ?? PANORAMICA) : PANORAMICA
   const schedePanoramica = ((): SchedaVista[] => {
