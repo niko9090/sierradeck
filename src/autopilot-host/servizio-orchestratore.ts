@@ -59,7 +59,7 @@ import { motivoSpecialistaDoppio, ripresaDopoRiavvio } from './ripresa-riavvio'
 import { AGENTI_ORCHESTRATORE, fileAgenti, fileImpostazioniCli, RUOLI_AGENTI } from './agenti-orchestratore'
 import { percentualeVera, voceOspitata } from './vista-ospitati'
 import { valutaPrimaDiAffidare } from './affida-valuta'
-import { motivoAffidato, motivoPerRestareQui, RUOLI_IN_VIAGGIO, scegliPosto, type Aiutante, type LavoroAffidato, type LavoroOspitato } from '@shared/aiuto-rete'
+import { motivoAffidato, motivoPerRestareQui, motivoReteSoloQui, RUOLI_IN_VIAGGIO, scegliPosto, type Aiutante, type LavoroAffidato, type LavoroOspitato } from '@shared/aiuto-rete'
 import { giudicaGuardiaOrchestratore } from './guardia-orchestratore'
 import type { Giudizio } from './divieti'
 import { doppioniDaArchiviare, rigaDoppione, type Doppione, type RichiestaDoppioni } from '@shared/autopiloti-doppioni'
@@ -822,6 +822,11 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
     const requisiti = compito !== undefined ? x.orchestratori.piano(ws).compiti.find((c) => c.id === compito)?.requisiti : undefined
     let scelto: Aiutante | undefined
     if (requisiti !== undefined) {
+      const soloQui = motivoReteSoloQui(requisiti.rete)
+      if (soloQui !== undefined) {
+        console.info(`[aiuto] ${ws} — ${compito ?? r.tipo} resta su questo PC: ${soloQui}`)
+        return undefined
+      }
       const e = valutaPrimaDiAffidare(requisiti, conPosti.filter((h) => h.modo !== 'no'), oraMs())
       if (e.tipo === 'resta-qui') {
         console.info(`[aiuto] ${ws} — ${compito ?? r.tipo} resta su questo PC: ${e.motivo}`)
