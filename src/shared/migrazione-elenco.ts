@@ -1,5 +1,5 @@
 import type { Archivio } from './workspace'
-import { cambiaVistaElenco } from './vista-elenco'
+import { cambiaVistaElenco, inElenco } from './vista-elenco'
 
 /**
  * La trasformazione di tutti i workspace di questo PC nel modo nuovo (0.74.1).
@@ -96,7 +96,7 @@ export function pianoMigrazione(a: Archivio, elencoPrima: string[]): { elenco: s
   for (const w of a.workspace) {
     const chat = chatDelWorkspace(a, w.nome)
     const cwd = cartellaDelWorkspace(a, w.nome)
-    if (!elenco.includes(w.nome)) { elenco = cambiaVistaElenco(elenco, w.nome, true); aggiunti.push(w.nome) }
+    if (!inElenco(elenco, w.nome)) { elenco = cambiaVistaElenco(elenco, w.nome, true); aggiunti.push(w.nome) }
     dormienti.push({ workspace: w.nome, ...(cwd !== undefined ? { cwd } : {}), chat: chat.length })
     const remote = chat.filter((c) => c.remoto).length
     righe.push({
