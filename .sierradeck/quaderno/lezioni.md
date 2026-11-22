@@ -94,6 +94,8 @@
 - `servizio-orchestratore.test.ts` («PreToolUse dell'unico») fallisce già sulla base nel worktree: dipende dal percorso della copia, non è una regressione. _(2026-11-22)_
 - per provare il silenzio del lavoratore bastano fake timer solo su setInterval/clearInterval, creati prima di `avvia`; avanzare di 30 s per volta, un salto più lungo conta come sonno. _(2026-11-22)_
 - test «unione scaduta»: dopo la scadenza il posto resta occupato fino a git chiuso, quindi i finti `fai` vanno chiusi col segnale _(2026-11-22)_
+- `riassegna-lento-collegato.test.ts` fissava il testo «riparte qui»: cambiando i messaggi dello spedizioniere va aggiornato anche quel file. _(2026-11-22)_
+- nei test con processo finto, un `muori()` durante un turno attiva il ritorno immediato di `guasto` (primi 2 tentativi): per provare la guardia chiudere prima il turno con `fine()`. _(2026-11-22)_
 
 ## worktree
 
@@ -337,6 +339,7 @@
 ## guardia
 
 - il rifiuto delle cancellazioni nelle chat sta in divieti.ts (giudicaCancellazioni), chiamato da /hook/pretool in server.ts; cancella-sicura.ts riguarda solo le pulizie del programma _(2026-11-10)_
+- in `guardia` `riavviaSeMorto` va dopo `suonaSveglie`: se prima, il turno di ripresa è in volo e la sveglia aspetta in coda dietro di lui. _(2026-11-22)_
 
 ## renderer
 
@@ -367,30 +370,25 @@
 
 ## servizio
 
-- l'installer uccide anche il servizio autopiloti: memoria persa (messaggi e specialisti). Ripresa dal disco con `ripresaDopoRiavvio`, non basta il «lavoro fermo» (3 min, 2 spinte). _(2026-11-09)_
-- riprendiLavori({servizioAppenaPartito}) gira anche all'avvio del PC e dopo un crash, non solo dopo un aggiornamento: quello che fa lì va pensato come avvio normale _(2026-11-09)_
 - «rispondi» a una domanda usa ancora l'attesa di 3 s (autopilot-client.ts:411-415): la 0.95.5 ha alzato a 30 s solo il dialogo. Ogni POST che scrive deve passare attesaScrittura. _(2026-11-10)_
 - Dalla 0.101.0 telefono, pagina e Telegram leggono lo stesso registro degli avvisi (`src/main/avvisi.ts`, `/api/eventi`): una regola su quando avvisare va lì, non nelle schermate; `avvisi=0` vuol dire «da capo» e l’attesa deve svegliarsi per ogni avviso nato dopo. _(2026-11-11)_
 - `dati += buffer` e `buffer.toString()` per pezzo spezzano i caratteri multibyte (U+FFFD): usare StringDecoder o setEncoding('utf8') su ogni lettura a pezzi. _(2026-11-14)_
 - `percentuale` per i lavori ospitati è inventata (10 + minuti): non mostrare una barra senza una stima vera. _(2026-11-16)_
 - il servizio autopiloti non conosce porta del client né gettoni del programma: per parlargli c'è `ponte-locale.json` nella cartella dati (porta+gettone), riscritto a ogni avvio del programma. _(2026-11-20)_
+- `lavoroDaPortareAvanti` deve contare anche le chat adottate (`specialistiVivi`), non solo i subagenti: una chat migrata in `lavoro` è lavoro in corso anche con piano vuoto. _(2026-11-22)_
 
 ## registro
 
-- copie-di-versione/<ver>-<data> contiene il pausa-aggiornamento.json e aggiornamento-in-corso.json di ogni update: prova utile a capire cosa fu salvato prima dell'uscita. _(2026-11-09)_
 - `Registro` ha solo info ed errore: l'«avviso» è una riga info con prefisso [avviso]; solo `errore` entra nello storico degli errori arrivati. _(2026-11-16)_
 - «riparte con --resume» non basta: investimento è stato spento il 21/11 13:25 senza ripresa nei log, probabilmente perché nessuna sveglia era rimasta fissata. _(2026-11-22)_
 
 ## ripresa
 
-- riquadroDi nella finestra vede solo useLayoutStore: le chat dei workspace dietro (memoriaWorkspace) non si raggiungono con scriviQuandoPronta _(2026-11-09)_
 - Dopo un riavvio la memoria degli specialisti non c'è più: per riprendere un'unione serve il ramo salvato nel piano (CompitoPiano.ramo), non il solo id del compito. _(2026-11-10)_
 - riprendiOrchestratori può arrivare secondi dopo l'avvio (gestore-avviato): non rifarci lavoro già avviato all'avvio, la fila evita i doppioni solo mentre l'unione è ancora dentro _(2026-11-10)_
 
 ## spazio
 
-- il recupero di 30 giorni non libera spazio: i file restano sul Drive fino a «Svuota adesso» o alla scadenza. Non presentarlo come liberazione. _(2026-11-09)_
-- ogni percorso di pulizia scrive il registro prima di cancellare: a Drive pieno nessuno dei percorsi con recupero parte. Solo le DELETE (versioni, svuota) passano. _(2026-11-09)_
 - il cestino di Google non c'entra con i file di SierraDeck (appDataFolder, DELETE definitivo). Il messaggio «svuota il cestino» va corretto. _(2026-11-09)_
 - Una pulizia con voci ancora nell'indice, ma file già cancellati, viene riproposta dal giro delle chat: le proposte devono ignorare le voci di pulizie in sospeso (indiceVisto). _(2026-11-09)_
 - `pulisci('chat-non-usate')` non trovava la proposta: viene da `proposteChatSulDrive`, non da `proposteDiPulizia`; ora è in `StatoSpazio.chatNonUsate`. _(2026-11-09)_
@@ -465,6 +463,8 @@
 - `requisiti.rete` con un percorso locale non bastava: un PC con capacità sconosciute (versione vecchia) passa il filtro. Il controllo va fatto prima di valutaPrimaDiAffidare. _(2026-11-22)_
 - Il riconoscimento «resta qui» sta in motivoPerRestareQui (src/shared/aiuto-rete.ts): estenderlo lì, un solo punto per i compiti locali. _(2026-11-22)_
 - Stop di un lavoro affidato: `fermareIl` sul lavoro, lo spedizioniere inoltra `/api/aiuto/ferma` e riporta «fallito» con causa «fermato», che non conta come guasto e non fa riassegnare. _(2026-11-22)_
+- `avanza` deve dire se il servizio ha ricevuto l'esito: chiudere il PC remoto prima cancella copia e ramo di un lavoro che il servizio non conosce ancora. _(2026-11-22)_
+- Un PC in silenzio non ha perso il lavoro: va aspettato, e riassegnato senza `chiudi`. Con due copie vive vince il primo ramo che arriva (set `vinto`). _(2026-11-22)_
 
 ## cancello
 
