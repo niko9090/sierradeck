@@ -229,7 +229,12 @@ export type LavoroAffidato = {
   token?: number
   /** k-176b: l'altro PC ha finito e il ramo sta tornando («Invio dati – fine lavori»). Cade quando il lavoro si chiude. */
   inInvio?: true
+  /** k-176i: Nicholas ha chiesto di fermarlo (quando): il programma inoltra lo stop a quel PC e, a lavoro chiuso, non lo conta come guasto. */
+  fermareIl?: string
 }
+
+/** k-176i: l'esito di «Ferma» su uno specialista, per l'interfaccia: sempre una frase in italiano. */
+export type EsitoFerma = { fermato: boolean; messaggio: string }
 
 export function lavoroAffidatoValido(x: unknown): LavoroAffidato | undefined {
   if (typeof x !== 'object' || x === null) return undefined
@@ -265,7 +270,8 @@ export function lavoroAffidatoValido(x: unknown): LavoroAffidato | undefined {
     ...(Array.isArray(o.file) && o.file.some((f) => typeof f === 'string') ? { file: o.file.filter((f): f is string => typeof f === 'string' && f !== '').slice(0, 200) } : {}),
     ...(o.origineFile === 'remoto' || o.origineFile === 'diff-ramo' ? { origineFile: o.origineFile } : {}),
     ...(typeof o.token === 'number' && Number.isFinite(o.token) && o.token > 0 ? { token: Math.floor(o.token) } : {}),
-    ...(o.inInvio === true ? { inInvio: true as const } : {})
+    ...(o.inInvio === true ? { inInvio: true as const } : {}),
+    ...(t('fermareIl') !== undefined ? { fermareIl: t('fermareIl')! } : {})
   }
 }
 
