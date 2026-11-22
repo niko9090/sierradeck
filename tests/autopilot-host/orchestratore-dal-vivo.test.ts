@@ -84,6 +84,8 @@ describe('guardia dell’autopilota unico (PreToolUse)', () => {
 
   it('i pezzi: comandi git, la loro cartella, dentro/fuori dalla copia', () => {
     expect(comandiGit('git status && git -C x commit -m y; npm test').map((g) => g.verbo)).toEqual(['status', 'commit'])
+    // Un percorso con spazi tra virgolette (C:\Users\…\SierraDeck Aiutante\…) non si legge come «-c <parola>».
+    expect(comandiGit('git -C "C:\\Users\\niko\\SierraDeck Aiutante\\x" merge ramo').map((g) => g.verbo)).toEqual(['merge'])
     const c = `cd ${RADICE} && git merge x`
     expect(cartellaDelGit(c, c.indexOf('git'), COPIA)).toBe(RADICE)
     expect(nelPrincipale(join(RADICE, 'a.js'), RADICE)).toBe(true)

@@ -168,7 +168,7 @@ const GIT_CHE_CAMBIA = /^(merge|commit|reset|checkout|switch|rebase|cherry-pick|
 /** I comandi git di un comando di shell: il verbo e dove comincia. */
 export function comandiGit(comando: string): { verbo: string; indice: number }[] {
   const fuori: { verbo: string; indice: number }[] = []
-  const re = /(?:^|[;&|(]\s*|\n\s*)(git(?:\.exe)?)((?:\s+(?:-c\s+\S+|-C\s+(?:"[^"]+"|'[^']+'|\S+)|--no-pager|--git-dir=\S+|--work-tree=\S+))*)\s+([a-z][\w-]*)/giu
+  const re = /(?:^|[;&|(]\s*|\n\s*)(git(?:\.exe)?)((?:\s+(?:-C\s+(?:"[^"]+"|'[^']+'|\S+)|-c\s+\S+|--no-pager|--git-dir=\S+|--work-tree=\S+))*)\s+([a-z][\w-]*)/giu
   for (const m of comando.matchAll(re)) {
     const indice = (m.index ?? 0) + m[0].indexOf(m[1]!)
     fuori.push({ verbo: m[3]!.toLowerCase(), indice })
