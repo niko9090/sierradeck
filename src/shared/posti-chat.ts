@@ -220,6 +220,28 @@ export function spiegaPosti(p: PostiChat): string {
   return righe.join('\n')
 }
 
+/**
+ * k-179b: i posti di un altro PC, come li manda nel battito (campo `posti`, facoltativo).
+ * Un PC di versione vecchia non lo manda, e un campo storto (senza un motivo conosciuto)
+ * conta come assente: allora si vede solo il numero, mai un errore.
+ */
+export function postiDelBattito(v: unknown): PostiChat | undefined {
+  if (typeof v !== 'object' || v === null) return undefined
+  if (!MOTIVI_POSTI.includes((v as { perche?: unknown }).perche as string)) return undefined
+  return leggiPostiChat(v)
+}
+
+const MOTIVI_POSTI: readonly string[] = ['processori', 'memoria', 'carico', 'minimo', 'massimo', 'scelto']
+
+/** Quello che la scheda di un altro PC mostra: il numero, il motivo breve (lo stesso di questo PC) e la spiegazione dietro «?». */
+export type VistaPostiPc = { riga: string; motivo: string; spiega: string }
+
+export function vistaPostiPc(v: unknown): VistaPostiPc | undefined {
+  const p = postiDelBattito(v)
+  if (p === undefined) return undefined
+  return { riga: rigaPosti(p), motivo: motivoCorto(p), spiega: spiegaPosti(p).replace(/^Su questo PC/u, 'Su quel PC') }
+}
+
 /** Il testo scritto nel campo: un intero nel limite, o `undefined` se non va (k-57). */
 export function leggiCampoPosti(testo: string): number | undefined {
   const t = testo.trim()

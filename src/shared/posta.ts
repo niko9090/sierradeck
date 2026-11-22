@@ -1,4 +1,5 @@
 import type { CapacitaPc } from './capacita-pc'
+import type { PostiChat } from './posti-chat'
 import type { RisorsePc } from './risorse'
 import type { InvioErrori } from './storico-errori'
 import { SPENTO_DOPO_MS, statoPc } from './stato-pc'
@@ -133,6 +134,12 @@ export type BattitoPc = {
    * di prima: `haCapacita` risponde «sconosciuto», non «no».
    */
   capacita?: CapacitaPc
+  /**
+   * k-179b: i posti delle chat di quel PC con il motivo, la misura (memoria libera, processori,
+   * carico) e la scelta impostata. Manca nei battiti di prima: si mostra solo il numero.
+   * Si legge con `postiDelBattito`, mai direttamente.
+   */
+  posti?: PostiChat
 }
 
 /** Il motivo per cui un Aiutante non lavora, dal battito: solo una stringa corta vale. */

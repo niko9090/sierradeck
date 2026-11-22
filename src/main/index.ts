@@ -672,6 +672,8 @@ let registroGlobale: Registro | undefined
 /** Il postino di questo PC: le rotte del telefono lo raggiungono da qui. */
 let postinoGlobale: Postino | undefined
 let capacitaQuiGlobale: (() => CapacitaPc) | undefined
+/** k-179b: gli ultimi posti delle chat di questo PC (numero, motivo, misura), per il battito. */
+let postiQuiGlobale: import('@shared/posti-chat').PostiChat | undefined
 /** 12/11 (0.105.0): «Proclama PC di sviluppo»: se qui si può, perché no, e se è proclamato. */
 let statoSviluppoGlobale: (() => { puo: boolean; perche?: string; proclamato: boolean }) | undefined
 let proclamatoDalGlobale: (() => string | undefined) | undefined
@@ -2133,6 +2135,8 @@ if (!app.requestSingleInstanceLock()) {
       capacitaQuiGlobale = capacitaQui
       const postino: Postino = creaPostino({
         capacita: capacitaQui,
+        // k-179b: i posti di questo PC con il motivo, riletti dal servizio ogni 30 secondi (sotto, dove nasce il client).
+        posti: () => postiQuiGlobale,
         scatola: () => sincronia.scatola(),
         pcId: () => identitaPc.leggi().id,
         pcNome: () => identitaPc.leggi().nome,
@@ -4173,6 +4177,12 @@ if (!app.requestSingleInstanceLock()) {
         log: (m) => registro.info(m),
         versione: app.getVersion()
       })
+      // k-179b: i posti di questo PC (numero, motivo, misura) per il battito, ogni 30 secondi; se il servizio non risponde restano gli ultimi.
+      {
+        const leggiPosti = (): void => { void clientAutopilota.postiChat().then((p) => { if (p !== undefined) postiQuiGlobale = p }).catch(() => undefined) }
+        setTimeout(leggiPosti, 20_000).unref()
+        setInterval(leggiPosti, 30_000).unref()
+      }
       // Spinta a evento: uno specialista che parte, finisce o cambia posto arriva subito
       // a tutte le finestre (poche centinaia di ms di raggruppamento). Il giro periodico
       // di ogni pannello resta come rete di sicurezza.

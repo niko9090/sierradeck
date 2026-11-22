@@ -1,5 +1,6 @@
 import { staDentro } from './registro'
 import type { CapacitaPc } from '@shared/capacita-pc'
+import type { PostiChat } from '@shared/posti-chat'
 
 /**
  * La posta per un PC: azioni che si eseguono **solo su quel computer**,
@@ -194,6 +195,8 @@ export function creaPostino(deps: {
   bloccoAiutante?: () => string | undefined
   /** k-166n1: cosa sa fare questo PC (già in memoria per 10 minuti): va nel battito. */
   capacita?: () => CapacitaPc | undefined
+  /** k-179b: i posti delle chat di questo PC con motivo e misura: vanno nel battito (senza la misura nella firma). */
+  posti?: () => PostiChat | undefined
   cartellaEsiste: (cwd: string) => boolean
   /**
    * Esegue un comando arrivato per posta (0.88.0, «Sposta su questo PC»):
@@ -367,6 +370,7 @@ export function creaPostino(deps: {
       ...(() => { const dal = deps.sviluppo?.(); return dal === undefined ? {} : { sviluppo: true as const, sviluppoDal: dal } })(),
       ...(deps.aiutante?.() === true ? { aiutante: true } : {}),
       ...(() => { const c = deps.capacita?.(); return c === undefined ? {} : { capacita: c } })(),
+      ...(() => { const p = deps.posti?.(); return p === undefined ? {} : { posti: p } })(),
       ...(aggiornando !== undefined ? { aggiornando } : {}),
       ...(() => { const b = deps.aiutante?.() === true ? deps.bloccoAiutante?.() : undefined; return b !== undefined ? { bloccoAiutante: b } : {} })()
     }
@@ -376,9 +380,11 @@ export function creaPostino(deps: {
   const batti = async (s: Scatola): Promise<void> => {
     const b = mioBattito()
     // Le risorse cambiano a ogni misura: se contassero, il battito si riscriverebbe a ogni giro.
-    const { battito: _b, risorse: _r, capacita: cap, ...senzaOra } = b
+    const { battito: _b, risorse: _r, capacita: cap, posti: po, ...senzaOra } = b
     // Le capacità: conta cosa cambia, non l'ora del calcolo (ogni 10 minuti).
-    const firma = JSON.stringify({ ...senzaOra, ...(cap !== undefined ? { capacita: { ...cap, il: '' } } : {}) })
+    // I posti: contano numero, motivo e scelta; la misura cambia a ogni giro e non fa riscrivere.
+    const { misura: _m, ...postiSenzaMisura } = po ?? ({} as Partial<PostiChat>)
+    const firma = JSON.stringify({ ...senzaOra, ...(cap !== undefined ? { capacita: { ...cap, il: '' } } : {}), ...(po !== undefined ? { posti: postiSenzaMisura } : {}) })
     if (firma === ultimoBattito && adesso() - ultimoBattitoIl < BATTITO_RISCRIVI_MS) return
     await s.scrivi(nomeBattitoPc(b.pcId), b)
     // La prima volta si dice: e' l'unico modo, dal registro, di sapere se

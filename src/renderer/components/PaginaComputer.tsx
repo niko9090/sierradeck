@@ -50,12 +50,19 @@ export function SchedaPcRiga({ s, compatta = false, azioni = {} }: { s: SchedaPc
             {[s.strada, s.versione, s.tipo === 'pc' ? `${s.chat.length} chat` : undefined].filter((x) => x !== undefined && x !== '').join(' · ')}
           </span>
         ) : null}
+        {compatta && s.posti !== undefined ? <PostiDelPc posti={s.posti} /> : null}
       </div>
       {!compatta ? (
         <dl className="rete-nodo__righe">
           {s.versione !== '' ? <Riga etichetta="Versione" valore={s.versione} {...(s.versioneIndietro ? { tono: 'attenzione' } : {})} /> : null}
           {s.strada !== undefined ? <Riga etichetta="Strada" valore={s.strada} /> : null}
           {s.tipo === 'pc' ? <Riga etichetta="Chat aperte" valore={`${s.chat.length}${s.aspettano > 0 ? `, ${s.aspettano} aspettano te` : ''}`} {...(s.aspettano > 0 ? { tono: 'attenzione' } : {})} /> : null}
+          {s.posti !== undefined ? (
+            <div className="rete-nodo__riga">
+              <dt>Chat insieme</dt>
+              <dd><PostiDelPc posti={s.posti} /></dd>
+            </div>
+          ) : null}
           {s.righe.map((r) => <Riga key={r.etichetta} etichetta={r.etichetta} valore={r.valore} {...(r.tono !== undefined ? { tono: r.tono } : {})} />)}
         </dl>
       ) : null}
@@ -95,6 +102,17 @@ export function SchedaPcRiga({ s, compatta = false, azioni = {} }: { s: SchedaPc
         </ul>
       ) : null}
     </div>
+  )
+}
+
+/** k-179b: «3 di 6 chat · poca memoria (3,1 GB liberi)» e, dietro «?», la spiegazione completa. Lo stesso motivo di questo PC. */
+export function PostiDelPc({ posti }: { posti: NonNullable<SchedaPc['posti']> }): React.JSX.Element {
+  return (
+    <span className="rete-nodo__posti">
+      <span>{posti.riga}</span>
+      <span className="progetti__quieto"> · {posti.motivo}</span>
+      <Aiuto di="chat insieme">{posti.spiega.split('\n').map((r, i) => <span key={i}>{r}<br /></span>)}</Aiuto>
+    </span>
   )
 }
 
