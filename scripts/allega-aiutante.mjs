@@ -33,7 +33,7 @@ import { spawnSync } from 'node:child_process'
 import { copyFileSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { noteDi } from './note-novita.mjs'
+import { noteDiOErrore } from './note-novita.mjs'
 import { costruisci, nomeInstaller, versioneAiutante, YML_AIUTANTE } from './pacchetto-aiutante.mjs'
 import { cancellaSicura } from '../src/shared/cancella-sicura.ts'
 
@@ -79,8 +79,8 @@ function principale() {
   const versione = versioneAiutante()
   const [exe, mappa, yml] = fileAiutante(versione)
   const fileNovita = join('src', 'aiutante', 'novita-aiutante.txt')
-  const novita = existsSync(fileNovita) ? noteDi(readFileSync(fileNovita, 'utf8'), versione) : []
-  if (novita.length === 0) ferma(`mancano le novità dell'Aiutante ${versione} in ${fileNovita} (una voce con la sua versione in cima, e le sue righe)`)
+  let novita = []
+  try { novita = noteDiOErrore(existsSync(fileNovita) ? readFileSync(fileNovita, 'utf8') : '', versione, fileNovita) } catch (e) { ferma(`${e.message} (dell'Aiutante)`) }
 
   const vista = gh(['release', 'view', tag, '--json', 'isDraft,assets'])
   if (vista.status !== 0) ferma(`la release ${tag} non c'è: l'Aiutante si allega solo alla release del programma completo (prima \`gh release create ${tag} --draft\` e electron-builder)`)
