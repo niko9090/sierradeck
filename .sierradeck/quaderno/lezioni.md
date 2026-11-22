@@ -4,11 +4,6 @@
 
 ## test
 
-- Il comando mklink via Bash è rifiutato nei worktree; la junction si crea con PowerShell New-Item -ItemType Junction. _(2026-11-09)_
-- In `criticitaDi` la voce `risorse` non ha il pcId: la chiave per PC si costruisce da `s.pcId`, e il titolo senza numeri va nella firma. I numeri restano solo nel dettaglio. _(2026-11-09)_
-- Per provare il Drive pieno serve un archivio con capacità vera e un freno attivo: un flag «pieno» fisso non mostra che la DELETE libera spazio e riabilita le scritture. _(2026-11-09)_
-- la pagina del telefono riceve le funzioni di `src/shared` con `.toString()`: devono essere autosufficienti, senza costanti di modulo, e usare solo ciò che è definito nella pagina. _(2026-11-09)_
-- pannello-drive-app.test.ts estrae le funzioni della pagina una a una: ogni nuova funzione chiamata da pannelloDriveHtml va aggiunta lì, o il test dà ReferenceError. _(2026-11-09)_
 - i test usano oggetti con statusCode o testi costruiti a mano; la forma reale di createHttpError (node_modules/builder-util-runtime/out/httpExecutor.js:52) va testata così com'è _(2026-11-10)_
 - un worktree può partire indietro rispetto a main: fare `git merge --ff-only main` prima di misurare, altrimenti mancano i test appena entrati. _(2026-11-10)_
 - `npx vitest run` intero dura circa 160 s su questo PC: un rifiuto "vitest rosso" senza nome di prova può essere un tempo scaduto sotto carico, non il codice. _(2026-11-10)_
@@ -92,6 +87,10 @@
 - `npm run pubblica` esegue tutta la suite (~7 min) e basta un test lento sotto carico, come risposta-autopilota-k317, a fermarlo. Rilanciare, non forzare. In tutto serve più di un'ora. _(2026-11-20)_
 - Su una copia sotto `copie/…` il test «PreToolUse dell'unico» di `servizio-orchestratore.test.ts` è rosso già senza modifiche: non è una regressione. _(2026-11-22)_
 - `tests/autopilot-host/servizio-orchestratore.test.ts` («PreToolUse dell'unico») fallisce già su main in una copia worktree: non è una regressione del proprio ramo. _(2026-11-22)_
+- Nei test del riassunto, se il dialogo contiene una risposta di «lui» dopo il messaggio di Nicholas, «Da sapere» non è mai vuoto. _(2026-11-22)_
+- nei test renderer non c'è DOM: le regole di scorrimento stanno in funzioni pure in `segue-fondo.ts`, e le chat si controllano leggendo il sorgente. _(2026-11-22)_
+- Per un test a livello di server il workspace nasce dalla migrazione di un vecchio autopilota con una chat viva (`migraVecchi`), che adotta la chat e apre una richiesta in coda. Per una coda vuota va … _(2026-11-22)_
+- `servizio-orchestratore.test.ts` «il PreToolUse dell'unico…» fallisce anche senza modifiche quando si lancia dalla copia (worktree): dipende dal percorso, non è una regressione. _(2026-11-22)_
 
 ## worktree
 
@@ -99,6 +98,7 @@
 - con l'harness, ogni comando git che nomina la cartella principale viene rifiutato anche con `git -C` o in una pipe: per leggerla usare percorsi assoluti e comandi non-git. _(2026-11-10)_
 - Una copia con `android/app/build` non si toglie con `git worktree remove` («Filename too long»): staccare la junction di `node_modules`, controllare che dentro non ci siano altri collegamenti, poi `Remove-Item -LiteralPath '\\?\<percorso>' -Recurse -Force` e `git worktree prune`. _(2026-11-11)_
 - per togliere un worktree con giunzione node_modules: verificare LinkType, `cmd /c rmdir` sulla giunzione, poi `git worktree remove` e `prune`; il node_modules principale resta intatto. _(2026-11-17)_
+- Le copie «locked» possono non avere più la cartella su disco: `unlock` e poi `worktree remove --force` toglie il riferimento senza errori. _(2026-11-22)_
 
 ## android
 
@@ -225,6 +225,7 @@
 - per provare un test senza la correzione: `git stash push -u`, `git stash apply`, `git checkout -- <file>`, poi `git checkout stash@{0} -- <file>` e `git stash drop`. _(2026-11-20)_
 - `git cherry main <ramo>` dà "nuovi=0" solo per i rami identici a main. Per quelli rifatti o unificati serve anche cercare il k-N nel log di main. _(2026-11-22)_
 - `togliCopiaUnita` cancella già il ramo (`branch -d`/`-D` con `forza`): un secondo `branch -D` subito dopo fallisce con «not found», va verificato prima. _(2026-11-22)_
+- Le cartelle di build di Android fanno fallire `git worktree remove` con «Filename too long»: usare Remove-Item su `\\?\percorso`, poi `git worktree prune`. _(2026-11-22)_
 
 ## autopilota
 
@@ -238,6 +239,7 @@
 - INATTIVO_MS è 55 minuti: la cache del prompt dura 1 ora e lo spegnimento a 10 minuti la faceva riscrivere a ogni ripresa. _(2026-11-20)_
 - Uno specialista è un sotto-agente: chiudere il turno = «finito» per il programma. Un «riprendo/aspetto l'esito» finale va letto (`promessaSenzaFine`) o si unisce lavoro a metà. _(2026-11-22)_
 - `vistaAttesa` (colonna/menu «Al lavoro adesso») e `TestaOrchestratore` leggono fonti diverse: Agent del flusso contro `u.chats`. Una chat al lavoro può comparire in una e non nell'altra. _(2026-11-22)_
+- Lo spegnimento per inattività uccideva solo il processo: il risveglio dipendeva da `lavoroFermo`, che non vede richieste aperte con compiti tutti uniti o bloccati. Ora fissa una sveglia su disco. _(2026-11-22)_
 
 ## controllo
 
@@ -318,6 +320,7 @@
 - gli orfani vanno cercati con il suffisso `/Nome'` negli import: un controllo su `./Nome'` ignora gli import fatti da App.tsx (`./components/Nome`). _(2026-11-20)_
 - Nel menu dei workspace le azioni dietro «⋯» sono contate da test e pagina servita: il riordino sta in controlli a parte, non come nuova azione di `azioniMenuWorkspace`. _(2026-11-20)_
 - Il menu principale ha già una funzione «Computer» che non è la sezione Computer delle Impostazioni: le voci delle impostazioni stanno solo in impostazioni-struttura.ts. _(2026-11-20)_
+- `FlussoChat` è condiviso da chat locale e remota: chi lo usa deve passare `fondo` dall'hook `useSegueFondo`, altrimenti niente `onScroll` né tasto. _(2026-11-22)_
 
 ## salute
 
@@ -356,27 +359,13 @@
 - Il formato Panoramica+agenti dipende da `workspaceElenco` (preferenza per nome), che la migrazione riempie una volta sola: i workspace nuovi restavano fuori. _(2026-11-22)_
 - Gli hook di App.tsx vanno prima di `if (!pronto)`: un effetto dopo causa React #310. _(2026-11-22)_
 
-## guardia-pc
-
-- `guardia.attendi` non basta in un hook: dopo il passo libero, `giudicaPesanteDellaChat` rimanda per «appena liberato». Serve un ciclo che ripeta tutto il giudizio. _(2026-11-08)_
-
 ## shell
 
-- heredoc Python con `\n` dentro stringhe di test: finiscono come a-capo veri e rompono il file; usare `.join('\n')` e fare le modifiche con Edit. _(2026-11-08)_
 - Nei comandi Bash i backtick dentro i commenti di un `node -e` vengono eseguiti dalla shell e mangiano il testo: usare Edit per i file con backtick. _(2026-11-12)_
 - In Git Bash `/tmp/...` passato a `node` diventa `E:\tmp\...` e non esiste: usare `mktemp -d` con `cygpath -w`. _(2026-11-14)_
 
-## ramo
-
-- il worktree può partire senza l'ultimo main (k-191 mancava nonostante il compito): fare `git merge main` prima di cominciare. _(2026-11-08)_
-
-## apk
-
-- `npm run allega-apk` senza `--senza-build` lancia gradle e ricompila. Per riallegare l'ultimo APK usare `--senza-build`, ma serve un APK già costruito in quella cartella. _(2026-11-08)_
-
 ## pubblicazione
 
-- Un agente lanciato in worktree isolato non può eseguire git nella cartella principale: la pubblicazione dalla cartella principale va affidata a un agente senza isolamento. _(2026-11-08)_
 - `npm run pubblica-app` esige la voce `versione: 'X'` in `android/novita-app.txt` per il `versionName` corrente: va preparata insieme al bump Android, o l'app resta indietro. _(2026-11-16)_
 - `gh release create --draft --verify-tag` seguito da `npm run pubblica` con `GH_TOKEN` carica tutti e 7 i file senza 422; poi `--draft=false --latest` a mano. _(2026-11-16)_
 - `npm run pubblica-app` copia da solo app-android.json anche sulla release del PC (v0.109.1): non serve altro per le app vecchie. _(2026-11-16)_
@@ -922,3 +911,11 @@
 ## progetto
 
 - le chat adottate («solo mia») non hanno ramo né cartella: dal ramo non si risale a loro, la protezione passa da un insieme `protetti` costruito dal servizio. _(2026-11-22)_
+
+## strumenti
+
+- `cmd /c rmdir` da Bash non esegue nulla: per le junction usare PowerShell `[System.IO.Directory]::Delete(percorso)`, con il percorso scritto per intero (l'hook blocca le variabili). _(2026-11-22)_
+
+## riassunto
+
+- Il riassunto dell'autopilota non usa il modello: è costruito in src/shared/riassunto-autopilota.ts da diario e dialogo; «ripiego» = quella stessa costruzione. _(2026-11-22)_
