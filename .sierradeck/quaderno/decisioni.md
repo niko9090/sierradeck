@@ -1,6 +1,6 @@
 # Decisioni del progetto
 
-<!-- SierraDeck: una riga per voce; una voce che torna aumenta «confermata N×». Tetto 200 voci o 32 KB: escono prima le meno confermate e più vecchie. Si può scrivere anche a mano. -->
+<!-- SierraDeck: una riga per voce; una voce che torna aumenta «confermata N×». Tetto 600 voci o 128 KB: escono prima le meno confermate e più vecchie. Si può scrivere anche a mano. -->
 
 ## nicholas
 
@@ -42,3 +42,4 @@
 - «Con il Drive pieno, le chat vecchie che hanno già una copia completa sul PC le cancello subito dal Drive, oppure le tengo nel recupero di 30 giorni?» → Cancellale subito, la copia resta sul PC (consigliata) _(2026-11-09)_
 - «Nella cartella principale di SierraDeck c'è una modifica non salvata, forse fatta da una tua chat. Da 5 ore tiene ferma l'unione della correzione per la rete. Come faccio?» → È roba di una mia chat, la faccio salvare a lei _(2026-11-10)_
 - «La fila delle unioni è ferma da 7 ore per due note del quaderno non salvate. Gli specialisti non possono salvarle, perché lavorano in una copia separata. Lo può fare solo una chat aperta direttamente » → risolvi tutti questi problemi!!!! _(2026-11-11)_
+- «Le chat che ogni PC può far lavorare insieme come le vuoi?» → mostra il motivo e basta ma continua a variare se il motivo è giusto _(2026-11-22)_

@@ -96,6 +96,8 @@
 - test «unione scaduta»: dopo la scadenza il posto resta occupato fino a git chiuso, quindi i finti `fai` vanno chiusi col segnale _(2026-11-22)_
 - `riassegna-lento-collegato.test.ts` fissava il testo «riparte qui»: cambiando i messaggi dello spedizioniere va aggiornato anche quel file. _(2026-11-22)_
 - nei test con processo finto, un `muori()` durante un turno attiva il ritorno immediato di `guasto` (primi 2 tentativi): per provare la guardia chiudere prima il turno con `fine()`. _(2026-11-22)_
+- i test che simulano la fine di uno specialista devono chiudere con «RAPPORTO: finita»: senza, per sviluppatore/interfaccia/android/verificatore il compito torna da fare e l'unione non parte _(2026-11-22)_
+- `tests/shared/novita.test.ts` ammette al massimo 8 righe per voce: portando più novità in una versione sola, accorpare le righe doppie. _(2026-11-22)_
 
 ## worktree
 
@@ -225,6 +227,7 @@
 - Le cartelle di build di Android fanno fallire `git worktree remove` con «Filename too long»: usare Remove-Item su `\\?\percorso`, poi `git worktree prune`. _(2026-11-22)_
 - turni.unione rilascia il posto allo scadere mentre il git continua: un'altra unione nella stessa cartella può sovrapporsi (turni-criteri.ts:141-145). _(2026-11-22)_
 - un git di prova che resta appeso deve chiudersi sul segnale, altrimenti con la fila nuova il posto della cartella non si libera mai _(2026-11-22)_
+- se un ramo da unire è già aperto in un'altra copia, non si può riprenderlo: si fa ff-only a main e si unisce il ramo dentro il proprio, poi si indica il nuovo commit. _(2026-11-22)_
 
 ## autopilota
 
@@ -387,24 +390,8 @@
 - Dopo un riavvio la memoria degli specialisti non c'è più: per riprendere un'unione serve il ramo salvato nel piano (CompitoPiano.ramo), non il solo id del compito. _(2026-11-10)_
 - riprendiOrchestratori può arrivare secondi dopo l'avvio (gestore-avviato): non rifarci lavoro già avviato all'avvio, la fila evita i doppioni solo mentre l'unione è ancora dentro _(2026-11-10)_
 
-## spazio
-
-- il cestino di Google non c'entra con i file di SierraDeck (appDataFolder, DELETE definitivo). Il messaggio «svuota il cestino» va corretto. _(2026-11-09)_
-- Una pulizia con voci ancora nell'indice, ma file già cancellati, viene riproposta dal giro delle chat: le proposte devono ignorare le voci di pulizie in sospeso (indiceVisto). _(2026-11-09)_
-- `pulisci('chat-non-usate')` non trovava la proposta: viene da `proposteChatSulDrive`, non da `proposteDiPulizia`; ora è in `StatoSpazio.chatNonUsate`. _(2026-11-09)_
-
-## sposta
-
-- «Sposta su questo PC» chiama il PC di prima su /api/sposta/prepara con il timeout di 4 s (non è in ROTTE_LENTE): un upload lungo finisce in «non ha finito entro 4 secondi». _(2026-11-09)_
-- con `prepara` asincrono i test devono rileggere lo stato con `riprendi()` dopo `avvia`; fissare `adesso` e le pause (`pausaAttesaMs`) per i tempi massimi _(2026-11-09)_
-
-## remoto
-
-- Ogni 404 non di chat viene mappato a «questa chat non è aperta» (scoperta-pc.ts:230): /api/apri con cartella inesistente sembra un PC spento. _(2026-11-09)_
-
 ## pc-remoto
 
-- per i 404 di rotte che non riguardano chat, il motivo si decide dal testo dell'errore in `datiDa`; `motivoDaStatoHttp(404)` dà sempre 'chat' _(2026-11-09)_
 - ROTTE_LENTE deve combaciare con Api.kt dell'app (test android): le rotte lente solo fra PC vanno in ROTTE_LENTE_FRA_PC, così non serve un APK nuovo. _(2026-11-11)_
 - due funzioni si chiamano `statoPc` (`shared/stato-pc.ts` e `shared/scoperta-pc.ts`): i titoli del riquadro vengono dalla seconda, il tempo dal battito della prima. _(2026-11-19)_
 
@@ -625,6 +612,7 @@
 - `git fetch` fallisce se origin è un .bundle sparito: il controllo «c'è già una 0.112.x?» va fatto su `arrivo/main`, e `v0.111.3` non esiste come tag locale. _(2026-11-20)_
 - origin delle copie è un .bundle che può sparire: `git fetch --tags` fallisce e non ci sono tag locali. L'ultima versione si legge dai commit «Versione x.y.z». _(2026-11-22)_
 - un bump tocca package.json, package-lock.json (due punti) e src/shared/novita.ts. Non c'è un file di versione Android da cambiare se android/ è fermo. _(2026-11-22)_
+- `package.json` può essere già avanti dell'ultima release (qui 0.112.2 contro 0.112.1 pubblicata): per il bump guardare `gh release list` e i tag del remoto. _(2026-11-22)_
 
 ## build
 
@@ -922,3 +910,12 @@
 ## percorsi
 
 - `coda-autopiloti.ts` sta in `src/autopilot-host/`, non in `src/shared/`: i percorsi nei compiti possono essere sbagliati, si cercano con Glob. _(2026-11-22)_
+
+## attesa
+
+- il caso «dopo» (rifiutatiPerDipendenze) non ha voce in fila: il suo prompt non è salvato da nessuna parte, a differenza di tetto pieno e fila per posti _(2026-11-22)_
+
+## posti
+
+- «N di M posti occupati» degli altri PC (`postiTesto`, `PostiAiuto`) non porta `perche`, `misura` né `scelti`: per mostrarvi il motivo servono questi campi nel messaggio dal PC remoto. _(2026-11-22)_
+- `rigaPosti` ha test che ne bloccano il testo esatto: il motivo è un campo a parte (`motivoCorto`), non va dentro `rigaPosti`. _(2026-11-22)_
