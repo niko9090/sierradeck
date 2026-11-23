@@ -34,7 +34,7 @@ import type { Memoria } from './memoria'
 import type { TipoAvviso } from './telegram'
 import { comeAsincrono, ramoCorrente, ramoGiaChiusoAsincrono, ramoSenzaNovitaAsincrono, salvaFileAsincrono, salvaLavoroConFileAsincrono, type Git, type GitAsincrono } from './worktree'
 import type { EsitoRiallineo } from './worktree'
-import { dopoTransitivi, formaLotto, unisciALotti, type VoceLotto } from './unioni-a-lotti'
+import { dopoTransitivi, formaLottoSenzaConflitti, unisciALotti, type VoceLotto } from './unioni-a-lotti'
 import { ramoBaseDi } from './fine-chat'
 import { preparaGitLocale } from './git-locale'
 import {
@@ -112,6 +112,8 @@ export const DOMANDA_VECCHIA_MS = 24 * 60 * 60_000
 export { UNIONE_MAX_MS }
 /** Ogni quanto riprova l'unione che aspetta una cartella principale con file di Nicholas a metà. */
 export const UNIONE_RIPROVA_MS = 30_000
+/** k-191e: quanto aspetta la testa della fila, sola, che arrivino gli altri rami di una raffica prima di partire. */
+export const RACCOLTA_RAFFICA_MS = 4_000
 /** 11/11: dopo quante scadenze il compito dice com'è andata (una volta sola). L'unione resta in fila e riprova da sola, sempre più di rado. */
 export const UNIONE_TENTATIVI_MAX = 3
 /**
@@ -201,6 +203,8 @@ export type ContestoUnico = {
   /** 06/11, fila delle unioni: tempo massimo di un'unione intera (di serie 25 minuti), attesa fra i tentativi (30 s), tentativi dopo una scadenza (3). */
   unioneMaxMs?: number
   unioneRiprovaMs?: number
+  /** k-191e, per i test: la breve raccolta della raffica prima che parta la testa della fila (di serie `RACCOLTA_RAFFICA_MS`). */
+  raccoltaRafficaMs?: number
   unioneTentativiMax?: number
   /** 11/11, per i test: dopo quanto il programma chiede a Nicholas dei file non salvati (5 minuti), e dopo quanto l'unione ferma va in fondo (10). */
   chiediSalvaDopoMs?: number
@@ -1664,7 +1668,12 @@ ${NOTA_SENZA_GIT}`,
       voci.push(v)
       dei.set(v.id, l)
     }
-    const lotto = formaLotto(voci)
+    // k-191e: due rami con file in comune entrano insieme se il merge di prova non ha conflitti (`git merge-tree`, millisecondi).
+    // Git senza `--write-tree`, o un errore, contano come conflitto: il ramo resta per il lotto dopo.
+    const lotto = await formaLottoSenzaConflitti(voci, async (u, v) => {
+      const m = await g(['merge-tree', '--write-tree', '--no-messages', u.ramo, v.ramo], a0.cwd)
+      return m.codice === 0
+    })
     if (lotto.length < 2) return
     const ramiDi = new Map(lotto.map((v) => [v.ramo, v] as const))
     const r = await unisciALotti(lotto.map((v) => v.ramo), (rami) => x.provaNelPrincipale(unicoDi(ws) ?? a0, rami[0]!, rami.slice(1)), { maxMs })
@@ -1702,6 +1711,12 @@ ${NOTA_SENZA_GIT}`,
       lavoro.partitaIl = Date.now()
       cambiSpecialisti.segna()
       max = maxDiSerie()
+      // k-191e: una raffica arriva a pezzi di pochi secondi: il primo ramo non parte da solo (una prova intera) se gli altri sono a un passo.
+      // Solo con git, al primo tentativo e con la fila ancora di uno.
+      if (fila.length === 1 && lavoro.fuoriLotto !== true && lavoro.tentativi === 0 && lavoro.compito !== undefined && gitA() !== undefined) {
+        const raccolta = x.raccoltaRafficaMs ?? RACCOLTA_RAFFICA_MS
+        if (raccolta > 0) await new Promise<void>((ris) => { const t = setTimeout(ris, raccolta); t.unref?.() })
+      }
       // k-178g: con altri rami indipendenti in fila, prima una prova sola per tutto il lotto. Mai un errore che ferma la fila.
       if (fila.length > 1 && lavoro.fuoriLotto !== true) await unisciLotto(ws, lavoro, fila, max).catch((err: unknown) => { console.warn(`[orchestratore] ${ws} — unione a lotti non riuscita, vado una alla volta: ${err instanceof Error ? err.message : String(err)}`) })
       const { p, chi } = lavoro

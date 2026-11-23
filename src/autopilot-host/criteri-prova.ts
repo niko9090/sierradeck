@@ -61,7 +61,33 @@ function senzaCompresi(percorsi: string[]): string[] {
 }
 
 /** Un file che nessun criterio misura: note, quaderno, documenti. */
-const soloNote = (f: string): boolean => f.startsWith('.sierradeck/') || f.startsWith('docs/') || f.startsWith('note/') || /\.md$/i.test(f)
+// k-191e: i testi di note dentro android/ (novita-app.txt di ogni rilascio) sono note, non codice: niente gradle.
+const soloNote = (f: string): boolean => f.startsWith('.sierradeck/') || f.startsWith('docs/') || f.startsWith('note/') || /\.md$/i.test(f) || /^android\/(?:.+\/)?[^/]+\.txt$/i.test(f)
+
+/**
+ * k-191e: il diff (unificato) di `package.json` o `package-lock.json` cambia solo la riga
+ * `"version"`? Allora il file non può rompere niente: non serve la suite intera. Al più due
+ * righe tolte e due aggiunte (nel lock la versione sta due volte), tutte e solo `"version": "…"`.
+ * Pura: un diff vuoto o con altro dentro dà `false` (si prova tutto, come prima).
+ */
+export function soloVersione(diff: string): boolean {
+  let tolte = 0
+  let aggiunte = 0
+  for (const riga of diff.split(/\r?\n/)) {
+    if (riga.startsWith('+++') || riga.startsWith('---')) continue
+    const segno = riga[0]
+    if (segno !== '+' && segno !== '-') continue
+    if (!/^[+-]\s*"version"\s*:\s*"[^"]*"\s*,?\s*$/.test(riga)) return false
+    if (segno === '+') aggiunte += 1
+    else tolte += 1
+  }
+  return tolte >= 1 && aggiunte >= 1 && tolte <= 2 && aggiunte <= 2
+}
+
+/** Toglie dai file cambiati quelli di sola versione (`soloVersione` già deciso da chi ha letto il diff). */
+export function senzaSolaVersione(cambiati: readonly string[], soloVersioneDi: ReadonlySet<string>): string[] {
+  return cambiati.filter((f) => !soloVersioneDi.has(f.replace(/\\/g, '/')))
+}
 
 /**
  * Un criterio che misura una pubblicazione o lo stato del remoto, non il codice:
@@ -105,7 +131,7 @@ export function fissaLaVersione(comando: string): boolean {
 
 export function criteriPerLaProva(criteri: Criterio[], cambiati?: readonly string[]): Criterio[] {
   const file = cambiati?.map((f) => f.replace(/\\/g, '/'))
-  const toccaAndroid = file === undefined || file.some((f) => f.startsWith('android/'))
+  const toccaAndroid = file === undefined || file.some((f) => f.startsWith('android/') && !soloNote(f))
   const toccaResto = file === undefined || file.some((f) => !f.startsWith('android/') && !soloNote(f))
   const fuori: Criterio[] = []
   const vitest: string[][] = []
@@ -132,7 +158,7 @@ export function criteriPerLaProva(criteri: Criterio[], cambiati?: readonly strin
     // Un gradle scritto in un altro modo: senza file in android/ non si lancia.
     if (!toccaAndroid && GRADLE_QUALSIASI.test(comando)) { quantiGradle += 1; continue }
     if (!toccaResto && /\btsc\b/.test(comando)) continue
-    const senzaClean = /\bgradlew?\b/i.test(comando) ? comando.replace(/\s+clean\b/gi, '') : comando
+    const senzaClean = /\bgradlew?\b/i.test(comando) ? comando.replace(/\s+clean\b/gi, '').replace(/\s+--rerun(?:-tasks)?(?=\s|$)/gi, '') : comando
     if (visti.has(senzaClean)) continue
     visti.add(senzaClean)
     fuori.push(senzaClean === comando ? c : { ...c, comando: senzaClean })
@@ -151,7 +177,8 @@ export function criteriPerLaProva(criteri: Criterio[], cambiati?: readonly strin
   }
   if (gradle.length > 0) {
     // I compiti prima, le opzioni (--no-daemon…) in fondo, ognuno una volta.
-    const parti = [...new Set(gradle.flatMap((g) => g.parti))]
+    // k-191e: `--rerun` rifaceva ogni volta anche i test già verdi (64 volte su 78): la cache di gradle, che guarda i file, basta.
+    const parti = [...new Set(gradle.flatMap((g) => g.parti).filter((p) => !/^--rerun(?:-tasks)?$/i.test(p)))]
     const ordinate = [...parti.filter((p) => !p.startsWith('-')), ...parti.filter((p) => p.startsWith('-'))]
     uniti.push({ descrizione: `le prove Android dei compiti già uniti (${quantiGradle} criteri in un comando)`, comando: `cd android && ${gradle[0]!.programma} ${ordinate.join(' ')}`, soddisfatto: true })
   }
