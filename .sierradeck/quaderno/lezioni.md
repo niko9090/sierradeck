@@ -180,7 +180,6 @@
 
 ## git
 
-- un agente isolato nel worktree non può usare `git -C` sulla cartella principale: il compito di salvare lì le note va dato a chi non è isolato. _(2026-11-10)_
 - Note del quaderno non salvate in main = fila unioni ferma, e nessuno specialista può salvarle (isolati nella copia; general-purpose rifiutato). Serve la correzione del programma (k-133). _(2026-11-11)_
 - Note del quaderno non salvate in main: anche il tipo «claude» è rifiutato (nessuno senza copia propria). Solo una chat di Nicholas aperta in main o un SierraDeck installato con k-133 le salva. _(2026-11-11)_
 - `main` locale può essere più avanti di `origin/main` con le unioni non pubblicate: guardare `git log origin/main..main` prima di partire da `origin/main`. _(2026-11-11)_
@@ -204,10 +203,10 @@
 - turni.unione rilascia il posto allo scadere mentre il git continua: un'altra unione nella stessa cartella può sovrapporsi (turni-criteri.ts:141-145). _(2026-11-22)_
 - un git di prova che resta appeso deve chiudersi sul segnale, altrimenti con la fila nuova il posto della cartella non si libera mai _(2026-11-22)_
 - se un ramo da unire è già aperto in un'altra copia, non si può riprenderlo: si fa ff-only a main e si unisce il ramo dentro il proprio, poi si indica il nuovo commit. _(2026-11-22)_
+- In queste copie `git fetch` può fallire se il bundle in `aiuto\arrivi` non c'è più, e il tag della versione precedente può mancare: si trova il commit con `git log -S"x.y.z" -- package.json`. _(2026-11-23)_
 
 ## autopilota
 
-- Non lanciare uno specialista su un compito il cui «dopo» è ancora in unione: non può aspettare (sleep bloccato) e torna a vuoto. Lanciarlo all'evento «unione». _(2026-11-10)_
 - Un revisore lanciato con «k-N:» in testa alla descrizione si lega a quel compito e il programma unisce lui (niente) al posto dello sviluppatore: per le revisioni usare una descrizione senza id. _(2026-11-10)_
 - Il modello dell'autopilota passa da 5 file (ipc, servizio, store, orchestratore, tipo); ora tutti usano `modelloAutopilotaAmmesso` di `shared/modelli`. _(2026-11-10)_
 - lo stato `fermo` era tolto: un guasto non di rete non aspetta più Nicholas, riprova da solo con attesa crescente (tetto 5 min). _(2026-11-11)_
@@ -803,6 +802,7 @@
 ## versione
 
 - Una versione tocca package.json, package-lock.json (2 punti), novita.ts e una nota nel quaderno. Android si alza solo se android/ cambia oltre a novita-app.txt, che è solo testo. _(2026-11-19)_
+- Il commit di versione tocca `package.json`, `package-lock.json` (due righe) e `src/shared/novita.ts`. `novita.test.ts` ammette al massimo 8 righe per voce. _(2026-11-23)_
 
 ## aggiornamento
 
