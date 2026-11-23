@@ -229,6 +229,7 @@ import { testoDaCopiare, type InvioErrori, type StoricoErrori } from '@shared/st
 import { cartellaDiSierraDeck, mandaErrori, salvaErroriArrivati } from './errori-arrivati'
 import { giroErroriArrivati, vistaArrivi } from './errori-arrivati-lavoro'
 import { eventiPiuRecentiInCima, leggiEventiAiuto, registraEventoAiuto } from '@shared/eventi-aiuto'
+import { giroAnalisiRapporti } from './rapporti-lavori-analisi'
 import { GIRO_RAPPORTO_MS, giroRapportoLavori, mandaRapporto, righeDeiRegistri, salvaRapportoArrivato, type StatoRapporto } from './rapporti-lavori'
 import type { RapportoLavori } from '@shared/rapporto-lavori'
 import { GIRO_INVIO_MS, giroInvioErrori, pcSviluppoDi, vistaErrori, type StatoInvio } from './errori-invio-automatico'
@@ -4318,6 +4319,13 @@ if (!app.requestSingleInstanceLock()) {
               adesso: () => Date.now(),
               versione: () => app.getVersion(),
               settimanaPercento: () => limitiAggiornati([...polsi.values()], Date.now())?.settimana?.percento,
+              affida: (p) => affidaSierraDeck(p),
+              log: (riga) => registro.info(riga)
+            })
+            // k-193b: i rapporti dei lavori arrivati, riassunti per PC e workspace, allo stesso autopilota.
+            await giroAnalisiRapporti({
+              radice: () => radiceSierraDeckGlobale?.(),
+              adesso: () => Date.now(),
               affida: (p) => affidaSierraDeck(p),
               log: (riga) => registro.info(riga)
             })
