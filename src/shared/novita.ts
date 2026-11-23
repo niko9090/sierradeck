@@ -49,6 +49,8 @@ export const NOVITA: Novita[] = [
       '**Controlli dei rilasci già usciti:** non si ripetono.',
       '**Lavori sullo stesso file:** entrano insieme.',
       '**Rapporti dei lavori:** ogni SierraDeck e ogni Aiutante manda al PC di riferimento i rapporti dei suoi lavori, insieme ai log.',
+      '**Riassunto dei rapporti:** sul PC di riferimento i rapporti arrivati dagli altri PC vengono riassunti per PC e per workspace (unioni lente o scadute, controlli rossi, specialisti, permessi negati, fermate). Il riassunto arriva all\'autopilota, che lo analizza e apre le correzioni.',
+      '**Registri con il workspace:** le righe dei registri delle unioni e dei controlli dicono a quale workspace appartengono.',
     ],
   },
   {
