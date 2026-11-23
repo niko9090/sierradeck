@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.117.2',
+    righe: [
+      '**Rapporto dei lavori:** se un PC con una versione vecchia non manda i conti nuovi, il riassunto non scrive più «NaN». Quei conti valgono 0.',
+    ],
+  },
+  {
     versione: '0.117.1',
     righe: [
       '**Rapporto dei lavori:** mostra i ruoli veri degli specialisti e conta giusto. Un controllo rifatto vale una volta sola, e i controlli impossibili, i rallentamenti brevi e i lavori fermi hanno ognuno la sua voce.',
