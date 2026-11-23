@@ -324,3 +324,16 @@ Corretto nella versione 0.112.0 (Aiutante 1.3.0). Causa: l Aiutante prendeva per
 
 ## Gruppo 1: «The database connection is not open» (Portatile Asus, 0.111.2)
 Difetto vero, corretto nella versione 0.112.1. Causa: in chiusura del programma chiudiRisorse() chiudeva il db mentre la finestra chiedeva ancora i consumi (e lista/elimina delle sessioni), e i gestori ipc lanciavano un errore finto nel registro. Correzione k-171a: i gestori 'sessioni:lista', 'sessioni:consumi' e 'sessioni:elimina' usano `leggiDbOVuoto` (src/main/db-chiuso.ts). Test: tests/main/db-chiuso-in-uscita.test.ts.
+
+# Errori arrivati (lotto 20261123094011)
+
+Il fatto di fondo, per tutti e 3 i gruppi: i filtri di sicurezza di Claude («API Error: Sonnet 5's safeguards flagged this message…») hanno bloccato il compito k-55 del progetto Money (lavoro rba4ca9869603, sviluppatore, sul DESKTOP-O2DITVE). È un fatto esterno, non un difetto del programma. Il difetto era il modo di dirlo. Corretto nella versione 0.114.3 (Aiutante 1.3.1).
+
+## Gruppo 1: «[aiuto] rba4ca9869603 (k-55) da DESKTOP-O2DITVE Aiutante: non riuscito: il servizio di Claude non ha risposto (…) «API Error: Sonnet 5's safeguards flagged this message…»» (dove pc, Portatile Asus 0.112.0, 2 volte)
+Corretto nella versione 0.114.3. Era un doppione della riga del gruppo 3 e una causa sbagliata («il servizio non ha risposto»). Ora: k-183b, un lavoro affidato fallito lascia un solo errore e i doppioni passano ad avviso; k-183a, causa nuova «rifiuto» (src/shared/aiuto-esito.ts) con il motivo giusto e senza mettere in pausa il PC. Il conteggio «2 volte» sono voci identiche contate due volte: ora non più (src/main/errori-arrivati-lavoro.ts). Ipotesi, non riprodotta sul caso vero.
+
+## Gruppo 2: «[aiuto] Money — k-55 da DESKTOP-O2DITVE Aiutante: fallito — …» (dove servizio, Portatile Asus 0.112.0, 2 volte)
+Corretto nella versione 0.114.3. Questa è la riga giusta, e resta (un solo errore per il lavoro fallito, k-183b), ora col motivo giusto (k-183a). Il conteggio «2 volte» come sopra: voci identiche non più contate due volte (ipotesi, non riprodotta sul caso vero).
+
+## Gruppo 3: «[aiuto] lavoro rba4ca9869603 (sviluppatore) per Portatile Asus non riuscito: …» (dove pc, Aiutante DESKTOP-O2DITVE 1.3.0, 1 volta)
+Corretto nella versione 0.114.3 (Aiutante 1.3.1). Doppione della riga del gruppo 2: ora è un avviso e non un errore (k-183b, src/aiutante/nucleo.ts), col motivo giusto (k-183a).
