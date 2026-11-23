@@ -18,7 +18,7 @@ describe('k-193e: unioni e criteri per workspace nel rapporto dei lavori', () =>
     expect(c.workspace.alfa?.unioni.prove).toBe(1)
     expect(c.workspace.alfa?.criteri.riusciti).toBe(1)
     expect(c.workspace.beta?.unioni.scadute).toBe(1)
-    expect(c.workspace.beta?.criteri).toMatchObject({ finiti: 1, rossi: 1, inAttesa: 1, scaduti: 1 })
+    expect(c.workspace.beta?.criteri).toMatchObject({ finiti: 0, rossi: 0, inAttesa: 1, scaduti: 1 })
     expect(c.workspace[WORKSPACE_GENERALE]).toBeUndefined()
     expect(c.righe).toBe(6)
   })

@@ -498,7 +498,10 @@ export function esecutoreReale(predefinitoMs: number = TIMEOUT_PREDEFINITO_MS, r
         risposto = true
         clearTimeout(orologio)
         segnale?.removeEventListener('abort', alloStop)
-        console.info(`[criterio] ${segnoDiLog(wsDelComando)}finito con ${codice} in ${Math.round((Date.now() - partito) / 1000)} s: ${comando.slice(0, 120)}`)
+        // k-199c: un comando che non si è potuto misurare lo dice, perché il rapporto non lo conti rosso.
+        const uscitaFinale = `${uscitaRaccolta().trim()}${fine}`.trim()
+        const motivoNonMisurato = codice === 0 ? '' : annullato(uscitaFinale) ? 'annullato' : nonMisurabile(codice, uscitaFinale) ? (codice === 127 || codice === 9009 ? 'comando assente' : codice === CODICE_RIFIUTATO ? 'non eseguibile' : 'ambiente') : ''
+        console.info(`[criterio] ${segnoDiLog(wsDelComando)}finito con ${codice} in ${Math.round((Date.now() - partito) / 1000)} s${motivoNonMisurato !== '' ? ` (non misurato: ${motivoNonMisurato})` : ''}: ${comando.slice(0, 120)}`)
         // Le pipe si lasciano andare: se un processo in background le tiene
         // aperte, restare in ascolto significherebbe tenere vivo un pezzo di
         // servizio per un lavoro di cui non ci importa più niente.
@@ -592,7 +595,8 @@ export async function eseguiCriteri(
       // 0.80.1: un rosso per tempo scaduto non si conta subito. Si rimisura una
       // volta da solo; se scade ancora, allora è rosso davvero.
       if (scadutoPerTempo(codice, uscita)) {
-        console.warn(`[criterio] ${segnoDiLog()}«${criterio.descrizione}» rosso per tempo scaduto: lo rimisuro una volta`)
+        // k-199c: il workspace del comando, come nella riga «finito» (il warn parte dallo stesso contesto, ma lo si dice).
+        console.warn(`[criterio] ${segnoDiLog(workspaceDiLog())}«${criterio.descrizione}» rosso per tempo scaduto: lo rimisuro una volta`)
         const seconda = await lancia()
         codice = seconda.codice
         uscita = scadutoPerTempo(seconda.codice, seconda.uscita)

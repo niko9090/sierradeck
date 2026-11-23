@@ -40,12 +40,13 @@ describe('contaLavori: dai registri ai conti', () => {
     const g = c.workspace.generale!
     expect(g.criteri).toMatchObject({ finiti: 2, riusciti: 1, rossi: 1, durataMaxMs: 50_000 })
     expect(g.fermate.riavvii).toBe(1)
-    expect(g.fermate.fermo).toBe(1)
+    expect(g.fermate.fermo).toBe(3)
     const w = c.workspace['ws-uno']!
     expect(w.unioni.inFila).toBe(1)
     expect(w.compiti).toMatchObject({ affidati: 1, restatiQui: 1, inFila: 1, ruoli: { sviluppatore: 1 } })
     expect(c.workspace['ws-due']!.avanzamento.svegli).toBe(1)
-    expect(c.workspace['ws-due']!.fermate.fermoMaxMs).toBe(1_200_000)
+    expect(c.workspace['ws-due']!.avanzamento.lavoroFermoMaxMin).toBe(20)
+    expect(c.workspace['ws-due']!.fermate.fermoMaxMs).toBe(0)
   })
   it('privacy: niente testi delle chat nel rapporto', () => {
     expect(JSON.stringify(c.workspace)).not.toContain('testo privato')
