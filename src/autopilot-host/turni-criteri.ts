@@ -25,7 +25,7 @@ export type TurniCriteri = {
   /** Esegue `fai` quando tocca a lui: nessun altro pesante, nessuna unione in `cwd`. */
   pesante: <T>(cwd: string, fai: () => Promise<T>) => Promise<T>
   /** Esegue l'unione quando nella cartella non gira nessun pesante né un'altra unione; intanto non ne parte nessuno lì. */
-  unione: <T>(cwd: string, fai: (segnale: AbortSignal) => T | Promise<T>) => Promise<T>
+  unione: <T>(cwd: string, fai: (segnale: AbortSignal) => T | Promise<T>, per?: { piuTempo?: number }) => Promise<T>
   /**
    * **Il turno di un comando pesante lanciato da una chat** (0.85.2). Non
    * aspetta: o il turno è libero e la chat lo prende subito, per al più
@@ -116,7 +116,7 @@ export function creaTurni(opz: { ora?: () => number; unioneMaxMs?: number; liber
         sveglia()
       }
     },
-    async unione(cwd, fai) {
+    async unione(cwd, fai, per) {
       const dove = normale(cwd)
       unioni.set(dove, (unioni.get(dove) ?? 0) + 1)
       // 06/11: né l'attesa del turno né l'unione stessa durano per sempre: scaduto il tempo il
@@ -128,7 +128,7 @@ export function creaTurni(opz: { ora?: () => number; unioneMaxMs?: number; liber
       const controlloScattato = (): boolean => controllo.signal.aborted
       let timer: ReturnType<typeof setTimeout> | undefined
       const scaduta = new Promise<never>((_, no) => {
-        timer = setTimeout(() => { stop.scaduto = true; no(new TurnoScaduto()) }, opz.unioneMaxMs ?? UNIONE_TURNO_MAX_MS)
+        timer = setTimeout(() => { stop.scaduto = true; no(new TurnoScaduto()) }, (opz.unioneMaxMs ?? UNIONE_TURNO_MAX_MS) * Math.max(1, per?.piuTempo ?? 1))
         timer.unref?.()
       })
       scaduta.catch(() => {})
