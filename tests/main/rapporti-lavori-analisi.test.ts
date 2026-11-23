@@ -47,6 +47,17 @@ describe('riassunto dei rapporti dei lavori', () => {
     expect(testo).toContain('spinte sospese 0')
   })
 
+  it('le unioni non partite si mostrano solo se ci sono, e un rapporto vecchio vale 0', () => {
+    const conNonPartite = { ...nuovo, unioni: { ...nuovo.unioni, nonPartite: 12, motiviNonPartite: { 'cartella con file non salvati': 12 } } }
+    const r = riassumi([rapporto('A', '2026-11-20T10:00:00.000Z', conNonPartite), rapporto('B', '2026-11-20T11:00:00.000Z', vecchio)])!
+    expect(r.totale['SierraDeck']!.unioni.nonPartite).toBe(12)
+    expect(r.pc['B']!['SierraDeck']!.unioni.nonPartite).toBe(0)
+    const testo = testoRiassunto('x', r)
+    expect(testo).toContain('12 non partite (cartella con file non salvati ×12)')
+    expect(testo).not.toContain('NaN')
+    expect(testoRiassunto('x', riassumi([rapporto('B', '2026-11-20T11:00:00.000Z', vecchio)])!)).not.toContain('non partite')
+  })
+
   it('sezioni intere mancanti non rompono la somma', () => {
     const r = riassumi([rapporto('C', '2026-11-20T12:00:00.000Z', { criteri: { finiti: 1 } })])!
     expect(testoRiassunto('x', r)).not.toContain('NaN')

@@ -11,7 +11,7 @@
 
 /** I conti di un workspace (o di «generale», per le righe che non lo dicono). */
 export type LavoriWorkspace = {
-  unioni: { prove: number; attesaMs: number; attesaMaxMs: number; provaMs: number; provaMaxMs: number; scadute: number; inFila: number; motivi: Record<string, number> }
+  unioni: { prove: number; attesaMs: number; attesaMaxMs: number; provaMs: number; provaMaxMs: number; scadute: number; inFila: number; motivi: Record<string, number>; /** Prove che non sono partite (cartella con file non salvati…): non sono prove. */ nonPartite: number; motiviNonPartite?: Record<string, number> }
   /** `nonMisurati` (k-199c): ambiente rotto, comando assente, codice 126: non sono rossi. */
   criteri: { finiti: number; riusciti: number; rossi: number; nonMisurati: number; durataMs: number; durataMaxMs: number; scaduti: number; inAttesa: number }
   compiti: { affidati: number; restatiQui: number; inFila: number; rifiuti: number; ruoli: Record<string, number> }
@@ -48,7 +48,7 @@ export const idRapporto = (r: Pick<RapportoLavori, 'da' | 'dal' | 'al'>): string
 
 export function lavoriVuoti(): LavoriWorkspace {
   return {
-    unioni: { prove: 0, attesaMs: 0, attesaMaxMs: 0, provaMs: 0, provaMaxMs: 0, scadute: 0, inFila: 0, motivi: {} },
+    unioni: { prove: 0, attesaMs: 0, attesaMaxMs: 0, provaMs: 0, provaMaxMs: 0, scadute: 0, inFila: 0, motivi: {}, nonPartite: 0 },
     criteri: { finiti: 0, riusciti: 0, rossi: 0, nonMisurati: 0, durataMs: 0, durataMaxMs: 0, scaduti: 0, inAttesa: 0 },
     compiti: { affidati: 0, restatiQui: 0, inFila: 0, rifiuti: 0, ruoli: {} },
     avanzamento: { svegli: 0, limiteDelPiano: 0, criterioRosso: 0, lavoroFermoMaxMin: 0, spinteSospese: 0 },
@@ -124,6 +124,13 @@ export function contaLavori(righe: readonly string[], dopo?: string): { workspac
       u.prove += 1; u.attesaMs += att; u.provaMs += prova
       u.attesaMaxMs = Math.max(u.attesaMaxMs, att); u.provaMaxMs = Math.max(u.provaMaxMs, prova)
       if (x[3] !== undefined) { u.scadute += 1; aggiungiMotivo(di(wsRiga), `scaduta: ${x[3]}`) }
+      lette += 1
+    } else if ((x = /^\[unione di prova\] [^:]+: non partita \((.*)\)\s*$/.exec(t)) !== null) {
+      // k-bloc: la prova non è nemmeno partita (cartella con file non salvati…): non è una prova, non entra nelle medie.
+      const l = di(wsRiga)
+      l.unioni.nonPartite += 1
+      const m = motivoBreve(x[1] as string)
+      if (m !== '') { const mp = (l.unioni.motiviNonPartite ??= {}); const k = m in mp || Object.keys(mp).length < MAX_MOTIVI ? m : 'altro'; mp[k] = (mp[k] ?? 0) + 1 }
       lette += 1
     } else if ((x = /^\[criterio\] finito con (-?\d+) in (\d+) s(?: \(non misurato: [^)]*\))?/.exec(t)) !== null) {
       const c = di(wsRiga).criteri
@@ -245,7 +252,7 @@ export function leggiRapportoLavori(x: unknown): { ok: true; rapporto: RapportoL
     const w = typeof v === 'object' && v !== null ? v as Record<string, Record<string, unknown> | undefined> : {}
     const u = w.unioni ?? {}, c = w.criteri ?? {}, k = w.compiti ?? {}, a = w.avanzamento ?? {}, f = w.fermate ?? {}
     workspace[nome.slice(0, 80)] = {
-      unioni: { prove: num(u.prove), attesaMs: num(u.attesaMs), attesaMaxMs: num(u.attesaMaxMs), provaMs: num(u.provaMs), provaMaxMs: num(u.provaMaxMs), scadute: num(u.scadute), inFila: num(u.inFila), motivi: conti(u.motivi) },
+      unioni: { prove: num(u.prove), attesaMs: num(u.attesaMs), attesaMaxMs: num(u.attesaMaxMs), provaMs: num(u.provaMs), provaMaxMs: num(u.provaMaxMs), scadute: num(u.scadute), inFila: num(u.inFila), motivi: conti(u.motivi), nonPartite: num(u.nonPartite), ...(Object.keys(conti(u.motiviNonPartite)).length > 0 ? { motiviNonPartite: conti(u.motiviNonPartite) } : {}) },
       criteri: { finiti: num(c.finiti), riusciti: num(c.riusciti), rossi: num(c.rossi), nonMisurati: num(c.nonMisurati), durataMs: num(c.durataMs), durataMaxMs: num(c.durataMaxMs), scaduti: num(c.scaduti), inAttesa: num(c.inAttesa) },
       compiti: { affidati: num(k.affidati), restatiQui: num(k.restatiQui), inFila: num(k.inFila), rifiuti: num(k.rifiuti), ruoli: conti(k.ruoli) },
       avanzamento: { svegli: num(a.svegli), limiteDelPiano: num(a.limiteDelPiano), criterioRosso: num(a.criterioRosso), lavoroFermoMaxMin: num(a.lavoroFermoMaxMin), spinteSospese: num(a.spinteSospese) },
