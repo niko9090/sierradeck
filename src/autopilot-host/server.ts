@@ -29,10 +29,10 @@ import { comandoDelCriterio, fraseStatoOrchestratore } from '@shared/piano-orche
 import { esaminaComando } from '@shared/controllo-comandi'
 import type { Archivio } from './archivio'
 import { interrottoPerTempo, type Esecutore } from './verifiche'
-import { conScadenza, PROVA_MAX_MS } from './tempi-unione'
+import { conScadenza, PROVA_MAX_MS, PROVE_RICORDATE, scadenzaAdattiva } from './tempi-unione'
 import { improntaCodiceAsincrona, misuraCriteri, type MemoriaCriteri } from './criteri-veloci'
 import { motivoProveRotte, peggioratiDelRamo, preparaCopia, radiceDellaCopia } from './ambiente-copia'
-import { criteriPerLaProva } from './criteri-prova'
+import { criteriPerLaProva, senzaSolaVersione, soloVersione } from './criteri-prova'
 import { TURNI_PC, TurnoScaduto, turniSenzaFila, type TurniCriteri } from './turni-criteri'
 import { giudicaPesanteAspettando, idAgente, rendiTurnoDopoComando, type GuardiaPc } from './guardia-pc'
 import { giudicaRuolo, giudicaStrumento, rispostaPreTool } from './divieti'
@@ -168,6 +168,8 @@ export type Dipendenze = {
   /** 06/11, per i test: tempi della fila delle unioni (vedi `ContestoUnico`). */
   unioneMaxMs?: number
   unioneRiprovaMs?: number
+  /** k-191e, per i test: raccolta della raffica prima della testa della fila. */
+  raccoltaRafficaMs?: number
   unioneTentativiMax?: number
   /** 11/11, per i test: i tempi dei file non salvati nella principale (vedi `ContestoUnico`). */
   chiediSalvaDopoMs?: number
@@ -798,6 +800,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
 
   // ── L'unione di prova nel principale (0.84.4) ──
   const proveInCorso = new Map<string, Promise<void>>()
+  /** k-191e: le durate (ms) delle ultime prove finite in tempo di ogni workspace: la scadenza adattiva parte da qui. */
+  const proveRecenti = new Map<string, number[]>()
   const chiaveProva = (cwd: string): string => cwd.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
   const aspettaProve = async (cwd: string): Promise<void> => {
     for (let p = proveInCorso.get(chiaveProva(cwd)); p !== undefined; p = proveInCorso.get(chiaveProva(cwd))) await p
@@ -814,7 +818,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     const turni = deps.turni ?? TURNI_PC
     const visti = new Set<string>()
     const tutti: Criterio[] = deps.orchestratori.piano(chiaveWorkspace(a)).compiti.flatMap((k) => {
-      const comando = k.stato === 'unito' && k.criterioVerde === true ? comandoDelCriterio(k.criterio) : undefined
+      // k-191e: il criterio di un rilascio misura tag, release e versione, non il codice: non si ripete a ogni prova (resta il suo, al suo turno).
+      const comando = k.stato === 'unito' && k.criterioVerde === true && k.ruolo !== 'rilascio' ? comandoDelCriterio(k.criterio) : undefined
       if (comando === undefined || visti.has(comando) || !esaminaComando(comando).ok) return []
       visti.add(comando)
       return [{ descrizione: k.criterio, comando, soddisfatto: true }]
@@ -825,7 +830,19 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     const cambiati = diffe.every((d) => d !== undefined && d.codice === 0)
       ? diffe.flatMap((d) => d!.uscita.split(/\r?\n/).map((r) => r.trim()).filter((r) => r !== ''))
       : undefined
-    const criteri = criteriPerLaProva(tutti, cambiati)
+    // k-191e: un `package.json` (o lock) che cambia solo la riga `version` non può rompere niente: non manda in prova la suite intera.
+    let cambiatiPerProva = cambiati
+    if (cambiati !== undefined && cambiati.some((f) => /^package(?:-lock)?\.json$/.test(f))) {
+      const soloVers = new Set<string>()
+      for (const f of ['package.json', 'package-lock.json']) {
+        if (!cambiati.includes(f)) continue
+        const diffs = await Promise.all([ramo, ...altri].map((r) => gitA(git)(['diff', '--unified=0', `${base}...${r}`, '--', f], a.cwd).catch(() => undefined)))
+        const toccati = diffs.filter((d) => d !== undefined && d.codice === 0 && d.uscita.trim() !== '')
+        if (diffs.every((d) => d !== undefined && d.codice === 0) && toccati.length > 0 && toccati.every((d) => soloVersione(d!.uscita))) soloVers.add(f)
+      }
+      if (soloVers.size > 0) cambiatiPerProva = senzaSolaVersione(cambiati, soloVers)
+    }
+    const criteri = criteriPerLaProva(tutti, cambiatiPerProva)
     const misura = async (criteri: Criterio[], segnale: AbortSignal) => {
       if (criteri.length === 0) return []
       const impronta = await improntaCodiceAsincrona(gitA(git), a.cwd)
@@ -900,8 +917,11 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       const r = await conScadenza(
         (segnale, iniziata) => corpo(segnale, iniziata).catch((err: unknown) => { if (err instanceof TurnoScaduto) return 'scaduta' as const; throw err }),
         // 11/11: la durata massima della prova la decide Nicholas (di serie `PROVA_MAX_MS`).
-        deps.provaMaxMs ?? (deps.limiti !== undefined ? deps.limiti.leggi().provaMaxMin * 60_000 : PROVA_MAX_MS),
-        { scrivi: (t) => { console.info(`[unione di prova] ${ramo}: attesa del turno ${Math.round(t.attesaMs / 1000)} s, prova ${Math.round(t.esecuzioneMs / 1000)} s${t.scaduta ? ` (scaduta mentre stava per ${stato.punto})` : ''}`) } }
+        // k-191e: adattiva (4 × la mediana delle ultime prove del workspace, almeno 5 minuti), con più tempo a ogni scadenza.
+        scadenzaAdattiva(proveRecenti.get(chiaveWorkspace(a)) ?? [], deps.provaMaxMs ?? (deps.limiti !== undefined ? deps.limiti.leggi().provaMaxMin * 60_000 : PROVA_MAX_MS), tempo.piuTempo ?? 1),
+        { scrivi: (t) => {
+          if (!t.scaduta && t.esecuzioneMs > 0) proveRecenti.set(chiaveWorkspace(a), [...(proveRecenti.get(chiaveWorkspace(a)) ?? []), t.esecuzioneMs].slice(-PROVE_RICORDATE))
+          console.info(`[unione di prova] ${ramo}: attesa del turno ${Math.round(t.attesaMs / 1000)} s, prova ${Math.round(t.esecuzioneMs / 1000)} s${t.scaduta ? ` (scaduta mentre stava per ${stato.punto})` : ''}`) } }
       )
       if (!r.scaduta && r.valore !== 'scaduta') return r.valore
       stato.scaduta = true
@@ -1773,6 +1793,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     ...(deps.unioneDaSola !== undefined ? { unioneDaSola: deps.unioneDaSola } : {}),
     ...(deps.unioneMaxMs !== undefined ? { unioneMaxMs: deps.unioneMaxMs } : {}),
     ...(deps.unioneRiprovaMs !== undefined ? { unioneRiprovaMs: deps.unioneRiprovaMs } : {}),
+    ...(deps.raccoltaRafficaMs !== undefined ? { raccoltaRafficaMs: deps.raccoltaRafficaMs } : {}),
     ...(deps.unioneTentativiMax !== undefined ? { unioneTentativiMax: deps.unioneTentativiMax } : {}),
     ...(deps.chiediSalvaDopoMs !== undefined ? { chiediSalvaDopoMs: deps.chiediSalvaDopoMs } : {}),
     ...(deps.sporcaInFondoDopoMs !== undefined ? { sporcaInFondoDopoMs: deps.sporcaInFondoDopoMs } : {}),

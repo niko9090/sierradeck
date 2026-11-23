@@ -65,6 +65,37 @@ export function formaLotto(voci: readonly VoceLotto[], max: number = LOTTO_MAX_R
   return lotto
 }
 
+/**
+ * k-191e: come `formaLotto`, ma due rami che toccano lo stesso file entrano insieme se il loro
+ * merge è senza conflitti (`senzaConflitto`, di solito `git merge-tree`, millisecondi). Restano
+ * fuori solo i conflitti veri e le dipendenze. `senzaConflitto` che fallisce o risponde `false`
+ * = conflitto: si resta prudenti. Il lotto resta provato davvero (rosso: si divide).
+ */
+export async function formaLottoSenzaConflitti(
+  voci: readonly VoceLotto[],
+  senzaConflitto: (a: VoceLotto, b: VoceLotto) => Promise<boolean>,
+  max: number = LOTTO_MAX_RAMI
+): Promise<VoceLotto[]> {
+  const prima = voci[0]
+  if (prima === undefined) return []
+  const lotto = [prima]
+  if (prima.file.length === 0) return lotto
+  for (const v of voci.slice(1)) {
+    if (lotto.length >= max) break
+    if (v.file.length === 0 || lotto.some((l) => l.ramo === v.ramo || dipendenti(l, v))) continue
+    const mie = new Set(v.file.map(chiaveFile))
+    // Solo con i rami già dentro che toccano gli stessi file serve guardare il merge.
+    const insieme = lotto.filter((l) => l.file.some((f) => mie.has(chiaveFile(f))))
+    let ok = true
+    for (const l of insieme) {
+      const libero = await senzaConflitto(l, v).catch(() => false)
+      if (!libero) { ok = false; break }
+    }
+    if (ok) lotto.push(v)
+  }
+  return lotto
+}
+
 /** L'esito di una prova di un gruppo di rami, come lo dà il servizio. */
 export type EsitoProvaLotto = { unito: true } | { unito: false; motivo: string; ritenta?: 'sporca' | 'scaduta'; file?: string[] }
 
