@@ -4,8 +4,6 @@
 
 ## test
 
-- criteriPerLaProva è usata anche da servizio-orchestratore.ts per un solo comando: se scarta il comando si ricade sull'originale, non sul vuoto _(2026-11-14)_
-- per riprodurre un multibyte spezzato basta tagliare il Buffer a metà dei 3 byte di › ed emettere due 'data' su una richiesta finta. _(2026-11-14)_
 - vitest tests/main tests/shared nel worktree dura qualche minuto (470 file): lanciarlo una volta sola, l'output è enorme, leggere solo la riga «Test Files» con grep -a. _(2026-11-15)_
 - `git fetch` può fallire sul bundle del PC richiedente: se il ramo è già pari a `main`, basta `git merge --ff-only main`. _(2026-11-16)_
 - `src/aiutante/aggiornamento.ts` ora importa `electron` (`powerMonitor`): i test che lo caricano devono mockare `electron` con `powerMonitor`. _(2026-11-16)_
@@ -100,6 +98,7 @@
 - Nei test della guardia con orologio finto servono 3 min di storia più 1 min di rilascio prima che un PC piccolo stabile risulti libero: misurare ogni 5 s per oltre 4 min. _(2026-11-23)_
 - nei test del server con più workspace, l'ordine di `processi[]` non segue i workspace: riconoscere ogni processo dal `ws=` nel suo `--mcp-config`. Le cartelle (cwd) devono esistere. _(2026-11-23)_
 - Il turno aperto da un messaggio di Nicholas contiene già «Il lavoro è fermo» nel riassunto: per contare le spinte vere nei test serve un riferimento preso dopo il messaggio. _(2026-11-23)_
+- `npx vitest related` va lanciato con `--run`, altrimenti resta in attesa. La suite dei file collegati a rapporto-lavori.ts dura oltre 2 minuti e finisce in background. _(2026-11-23)_
 
 ## worktree
 
@@ -174,6 +173,7 @@
 - un git di prova che resta appeso deve chiudersi sul segnale, altrimenti con la fila nuova il posto della cartella non si libera mai _(2026-11-22)_
 - se un ramo da unire è già aperto in un'altra copia, non si può riprenderlo: si fa ff-only a main e si unisce il ramo dentro il proprio, poi si indica il nuovo commit. _(2026-11-22)_
 - In queste copie `git fetch` può fallire se il bundle in `aiuto\arrivi` non c'è più, e il tag della versione precedente può mancare: si trova il commit con `git log -S"x.y.z" -- package.json`. _(2026-11-23)_
+- i file sorgente sono CRLF: per risolvere i conflitti con uno script le regex su `\n` non trovano nulla; usare Edit sui blocchi. _(2026-11-23)_
 
 ## autopilota
 
