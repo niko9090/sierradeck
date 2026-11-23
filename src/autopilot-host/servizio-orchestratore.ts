@@ -501,10 +501,17 @@ export async function ramoDelCompito(
     tutti: Specialista[]
     voci: VoceWorktree[]
     nato: (cartella: string) => number | undefined
+    /**
+     * 23/11 (k-178r): i rami la cui unione è già fallita. Se uno specialista più nuovo ha un ramo suo con commit
+     * (la correzione), si unisce quello e non si riprova il vecchio, che riconflitta; il vecchio resta
+     * l'ultima risorsa quando nessun altro ramo ha lavoro.
+     */
+    falliti?: ReadonlySet<string>
   }
 ): Promise<SceltaDelCompito> {
   const note: string[] = []
   const conLavoro: { sub: Specialista; ramo: string; cartella?: string; avanti: number }[] = []
+  const messiDaParte: typeof conLavoro = []
   for (const s of [...p.specialisti].reverse()) {
     if (s.stato === 'avviato' || s.stato === 'lavoro') { note.push(`${s.id} sta ancora lavorando`); continue }
     const r = ramoDelloSpecialista(s, p.voci, { presi: ramiPresi(s, p.tutti, p.voci), nato: p.nato })
@@ -514,7 +521,13 @@ export async function ramoDelCompito(
     const avanti = conta.codice === 0 ? Number.parseInt(conta.uscita.trim(), 10) : NaN
     if (!Number.isFinite(avanti)) { note.push(`${s.id}: il ramo ${r.ramo} non c’è`); continue }
     if (avanti <= 0) { note.push(`${s.id}: il ramo ${r.ramo} non ha commit fuori da ${p.base}`); continue }
-    conLavoro.push({ sub: s, ramo: r.ramo, ...(r.cartella !== undefined ? { cartella: r.cartella } : {}), avanti })
+    const voce = { sub: s, ramo: r.ramo, ...(r.cartella !== undefined ? { cartella: r.cartella } : {}), avanti }
+    if (p.falliti?.has(r.ramo) === true) messiDaParte.push(voce)
+    else conLavoro.push(voce)
+  }
+  if (conLavoro.length === 0 && messiDaParte.length > 0) conLavoro.push(...messiDaParte)
+  else if (messiDaParte.length > 0) {
+    for (const f of messiDaParte) note.push(`${f.sub.id}: il ramo ${f.ramo} è già fallito, vale quello più recente`)
   }
   if (conLavoro.length === 1) return { ok: true, ...conLavoro[0]! }
   if (conLavoro.length === 0) {
@@ -1380,6 +1393,13 @@ ${NOTA_SENZA_GIT}`,
     ramoUnito?: string
   }
   const filaUnioni = new Map<string, LavoroUnione[]>()
+  /** 23/11 (k-178r): i rami di un compito la cui unione è fallita (`ws|compito` → rami): un ramo più nuovo li scavalca. */
+  const ramiFalliti = new Map<string, Set<string>>()
+  const ricordaFallito = (ws: string, compito: string | undefined, ramo: string | undefined): void => {
+    if (compito === undefined || ramo === undefined) return
+    const chiave = `${ws}|${compito}`
+    ramiFalliti.set(chiave, new Set([...(ramiFalliti.get(chiave) ?? []), ramo]))
+  }
   /** k-176h: gli esiti recenti delle unioni per workspace (il più recente prima), per il pannello a destra. Solo in memoria. */
   const esitiUnioni = new Map<string, EsitoUnione[]>()
   const ricordaEsitoUnione = (ws: string, e: Omit<EsitoUnione, 'quando'>): void => {
@@ -1849,7 +1869,7 @@ ${NOTA_SENZA_GIT}`,
       } else if (delCompito.length > 0 && chat === undefined) {
         const lista = await g(['worktree', 'list', '--porcelain'], a.cwd)
         const voci = lista.codice === 0 ? leggiWorktree(lista.uscita) : []
-        const s = await ramoDelCompito(g, { cwd: a.cwd, base: a.ramoBase, compito: p.compito!, specialisti: delCompito, tutti, voci, nato })
+        const s = await ramoDelCompito(g, { cwd: a.cwd, base: a.ramoBase, compito: p.compito!, specialisti: delCompito, tutti, voci, nato, falliti: ramiFalliti.get(`${ws}|${p.compito}`) ?? new Set<string>() })
         // Le copie anche dai worktree di git: una modifica non salvata lì non si perde.
         const conCopia = delCompito.map((d) => { const w = ramoDelloSpecialista(d, voci, { presi: ramiPresi(d, tutti, voci), nato }); return w.ok && w.cartella !== undefined ? { ...d, cartella: w.cartella } : d })
         if (!s.ok && await senzaLavoroSuiRami(g, conCopia, s.motivo)) {
@@ -1919,6 +1939,7 @@ ${NOTA_SENZA_GIT}`,
         if (!r.unito) {
           if (r.ritenta !== undefined) throw new RiprovaUnione(r.ritenta, r.motivo, r.file)
           motivo = `${r.motivo} (ramo ${altro.ramo} di ${altro.sub.id})`
+          ricordaFallito(ws, compito?.id, altro.ramo)
           break
         }
       }
@@ -1941,6 +1962,7 @@ ${NOTA_SENZA_GIT}`,
         if (!r.unito) {
           if (r.ritenta !== undefined) throw new RiprovaUnione(r.ritenta, r.motivo, r.file)
           motivo = r.motivo
+          ricordaFallito(ws, compito?.id, ramo)
         }
       }
       if (motivo !== undefined) {
