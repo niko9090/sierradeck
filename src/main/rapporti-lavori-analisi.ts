@@ -41,28 +41,31 @@ function sommaVuota(): Somma {
   }
 }
 
-function unisciConti(a: Record<string, number>, b: Record<string, number>): void {
-  for (const [k, v] of Object.entries(b)) a[k] = (a[k] ?? 0) + v
+/** Un campo che manca o non è un numero finito (rapporti di versioni vecchie) vale 0. */
+const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0)
+
+function unisciConti(a: Record<string, number>, b: Record<string, number> | undefined, chiave: (k: string) => string = (k) => k): void {
+  for (const [k, v] of Object.entries(b ?? {})) a[chiave(k)] = (a[chiave(k)] ?? 0) + num(v)
 }
 
 export function sommaDi(a: Somma, b: LavoriWorkspace): void {
-  const u = a.unioni, v = b.unioni
-  u.prove += v.prove; u.attesaMs += v.attesaMs; u.provaMs += v.provaMs; u.scadute += v.scadute; u.inFila += v.inFila
-  u.attesaMaxMs = Math.max(u.attesaMaxMs, v.attesaMaxMs); u.provaMaxMs = Math.max(u.provaMaxMs, v.provaMaxMs)
+  const u = a.unioni, v: Partial<Somma['unioni']> = b.unioni ?? {}
+  u.prove += num(v.prove); u.attesaMs += num(v.attesaMs); u.provaMs += num(v.provaMs); u.scadute += num(v.scadute); u.inFila += num(v.inFila)
+  u.attesaMaxMs = Math.max(u.attesaMaxMs, num(v.attesaMaxMs)); u.provaMaxMs = Math.max(u.provaMaxMs, num(v.provaMaxMs))
   unisciConti(u.motivi, v.motivi)
-  const c = a.criteri, d = b.criteri
-  c.finiti += d.finiti; c.riusciti += d.riusciti; c.rossi += d.rossi; c.nonMisurati += d.nonMisurati; c.durataMs += d.durataMs; c.scaduti += d.scaduti; c.inAttesa += d.inAttesa
-  c.durataMaxMs = Math.max(c.durataMaxMs, d.durataMaxMs)
-  const k = a.compiti, l = b.compiti
-  k.affidati += l.affidati; k.restatiQui += l.restatiQui; k.inFila += l.inFila; k.rifiuti += l.rifiuti
+  const c = a.criteri, d: Partial<Somma['criteri']> = b.criteri ?? {}
+  c.finiti += num(d.finiti); c.riusciti += num(d.riusciti); c.rossi += num(d.rossi); c.nonMisurati += num(d.nonMisurati); c.durataMs += num(d.durataMs); c.scaduti += num(d.scaduti); c.inAttesa += num(d.inAttesa)
+  c.durataMaxMs = Math.max(c.durataMaxMs, num(d.durataMaxMs))
+  const k = a.compiti, l: Partial<Somma['compiti']> = b.compiti ?? {}
+  k.affidati += num(l.affidati); k.restatiQui += num(l.restatiQui); k.inFila += num(l.inFila); k.rifiuti += num(l.rifiuti)
   // I rapporti già arrivati dai PC vecchi hanno l'id del compito al posto del ruolo: finisce sotto «ruolo non noto».
-  for (const [ruolo, n] of Object.entries(l.ruoli)) k.ruoli[ruoloDi(ruolo)] = (k.ruoli[ruoloDi(ruolo)] ?? 0) + n
-  const x = a.avanzamento, y = b.avanzamento
-  x.svegli += y.svegli; x.limiteDelPiano += y.limiteDelPiano; x.criterioRosso += y.criterioRosso
-  x.spinteSospese += y.spinteSospese; x.lavoroFermoMaxMin = Math.max(x.lavoroFermoMaxMin, y.lavoroFermoMaxMin)
-  const f = a.fermate, g = b.fermate
-  f.fermo += g.fermo; f.riavvii += g.riavvii; f.fermoMaxMs = Math.max(f.fermoMaxMs, g.fermoMaxMs)
-  for (const [m, n] of Object.entries(g.motiviRiavvio ?? {})) (f.motiviRiavvio ??= {})[m] = (f.motiviRiavvio[m] ?? 0) + n
+  unisciConti(k.ruoli, l.ruoli, ruoloDi)
+  const x = a.avanzamento, y: Partial<Somma['avanzamento']> = b.avanzamento ?? {}
+  x.svegli += num(y.svegli); x.limiteDelPiano += num(y.limiteDelPiano); x.criterioRosso += num(y.criterioRosso)
+  x.spinteSospese += num(y.spinteSospese); x.lavoroFermoMaxMin = Math.max(x.lavoroFermoMaxMin, num(y.lavoroFermoMaxMin))
+  const f = a.fermate, g: Partial<Somma['fermate']> = b.fermate ?? {}
+  f.fermo += num(g.fermo); f.riavvii += num(g.riavvii); f.fermoMaxMs = Math.max(f.fermoMaxMs, num(g.fermoMaxMs))
+  for (const [m, n] of Object.entries(g.motiviRiavvio ?? {})) (f.motiviRiavvio ??= {})[m] = (f.motiviRiavvio[m] ?? 0) + num(n)
 }
 
 export type RiassuntoLavori = {
