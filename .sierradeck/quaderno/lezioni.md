@@ -238,7 +238,6 @@
 
 ## hook
 
-- l'hook Bash di SierraDeck blocca sleep e comandi in sottofondo: le attese a intervalli non si possono fare da una chat, serve richiamare o un altro meccanismo. _(2026-11-10)_
 - Il programma blocca l'intero comando Bash se un rmdir o una cancellazione contiene una variabile ($T): scrivere i percorsi per intero. _(2026-11-20)_
 - Il PreToolUse dell'Agent, quando lascia passare, non può portare testo all'autopilota: i motivi «resta qui» vanno come `evento` al suo prossimo turno. _(2026-11-20)_
 
@@ -249,7 +248,6 @@
 
 ## drive
 
-- Il freno blocca solo POST/PUT/PATCH: ogni scrittura fa prima una ricerca GET (google-drive.ts carica), e i ritentativi su rateLimit non guardano il freno. _(2026-11-10)_
 - Il 403 storageQuotaExceeded non entra in «rifiutate» (risorse.ts 179-183): le rifiutate sono solo limiti di velocità. _(2026-11-10)_
 - `conFreno` alza il freno sulla prima risposta 429/rateLimit, quindi un controllo `attesaMs() > 0` dentro `conRitenta` equivale a «mai ritentare i limiti»; i test che si aspettano il ritentativo vanno… _(2026-11-10)_
 - in `conLimite` un errore ferma solo il suo lavoratore: gli altri continuano con le voci rimaste. Per fermare tutto serve un flag condiviso, come `pienoVisto` in `salvaIncrementale`. _(2026-11-10)_
@@ -607,6 +605,8 @@
 - La 0.113.0 ha cambiato noteDi in scripts/note-novita.mjs (vuole `righe: [`): allega-aiutante fallisce su novita-aiutante.txt. Va corretto in main; intanto usare la versione della v0.112.1. _(2026-11-22)_
 - controlla-pacchetto rifiuta node_modules come junction: nel worktree temporaneo togliere la junction con rmdir e fare `npm ci`; serve anche google-oauth.json (ignorato da git) copiato dalla cartella … _(2026-11-22)_
 - Per una versione mancante usare `noteDiOErrore` (errore con messaggio chiaro); `noteDi` dà `[]`. _(2026-11-22)_
+- Prima di pubblicare controllare `git status`: modifiche in staging nella cartella principale finiscono nel pacchetto e sfasano tag e installer. _(2026-11-23)_
+- Non lanciare il rilascio durante un'unione: l'unione di prova lascia file in staging nella cartella principale e il rilascio si ferma. Lanciarlo a fila unioni vuota. _(2026-11-23)_
 
 ## build
 
