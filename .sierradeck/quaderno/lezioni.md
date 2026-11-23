@@ -100,6 +100,7 @@
 - Diversi test leggono il sorgente di `App.tsx` e `WorkspacePanoramica.tsx` con regex: cambiando le viste, `vitest related` non li trova. Lancia `tests/renderer` per intero. _(2026-11-23)_
 - `tests/main/grafica-0-82-0.test.ts` controlla stringhe esatte in `WorkspacePanoramica.tsx`: il rifacimento del pannello agenti 0.115.1 lo ha rotto e va aggiornato nello stesso commit. _(2026-11-23)_
 - i test grafici che cercano stringhe di JSX in WorkspacePanoramica.tsx si rompono a ogni rifacimento del pannello: lanciare tests/main e tests/renderer interi prima di pubblicare _(2026-11-23)_
+- lo stato mostra gli eventi tagliati a circa 200 caratteri: le parole che contano (numero scadenze, «non è un caso») vanno all'inizio della frase _(2026-11-23)_
 
 ## worktree
 
@@ -139,9 +140,6 @@
 
 ## release
 
-- `.git/config` può ritrovarsi tutto zeri (11/11, 18:03): ogni git fallisce con «bad config line 1». Prima di una release lanciare `git status` e, se fallisce, non provare a indovinare il config. _(2026-11-12)_
-- `node scripts/allega-apk.mjs --solo-verifica` compila l'APK firmato e verifica la firma senza git né gh: utile per preparare la release con git rotto. _(2026-11-12)_
-- Se `.git` del principale è rovinato (anche `refs/heads/main` a zeri), lo sha vero sta in `.git/logs/refs/heads/main` e `ORIG_HEAD`; clonare e sovrapporre l'albero funziona, con `/XD` solo sui percors… _(2026-11-12)_
 - Con `core.autocrlf=true` il clone mostra centinaia di file «M» dopo la copia da Windows: nessuna differenza vera. Dopo `git add -A` restano solo le modifiche reali. _(2026-11-12)_
 - `gh release create --draft --verify-tag` seguito da `npm run pubblica` ha funzionato al primo colpo: una release sola, nessun 422, `latest.yml` presente. _(2026-11-12)_
 - vitest stampa «×» nei nomi di alcuni test (es. «(×2)»): cercare i fallimenti con «FAIL» o col riepilogo finale, non con «×» _(2026-11-13)_
@@ -263,6 +261,8 @@
 - i rami entrati in un lotto ripartono da `ramoUnito`: senza, cancelloOra li dice «fuori dai rami» e cambia il testo dell'evento «unione» _(2026-11-22)_
 - I registri del servizio hanno `[unione di prova] … attesa del turno N s, prova N s` e `[criterio] finito con N in N s: cmd`: bastano per misurare le unioni senza strumenti nuovi. _(2026-11-23)_
 - Ogni rilascio tocca package.json e android/novita-app.txt: la prova rilancia la suite intera e gradle (`soloNote` non conosce i .txt di android). Lì sta il tempo più grosso. _(2026-11-23)_
+- i dati di un workspace stanno sul PC che lo ospita (workspace-su-pc.json): per BG4 qui non ci sono registri, serve il PC «fisso_scrivania_glos» _(2026-11-23)_
+- i test della fila leggono il testo dello stato: allungare i motivi di scadenza taglia «(tentativo N)» e rompe unioni-in-fila-0-96-1 _(2026-11-23)_
 
 ## ui
 
