@@ -138,7 +138,6 @@
 
 ## git
 
-- Il `lezioni.md` modificato dal programma sporca la cartella, ma non ha fermato `pubblica-app`. _(2026-11-14)_
 - in questa copia `git fetch` può fallire se il remoto è un bundle sparito; `merge --ff-only main` basta _(2026-11-16)_
 - in questa copia `git fetch` può fallire se il bundle di arrivo è già stato cancellato: `git merge --ff-only main` basta, main è già locale. _(2026-11-16)_
 - il ramo worktree-agent-r45a1013a982d non era nella copia di destinazione: per unire basta il commit d611b967 se l'oggetto è presente. _(2026-11-16)_
@@ -913,6 +912,7 @@
 - i test che mandano rapporti con soli criteri verdi/rossi normali ora non partono più: servono righe con un intoppo (es. permesso negato) _(2026-11-23)_
 - giroRapportoLavori è condiviso da programma e Aiutante: una modifica lì vale per entrambi _(2026-11-23)_
 - riavvio normale = motivo che comincia con «avvio con la versione» o «aggiornamento da»; le stringhe vengono da contaLavori e vanno tenute allineate _(2026-11-23)_
+- contaLavori vede solo le righe dopo `fino`: ogni informazione che attraversa due giri (come la versione avviata) va ricordata nello stato del giro, anche quando il rapporto non parte. _(2026-11-23)_
 
 ## pc-glos
 
