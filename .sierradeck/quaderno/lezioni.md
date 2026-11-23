@@ -311,7 +311,6 @@
 
 ## rete
 
-- pauseAiuti (src/shared/aiuto-esito.ts) esclude un PC dopo un solo fallimento per accesso; il fallimento in sé è il segnale per l'utente, non un difetto. _(2026-11-14)_
 - Se un PC è raggiunto da tutti ma non raggiunge nessuno (anche la posta fa `fetch failed`), la causa è la sua rete in uscita o Tailscale, non gli indirizzi pubblicati. _(2026-11-15)_
 - il registro eventi-aiuto.json lo scrive il PC che affida: sull'Aiutante resta vuoto finché qualcuno non registra lì i passaggi. _(2026-11-16)_
 - I file in .sierradeck/errori-arrivati/ non viaggiano con la copia mandata a un altro PC: nel prompt di un compito sul quaderno errori scrivere il contenuto del lotto, non solo il percorso. _(2026-11-16)_
@@ -737,6 +736,7 @@
 - In novita.ts le voci hanno `righe: [...]` o su una riga o su più righe: ogni parser di quel file deve gestire entrambe le forme. _(2026-11-20)_
 - il test sulle note limita ogni voce a 8 righe; la 0.116.0 ora ne ha 8, quindi altre aggiunte richiedono di accorciare le righe esistenti. _(2026-11-23)_
 - Se una riga delle note contiene «versione:», il test che legge `novita.ts` può leggerla male: nelle note evitare quella parola seguita da due punti. _(2026-11-23)_
+- la voce in cima a `novita.ts` ha `righe` come array di stringhe; gli apostrofi nel testo vanno scritti con `\'`. _(2026-11-23)_
 
 ## versione
 
