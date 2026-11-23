@@ -89,6 +89,7 @@
 - riassegna-lento-collegato.test.ts sta in tests/autopilot-host, non in tests/main come dice il compito. _(2026-11-22)_
 - per testare lotti di unioni nel servizio serve un cancello sul primo comando git: il primo ramo parte da solo con la fila vuota, il lotto lo formano quelli accodati dopo _(2026-11-22)_
 - `autopiloti-unificata.test.tsx` conta i componenti in `PannelloAutopiloti.tsx` con una regex: se cambi la scheda, aggiorna anche quel controllo. _(2026-11-22)_
+- la guardia apre da sola un turno («silenzio» per una chat muta): nei test sulla spinta va chiuso con un result finto dopo ogni giro, o il turno resta «in volo» e la spinta tace. _(2026-11-23)_
 
 ## worktree
 
@@ -207,8 +208,6 @@
 
 ## autopilota
 
-- Un revisore lanciato con «k-N:» in testa alla descrizione si lega a quel compito e il programma unisce lui (niente) al posto dello sviluppatore: per le revisioni usare una descrizione senza id. _(2026-11-10)_
-- Il modello dell'autopilota passa da 5 file (ipc, servizio, store, orchestratore, tipo); ora tutti usano `modelloAutopilotaAmmesso` di `shared/modelli`. _(2026-11-10)_
 - lo stato `fermo` era tolto: un guasto non di rete non aspetta più Nicholas, riprova da solo con attesa crescente (tetto 5 min). _(2026-11-11)_
 - il client non sa il workspace di un id sparito: lo ricorda lui (id→cwd/workspace) e riscrive via /orchestratore/messaggio, che riusa l'autopilota del workspace. _(2026-11-13)_
 - Mai criteri «la versione di package.json è già su GitHub»: dopo, il programma li rimisura su ogni ramo e respinge il bump successivo (13/11, 0.106.3 bloccata, sbloccata con pre-release vuota). _(2026-11-13)_
@@ -228,15 +227,12 @@
 
 ## controllo
 
-- La gravità «guasto» di `pc:<id>` si decide nel singolo PC senza vedere gli altri; il declassamento sta in `criticitaDi`, che vede se il PC ha risposto a chi controlla. _(2026-11-10)_
 - un rapporto «Controllo di tutti i PC» mostra la versione dei PC: prima di aprire un difetto verificare che sia sotto l'ultima versione corretta (qui 0.99.1 vs fix in 0.99.2). _(2026-11-11)_
 - Un rapporto di controllo può venire da una build più vecchia della correzione: prima di cercare un buco, riprodurre il caso nel codice attuale con un test. _(2026-11-20)_
 - Nelle copie mancano i tag: «nessun tag contiene X» va verificato dall'autopilota con git tag --contains. 6f52ac0f (battito Aiutante) è già in v0.110.2+, quindi non spiega l'allarme del 20/11. _(2026-11-20)_
 
 ## ambiente
 
-- Per scrivere stringhe con `\n` nei file non usare heredoc Python: gli escape vengono interpretati. Meglio lo strumento Edit. _(2026-11-10)_
-- Nel worktree gli heredoc con `cat >>` seguiti da altri comandi nella stessa chiamata Bash vengono rifiutati come «troppo complessi»: usare Edit e comandi separati. _(2026-11-10)_
 - Il programma blocca sleep oltre 30 s anche in ciclo o a pezzi; attese lunghe solo con il sì di Nicholas (classe sottofondo). _(2026-11-15)_
 - Il blocco di sicurezza rifiuta `$p` nelle cancellazioni: scrivere i percorsi per intero, uno per comando, e le junction con `cmd /c rmdir`. _(2026-11-22)_
 
@@ -324,6 +320,7 @@
 - il rifiuto delle cancellazioni nelle chat sta in divieti.ts (giudicaCancellazioni), chiamato da /hook/pretool in server.ts; cancella-sicura.ts riguarda solo le pulizie del programma _(2026-11-10)_
 - in `guardia` `riavviaSeMorto` va dopo `suonaSveglie`: se prima, il turno di ripresa è in volo e la sveglia aspetta in coda dietro di lui. _(2026-11-22)_
 - `comandiGit` ha il flag `i`: `-c <x>` e `-C "<percorso con spazi>"` si confondono se l'alternativa `-c` viene prima. Tenere `-C` prima. _(2026-11-22)_
+- `giudicaGuardiaOrchestratore` può testarsi con tool_name 'Agent' e contesto minimo { radice, specialistiSulPc, tettoPc, dipendenze }. _(2026-11-23)_
 
 ## renderer
 
@@ -442,6 +439,7 @@
 - Sul PC «Aiuta la rete» i rami degli altri PC non ci sono: prima di assegnare un cherry-pick, verificare che il ramo sorgente sia stato inviato a quel repository. _(2026-11-22)_
 - un compito che nomina un ramo locale di un altro PC non si può eseguire qui: prima di assegnarlo va portato il ramo (bundle o patch) nella copia. _(2026-11-22)_
 - Un conflitto da risolvere affidato a un altro PC non vede i rami locali: nel prompt va messo il diff completo (git diff main...ramo), non il nome del ramo da cui fare cherry-pick. _(2026-11-22)_
+- Uno specialista su un altro PC (Aiuta la rete) riceve solo main: per riapplicare un ramo locale in conflitto, mettere la modifica intera nel prompt. _(2026-11-23)_
 
 ## cancello
 
@@ -476,12 +474,14 @@
 - Criterio «gh release view v<versione>»: se un'altra chat pubblica quella versione, il cancello lo prova su ogni ramo e respinge unioni giuste. Escludere la versione già uscita. _(2026-11-13)_
 - Mai criterio «gh release view v»+versione di package.json: dopo l'uscita il cancello respinge ogni bump (k-149 ha bloccato la 0.106.3). Usare la versione fissa: `gh release view v0.X.Y`. _(2026-11-13)_
 - i campi nuovi di CompitoPiano vanno letti anche in leggiCompitoPiano (piano-orchestratore.ts), altrimenti si perdono alla rilettura da disco _(2026-11-22)_
+- `promptDopo` sopravvive al rifiuto per dipendenze solo perché `senzaRamo(c)` fa lo spread del compito; va tolto esplicitamente alla partenza. _(2026-11-23)_
 
 ## orchestratore
 
 - il ramo risposta con errore del result scarta s.inviati senza rimettere i messaggi in coda, a differenza dell'uscita del processo: un messaggio nel turno fallito si perde. _(2026-11-10)_
 - s.tentativi si azzera a ogni risposta, anche con errore: il limite di un riprovo non vale per gli errori del result, e ogni risveglio lancia un turno nuovo. _(2026-11-10)_
 - su un `result` con `is_error` il turno non riprova da solo con rete assente: `pronto()` ora è falso durante `riprova` e `fermo`, altrimenti `suEffetti` rilancia il turno a raffica. _(2026-11-10)_
+- «sveglia futura» e «lavoro fermo» sono cose diverse: la sveglia vale solo per chi aspetta un orario, non spegne spinta né rilancio. Solo pausa vera, turno in corso o unione in corso li zittiscono. _(2026-11-23)_
 
 ## modelli
 
