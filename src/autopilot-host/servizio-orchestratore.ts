@@ -34,6 +34,7 @@ import type { Memoria } from './memoria'
 import type { TipoAvviso } from './telegram'
 import { comeAsincrono, ramoCorrente, ramoGiaChiusoAsincrono, ramoSenzaNovitaAsincrono, salvaFileAsincrono, salvaLavoroConFileAsincrono, type Git, type GitAsincrono } from './worktree'
 import type { EsitoRiallineo } from './worktree'
+import { dopoTransitivi, formaLotto, unisciALotti, type VoceLotto } from './unioni-a-lotti'
 import { ramoBaseDi } from './fine-chat'
 import { preparaGitLocale } from './git-locale'
 import {
@@ -188,7 +189,7 @@ export type ContestoUnico = {
   limitiPiano?: () => LimitiPiano | undefined
   chatAlLavoroSulPc: () => number
   /** L'unione di prova nel principale con i criteri dell'autopilota (`provaNelPrincipale`). */
-  provaNelPrincipale: (a: Autopilota, ramo: string) => Promise<EsitoProvaPrincipale>
+  provaNelPrincipale: (a: Autopilota, ramo: string, altri?: string[]) => Promise<EsitoProvaPrincipale>
   /** 11/11: porta il ramo principale di qui a quello del remoto, senza mai forzare (`riallineaAsincrono`). Assente: non si fa. */
   riallinea?: (a: Autopilota) => Promise<EsitoRiallineo>
   /** 11/11: ogni quanto si guarda il remoto, per i workspace con lavoro aperto (di serie 10 minuti). */
@@ -1359,6 +1360,8 @@ ${NOTA_SENZA_GIT}`,
     /** 12/11: quante volte di fila è tornata ferma allo stesso modo (per riprovare sempre più di rado). */
     fermaGiri?: number
     dettoMisura?: boolean
+    /** k-178g: colpevole o non provato in un lotto: fa la sua unione singola, non rientra in un altro lotto. */
+    fuoriLotto?: boolean
     chiestoSalva?: boolean
     fileChiesti?: string[]
     domandaSalva?: string
@@ -1518,6 +1521,62 @@ ${NOTA_SENZA_GIT}`,
     if (!l.inCorso && l.tentativi > 0 && (l.nonPrima ?? 0) > Date.now()) return `- ${l.chi}: scaduta ${l.tentativi} ${l.tentativi === 1 ? 'volta' : 'volte'}, riprova da sola fra poco`
     return i === 0 ? `- ${l.chi}: in corso${l.tentativi > 0 ? ` (tentativo ${l.tentativi + 1})` : ''}` : `- ${l.chi}: in fila, ${i + 1}ª`
   })
+  /**
+   * **Le unioni a lotti** (k-178g). Prima della sua unione, il lavoro in testa alla fila porta con sé i rami
+   * indipendenti che lo seguono (file diversi, nessun «dopo» fra loro): una prova sola nella cartella principale.
+   * Verde: i rami entrano tutti; rosso o conflitto: il lotto si divide a metà fino al colpevole (`unisciALotti`).
+   * Poi ogni lavoro fa la sua unione di sempre: un ramo già dentro salta la prova e misura solo il suo criterio,
+   * quindi l'evento resta uno per compito, con lo stesso formato. I colpevoli e i rami non provati
+   * escono dal lotto e fanno la loro unione singola, con il suo esito di sempre.
+   */
+  const unisciLotto = async (ws: string, primo: LavoroUnione, fila: LavoroUnione[], maxMs: number): Promise<void> => {
+    const a0 = unicoDi(ws)
+    const g = gitA()
+    if (a0 === undefined || g === undefined || a0.ramoBase === undefined || !conGit(a0.cwd)) return
+    const base = a0.ramoBase
+    const piano = x.orchestratori.piano(ws)
+    const dopoDi = new Map(piano.compiti.map((k) => [k.id, k.dopo] as const))
+    const voce = async (l: LavoroUnione): Promise<VoceLotto | undefined> => {
+      if (l.compito === undefined || l.fuoriLotto === true || l.tentativi > 0 || l.sporcaDal !== undefined || l.ramoUnito !== undefined) return undefined
+      const k = piano.compiti.find((c) => c.id === l.compito)
+      if (k === undefined || k.stato === 'unito' || (k.rami?.length ?? 0) > 1 || compitoDiSolaLettura(k)) return undefined
+      const scrivono = subagenti(ws).filter((s) => s.unito !== true && s.compito === k.id && !RUOLI_SOLA_LETTURA.has(s.ruolo))
+      if (scrivono.length > 1 || scrivono.some((s) => s.stato === 'avviato' || s.stato === 'lavoro')) return undefined
+      const ramo = l.p.ramo ?? (scrivono[0] !== undefined ? ramoDelloSpecialistaFinito(scrivono[0]) : k.ramo)
+      if (ramo === undefined || ramo === base) return undefined
+      if (await ramoGiaChiusoAsincrono(g, { cwd: a0.cwd, ramo, base }) !== undefined) return undefined
+      const d = await g(['diff', '--name-only', '--no-renames', `${base}...${ramo}`], a0.cwd).catch(() => undefined)
+      if (d === undefined || d.codice !== 0) return undefined
+      return { id: l.compito, ramo, file: d.uscita.split(/\r?\n/).map((r) => r.trim()).filter((r) => r !== ''), dopo: dopoTransitivi(dopoDi, l.compito) }
+    }
+    const voci: VoceLotto[] = []
+    const dei = new Map<string, LavoroUnione>()
+    const vocePrimo = await voce(primo)
+    if (vocePrimo === undefined) return
+    voci.push(vocePrimo)
+    dei.set(vocePrimo.id, primo)
+    // La fila si guarda dopo la prima voce: nel frattempo (git risponde con calma) possono essere arrivate altre unioni.
+    const ora = Date.now()
+    for (const l of fila.filter((q) => q !== primo && !q.inCorso && (q.nonPrima ?? 0) <= ora)) {
+      const v = await voce(l)
+      if (v === undefined) continue
+      voci.push(v)
+      dei.set(v.id, l)
+    }
+    const lotto = formaLotto(voci)
+    if (lotto.length < 2) return
+    const ramiDi = new Map(lotto.map((v) => [v.ramo, v] as const))
+    const r = await unisciALotti(lotto.map((v) => v.ramo), (rami) => x.provaNelPrincipale(unicoDi(ws) ?? a0, rami[0]!, rami.slice(1)), { maxMs })
+    const nomi = (e: string): string => [...r.esiti].filter(([, v]) => v.esito === e).map(([ramo]) => ramiDi.get(ramo)?.id ?? ramo).join(', ')
+    for (const [ramo, e] of r.esiti) {
+      const l = dei.get(ramiDi.get(ramo)?.id ?? '')
+      if (l === undefined) continue
+      // Entrato: la sua unione riparte dal ramo già dentro (misura il criterio e racconta «ramo X unito», come sempre).
+      if (e.esito === 'entrato') l.ramoUnito = ramo
+      else l.fuoriLotto = true
+    }
+    console.info(`[orchestratore] ${ws} — unione a lotti: ${lotto.length} rami in ${r.prove} ${r.prove === 1 ? 'prova' : 'prove'}; entrati: ${nomi('entrato') || '-'}; colpevoli: ${nomi('colpevole') || '-'}; da unire singoli: ${nomi('non-provato') || '-'}`)
+  }
   const giraFila = async (ws: string): Promise<void> => {
     // 11/11: la durata massima di un'unione la decide Nicholas (letta a ogni giro della fila).
     const maxDiSerie = (): number => x.unioneMaxMs ?? (x.limiti !== undefined ? x.limiti().unioneMaxMin * 60_000 : UNIONE_MAX_MS)
@@ -1538,6 +1597,8 @@ ${NOTA_SENZA_GIT}`,
       const lavoro = fila[0] as LavoroUnione
       lavoro.inCorso = true
       max = maxDiSerie()
+      // k-178g: con altri rami indipendenti in fila, prima una prova sola per tutto il lotto. Mai un errore che ferma la fila.
+      if (fila.length > 1 && lavoro.fuoriLotto !== true) await unisciLotto(ws, lavoro, fila, max).catch((err: unknown) => { console.warn(`[orchestratore] ${ws} — unione a lotti non riuscita, vado una alla volta: ${err instanceof Error ? err.message : String(err)}`) })
       const { p, chi } = lavoro
       const scambio: ScambioUnione = { scaduto: false, ...(lavoro.rossoSporco !== undefined ? { rossoSporco: lavoro.rossoSporco } : {}), ...(lavoro.rossiSporchi !== undefined ? { rossiSporchi: lavoro.rossiSporchi } : {}) }
       lavoro.scambio = scambio
