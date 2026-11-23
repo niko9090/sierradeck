@@ -103,11 +103,16 @@ export async function mandaErrori(p: {
     const perche = err instanceof Error ? err.message : String(err)
     // Nella posta va meno: la cassetta sul Drive è di tutti i mittenti.
     const piccolo: InvioErrori = { ...invio, voci: storicoPerLInvio(p.storico, BYTE_POSTA).voci }
-    if (p.perPosta !== undefined && await p.perPosta(p.pcSviluppo, piccolo, err).catch(() => false)) {
+    let motivoPosta: string | undefined
+    const lasciati = p.perPosta !== undefined && await p.perPosta(p.pcSviluppo, piccolo, err).catch((e: unknown) => { motivoPosta = e instanceof Error ? e.message : String(e); return false })
+    if (lasciati) {
       p.log(`[errori] ${chiamato} non risponde (${perche}): ${quanti} lasciati sul Drive`)
       return { ok: true, messaggio: `${chiamato} adesso non risponde: ${quanti} lasciati sul Drive, arrivano appena si accende.`, quante: piccolo.voci.length }
     }
-    p.log(`[errori] NON mandati a ${chiamato}: ${perche}`)
-    return { ok: false, messaggio: `Non mandati a ${chiamato}: ${perche}` }
+    // Il motivo vero: quello della rete e, se c'era la posta, anche perché il Drive non l'ha presa.
+    const haRisposto = (err as { stato?: unknown } | null)?.stato !== undefined
+    const sulDrive = haRisposto || p.perPosta === undefined ? '' : ` — sul Drive: ${motivoPosta ?? 'non ha preso la voce (non collegato?)'}`
+    p.log(`[errori] NON mandati a ${chiamato}: ${perche}${sulDrive}`)
+    return { ok: false, messaggio: `Non mandati a ${chiamato}: ${perche}${sulDrive}` }
   }
 }
