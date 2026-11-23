@@ -230,6 +230,9 @@ import { cartellaDiSierraDeck, mandaErrori, salvaErroriArrivati } from './errori
 import { giroErroriArrivati, vistaArrivi } from './errori-arrivati-lavoro'
 import { eventiPiuRecentiInCima, leggiEventiAiuto, registraEventoAiuto } from '@shared/eventi-aiuto'
 import { giroAnalisiRapporti } from './rapporti-lavori-analisi'
+import { chiediRegistroWorkspace } from './registro-workspace-pc'
+import { pianoVisto } from '@shared/registro-workspace'
+import { chiaveWorkspace } from '@shared/coda-richieste'
 import { GIRO_RAPPORTO_MS, giroRapportoLavori, mandaRapporto, righeDeiRegistri, salvaRapportoArrivato, type StatoRapporto } from './rapporti-lavori'
 import type { RapportoLavori } from '@shared/rapporto-lavori'
 import { GIRO_INVIO_MS, giroInvioErrori, pcSviluppoDi, vistaErrori, type StatoInvio } from './errori-invio-automatico'
@@ -698,6 +701,7 @@ let guardianoPin: GuardianoPin | undefined
 /** Il controllo di tutti i PC (0.88.9): gli altri PC e la salute di ognuno, chiesta là. */
 let altriPcGlobale: (() => Promise<Array<{ pcId: string; nome: string; battito?: string; soloAiutante?: boolean }>>) | undefined
 let saluteAltroPcGlobale: ((pcId: string) => Promise<import('@shared/salute').Salute>) | undefined
+let registroAltroPcGlobale: ((pcNome: string, ws: string) => Promise<import('@shared/registro-workspace').RegistroWorkspaceVisto | undefined>) | undefined
 let ponteVersoPc: ((pc: string, percorso: string, corpo?: Record<string, unknown>, dispositivo?: string, richiesta?: string) => Promise<{ stato: number; corpo: unknown }>) | undefined
 /** Gli autopiloti degli altri PC della stessa chiave di casa (0.59.0). */
 let autopilotiAltri: (() => Promise<AutopilotiDiPc[]>) | undefined
@@ -2612,6 +2616,13 @@ if (!app.requestSingleInstanceLock()) {
         return altriPcDelControllo({ postino, ioId: identitaPc.leggi().id, nome: nomeDaMostrare, adesso: () => Date.now() })
       }
       saluteAltroPcGlobale = async (pcId) => (await remoto.chiama(pcId, '/api/salute')) as import('@shared/salute').Salute
+      // k-197d: il registro (unioni, criteri) e il piano di un workspace che vive su un altro PC, chiesti per nome del PC.
+      registroAltroPcGlobale = async (pcNome, ws) => {
+        const pc = (await altriPcGlobale?.())?.find((p) => p.nome === pcNome)
+        if (pc === undefined) return undefined
+        const r = await chiediRegistroWorkspace(remoto, pc.pcId, ws)
+        return r?.ospitato === true ? r : undefined
+      }
       autopilotiAltri = async () => {
         const io = identitaPc.leggi()
         // Un PC, una riga (0.73.0): un'identità vecchia dello stesso PC non fa un doppione.
@@ -4327,6 +4338,7 @@ if (!app.requestSingleInstanceLock()) {
               radice: () => radiceSierraDeckGlobale?.(),
               adesso: () => Date.now(),
               affida: (p) => affidaSierraDeck(p),
+              ...(registroAltroPcGlobale !== undefined ? { registroRemoto: registroAltroPcGlobale } : {}),
               log: (riga) => registro.info(riga)
             })
           } catch (err) {
@@ -5083,6 +5095,15 @@ if (!app.requestSingleInstanceLock()) {
         avanzamentoAutopilota: async (ws: string) => {
           const [orchestratore, coda] = await Promise.all([clientAutopilota.orchestratore(ws), clientAutopilota.coda(ws)])
           return { ...(orchestratore !== undefined ? { orchestratore } : {}), ...(coda !== undefined ? { coda } : {}) }
+        },
+        // k-197d: il registro e il piano di un workspace di questo PC, per un altro PC (`/api/lavori/registro`).
+        registroWorkspace: {
+          righe: () => {
+            const ieri = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10)
+            return righeDeiRegistri(dirname(registro.file()), ieri)
+          },
+          ospita: async (ws: string) => (await clientAutopilota.elenca().catch(() => [])).some((a) => chiaveWorkspace(a) === ws),
+          piano: async (ws: string) => (await clientAutopilota.pianoCompiti(ws)) ?? pianoVisto([], [])
         },
         // 11/11: solo la vista dell'orchestratore, per lo stato del telefono in `/api/stato`.
         orchestratoreWorkspace: (ws: string) => clientAutopilota.orchestratore(ws),

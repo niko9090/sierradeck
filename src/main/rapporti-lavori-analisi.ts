@@ -2,6 +2,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 import { WORKSPACE_GENERALE, type LavoriWorkspace, type RapportoLavori } from '@shared/rapporto-lavori'
+import { testoRegistroRemoto, type RegistroWorkspaceVisto } from '@shared/registro-workspace'
 import { CARTELLA_RAPPORTI, leggiRapportiArrivati } from './rapporti-lavori'
 
 /**
@@ -161,6 +162,27 @@ export function richiestaAnalisi(p: { file: string; rapporti: number }): string 
   ].join('\n')
 }
 
+/** Quanti registri remoti si chiedono, al più, a ogni riassunto. */
+export const MAX_REGISTRI_REMOTI = 4
+
+/**
+ * k-197d: per i workspace con unioni scadute su un altro PC, il registro e il piano di
+ * quel workspace chiesti a quel PC. Una risposta che manca non ferma il riassunto.
+ */
+export async function registriDelleScadute(r: RiassuntoLavori, chiedi: (pc: string, workspace: string) => Promise<RegistroWorkspaceVisto | undefined>): Promise<string> {
+  const parti: string[] = []
+  let chiesti = 0
+  for (const [pc, ws] of Object.entries(r.pc).sort((a, b) => a[0].localeCompare(b[0]))) {
+    for (const [nome, s] of Object.entries(ws).sort((a, b) => a[0].localeCompare(b[0]))) {
+      if (nome === WORKSPACE_GENERALE || s.unioni.scadute === 0 || chiesti >= MAX_REGISTRI_REMOTI) continue
+      chiesti += 1
+      const v = await chiedi(pc, nome).catch(() => undefined)
+      if (v !== undefined) parti.push(testoRegistroRemoto(pc, v))
+    }
+  }
+  return parti.length === 0 ? '' : ['', '## Registro dei workspace con unioni scadute', '', ...parti].join('\n')
+}
+
 export function leggiStatoAnalisi(radice: string): StatoAnalisi {
   try {
     const o = JSON.parse(readFileSync(join(radice, CARTELLA_RAPPORTI, FILE_STATO), 'utf8')) as Partial<StatoAnalisi>
@@ -183,6 +205,8 @@ export async function giroAnalisiRapporti(d: {
   log: (riga: string) => void
   quieteMs?: number
   nuovoId?: () => string
+  /** k-197d: il registro e il piano di un workspace di un altro PC (per nome del PC), se ha unioni scadute. */
+  registroRemoto?: (pc: string, workspace: string) => Promise<RegistroWorkspaceVisto | undefined>
 }): Promise<string | undefined> {
   const radice = d.radice()
   if (radice === undefined || !existsSync(join(radice, CARTELLA_RAPPORTI))) return undefined
@@ -197,7 +221,8 @@ export async function giroAnalisiRapporti(d: {
     const ora = new Date(adesso).toISOString()
     const id = d.nuovoId?.() ?? ora.replace(/[-:.TZ]/g, '').slice(0, 14)
     const file = join(radice, CARTELLA_RAPPORTI, `riassunto-${id}.md`)
-    writeFileSync(file, testoRiassunto(id, sommario), 'utf8')
+    const remoti = d.registroRemoto !== undefined ? await registriDelleScadute(sommario, d.registroRemoto) : ''
+    writeFileSync(file, testoRiassunto(id, sommario) + remoti, 'utf8')
     await d.affida({ testo: richiestaAnalisi({ file, rapporti: sommario.rapporti }), cwd: radice })
     scriviJsonAtomico(join(radice, CARTELLA_RAPPORTI, FILE_STATO), { fino: sommario.al, riassunti: [...stato.riassunti, { id, il: ora, rapporti: sommario.rapporti }].slice(-50) }, 'rapporti-analisi')
     d.log(`[rapporti] riassunto ${id}: ${sommario.rapporti} rapporti affidati all'autopilota`)

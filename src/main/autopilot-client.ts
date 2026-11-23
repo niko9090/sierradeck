@@ -174,6 +174,8 @@ export type ClientAutopilota = {
   orchestratore: (ws: string) => Promise<VistaOrchestratore | undefined>
   /** 0.90.0: la conversazione di uno specialista. */
   specialista: (ws: string, id: string) => Promise<TrascrizioneSpecialista | undefined>
+  /** k-197d: compiti e richieste del workspace, solo stati ed esiti. Un servizio vecchio non ce l'ha: `undefined`. */
+  pianoCompiti: (ws: string) => Promise<import('@shared/registro-workspace').PianoVisto | undefined>
   impostaOrchestratore: (ws: string, p: { modello?: string; tettoSpecialisti?: number; permessi?: PermessiScelti }) => Promise<VistaOrchestratore>
   /** 11/11: i limiti del PC e i permessi «sempre» dei progetti. Un servizio vecchio non ce li ha: `undefined`. */
   limiti: () => Promise<VistaLimiti | undefined>
@@ -528,6 +530,12 @@ export function creaClientAutopilota(p: {
         // Un servizio di prima della 0.90.0 non conosce la rotta.
         return undefined
       }
+    },
+    async pianoCompiti(ws) {
+      try {
+        const r = (await chiama(`/orchestratore/piano?ws=${encodeURIComponent(ws)}`, 'GET')) as import('@shared/registro-workspace').PianoVisto | undefined
+        return r !== undefined && Array.isArray(r.compiti) ? r : undefined
+      } catch { return undefined }
     },
     async orchestratore(ws) {
       try {

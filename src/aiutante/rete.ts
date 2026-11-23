@@ -18,6 +18,7 @@ import { creaPostino, type Postino } from '../main/progetti/posta'
 import { apriRegistroProgetti, type RegistroProgettiStore } from '../main/progetti/registro'
 import type { Registro } from '../main/registro'
 import { rispondiAiuto, type FonteAiuto } from '../main/rotte-aiuto'
+import { rispondiRegistroWorkspace } from '../main/registro-workspace-pc'
 import { chiedi } from '../main/aiuto-credenziali'
 import type { Portachiavi as PortachiaviToken } from '../main/segreti-su-file'
 
@@ -76,6 +77,9 @@ export function rotteAiutante(p: { aiuto: FonteAiuto; versione: string; identita
     if (a !== undefined) return a
     const az = await rispondiAzione(r, p.azione)
     if (az !== undefined) return az
+    // k-197d: l'Aiutante non ospita workspace: lo dice, senza leggere niente.
+    const reg = await rispondiRegistroWorkspace(r, undefined)
+    if (reg !== undefined) return reg
     if (r.percorso === '/api/pc') {
       const i = p.identita()
       return { stato: 200, corpo: { programma: 'SierraDeck', aiutante: true, versione: p.versione, nome: i.nome, host: i.host } }
