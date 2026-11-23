@@ -101,6 +101,7 @@
 - un'attesa nuova nel servizio delle unioni (es. raccolta raffica) rompe i test che fanno partire il primo ramo da solo: ogni attesa va resa passabile dal server nei test. _(2026-11-23)_
 - togliere un flag dai comandi dei criteri (es. --rerun di gradle) cambia i comandi attesi in criteri-prova.test.ts: aggiornarli insieme. _(2026-11-23)_
 - Nei test della guardia con orologio finto servono 3 min di storia più 1 min di rilascio prima che un PC piccolo stabile risulti libero: misurare ogni 5 s per oltre 4 min. _(2026-11-23)_
+- nei test del server con più workspace, l'ordine di `processi[]` non segue i workspace: riconoscere ogni processo dal `ws=` nel suo `--mcp-config`. Le cartelle (cwd) devono esistere. _(2026-11-23)_
 
 ## worktree
 
@@ -178,9 +179,6 @@
 
 ## autopilota
 
-- il client non sa il workspace di un id sparito: lo ricorda lui (id→cwd/workspace) e riscrive via /orchestratore/messaggio, che riusa l'autopilota del workspace. _(2026-11-13)_
-- Mai criteri «la versione di package.json è già su GitHub»: dopo, il programma li rimisura su ogni ramo e respinge il bump successivo (13/11, 0.106.3 bloccata, sbloccata con pre-release vuota). _(2026-11-13)_
-- il client segna `scaduto` (timeout) e `spento` (fetch failed/ECONNREFUSED/ECONNRESET): per un errore atteso usare `servizioIndisponibile`, non il solo `scaduto _(2026-11-13)_
 - INATTIVO_MS è 55 minuti: la cache del prompt dura 1 ora e lo spegnimento a 10 minuti la faceva riscrivere a ogni ripresa. _(2026-11-20)_
 - Uno specialista è un sotto-agente: chiudere il turno = «finito» per il programma. Un «riprendo/aspetto l'esito» finale va letto (`promessaSenzaFine`) o si unisce lavoro a metà. _(2026-11-22)_
 - `vistaAttesa` (colonna/menu «Al lavoro adesso») e `TestaOrchestratore` leggono fonti diverse: Agent del flusso contro `u.chats`. Una chat al lavoro può comparire in una e non nell'altra. _(2026-11-22)_
@@ -245,6 +243,7 @@
 - i dati di un workspace stanno sul PC che lo ospita (workspace-su-pc.json): per BG4 qui non ci sono registri, serve il PC «fisso_scrivania_glos» _(2026-11-23)_
 - i test della fila leggono il testo dello stato: allungare i motivi di scadenza taglia «(tentativo N)» e rompe unioni-in-fila-0-96-1 _(2026-11-23)_
 - il turno pesante del PC (`conTurni` in index.ts) già serializza le misure di tutti i workspace: il collo 3 del rapporto 23/11 non serviva cambiarlo. _(2026-11-23)_
+- la prova parte dopo qualche secondo dal `unisci`: per testare l'attesa del turno aspettare `turni.stato().inFila > 0`, non un tempo fisso. _(2026-11-23)_
 
 ## ui
 
@@ -285,8 +284,6 @@
 
 ## renderer
 
-- Un hook che cambia sorgente (workspace o PC) non deve tenere il valore di prima: `useSondaggio` lo legava al sondaggio vecchio, e `useAutopilotaRemoto` lasciava scrivere una lettura in viaggio del workspace precedente. Ogni lettura va legata al suo giro. _(2026-11-13)_
-- le guardie sui campi array dell'autopilota vanno messe anche nei chiamanti di `adessoDi` (es. DalVivoAutopilota): la riga «chat sola» li fa passare anche senza `chats`. _(2026-11-13)_
 - SORGENTE_LOCALE (sorgente-autopilota.tsx) è il punto unico da cui il renderer chiama coda/orchestratore/specialista: le guardie sul workspace vanno lì. _(2026-11-16)_
 - I dati IPC del renderer vanno validati: `setGruppi(g)` senza Array.isArray cadeva su `.length`. Uso `gruppiValidi` in shared/workspace-remoti.ts. _(2026-11-19)_
 - `chiaveWorkspace` riceve dati remoti incompleti: i tipi dicono `cwd: string` ma a runtime può mancare; controllare con `typeof`, non fidarsi del tipo. _(2026-11-20)_
@@ -903,6 +900,7 @@
 ## drive
 
 - «This operation was aborted» nel registro = lavoro Drive annullato da installazione/chiusura, non rete; il tetto di 60 s dà invece «Drive: nessuna risposta da…» _(2026-11-23)_
+- un 403 «rate limit/per minute» non è «quota piena»: la regex di spazio esaurito lo catturava e dava 30 min; il limite di richieste parte da 2 min. _(2026-11-23)_
 
 ## consegne
 
@@ -925,3 +923,11 @@
 ## pc-glos
 
 - PC in Glos: 4 processori, 8 GB, carico 94%, 8 cambi di versione in 7 giorni. La guardia usa soglie fisse (75% e 60%), pensate per un PC grande, quindi lì i passi pesanti aspettano quasi sempre. _(2026-11-23)_
+
+## invio
+
+- un segno «in corso» senza tempo massimo spegne il giro per sempre se la promessa non finisce mai: ogni giro periodico di rete deve avere un timeout. _(2026-11-23)_
+
+## turni
+
+- `turni.pesante` ora è rientrante (AsyncLocalStorage): chi tiene il turno e chiama `conTurni` sulla stessa istanza non si blocca. Un pesante dentro l'unione della stessa cartella invece sì. _(2026-11-23)_
