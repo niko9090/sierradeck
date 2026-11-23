@@ -123,7 +123,6 @@
 
 ## release
 
-- `noteDi` in `scripts/note-novita.mjs` restituisce un array di righe, non una stringa: per le note della release unirle con "- " e scrivere in UTF-8. _(2026-11-14)_
 - la versione sta in package.json e due volte in package-lock.json (radice e "packages.\"\""); le novità in src/shared/novita.ts, voce in cima. _(2026-11-15)_
 - prima del bump: `git fetch origin --tags` e `git tag -l vX.Y.Z`; il package-lock ha la versione in due punti, radice e packages."". _(2026-11-15)_
 - Se `npm run pubblica` rifiuta nella copia di lavoro per la junction di node_modules, basta un clone pulito del tag + `npm ci`: funziona senza toccare la cartella principale. _(2026-11-15)_
@@ -139,7 +138,6 @@
 
 ## git
 
-- Prima di una pubblicazione manuale controllare MERGE_HEAD e i file in stage nella cartella principale: il programma può avere un'unione a metà che blocca il rilascio per minuti. _(2026-11-14)_
 - Il `lezioni.md` modificato dal programma sporca la cartella, ma non ha fermato `pubblica-app`. _(2026-11-14)_
 - in questa copia `git fetch` può fallire se il remoto è un bundle sparito; `merge --ff-only main` basta _(2026-11-16)_
 - in questa copia `git fetch` può fallire se il bundle di arrivo è già stato cancellato: `git merge --ff-only main` basta, main è già locale. _(2026-11-16)_
@@ -533,6 +531,7 @@
 - `gh release download <tag>` non vede le bozze: per scaricare gli asset serve `gh api -H "Accept: application/octet-stream" repos/.../releases/assets/<id>`. _(2026-11-23)_
 - Con `npm run pubblica | tail` l'output resta vuoto fino alla fine: il progresso si segue con `gh api repos/niko9090/sierradeck/releases` sugli asset. _(2026-11-23)_
 - In questa copia git fetch fallisce: l'origin è un .bundle sparito. Prima di scegliere la patch non si possono vedere i tag remoti, solo quelli locali (qui nessuno). _(2026-11-23)_
+- Il fetch dal bundle in `arrivi\` può fallire se il file non c'è più: i tag locali sono vuoti, quindi la versione libera va riverificata sul PC principale. _(2026-11-23)_
 
 ## build
 
@@ -750,6 +749,7 @@
 - `package-lock.json` ha la versione due volte (riga 3 e riga 9 sotto `packages[""]`): vanno alzate entrambe. _(2026-11-23)_
 - Con `git fetch` rotto (bundle in arrivi sparito) la base del bump è l'ultimo `Versione x.y.z` in main locale: far verificare all'autopilota che la nuova non sia già uscita da un altro PC. _(2026-11-23)_
 - Per alzare la versione bastano package.json, package-lock.json (2 punti) e la voce in cima a NOVITA in src/shared/novita.ts. _(2026-11-23)_
+- Prima di un rilascio patch controlla se le correzioni sono già in main: qui lo erano, serviva solo alzare la versione e scrivere le note. _(2026-11-23)_
 
 ## aggiornamento
 
