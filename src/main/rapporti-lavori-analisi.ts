@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
-import { WORKSPACE_GENERALE, type LavoriWorkspace, type RapportoLavori } from '@shared/rapporto-lavori'
+import { WORKSPACE_GENERALE, ruoloDi, type LavoriWorkspace, type RapportoLavori } from '@shared/rapporto-lavori'
 import { testoRegistroRemoto, type RegistroWorkspaceVisto } from '@shared/registro-workspace'
 import { CARTELLA_RAPPORTI, leggiRapportiArrivati } from './rapporti-lavori'
 
@@ -55,7 +55,8 @@ export function sommaDi(a: Somma, b: LavoriWorkspace): void {
   c.durataMaxMs = Math.max(c.durataMaxMs, d.durataMaxMs)
   const k = a.compiti, l = b.compiti
   k.affidati += l.affidati; k.restatiQui += l.restatiQui; k.inFila += l.inFila; k.rifiuti += l.rifiuti
-  unisciConti(k.ruoli, l.ruoli)
+  // I rapporti già arrivati dai PC vecchi hanno l'id del compito al posto del ruolo: finisce sotto «ruolo non noto».
+  for (const [ruolo, n] of Object.entries(l.ruoli)) k.ruoli[ruoloDi(ruolo)] = (k.ruoli[ruoloDi(ruolo)] ?? 0) + n
   const x = a.avanzamento, y = b.avanzamento
   x.svegli += y.svegli; x.limiteDelPiano += y.limiteDelPiano; x.criterioRosso += y.criterioRosso
   const f = a.fermate, g = b.fermate
