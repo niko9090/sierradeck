@@ -33,13 +33,13 @@ import { conWorkspaceDiLog } from './contesto-log'
 import { fallitiDavvero, nonMisurati, type Esecutore } from './verifiche'
 import type { Memoria } from './memoria'
 import type { TipoAvviso } from './telegram'
-import { comeAsincrono, ramoCorrente, ramoGiaChiusoAsincrono, ramoSenzaNovitaAsincrono, salvaFileAsincrono, salvaLavoroConFileAsincrono, type Git, type GitAsincrono } from './worktree'
+import { comeAsincrono, fotoModificheAsincrono, ramoCorrente, ripristinaGeneratiAsincrono, ramoGiaChiusoAsincrono, ramoSenzaNovitaAsincrono, salvaFileAsincrono, salvaLavoroConFileAsincrono, type Git, type GitAsincrono } from './worktree'
 import type { EsitoRiallineo } from './worktree'
 import { dopoTransitivi, formaLottoSenzaConflitti, unisciALotti, type VoceLotto } from './unioni-a-lotti'
 import { ramoBaseDi } from './fine-chat'
 import { preparaGitLocale } from './git-locale'
 import {
-  CHIEDI_SALVA_DOPO_MS, COMMIT_SALVA, DOMANDA_SALVA_VALE_MS, FILE_DA_CHIEDERE_MAX, partiDomandaSalva, rispostaSalva, SPORCA_IN_FONDO_DOPO_MS
+  CHIEDI_SALVA_DOPO_MS, COMMIT_SALVA, DOMANDA_SALVA_VALE_MS, FILE_DA_CHIEDERE_MAX, partiDomandaSalva, RICHIEDI_DOPO_MS, rispostaSalva, SALVA_TENTATIVI_MAX, SPORCA_IN_FONDO_DOPO_MS, stessiFile
 } from './principale-sporca'
 import {
   creaGettoniOrchestratore, configMcpOrchestratore, rispondiMcpOrchestratore, specialistiVivi, SPECIALISTI_PC_MAX,
@@ -211,6 +211,8 @@ export type ContestoUnico = {
   /** 11/11, per i test: dopo quanto il programma chiede a Nicholas dei file non salvati (5 minuti), e dopo quanto l'unione ferma va in fondo (10). */
   chiediSalvaDopoMs?: number
   sporcaInFondoDopoMs?: number
+  /** 23/11, per i test: dopo quanto si richiede a Nicholas se aveva detto di aspettare. */
+  richiediDopoMs?: number
   /** 0.94.0: la stessa memoria dell'unione di prova, perché il criterio dopo l'unione non rifaccia le sue misure. */
   memoriaCriteri?: MemoriaCriteri
   ricordaContesto: (idDomanda: string, c: ContestoDomanda) => void
@@ -1464,7 +1466,10 @@ ${NOTA_SENZA_GIT}`,
     fileChiesti?: string[]
     domandaSalva?: string
     rispostaSalva?: 'si' | 'no'
-    salvato?: boolean
+    /** 23/11: quando Nicholas ha risposto (ms), quanti salvataggi sono falliti di fila, e da quando si è detto «troppi file». */
+    rispostaIl?: number
+    salvaTentativi?: number
+    troppiIl?: number
     /** Il criterio già misurato rosso con questi file non salvati: non si rimisura finché non cambiano. */
     rossoSporco?: string
     /** 12/11: quante volte è tornato rosso coi file non salvati (con file che cambiano da soli, per esempio una build, era per sempre). */
@@ -1536,6 +1541,7 @@ ${NOTA_SENZA_GIT}`,
       if (r !== undefined) {
         lavoro.domandaSalva = undefined
         lavoro.rispostaSalva = rispostaSalva(r.risposta) ? 'si' : 'no'
+        lavoro.rispostaIl = Date.now()
         sveglieFila.get(ws)?.()
         return
       }
@@ -1545,6 +1551,15 @@ ${NOTA_SENZA_GIT}`,
       const aperta = a === undefined ? undefined : x.domande.aperte(a.id).find((d) => d.id === id)
       if (aperta !== undefined && aperta.scadeIl > oraMs() && (filaUnioni.get(ws) ?? []).includes(lavoro)) aspettaSalva(ws, lavoro, id)
     }).catch(() => { /* resta la fila che riprova */ })
+  }
+  /** 23/11: la domanda e la risposta di prima non valgono più: se i file fermano ancora l'unione, si chiede da capo. */
+  const ricominciaDomandaSalva = (lavoro: LavoroUnione): void => {
+    lavoro.chiestoSalva = undefined
+    lavoro.fileChiesti = undefined
+    lavoro.rispostaSalva = undefined
+    lavoro.rispostaIl = undefined
+    lavoro.salvaTentativi = undefined
+    lavoro.troppiIl = undefined
   }
   /** Il testo che riconosce la domanda: dipende solo dai file. */
   const grezzaSalva = (file: string[]): string => { const q = partiDomandaSalva(file, ''); return `${q.domanda}\n${q.perche}` }
@@ -1787,15 +1802,30 @@ ${NOTA_SENZA_GIT}`,
           }
           const a = unicoDi(ws)
           const g = gitA()
-          if (a !== undefined && lavoro.rispostaSalva === 'si' && lavoro.salvato !== true && lavoro.fileChiesti !== undefined && g !== undefined) {
-            // Col sì di Nicholas: un commit di quei file e basta. Poi si riprova subito.
-            lavoro.salvato = true
-            const fatto = await salvaFileAsincrono(g, { cwd: a.cwd, file: lavoro.fileChiesti, messaggio: COMMIT_SALVA }).catch(() => false)
-            console.info(`[orchestratore] ${ws} — ${chi}: ${fatto ? 'salvati con un commit' : 'non salvati'} i file della cartella principale, col consenso di Nicholas`)
-            evento(ws, { tipo: 'unione', quando: x.adesso(), ...dove, testo: fatto
-              ? `${chi}: Nicholas ha detto di salvare i file non salvati della cartella principale: fatto con un commit, riprovo l’unione adesso.`
-              : `${chi}: Nicholas ha detto di salvare i file non salvati, ma il commit non è riuscito (forse sono già cambiati): riprovo l’unione da sola.` })
-            continue
+          // 23/11: una risposta «no» non chiude per sempre, e un salvataggio andato male si riprova: prima la fila restava ferma in silenzio.
+          if (lavoro.rispostaSalva === 'no' && adessoMs - (lavoro.rispostaIl ?? adessoMs) >= (x.richiediDopoMs ?? RICHIEDI_DOPO_MS)) ricominciaDomandaSalva(lavoro)
+          if (lavoro.troppiIl !== undefined && adessoMs - lavoro.troppiIl >= (x.richiediDopoMs ?? RICHIEDI_DOPO_MS)) ricominciaDomandaSalva(lavoro)
+          if (a !== undefined && lavoro.rispostaSalva === 'si' && lavoro.fileChiesti !== undefined && g !== undefined) {
+            // Col sì di Nicholas: un commit di quei file e basta. Solo di quelli che fermano ancora l'unione:
+            // gli altri sono già stati salvati o annullati da lui. Poi si riprova subito.
+            const ancoraLi = lavoro.fileChiesti.filter((f) => ancora.file.some((y) => stessiFile([f], [y])))
+            if (ancoraLi.length === 0) {
+              ricominciaDomandaSalva(lavoro)
+            } else {
+              lavoro.salvaTentativi = (lavoro.salvaTentativi ?? 0) + 1
+              const fatto = await salvaFileAsincrono(g, { cwd: a.cwd, file: ancoraLi, messaggio: COMMIT_SALVA }).catch(() => false)
+              console.info(`[orchestratore] ${ws} — ${chi}: ${fatto ? 'salvati con un commit' : 'non salvati'} i file della cartella principale, col consenso di Nicholas`)
+              evento(ws, { tipo: 'unione', quando: x.adesso(), ...dove, testo: fatto
+                ? `${chi}: Nicholas ha detto di salvare i file non salvati della cartella principale: fatto con un commit, riprovo l’unione adesso.`
+                : `${chi}: Nicholas ha detto di salvare i file non salvati, ma il commit non è riuscito (forse sono già cambiati): riprovo da sola.` })
+              if (fatto) {
+                // Se altri file fermano ancora l'unione, la domanda riparte da capo su quelli.
+                ricominciaDomandaSalva(lavoro)
+                continue
+              }
+              // Non riuscito: si riprova al prossimo giro; dopo tre volte si richiede a Nicholas con i file di adesso.
+              if (lavoro.salvaTentativi >= SALVA_TENTATIVI_MAX) ricominciaDomandaSalva(lavoro)
+            }
           }
           if (a !== undefined && lavoro.chiestoSalva !== true && ancora.file.length > 0) {
             const file = [...ancora.file].sort()
@@ -1803,7 +1833,10 @@ ${NOTA_SENZA_GIT}`,
             else if (adessoMs - lavoro.sporcaDal >= (x.chiediSalvaDopoMs ?? CHIEDI_SALVA_DOPO_MS)) {
               if (file.length > FILE_DA_CHIEDERE_MAX) {
                 lavoro.chiestoSalva = true
-                evento(ws, { tipo: 'unione', quando: x.adesso(), ...dove, testo: `${chi}: i file non salvati che fermano l’unione sono ${file.length}, troppi per chiedere a Nicholas di salvarli uno per uno: aspetto che li sistemi lui.` })
+                lavoro.troppiIl = adessoMs
+                const testo = `${chi}: i file non salvati che fermano l’unione sono ${file.length}, troppi per chiedere a Nicholas di salvarli uno per uno: aspetto che li sistemi lui.`
+                evento(ws, { tipo: 'unione', quando: x.adesso(), ...dove, testo })
+                void x.avvisa('avviso', a, `${testo} Finché restano, il workspace non chiude i lavori.`).catch(() => { /* resta nel registro */ })
               } else {
                 apriDomandaSalva(ws, a, lavoro, file, cosaDel(compito?.titolo ?? chi))
                 evento(ws, { tipo: 'unione', quando: x.adesso(), ...dove, testo: `${chi}: i file non salvati sono ancora lì${elencoFile(file)}. Non chiederlo tu a Nicholas, gliel’ho chiesto io: se dice di sì li salvo con un commit e unisco, se no aspetto. L’unione riparte da sola.` })
@@ -2113,7 +2146,13 @@ ${NOTA_SENZA_GIT}`,
         const firmaSporca = sporca.sporca ? `${impronta ?? ''}|${sporca.file.join('\n')}` : undefined
         if (firmaSporca !== undefined && scambio.rossoSporco === firmaSporca) throw new RiprovaUnione('sporca', ROSSO_SPORCO, sporca.file, true)
         scambio.fase = 'criterio'
-        const m = await conWorkspaceDiLog(chiaveWorkspace(a), () => misuraCriteri([{ descrizione: compito!.criterio, comando, soddisfatto: false }], a.cwd, x.esegui, { memoria: memoriaCriteri, adesso: Date.now, tutti: true, ...(impronta !== undefined ? { impronta } : {}) }))
+        // 23/11: quello che la misura riscrive nella principale (uno schema, una distinta) lo rimette a posto il programma: non è lavoro di Nicholas.
+        const prima = g !== undefined && !senzaGit ? await fotoModificheAsincrono(g, { cwd: a.cwd }) : undefined
+        const m = await conWorkspaceDiLog(chiaveWorkspace(a), () => misuraCriteri([{ descrizione: compito!.criterio, comando, soddisfatto: false }], a.cwd, x.esegui, { memoria: memoriaCriteri, adesso: Date.now, tutti: true, ...(impronta !== undefined ? { impronta } : {}) })).finally(async () => {
+          if (g === undefined || prima === undefined) return
+          const rimessi = await ripristinaGeneratiAsincrono(g, { cwd: a.cwd, prima })
+          if (rimessi.length > 0) console.info(`[orchestratore] ${ws} — la misura ha riscritto ${rimessi.length} file della cartella principale: rimessi com’erano (${rimessi.slice(0, 5).join(', ')})`)
+        })
         const falliti = fallitiDavvero(m.esiti)
         const ignoti = nonMisurati(m.esiti)
         fallito = falliti.length > 0

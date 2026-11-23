@@ -29,6 +29,11 @@ export const DOMANDA_SALVA_VALE_MS = 20 * 24 * 60 * 60_000
 /** Oltre così tanti file non si chiede: sono troppi per leggerli e dire sì. */
 export const FILE_DA_CHIEDERE_MAX = 60
 
+/** Dopo quanto si richiede a Nicholas se prima ha detto di aspettare (o erano troppi file): la fila non resta ferma in silenzio. */
+export const RICHIEDI_DOPO_MS = 6 * 60 * 60_000
+/** Quanti salvataggi falliti di fila prima di rifare la domanda con i file di adesso. */
+export const SALVA_TENTATIVI_MAX = 3
+
 export const SCELTA_SALVA = 'Salvali e unisci'
 export const SCELTA_ASPETTA = 'Aspetta, li sistemo io'
 /** Il messaggio del commit fatto col suo sì. */
