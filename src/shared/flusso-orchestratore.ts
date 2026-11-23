@@ -54,7 +54,12 @@ export type Specialista = {
   file?: string[]
   /** k-176b: i token consumati finora (l'`usage` cumulativo di `task_progress`). */
   token?: number
+  /** k-178q: l'ultimo strumento che ha lanciato è un Bash/PowerShell che non ha ancora restituito l'esito (id della chiamata e quando è partita). */
+  comando?: { id: string; dal: string }
 }
+
+/** k-178q: gli strumenti che possono girare a lungo senza dire niente (suite, build, install, typecheck). */
+export const STRUMENTI_LUNGHI: ReadonlySet<string> = new Set(['Bash', 'PowerShell'])
 
 export type RigaRegistro = { quando: string; tipo: 'turno' | 'specialista' | 'strumento' | 'costo' | 'errore'; testo: string; specialista?: string }
 
@@ -259,6 +264,14 @@ export function applicaRiga(prima: StatoFlusso, riga: string, quando: string): {
         const att = ultimo.type === 'tool_use' ? attivitaDi(s(ultimo.name) ?? 'strumento', ultimo.input) : corto(String(ultimo.text), 140)
         cambia(genitore, (y) => ({ ...y, attivita: att, ...(terminale(y.stato) ? {} : { stato: 'lavoro' as const }) }))
       }
+      // k-178q: un messaggio nuovo chiude il comando di prima; se l'ultimo strumento è un Bash/PowerShell, ora è in volo.
+      const chiamate = blocchi.map(o).filter((b) => b.type === 'tool_use')
+      const lungo = chiamate[chiamate.length - 1]
+      const idLungo = lungo !== undefined && STRUMENTI_LUNGHI.has(s(lungo.name) ?? '') ? s(lungo.id) : undefined
+      cambia(genitore, (y) => {
+        const { comando: _prima, ...resto } = y
+        return idLungo !== undefined ? { ...resto, comando: { id: idLungo, dal: quando } } : resto
+      })
       // k-176b: i file che modifica, dalle chiamate Edit, Write e MultiEdit (anche se l'ultimo blocco è un altro).
       const modificati = blocchi.map(o).flatMap((b) => { const f = b.type === 'tool_use' ? fileDaChiamata(s(b.name) ?? '', b.input) : undefined; return f === undefined ? [] : [f] })
       if (modificati.length > 0) {
@@ -296,7 +309,16 @@ export function applicaRiga(prima: StatoFlusso, riga: string, quando: string): {
   }
 
   if (tipo === 'user') {
-    if (genitore !== undefined) return { stato: st, effetti }
+    if (genitore !== undefined) {
+      // k-178q: l'esito del comando in volo lo chiude.
+      const resi = (Array.isArray(o(ev.message).content) ? o(ev.message).content as unknown[] : []).map(o).filter((b) => b.type === 'tool_result').map((b) => s(b.tool_use_id))
+      if (resi.length > 0) cambia(genitore, (y) => {
+        if (y.comando === undefined || !resi.includes(y.comando.id)) return y
+        const { comando: _chiuso, ...resto } = y
+        return resto
+      })
+      return { stato: st, effetti }
+    }
     // Il risultato dell'Agent: per uno specialista in primo piano è la fine;
     // per uno in sottofondo (ha un task) solo l'avvio, la fine la dice il task.
     const blocchi = Array.isArray(o(ev.message).content) ? o(ev.message).content as unknown[] : []
