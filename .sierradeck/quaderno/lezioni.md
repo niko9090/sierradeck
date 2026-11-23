@@ -140,8 +140,6 @@
 
 ## release
 
-- Con `core.autocrlf=true` il clone mostra centinaia di file «M» dopo la copia da Windows: nessuna differenza vera. Dopo `git add -A` restano solo le modifiche reali. _(2026-11-12)_
-- `gh release create --draft --verify-tag` seguito da `npm run pubblica` ha funzionato al primo colpo: una release sola, nessun 422, `latest.yml` presente. _(2026-11-12)_
 - vitest stampa «×» nei nomi di alcuni test (es. «(×2)»): cercare i fallimenti con «FAIL» o col riepilogo finale, non con «×» _(2026-11-13)_
 - `gh release view --json` non ha il campo isLatest: lo stato latest si legge da `gh release list` (colonna «Latest»). _(2026-11-13)_
 - `npm run pubblica` con una release in bozza già creata carica i file ma la lascia bozza: serve sempre `gh release edit --draft=false --latest`. _(2026-11-13)_
@@ -263,6 +261,7 @@
 - Ogni rilascio tocca package.json e android/novita-app.txt: la prova rilancia la suite intera e gradle (`soloNote` non conosce i .txt di android). Lì sta il tempo più grosso. _(2026-11-23)_
 - i dati di un workspace stanno sul PC che lo ospita (workspace-su-pc.json): per BG4 qui non ci sono registri, serve il PC «fisso_scrivania_glos» _(2026-11-23)_
 - i test della fila leggono il testo dello stato: allungare i motivi di scadenza taglia «(tentativo N)» e rompe unioni-in-fila-0-96-1 _(2026-11-23)_
+- il turno pesante del PC (`conTurni` in index.ts) già serializza le misure di tutti i workspace: il collo 3 del rapporto 23/11 non serviva cambiarlo. _(2026-11-23)_
 
 ## ui
 
@@ -739,6 +738,7 @@
 ## prova
 
 - fissaLaVersione deve coprire anche grep/findstr/Select-String/rg, non solo ===/!=: i criteri di versione scritti come ricerca di testo facevano respingere i rami che alzano la versione. _(2026-11-17)_
+- `soloVersione` guarda il diff di package.json/lock: solo righe `"version"` (max 2+2) escludono il file dalla prova; ogni altro cambio rimette la suite intera. _(2026-11-23)_
 
 ## push
 
