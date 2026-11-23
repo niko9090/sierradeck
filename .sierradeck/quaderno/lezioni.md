@@ -4,7 +4,6 @@
 
 ## test
 
-- testDebugUnitTest Android ha test legati ai tempi (CentralinoTest <500ms, AscoltoAvvisiTest sleep 1,1 s): sotto carico del PC possono fallire a intermittenza. Riportare il nome del test, non solo "BU… _(2026-11-14)_
 - Centralino accetta un orologio iniettato: nelle prove usarlo fermo invece di misurare ms veri (<500 dentro un'attesa di 1 s salta col PC carico). _(2026-11-14)_
 - `tsc` ha noUncheckedIndexedAccess: negli indici di array serve `?? ''`, altrimenti il typecheck del criterio fallisce. _(2026-11-14)_
 - criteriPerLaProva è usata anche da servizio-orchestratore.ts per un solo comando: se scarta il comando si ricade sull'originale, non sul vuoto _(2026-11-14)_
@@ -477,7 +476,6 @@
 
 ## rilascio
 
-- In dist/ gli installer hanno gli spazi («SierraDeck Setup X.exe»), ma latest.yml cita i trattini: copiare con i nomi «SierraDeck-Setup-X.exe» prima di caricare a mano. _(2026-11-13)_
 - La release fissa dell'app si trova col tag `app-android`, non col nome: `gh release view "App Android"` dice «not found». Prima di alzare la versione guardare `gh release view app-android`. _(2026-11-14)_
 - Il controllo del programma rifiuta `git merge` anche con compito esplicito dell'autopilota: l'unione va fatta dall'autopilota stesso, lo specialista del rilascio parte da main già unito. _(2026-11-14)_
 - Il circolo «criterio rimisura gh release view v<versione>» su un'alzata di versione si risolve solo unendo fuori dal cancello e pubblicando subito dopo. _(2026-11-14)_
@@ -589,6 +587,7 @@
 - Le righe [unione di prova] e [criterio] non portano il workspace: i rapporti le contano sotto «generale». Per attribuirle bisogna prima cambiare il formato delle righe in server.ts e verifiche.ts. _(2026-11-23)_
 - il workspace nelle righe di criteri/unioni passa da un contesto asincrono (`contesto-log.ts`): chi mette in coda va catturato prima, perché il turno può partire dal contesto di un altro. _(2026-11-23)_
 - Gli errori arrivati da un PC non contengono le righe delle unioni: «(scaduta)» e «unione in fila» stanno nel registro del servizio, che qui non arriva. Per misurarle servono i rapporti della 0.116.0. _(2026-11-23)_
+- il registro di questo PC può non essere quello del PC segnalato: per cause su un altro PC serve il suo registro, non quello locale. _(2026-11-23)_
 
 ## aiuto
 
@@ -914,6 +913,7 @@
 - La spia di ritardo conta minuti, non fermate: e il lavoro fermo non va nella stessa voce dei ritardi del servizio. _(2026-11-23)_
 - i riassunti sui rapporti dei PC non aggiornati mostrano righe senza `[ws:]` (scritte prima di k-193e): «senza workspace» alto non è per forza un bug del codice attuale _(2026-11-23)_
 - nelle righe `[aiuto] … affidato a` la parola dopo il trattino deve essere il ruolo; `ruoloDi` scarta gli id dei compiti perché i PC vecchi li scrivevano lì _(2026-11-23)_
+- ogni avvio scrive due «sessione avviata» ([app] e [servizio]): chi conta gli avvii deve filtrare per fonte, altrimenti 1 avvio = 2 riavvii. _(2026-11-23)_
 
 ## pc-glos
 
