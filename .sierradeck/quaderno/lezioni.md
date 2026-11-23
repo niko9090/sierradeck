@@ -95,6 +95,7 @@
 - la suite `tests/main` + `tests/shared` dura circa 340 s; gli errori non gestiti, se ci sono, sono intermittenti e non appaiono a ogni giro _(2026-11-23)_
 - `pty-host-client.test.ts` avvia processi figli veri: primo sospetto per eventi tardivi dopo la fine del test _(2026-11-23)_
 - `vitest related` sui file toccati prende anche i test fuori da tests/autopilot-host e tests/shared (qui tests/main): lanciarlo prima di dire «verde». _(2026-11-23)_
+- per provare il cane con fake timer su setTimeout avanzare anche `adesso()` a passi di 30 s: la soglia larga confronta il silenzio con adesso(), non con i timer. _(2026-11-23)_
 
 ## worktree
 
@@ -307,14 +308,12 @@
 
 ## guardia
 
-- il rifiuto delle cancellazioni nelle chat sta in divieti.ts (giudicaCancellazioni), chiamato da /hook/pretool in server.ts; cancella-sicura.ts riguarda solo le pulizie del programma _(2026-11-10)_
 - in `guardia` `riavviaSeMorto` va dopo `suonaSveglie`: se prima, il turno di ripresa è in volo e la sveglia aspetta in coda dietro di lui. _(2026-11-22)_
 - `comandiGit` ha il flag `i`: `-c <x>` e `-C "<percorso con spazi>"` si confondono se l'alternativa `-c` viene prima. Tenere `-C` prima. _(2026-11-22)_
 - `giudicaGuardiaOrchestratore` può testarsi con tool_name 'Agent' e contesto minimo { radice, specialistiSulPc, tettoPc, dipendenze }. _(2026-11-23)_
 
 ## renderer
 
-- PannelloDomande mostra String(e) grezzo invece di testoErroreDialogo: a Nicholas arriva il messaggio tecnico con «Error invoking remote method». _(2026-11-10)_
 - le chiamate preferenze.imposta hanno un .catch vuoto (App.tsx:979 e simili): un salvataggio fallito non si vede. _(2026-11-12)_
 - Un hook che cambia sorgente (workspace o PC) non deve tenere il valore di prima: `useSondaggio` lo legava al sondaggio vecchio, e `useAutopilotaRemoto` lasciava scrivere una lettura in viaggio del workspace precedente. Ogni lettura va legata al suo giro. _(2026-11-13)_
 - le guardie sui campi array dell'autopilota vanno messe anche nei chiamanti di `adessoDi` (es. DalVivoAutopilota): la riga «chat sola» li fa passare anche senza `chats`. _(2026-11-13)_
@@ -342,7 +341,6 @@
 
 ## servizio
 
-- «rispondi» a una domanda usa ancora l'attesa di 3 s (autopilot-client.ts:411-415): la 0.95.5 ha alzato a 30 s solo il dialogo. Ogni POST che scrive deve passare attesaScrittura. _(2026-11-10)_
 - Dalla 0.101.0 telefono, pagina e Telegram leggono lo stesso registro degli avvisi (`src/main/avvisi.ts`, `/api/eventi`): una regola su quando avvisare va lì, non nelle schermate; `avvisi=0` vuol dire «da capo» e l’attesa deve svegliarsi per ogni avviso nato dopo. _(2026-11-11)_
 - `dati += buffer` e `buffer.toString()` per pezzo spezzano i caratteri multibyte (U+FFFD): usare StringDecoder o setEncoding('utf8') su ogni lettura a pezzi. _(2026-11-14)_
 - `percentuale` per i lavori ospitati è inventata (10 + minuti): non mostrare una barra senza una stima vera. _(2026-11-16)_
@@ -475,6 +473,7 @@
 - su un `result` con `is_error` il turno non riprova da solo con rete assente: `pronto()` ora è falso durante `riprova` e `fermo`, altrimenti `suEffetti` rilancia il turno a raffica. _(2026-11-10)_
 - «sveglia futura» e «lavoro fermo» sono cose diverse: la sveglia vale solo per chi aspetta un orario, non spegne spinta né rilancio. Solo pausa vera, turno in corso o unione in corso li zittiscono. _(2026-11-23)_
 - Uno specialista «fermato» ha 3 origini: `fermaChiesta` (precedenza), `fermatiDaNicholas` (stop manuale) e appeso/morto. Solo l'ultima si rilancia da sola. _(2026-11-23)_
+- il cane scatta a mutoMs dall'ultima riga: con un Bash in volo si riarma per il resto della soglia larga (tetto specialistaMaxMs); serve `ultimaRiga` da adesso(), non dal timer. _(2026-11-23)_
 
 ## modelli
 
@@ -632,6 +631,7 @@
 - Dopo una correzione di conflitto su un ramo nuovo, l'unione automatica può riprovare il ramo vecchio del compito: rilanciare unisci col ramo nuovo esplicito. _(2026-11-23)_
 - «ramo vecchio riprovato» non viene dal ramo salvato nel compito: `ramoDelCompito` mette il nuovo come principale e unisce prima gli «altri», cioè i vecchi. _(2026-11-23)_
 - `ramiFalliti` in `servizio-orchestratore.ts` è solo in memoria: dopo un riavvio il ramo vecchio fallito torna candidato e può riconflittare. _(2026-11-23)_
+- 23/11 anche dopo k-178r l'unione automatica di k-178k ha riprovato il ramo vecchio (r136…) invece del nuovo (r9be…): con unisci e il ramo esplicito è entrata subito. _(2026-11-23)_
 
 ## pubblica-app
 
