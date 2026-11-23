@@ -30,15 +30,16 @@ const misura = () => ({ processori: 8, memoriaLiberaMb: 32_000, memoriaTotaleMb:
 
 function nucleo(p: { pronto?: boolean; scarico?: boolean; inCorso?: number; scelti?: number; adesso?: () => number } = {}) {
   const errori: string[] = []
+  const righe: string[] = []
   const lav = lavoratoreFinto(p.inCorso ?? 0)
   const n = creaNucleo({
     cartella: 'non-usata', avvia: () => { throw new Error('mai nei test') }, misura,
     regolazione: () => (p.scelti !== undefined ? { postiScelti: p.scelti } : {}),
     pronto: () => p.pronto ?? true, inScarico: () => p.scarico ?? false,
-    log: () => {}, errore: (r) => errori.push(r), lavoratore: lav,
+    log: (r) => righe.push(r), errore: (r) => errori.push(r), lavoratore: lav,
     ...(p.adesso !== undefined ? { adesso: p.adesso } : {})
   })
-  return { n, lav, errori }
+  return { n, lav, errori, righe }
 }
 
 describe('i posti dell’Aiutante dal suo servizio', () => {
@@ -74,12 +75,13 @@ describe('i posti dell’Aiutante dal suo servizio', () => {
     ora += 2 * 60 * 60_000
     expect(await n.servizio('/aiuto/posti')).toMatchObject({ liberi: 4 })
   })
-  it('un lavoro non riuscito per altro: un blocco nello storico, con il PC e il motivo', () => {
-    const { n, errori } = nucleo()
+  it('un lavoro non riuscito per altro: solo cronaca qui (l’errore lo scrive il PC che ha affidato), con il PC e il motivo', () => {
+    const { n, errori, righe } = nucleo()
     n.suFine({ id: 'r000000000003', stato: 'fallito', testo: '', motivo: 'npm ci non riuscito', perPc: 'Fisso', ruolo: 'sviluppatore' })
-    expect(errori[0]).toMatch(/r000000000003.*Fisso.*npm ci/u)
+    expect(errori).toHaveLength(0)
+    expect(righe[0]).toMatch(/r000000000003.*Fisso.*npm ci/u)
     n.suFine({ id: 'r000000000004', stato: 'finito', testo: 'fatto' })
-    expect(errori).toHaveLength(1)
+    expect(righe).toHaveLength(1)
   })
 })
 

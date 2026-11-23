@@ -475,7 +475,8 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): Spedizioniere {
             await dorme(STATO_OGNI_MS)
             continue
           }
-          ;(riuscito ? log : blocco)(`${l.id} (${l.compito ?? l.ruolo}) da ${l.pcNome}: ${riuscito ? 'finito' : `non riuscito${motivo !== undefined ? `: ${motivo}` : ''}`}${ramo !== undefined ? `, ramo ${ramo} preso` : ''}`)
+          // k-183b: l'errore di un lavoro affidato fallito lo scrive il servizio (una volta, con la causa): qui solo un avviso.
+          ;(riuscito ? log : avviso)(`${l.id} (${l.compito ?? l.ruolo}) da ${l.pcNome}: ${riuscito ? 'finito' : `non riuscito${motivo !== undefined ? `: ${motivo}` : ''}`}${ramo !== undefined ? `, ramo ${ramo} preso` : ''}`)
           await d.chiama(l.pcId, '/api/aiuto/chiudi', { lavoro: l.id }).catch(() => undefined)
           return
         }

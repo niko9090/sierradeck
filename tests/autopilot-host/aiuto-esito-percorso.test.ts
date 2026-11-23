@@ -91,7 +91,7 @@ describe('il perché di un lavoro affidato non riuscito arriva al PC che ha chie
     const registro: string[] = []
     const sp = creaSpedizioniere({
       altri: () => [], chiama, servizio: servizioFinto(f), cartella: join(radice, 'spedizioni'),
-      log: (r) => registro.push(r), errore: (r) => registro.push(r),
+      log: (r) => registro.push(r), errore: (r) => registro.push(r), avviso: (r) => registro.push(r),
       dorme: (ms) => new Promise((ok) => setTimeout(ok, Math.min(ms, 30)))
     })
     try { await sp.giro(); await aspetta(f) } finally { sp.ferma() }
