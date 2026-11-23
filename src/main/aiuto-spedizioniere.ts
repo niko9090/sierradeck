@@ -211,7 +211,7 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): Spedizioniere {
   }
 
   /** Il ramo finito: i pezzi in un file, poi `git fetch` dal pacchetto nel progetto. */
-  const ritira = async (l: LavoroAffidato, byte: number): Promise<string> => {
+  const ritiraSolo = async (l: LavoroAffidato, byte: number): Promise<string> => {
     const ramo = ramoDiRitorno(l.id)
     mkdirSync(d.cartella, { recursive: true })
     const file = join(d.cartella, `${l.id}-ritorno.bundle`)
@@ -226,6 +226,20 @@ export function creaSpedizioniere(d: DipendenzeSpedizioniere): Spedizioniere {
       await git(['fetch', '--no-tags', file, `+refs/heads/${ramo}:refs/heads/${ramo}`], l.cwd)
       return ramo
     } finally { try { rmSync(file, { force: true }) } catch { /* resta */ } }
+  }
+
+  /**
+   * 23/11: file e ramo di ritorno sono uno per lavoro: due ritiri dello stesso lavoro insieme (il PC muto
+   * che torna e quello a cui è passato) si pesterebbero. Una coda per lavoro: uno dopo l'altro.
+   */
+  const codaRitiri = new Map<string, Promise<unknown>>()
+  const ritira = (l: LavoroAffidato, byte: number): Promise<string> => {
+    const prima = codaRitiri.get(l.id) ?? Promise.resolve()
+    const questo = prima.catch(() => undefined).then(() => ritiraSolo(l, byte))
+    const coda = questo.catch(() => undefined)
+    codaRitiri.set(l.id, coda)
+    void coda.then(() => { if (codaRitiri.get(l.id) === coda) codaRitiri.delete(l.id) })
+    return questo
   }
 
   /**

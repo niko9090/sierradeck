@@ -184,7 +184,7 @@ import { annullaRinomina, riparaCopieGit, rinominaCartellaProgetto } from './pro
 import { apriGestioneProgetti, avvisaGestioneProgetti, chiudiGestioneProgetti } from './finestra-gestione-progetti'
 import { collega as collegaWs, decidiProgettoWorkspace, nomeComune, progettoDelWorkspace, ultimoPezzo } from '@shared/progetti-identita'
 import { impostaChiusaSenzaCartella, impostaGuardiaCasa, impostaPrimaDiAprire, impostaRisolviCartella, primoIndice, reindicizzaSessioni } from './ipc'
-import { ascoltaSenzaFinestra, smettiSenzaFinestra, impostaAdozioneSottofondo, avviaPtySenzaFinestra, agganciaPtyAlSottofondo, impostaPrimaDiRiagganciare, ptyDiSessione } from './ipc'
+import { ascoltaSenzaFinestra, smettiSenzaFinestra, impostaAdozioneSottofondo, avviaPtySenzaFinestra, agganciaPtyAlSottofondo, impostaPrimaDiRiagganciare, ptyDiSessione, flussoDiSessione } from './ipc'
 import { rinominaWorkspaceDalCore, statoDi as statoWorkspaceDi, type PrimaDiEliminare } from './ipc'
 import { impostaAllaRiapertura, impostaGestioneSessioni } from './ipc'
 import { impostaFiduciaPrimaDelLancio } from './ipc'
@@ -2451,6 +2451,9 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('remoto:inviati', (_e, pc: unknown) => mandaAChat.stati(testo(pc)).catch(() => []))
       ipcMain.handle('remoto:tasto', (_e, pc: unknown, chat: unknown, tasto: unknown) =>
         esitoRemoto(() => remoto.chiama(testo(pc), '/api/tasto', { chat: testo(chat), tasto: testo(tasto) }), pc))
+      // 23/11: l'uscita del terminale di là, a pezzi dal cursore `dopo`. Se quel PC è vecchio la risposta è un errore di rotta: il riquadro lo sa e resta com'era.
+      ipcMain.handle('remoto:flusso', (_e, pc: unknown, chat: unknown, dopo: unknown) =>
+        esitoRemoto(() => remoto.chiama(testo(pc), '/api/flusso', { chat: testo(chat), dopo: typeof dopo === 'number' ? dopo : 0 }), pc))
       ipcMain.handle('remoto:scegli', (_e, pc: unknown, chat: unknown, opzione: unknown) =>
         esitoRemoto(() => remoto.chiama(testo(pc), '/api/scegli', { chat: testo(chat), opzione: testo(opzione) }), pc))
       // «Riapri là» (0.58.3): la richiesta, il suo esito e la chat che compare là
@@ -5147,6 +5150,7 @@ if (!app.requestSingleInstanceLock()) {
         },
         // La risposta a una domanda della chat, a pezzi (0.52.5): frecce, testo, invio.
         tastiAChat: (idChat: string, pezzi: string[]) => { tastiAllaChat(idChat, pezzi) },
+        flussoDi: flussoDiSessione,
         // **Una** finestra, non tutte (0.55.0): con due finestre aperte una
         // richiesta dal telefono apriva due chat nella stessa cartella, una
         // per finestra. Va in quella che mostra il workspace scelto, se c'è.

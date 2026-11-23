@@ -11,7 +11,7 @@ import { pesaRadici, radiciDaSincronizzare, percorsoSicuro, type Radice } from '
 import type { Magazzino } from './magazzino'
 import type { Archivio } from './archivio'
 import { salvaIncrementale, QUIETE_CHAT_MS, RITARDO_MASSIMO_CHAT_MS, BUDGET_GIRO_BYTE, ripristinaIncrementale, manifestoVuoto, type Manifesto, type VoceManifesto, prefissoDi, togliPrefisso, leggiManifesto, improntaDi, aggiornaManifesto, stessaVoce, nomeDi, impronta, rigaRimandati } from './incrementale'
-import { conSegnaleDrive } from '../risorse'
+import { conSegnaleDrive, eTempoScadutoDrive } from '../risorse'
 import { applicaBlocco } from './lavoro'
 import type { Lavoro, Presa, TipoLavoro } from './lavoro-in-corso'
 import { costruisciCatalogo, type Catalogo } from './catalogo'
@@ -895,6 +895,14 @@ export function apriSincronia(deps: {
         log(`SALVA ok (${esito.caricati} caricati, ${esito.cancellati} rimossi${esito.saltati > 0 ? `, ${esito.saltati} saltati` : ''}${esito.rimandati > 0 ? `, ${esito.rimandati} rimandati` : ''}, ${totali} in tutto${veri.length > 0 ? `, ${veri.length} conflitti` : ''})`)
         return { ok: true, voci: esito.caricati, ...(veri.length > 0 ? { conflitti: veri.length } : {}) }
       } catch (e) {
+        // Interrotto da «Annulla» (o da chi installa un aggiornamento e chiude): la
+        // richiesta in volo muore con «This operation was aborted». Non e' un guasto:
+        // e' lo stesso esito di un salvataggio fermato fra un file e l'altro, e il
+        // resto sale al giro dopo (23/11: tre «fallito» nello stesso minuto).
+        if (l.presa?.segnale.aborted === true) {
+          log('SALVA annullato (la richiesta in corso e\' stata interrotta; il resto al prossimo salvataggio)')
+          return { ok: true, voci: 0, annullato: true, messaggio: 'fermato: il resto al prossimo salvataggio' }
+        }
         // Drive pieno: lo ha già detto il freno, una volta sola; qui non si ripete a ogni tentativo.
         if (messaggioDi(e) !== MESSAGGIO_DRIVE_PIENO) log(`SALVA fallito: ${messaggioDi(e)}`)
         return { ok: false, messaggio: messaggioDi(e) }
@@ -1236,9 +1244,17 @@ export function apriSincronia(deps: {
       if (freno.attesaMs() > 0) return
       // Drive pieno: le modifiche restano in locale, il salvataggio aspetta
       // lo spazio (ricontrollo ogni RICONTROLLO_PIENO_MIN minuti). L'arrivo, che legge soltanto, va avanti.
-      const r = freno.pieno()
-        ? { ok: true, invariato: true } as { ok: boolean; messaggio?: string; conflitto?: boolean }
-        : await this.salva(false, { automatico: opzioni?.conArrivo !== false })
+      const salvaUnaVolta = (): ReturnType<Sincronia['salva']> => this.salva(false, { automatico: opzioni?.conArrivo !== false })
+      let r: { ok: boolean; messaggio?: string; conflitto?: boolean; annullato?: boolean } = freno.pieno()
+        ? { ok: true, invariato: true }
+        : await salvaUnaVolta()
+      // Una richiesta rimasta ferma oltre il tetto e' di solito un singhiozzo di rete: una volta si riprova prima di dirlo.
+      if (!r.ok && eTempoScadutoDrive(r.messaggio)) {
+        log('automatico: il Drive non ha risposto in tempo, riprovo una volta')
+        r = await salvaUnaVolta()
+      }
+      // Fermato di proposito (aggiornamento, chiusura): non e' un errore e non si parte con l'arrivo.
+      if (r.annullato === true) return
       // 0.88.5: un lavoro sul Drive ancora in corso (il primo caricamento di un progetto grande dura anche un'ora) non è
       // un guasto: il giro si salta e basta. Prima diceva «non riuscito» ogni cinque minuti e la Salute lo contava fra gli errori.
       const giaInCorso = (m: string | undefined): boolean => m?.startsWith('LAVORO_IN_CORSO') === true

@@ -595,6 +595,17 @@ export const TRATTIENE_ALL_AVVIO_MS = 20_000
 export const QUIETE_SECONDO_MODO_MS = 3000
 
 /**
+ * Come si chiama una consegna nel registro. Una consegna ripresa dopo un riavvio
+ * non ha ancora l'id: il 23/11 il registro diceva «consegna : non partita».
+ */
+export function nomeConsegna(c: { id?: string; titolo?: string } | undefined): string {
+  const id = c?.id ?? ''
+  const titolo = c?.titolo ?? ''
+  if (id !== '') return id
+  return titolo !== '' ? `(ripresa, ${titolo})` : '(ripresa)'
+}
+
+/**
  * Preme invio quando il terminale ha finito di disegnare, e controlla che sia
  * servito.
  *
@@ -634,7 +645,7 @@ export function premiInvio(
       return
     }
     ponte.scrivi(ptyId, INVIO)
-    ponte.registra?.(`consegna ${c?.id ?? ''}: invio ${tentativi + 1}${insistenza >= 0 ? ` (insisto, giro ${insistenza + 1})` : secondoModo ? ' (secondo modo)' : ''}`)
+    ponte.registra?.(`consegna ${nomeConsegna(c)}: invio ${tentativi + 1}${insistenza >= 0 ? ` (insisto, giro ${insistenza + 1})` : secondoModo ? ' (secondo modo)' : ''}`)
     dopo(CONTROLLO_INVIO_MS, () => {
       // Partita? Lo schermo lo dice meglio di tutto («esc to interrupt», o il
       // testo incollato ancora nel campo); se tace, vale la prontezza: ricevuto
@@ -646,7 +657,7 @@ export function premiInvio(
       // scrittura (`UserPromptSubmit`) è la conferma vera; lo schermo è la riserva.
       const p = ponte.partita?.(ptyId, c?.testo, c?.prima, c?.scrittaIl)
       const ferma = p === false || (p === undefined && ponte.prontoARicevere(ptyId))
-      if (!ferma) { ponte.registra?.(`consegna ${c?.id ?? ''}: partita`); return }
+      if (!ferma) { ponte.registra?.(`consegna ${nomeConsegna(c)}: partita`); return }
       // Il testo si e' perso: lo si riscrive prima del prossimo Invio. Mai
       // mentre la chat lavora (0.72.0): lì il testo mandato sta fra i messaggi
       // in coda di Claude Code, in alto, e riscriverlo ne aggiungeva un altro.
@@ -655,10 +666,10 @@ export function premiInvio(
       // Mai nei primi secondi della chat (0.86.2): il testo è trattenuto, non perso.
       if (c?.testo !== undefined && !appenaNata(ptyId, ponte) && ponte.lavora?.(ptyId) !== true && ponte.perso?.(ptyId, c.testo, c.prima) === true &&
         ponte.nelCampo?.(ptyId, c.testo) !== true && (ponte.quieto?.(ptyId, QUIETE_SCRITTURA_MS) ?? true)) {
-        ponte.registra?.(`consegna ${c?.id ?? ''}: il testo non è nel campo né fra i messaggi mandati, lo riscrivo`)
+        ponte.registra?.(`consegna ${nomeConsegna(c)}: il testo non è nel campo né fra i messaggi mandati, lo riscrivo`)
         ponte.scrivi(ptyId, c.testo)
       }
-      ponte.registra?.(`consegna ${c?.id ?? ''}: non partita (${p === false ? 'il testo è ancora nel campo' : 'la chat è ancora in ascolto'})`)
+      ponte.registra?.(`consegna ${nomeConsegna(c)}: non partita (${p === false ? 'il testo è ancora nel campo' : 'la chat è ancora in ascolto'})`)
       if (insistenza >= 0) {
         // Si insiste (0.56.4): un invio per giro, a intervalli crescenti.
         if (insistenza + 1 < INSISTENZA_MS.length) {
@@ -681,7 +692,7 @@ export function premiInvio(
       if (insistenza < 0) {
         // Non ci si arrende dopo venti secondi (0.56.4): la chat può star
         // ancora riprendendo una conversazione lunga.
-        ponte.registra?.(`consegna ${c?.id ?? ''}: non parte nemmeno al secondo modo, insisto a intervalli crescenti`)
+        ponte.registra?.(`consegna ${nomeConsegna(c)}: non parte nemmeno al secondo modo, insisto a intervalli crescenti`)
         dopo(INSISTENZA_MS[0] ?? 5_000, () => premiInvio(ptyId, ponte, dopo, 0, 0, c, true, 0))
         return
       }

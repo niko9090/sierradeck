@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNomePc } from '../state/nomi-pc'
 import { SchermoRemoto } from './SchermoRemoto'
+import { TerminaleRemoto } from './TerminaleRemoto'
 import { BARRA_TASTI, tastoDaEvento, type TastoRemoto } from '@shared/tasti-remoti'
 import { pcVivo } from '@shared/posta'
 import { parolaPcSenzaRisposta } from '@shared/salute'
@@ -325,6 +326,9 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
   }, [remoto.pcId, remoto.cwd, remoto.sessione])
 
   const chatId = fase.tipo === 'viva' ? fase.chat.id : undefined
+  /** 23/11: la chat il cui terminale dal vivo sta arrivando, e quella di un PC che non lo manda (versione vecchia). */
+  const [terminaleVivo, setTerminaleVivo] = useState<string | undefined>(undefined)
+  const [terminaleVecchio, setTerminaleVecchio] = useState<string | undefined>(undefined)
   /** 0.102.2: un tasto vero nella chat di là; lo schermo si rilegge subito dopo. */
   const premi = (t: TastoRemoto): void => {
     if (chatId === undefined || soloLettura) return
@@ -535,13 +539,29 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
             premi(t)
           }}
         >
-          <SchermoRemoto
-            grezze={storia?.grezze ?? []}
-            {...(storia?.colonne !== undefined ? { colonne: storia.colonne } : {})}
-            {...(storia?.continua !== undefined ? { continua: storia.continua } : {})}
-            giu={linea.fase === 'ricollego'}
-            contenitore={schermo}
-          />
+          {/* 23/11: l'uscita del terminale di là, dal vivo. Un PC vecchio non la manda: resta lo schermo riletto. */}
+          {chatId !== undefined && !lento && terminaleVecchio !== chatId ? (
+            <div className="remoto__terminale" hidden={terminaleVivo !== chatId}>
+              <div className="remoto__terminale-testa">
+                Terminale dal vivo <span className="remoto__info" tabIndex={0} title={`Quello che esce dal terminale di ${nomePc}, mentre succede. Se la linea cade riprende da dove era rimasto; là non riparte niente.`}>?</span>
+              </div>
+              <TerminaleRemoto
+                key={`${remoto.pcId}-${chatId}`}
+                pcId={remoto.pcId}
+                chatId={chatId}
+                onStato={(v) => { if (v) setTerminaleVivo(chatId); else setTerminaleVecchio(chatId) }}
+              />
+            </div>
+          ) : null}
+          {terminaleVivo !== chatId || chatId === undefined ? (
+            <SchermoRemoto
+              grezze={storia?.grezze ?? []}
+              {...(storia?.colonne !== undefined ? { colonne: storia.colonne } : {})}
+              {...(storia?.continua !== undefined ? { continua: storia.continua } : {})}
+              giu={linea.fase === 'ricollego'}
+              contenitore={schermo}
+            />
+          ) : null}
         </div>
       ) : null}
       {!chiusaPin && fase.tipo === 'viva' && !soloLettura ? (

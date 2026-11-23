@@ -454,6 +454,7 @@ contextBridge.exposeInMainWorld('gestore', {
     scegli: (pc: string, chat: string, opzione: string): Promise<EsitoRemoto<{ fatto: boolean }>> => ipcRenderer.invoke('remoto:scegli', pc, chat, opzione),
     /** 0.102.2: un tasto vero (Esc, frecce, Tab, Ctrl+C) nella chat di quel PC. */
     tasto: (pc: string, chat: string, tasto: string): Promise<EsitoRemoto<{ fatto: boolean }>> => ipcRenderer.invoke('remoto:tasto', pc, chat, tasto),
+    flusso: (pc: string, chat: string, dopo: number): Promise<EsitoRemoto<unknown>> => ipcRenderer.invoke('remoto:flusso', pc, chat, dopo),
     pin: (pc: string, chat: string, pin: string): Promise<EsitoRemoto<{ fatto: boolean }>> => ipcRenderer.invoke('remoto:pin', pc, chat, pin),
     riprendi: (pc: string, cartella: string, sessione: string, workspace?: string): Promise<EsitoRemoto<{ fatto: boolean }>> =>
       ipcRenderer.invoke('remoto:riprendi', pc, cartella, sessione, workspace),

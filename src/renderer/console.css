@@ -3566,6 +3566,11 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 }
 /* Come il terminale di là: righe intere, il carattere si adatta al riquadro (SchermoRemoto). */
 .schermo-remoto--terminale { white-space: pre; word-break: normal; overflow-x: hidden; }
+/* Il terminale dal vivo di un altro PC (23/11). */
+.remoto__terminale { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 120px; }
+.remoto__terminale[hidden] { display: none; }
+.remoto__terminale-testa { font-size: 11px; opacity: 0.7; padding: 2px 6px; }
+.remoto__terminale-vivo { flex: 1 1 auto; min-height: 100px; background: #1e1e1e; }
 /* Ricomposto: il testo va a capo qui, tabelle e riquadri scorrono di lato. */
 .schermo-remoto__testo { white-space: pre-wrap; overflow-wrap: anywhere; padding-left: 2ch; text-indent: -2ch; }
 .schermo-remoto__vuota { height: 0.6em; }

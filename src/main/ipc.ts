@@ -4,6 +4,7 @@ import { elencoRecuperoWorkspace, mettiWorkspaceNelRecupero, recuperoLeggibile, 
 import { leggiRecentiWorkspace, rinominaRecenteWorkspace, toccaRecenteWorkspace } from './workspace-recenti-file'
 import { rinominaSuPc, togliSuPc } from './workspace-su-pc-file'
 import { creaRichiestaUnita } from '@shared/richiesta-unita'
+import { RegistroFlussi, type BufferFlusso } from '@shared/flusso-terminale'
 import { modelloAutopilotaAmmesso, modelloValido } from '@shared/modelli'
 import { leggiPermessi } from '@shared/permessi-nicholas'
 import { conLimiti, LIMITI_DI_SERIE } from '@shared/limiti-pc'
@@ -255,6 +256,13 @@ export function ptyDiSessione(sessionUuid: string): string | undefined {
   for (const [pty, s] of ptySessione) if (s === sessionUuid) return pty
   return undefined
 }
+/** L'uscita recente di ogni pty, a memoria limitata: la legge `/api/flusso` per chi guarda da un altro PC (23/11). */
+const flussiPty = new RegistroFlussi()
+/** Il flusso del terminale di una conversazione, se ha un pty acceso. */
+export function flussoDiSessione(sessionUuid: string): BufferFlusso | undefined {
+  const pty = ptyDiSessione(sessionUuid)
+  return pty === undefined ? undefined : flussiPty.di(pty)
+}
 /** Toglie un pty alla sua finestra e ne chiede lo scrollback per il sottofondo (0.60.8). Lo imposta `registerPtyIpc`. */
 let agganciaAlSottofondo: ((ptyId: string) => void) | undefined
 export function agganciaPtyAlSottofondo(ptyId: string): void { agganciaAlSottofondo?.(ptyId) }
@@ -310,9 +318,9 @@ export function registerPtyIpc(
   })
 
   client.on((msg: HostToCore) => {
-    if (msg.kind === 'exit' || msg.kind === 'assente') ptySessione.delete(msg.id)
+    if (msg.kind === 'exit' || msg.kind === 'assente') { ptySessione.delete(msg.id); flussiPty.togli(msg.id) }
     // Il tempo d'avvio (0.86.2): la prima chat che arriva al prompt.
-    else if (msg.kind === 'data') misuraAvvio.datiDaTerminale(msg.data)
+    else if (msg.kind === 'data') { misuraAvvio.datiDaTerminale(msg.data); flussiPty.scrivi(msg.id, msg.data) }
     // L'ordine fra instradamento e rilascio, e il perche' del ritorno booleano,
     // sono spiegati e verificati accanto a `instradaEventoHost`, in
     // window-manager.ts: qui e' provabile, dentro questa chiusura non lo sarebbe.
