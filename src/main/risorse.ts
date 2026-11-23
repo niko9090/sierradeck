@@ -75,6 +75,11 @@ export class TempoScadutoDrive extends Error {
   }
 }
 
+/** Il messaggio d'un esito (che viaggia come testo) e' quello di `TempoScadutoDrive`? */
+export function eTempoScadutoDrive(messaggio: string | undefined): boolean {
+  return messaggio?.startsWith('Drive: nessuna risposta da ') === true
+}
+
 /**
  * Il segnale di annullamento del lavoro in corso (0.86.2). Il lavoro esclusivo
  * lo apre con `conSegnaleDrive` e ogni richiesta al Drive partita dentro lo
