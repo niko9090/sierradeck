@@ -422,8 +422,6 @@
 
 ## cancello
 
-- il criterio aggregato «npx vitest run» senza percorsi (k-170) fa girare l'intera suite in un solo comando: 3 minuti qui, ma la prova ha 15 minuti in totale contro 20 del comando. _(2026-11-10)_
-- Rifiuto «anche nella cartella principale non passa» = il ramo rompe prove che su main passano (testo invertito, senza nomi): far girare `npx vitest run` intero sul ramo unito a main per trovarle. _(2026-11-10)_
 - un ramo già unito e cancellato non si misura: serve un ramo nuovo aggiornato a main (già scritto nel quaderno). _(2026-11-10)_
 - Il cancello salva le note `.sierradeck/` prima di unire solo se il diff è fatto di sole aggiunte (numstat, zero righe tolte); righe cambiate o tolte restano di Nicholas. _(2026-11-10)_
 - il controllo «gh release view v<versione>» sul ramo del cambio versione si sblocca con una pre-release vuota non Latest, senza toccare gli aggiornamenti automatici. _(2026-11-13)_
@@ -595,6 +593,8 @@
 - nelle copie degli specialisti manca il tag v0.114.0 e `gh` può essere negato: per le correzioni dopo il tag serve il commit del tag, non solo quello del bump. _(2026-11-23)_
 - `npm run pubblica` con tail in pipe non scrive nulla finché non finisce: per vedere l'avanzamento controllare `gh release view --json assets`, non il file di output. _(2026-11-23)_
 - `gh release create --draft` stampa un URL «untagged-…» anche con tag già sul remoto: è normale per le bozze, il tag resta quello di `--verify-tag`. _(2026-11-23)_
+- la copia può avere origin = bundle non più presente: `git fetch` fallisce e non si può verificare se un altro PC ha già alzato la versione. _(2026-11-23)_
+- una release di SierraDeck tocca solo package.json, package-lock.json (2 punti) e la voce in cima a NOVITA in src/shared/novita.ts. _(2026-11-23)_
 
 ## build
 
