@@ -418,6 +418,7 @@ declare global {
         inviati: (pc: string) => Promise<import('../main/progetti/manda-a-chat').StatoInvio[]>
         scegli: (pc: string, chat: string, opzione: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ fatto: boolean }>>
         tasto: (pc: string, chat: string, tasto: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ fatto: boolean }>>
+        flusso: (pc: string, chat: string, dopo: number) => Promise<import('../shared/pc-remoto').EsitoRemoto<unknown>>
         pin: (pc: string, chat: string, pin: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ fatto: boolean }>>
         riprendi: (pc: string, cartella: string, sessione: string, workspace?: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ fatto: boolean }>>
         apri: (pc: string, cartella: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ fatto: boolean }>>

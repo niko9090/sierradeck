@@ -57,6 +57,7 @@ import {
 } from '@shared/azioni-telefono'
 import { oscuraChat, rifiutoChiusa, STATO_CHIUSA } from '@shared/pin-chat'
 import { TASTI_REMOTI, tastoRemotoValido } from '@shared/tasti-remoti'
+import { rispostaFlusso, type BufferFlusso } from '@shared/flusso-terminale'
 import { rispondiAiuto, type FonteAiuto } from './rotte-aiuto'
 import { rispondiAzione, type DipendenzeEsecutore } from './azione-pc'
 
@@ -91,7 +92,7 @@ export function daAltroPc(dispositivo: string | undefined): boolean {
 }
 
 /** Le rotte che mostrano o scrivono dentro una chat: passano dal PIN (0.49.0). */
-const ROTTE_DENTRO_CHAT = new Set(['/api/storia', '/api/dentro', '/api/scrivi', '/api/tasto', '/api/scegli', '/api/chat/chiudi', '/api/prova/chiudi', '/api/chat/nome', '/api/chat/dormi', '/api/chat/sveglia', '/api/chat/sposta'])
+const ROTTE_DENTRO_CHAT = new Set(['/api/storia', '/api/dentro', '/api/scrivi', '/api/tasto', '/api/flusso', '/api/scegli', '/api/chat/chiudi', '/api/prova/chiudi', '/api/chat/nome', '/api/chat/dormi', '/api/chat/sveglia', '/api/chat/sposta'])
 import type { TentativoFallito } from '@shared/tentativo-installazione'
 import type { AvvisoDrive } from '@shared/scoperta-pc'
 import type { EsitoNegozio, McpVoce, PluginVoce, SkillVoce } from '@shared/negozio'
@@ -278,6 +279,8 @@ export type DipendenzeRotte = {
    * insieme, poi l'invio).
    */
   tastiAChat?: (idChat: string, pezzi: string[]) => void
+  /** L'uscita recente del terminale di una conversazione, per `/api/flusso` (23/11). Assente: la rotta dice «assente». */
+  flussoDi?: (sessione: string) => BufferFlusso | undefined
   /**
    * Scrive a una chat di un altro PC (0.37.2): e' cosi' che si risponde, dalle
    * Domande, a una chat che aspetta su un altro computer acceso.
@@ -1757,6 +1760,15 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       if (deps.tastiAChat === undefined) return { stato: 409, corpo: { errore: 'questo PC non sa ancora premere tasti nelle sue chat' } }
       deps.tastiAChat(chat, [TASTI_REMOTI[tasto]])
       return OK({ fatto: true })
+    }
+
+    // 23/11: l'uscita del terminale a pezzi, dal cursore `dopo` (`@shared/flusso-terminale`). Si legge soltanto: niente riparte.
+    if (r.metodo === 'POST' && r.percorso === '/api/flusso') {
+      const id = stringa(r.corpo, 'chat')
+      const c = typeof r.corpo === 'object' && r.corpo !== null ? (r.corpo as Record<string, unknown>).dopo : undefined
+      const trovata = id === '' ? undefined : deps.chat().find((x) => x.id === id)
+      const buffer = trovata?.sessione !== undefined ? deps.flussoDi?.(trovata.sessione) : undefined
+      return OK(rispostaFlusso(id, buffer, typeof c === 'number' ? c : undefined))
     }
 
     /**
