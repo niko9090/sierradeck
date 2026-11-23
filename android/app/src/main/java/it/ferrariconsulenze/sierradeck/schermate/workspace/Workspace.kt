@@ -60,6 +60,8 @@ import it.ferrariconsulenze.sierradeck.nucleo.RegoleSchermate
 import it.ferrariconsulenze.sierradeck.nucleo.RigaChat
 import it.ferrariconsulenze.sierradeck.nucleo.RigaChiLavora
 import it.ferrariconsulenze.sierradeck.nucleo.RigaRichiesta
+import it.ferrariconsulenze.sierradeck.nucleo.RiscontriWorkspace
+import it.ferrariconsulenze.sierradeck.nucleo.Davanti
 import it.ferrariconsulenze.sierradeck.nucleo.TestaWorkspace
 import it.ferrariconsulenze.sierradeck.nucleo.VistaAttesa
 import it.ferrariconsulenze.sierradeck.nucleo.SchedaBreve
@@ -118,8 +120,10 @@ fun SchermataWorkspace(
     var avanzamento by remember(id) { mutableStateOf<AvanzamentoAutopilota?>(null) }
     var attesa by remember(id) { mutableStateOf<VistaAttesa?>(null) }
     val risposte = remember(id) { mutableStateMapOf<String, String>() }
+    var nonLeggo by remember(id) { mutableStateOf(false) }
     LaunchedEffect(id, battito) {
-        fonte.chat()?.let { battute = it }
+        val lette = fonte.chat()
+        if (lette != null) { battute = lette; nonLeggo = false } else nonLeggo = true
         fonte.avanzamento()?.let { avanzamento = it }
         fonte.attesa()?.let { attesa = it }
     }
@@ -129,7 +133,7 @@ fun SchermataWorkspace(
 
     CorpoWorkspace(
         pc = pc, id = id, testa = testa.copy(perche = testa.perche ?: avanzamento?.calo?.let { it.percheParole ?: it.perche }),
-        righe = righe, caricata = battute != null, chi = chi, richieste = richieste, chats = chats,
+        righe = righe, caricata = battute != null, nonLeggo = nonLeggo, chi = chi, richieste = richieste, chats = chats,
         risposte = risposte,
         onRispondi = { idDomanda, testo ->
             val corpo = buildJsonObject { put("domanda", idDomanda); put("risposta", testo) }.toString()
@@ -154,7 +158,8 @@ fun CorpoWorkspace(
     fonte: FonteWorkspace? = null,
     onApriChat: (String) -> Unit = {},
     onIndietro: () -> Unit = {},
-    linguettaIniziale: Int = 0
+    linguettaIniziale: Int = 0,
+    nonLeggo: Boolean = false
 ) {
     var linguetta by rememberSaveable(id) { mutableStateOf(linguettaIniziale) }
     var guarda by remember(id) { mutableStateOf<RigaChiLavora?>(null) }
@@ -166,7 +171,7 @@ fun CorpoWorkspace(
             Tab(selected = linguetta == 1, onClick = { linguetta = 1 }, text = { Text("Chi lavora · ${chi.count { it.alLavoro }}") }, modifier = Modifier.heightIn(min = 48.dp))
         }
         Box(Modifier.weight(1f)) {
-            if (linguetta == 0) LinguettaChat(righe, caricata, risposte, onRispondi, casella = "ap:$id")
+            if (linguetta == 0) LinguettaChat(righe, caricata, nonLeggo, risposte, onRispondi, casella = "ap:$id")
             else LinguettaChiLavora(chi, richieste, fonte, onGuarda = { guarda = it })
         }
         val manda = { t: String ->
@@ -189,6 +194,7 @@ private fun Quaderno(nome: String, fonte: FonteWorkspace, onChiudi: () -> Unit) 
     var schede by remember { mutableStateOf<List<SchedaBreve>?>(null) }
     var aperta by remember { mutableStateOf<SchedaPiena?>(null) }
     var errore by remember { mutableStateOf(false) }
+    var nonApre by remember { mutableStateOf(false) }
     val ambito = rememberCoroutineScope()
     LaunchedEffect(Unit) { val l = fonte.quaderno(); if (l == null) errore = true else schede = l }
     BackHandler { if (aperta != null) aperta = null else onChiudi() }
@@ -208,8 +214,9 @@ private fun Quaderno(nome: String, fonte: FonteWorkspace, onChiudi: () -> Unit) 
             l == null -> Text("Leggo…", color = Banco.testoQuieto, modifier = Modifier.padding(16.dp))
             l.isEmpty() -> Text("Il quaderno è vuoto.", color = Banco.testoQuieto, modifier = Modifier.padding(16.dp))
             else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 8.dp)) {
+                if (nonApre) item { Text("Non riesco ad aprire la scheda. Riprova.", color = Banco.ambra, modifier = Modifier.padding(16.dp)) }
                 items(l, key = { it.file }) { s ->
-                    TextButton(onClick = { ambito.launch { aperta = fonte.scheda(s.file) } }, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 8.dp)) {
+                    TextButton(onClick = { ambito.launch { nonApre = false; val p = fonte.scheda(s.file); if (p == null) nonApre = true else aperta = p } }, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 8.dp)) {
                         Column(Modifier.fillMaxWidth()) {
                             Text(s.titolo.ifBlank { s.file }, style = MaterialTheme.typography.titleSmall, color = Banco.testo, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             if (s.assaggio.isNotBlank()) Text(s.assaggio, style = MaterialTheme.typography.bodySmall, color = Banco.testoQuieto, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -254,12 +261,23 @@ private fun Intestazione(t: TestaWorkspace, chats: List<ChatDelWorkspace>, onApr
 }
 
 @Composable
-private fun LinguettaChat(righe: List<RigaChat>, caricata: Boolean, risposte: Map<String, String>, onRispondi: (String, String) -> Unit, casella: String) {
+private fun LinguettaChat(righe: List<RigaChat>, caricata: Boolean, nonLeggo: Boolean, risposte: Map<String, String>, onRispondi: (String, String) -> Unit, casella: String) {
     val elenco = rememberLazyListState()
-    LaunchedEffect(righe.size) { if (righe.isNotEmpty()) elenco.scrollToItem(elenco.layoutInfo.totalItemsCount.coerceAtLeast(1) - 1) }
+    var giaScesa by remember { mutableStateOf(false) }
+    LaunchedEffect(righe.size) {
+        if (righe.isEmpty()) return@LaunchedEffect
+        val info = elenco.layoutInfo
+        val ultimo = info.visibleItemsInfo.lastOrNull()?.index ?: 0
+        // Chi è salito a rileggere non viene riportato giù a ogni riga nuova.
+        if (RiscontriWorkspace.scendi(!giaScesa, ultimo, info.totalItemsCount)) {
+            elenco.scrollToItem(righe.size) // righe + «coda» in fondo
+        }
+        giaScesa = true
+    }
     LazyColumn(Modifier.fillMaxSize(), state = elenco, contentPadding = PaddingValues(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        if (caricata && righe.isEmpty()) item { Text("Ancora niente: scrivigli cosa vuoi fare.", color = Banco.testoQuieto, modifier = Modifier.padding(16.dp)) }
-        if (!caricata) item { Text("Leggo la chat…", color = Banco.testoQuieto, modifier = Modifier.padding(16.dp)) }
+        RiscontriWorkspace.fraseChatVuota(caricata, nonLeggo, righe.size)?.let { f ->
+            item { Text(f, color = Banco.testoQuieto, modifier = Modifier.padding(16.dp)) }
+        }
         items(righe, key = { it.chiave }) { r -> RigaDiChat(r, risposte, onRispondi) }
         item(key = "coda") { InviiInCoda(casella) }
     }
@@ -340,7 +358,8 @@ private fun LinguettaChiLavora(chi: List<RigaChiLavora>, richieste: List<RigaRic
             confirmButton = {
                 Button(onClick = {
                     conferma = null
-                    ambito.launch { esito = if (fonte?.mossa(r.id, mossa) == true) "Fatto." else RegoleSchermate.fraseErrore(it.ferrariconsulenze.sierradeck.nucleo.TipoErrore.RETE) }
+                    esito = RiscontriWorkspace.esitoMossa(null)
+                    ambito.launch { esito = RiscontriWorkspace.esitoMossa(fonte?.mossa(r.id, mossa) == true) }
                 }) { Text(if (mossa == "cima") "Precedenza" else "Ferma") }
             },
             dismissButton = { TextButton(onClick = { conferma = null }) { Text("Annulla") } }
@@ -383,7 +402,15 @@ private fun RigaChi(r: RigaChiLavora, onClick: () -> Unit, onPrecedenza: () -> U
 @Composable
 private fun Specialista(r: RigaChiLavora, fonte: FonteWorkspace, onChiudi: () -> Unit) {
     var righe by remember(r.id) { mutableStateOf<List<String>?>(null) }
-    LaunchedEffect(r.id) { righe = fonte.specialista(r.id) ?: emptyList() }
+    var nonLeggo by remember(r.id) { mutableStateOf(false) }
+    // Si rilegge ogni 5 s (solo con l'app davanti): prima restava com'era alla prima apertura.
+    LaunchedEffect(r.id) {
+        while (true) {
+            val lette = fonte.specialista(r.id)
+            if (lette != null) { righe = lette; nonLeggo = false } else nonLeggo = true
+            Davanti.pausa(Davanti.ELENCO_MS)
+        }
+    }
     BackHandler(onBack = onChiudi)
     Column(Modifier.fillMaxSize().background(Banco.fondo)) {
         Row(Modifier.fillMaxWidth().background(Banco.chassis), verticalAlignment = Alignment.CenterVertically) {
@@ -394,8 +421,8 @@ private fun Specialista(r: RigaChiLavora, fonte: FonteWorkspace, onChiudi: () ->
             }
         }
         val l = righe
-        if (l == null) Text("Leggo…", color = Banco.testoQuieto, modifier = Modifier.padding(16.dp))
-        else if (l.isEmpty()) Text("Non ha ancora scritto niente.", color = Banco.testoQuieto, modifier = Modifier.padding(16.dp))
+        val frase = RiscontriWorkspace.fraseSpecialista(l, nonLeggo && l == null)
+        if (frase != null || l == null) Text(frase ?: "Leggo…", color = Banco.testoQuieto, modifier = Modifier.padding(16.dp))
         else SelectionContainer {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(l) { Text(it, style = MaterialTheme.typography.bodySmall, color = Banco.testo) }
