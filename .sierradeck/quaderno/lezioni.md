@@ -107,9 +107,6 @@
 
 ## android
 
-- Le note dell'app stanno in `android/novita-app.txt` (una voce per versione), e `pubblica-app` si ferma se manca la voce della versione nuova. _(2026-11-14)_
-- I tasti dell'app vanno creati con `coloriTastoPieno/Testo/Bordo()` di `Tema.kt`, altrimenti da spenti i colori di Material non rispettano il contrasto. _(2026-11-14)_
-- Il rifiuto "BUILD FAILED" senza `<failure>` nei test non lascia log: il demone Gradle mostra solo EOF. Con `daemon=false` il worker dei test è un JVM a parte, ora con heap fisso. _(2026-11-14)_
 - `testDebugUnitTest --rerun` da zero costa circa 6 minuti con la compilazione: tenerne conto nei timeout del cancello. _(2026-11-14)_
 - Se il cancello taglia l'errore Gradle, il blocco «What went wrong» completo sta in C:\Users\nikof\.gradle\daemon\8.11.1\daemon-*.out.log: cercarlo lì prima di provare a riprodurre. _(2026-11-14)_
 - Su Windows due gradle sulla stessa android/app/build si pestano (output.bin aperto, lookups.tab): fallisce quello che arriva dopo. Il fallimento non lascia <failure> né hs_err. _(2026-11-14)_
@@ -415,6 +412,7 @@
 - `npm run pubblica` supera i 10 minuti: l'installer dell'Aiutante e `aiutante.yml` arrivano per ultimi, dopo il blockmap. Con 5 file la bozza non va pubblicata. _(2026-11-23)_
 - `gh release list --limit 1` non prova nulla: la bozza compare comunque. Controllare `isDraft` e i 7 asset con `gh release view`. _(2026-11-23)_
 - se la bozza ha 5 file su 7, prima vedere se `npm run pubblica` è ancora attivo: `allega-aiutante` carica i due file dell'Aiutante per ultimi, e basta aspettare. _(2026-11-23)_
+- creando prima la bozza con `gh release create --draft --verify-tag`, `npm run pubblica` l'ha riusata: nessuna seconda bozza. _(2026-11-23)_
 
 ## quaderno
 
@@ -582,6 +580,7 @@
 - il workspace nelle righe di criteri/unioni passa da un contesto asincrono (`contesto-log.ts`): chi mette in coda va catturato prima, perché il turno può partire dal contesto di un altro. _(2026-11-23)_
 - Gli errori arrivati da un PC non contengono le righe delle unioni: «(scaduta)» e «unione in fila» stanno nel registro del servizio, che qui non arriva. Per misurarle servono i rapporti della 0.116.0. _(2026-11-23)_
 - il registro di questo PC può non essere quello del PC segnalato: per cause su un altro PC serve il suo registro, non quello locale. _(2026-11-23)_
+- Il formato delle righe `[unione di prova]` è letto da `contaLavori` con regex: cambiarlo nel servizio richiede di aggiornare anche `src/shared/rapporto-lavori.ts`. _(2026-11-23)_
 
 ## aiuto
 
@@ -913,6 +912,7 @@
 - Il parser dei registri deve guardare chi scrive la riga (`app` o `servizio`): le righe dette da entrambi, come «sessione avviata», si contano una volta sola. _(2026-11-23)_
 - I campi nuovi del rapporto vanno letti con `num()` in `leggiRapportoLavori`: i PC con versioni vecchie non li mandano e il riassunto darebbe NaN. _(2026-11-23)_
 - i rapporti dei PC 0.116.x non hanno i campi nuovi (spinteSospese, nonMisurati): ogni campo nuovo aggiunto a LavoriWorkspace va letto con num(), mai sommato diretto. _(2026-11-23)_
+- In `LavoriWorkspace.unioni`, `nonPartite` è obbligatorio e `motiviNonPartite` facoltativo: lettura e somma passano da `num()` perché i PC vecchi non mandano il campo. _(2026-11-23)_
 
 ## pc-glos
 
