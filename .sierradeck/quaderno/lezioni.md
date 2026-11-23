@@ -4,7 +4,6 @@
 
 ## test
 
-- la suite completa (vitest, circa 620 file) richiede circa 3,5 minuti: usare un timeout ampio. _(2026-11-12)_
 - per logica di percorsi Windows passare path.win32 come parametro, così il test gira uguale su ogni sistema _(2026-11-13)_
 - tests/shared/novita.test.ts limita ogni voce delle novità a 8 righe: per aggiungere una correzione a una voce piena bisogna unire due righe. _(2026-11-13)_
 - per simulare il servizio spento basta aprire e chiudere un server http su porta 0 e usare quella porta: `fetch failed` vero, senza mock _(2026-11-13)_
@@ -109,9 +108,6 @@
 
 ## android
 
-- targetSdk 35 = edge-to-edge forzato su Android 15: ogni schermata fuori da Scaffold ha bisogno di safeDrawingPadding, e la topBar dello Scaffold non scavalca la barra di stato da sola. _(2026-11-12)_
-- Le foto Roborazzi hanno varianti (stretto 360 dp, scala 1.3, veste chiara) nelle sottoclassi di FotoSchermateTest: i difetti veri (testo spezzato, "?" fuori dal cerchio) escono solo lì. _(2026-11-12)_
-- Banco può essere chiaro (veste del PC): colori fissi della tabella attività vanno passati da leggibile(), il bordo dei tasti da bordoTasto() (3:1), mai usare incisione per i bordi. _(2026-11-12)_
 - `android/gradlew.bat` manca nelle copie di lavoro: si compila con `gradle -p android ...` (Gradle 8.11.1 in E:\Programs\Gradle). _(2026-11-14)_
 - `Apertura.aggiornamento` (striscia app nuova) veniva impostata solo dal tocco sulla notifica: con notifiche spente l'avviso non compariva mai. Ora lo imposta una ricerca all'apertura. _(2026-11-14)_
 - Nel worktree manca android/gradlew.bat: si usa /e/Programs/Gradle/gradle-8.11.1/bin/gradle -p android ... --offline (ci vogliono 2-4 minuti). _(2026-11-14)_
@@ -228,6 +224,7 @@
 
 - Il programma blocca sleep oltre 30 s anche in ciclo o a pezzi; attese lunghe solo con il sì di Nicholas (classe sottofondo). _(2026-11-15)_
 - Il blocco di sicurezza rifiuta `$p` nelle cancellazioni: scrivere i percorsi per intero, uno per comando, e le junction con `cmd /c rmdir`. _(2026-11-22)_
+- Un workspace come BG4 può girare su un altro PC: i suoi registri non sono in questo AppData, le misure su di lui vanno chieste a quel PC. _(2026-11-23)_
 
 ## hook
 
@@ -264,6 +261,8 @@
 - `turni.unione` rende `TurnoScaduto` subito ma libera cartella e conteggio solo a `fai()` chiuso; pulizia della prova scaduta sempre dentro `turni.unione _(2026-11-22)_
 - il lucchetto della cartella principale sta in turni.unione (turni-criteri.ts): si rende a corsa chiusa o dopo UNIONE_LIBERA_DOPO_MS dalla scadenza, mai prima _(2026-11-22)_
 - i rami entrati in un lotto ripartono da `ramoUnito`: senza, cancelloOra li dice «fuori dai rami» e cambia il testo dell'evento «unione» _(2026-11-22)_
+- I registri del servizio hanno `[unione di prova] … attesa del turno N s, prova N s` e `[criterio] finito con N in N s: cmd`: bastano per misurare le unioni senza strumenti nuovi. _(2026-11-23)_
+- Ogni rilascio tocca package.json e android/novita-app.txt: la prova rilancia la suite intera e gradle (`soloNote` non conosce i .txt di android). Lì sta il tempo più grosso. _(2026-11-23)_
 
 ## ui
 
@@ -436,7 +435,6 @@
 
 ## pubblica
 
-- `npm run pubblica` da una copia: serve `google-oauth.json` (ignorato da git) e una `node_modules` vera, non una junction. Con la release già creata non carica nulla: caricare a mano. _(2026-11-11)_
 - Con bozza già creata, collegata al tag con `gh release edit --tag` e note, `npm run pubblica` ha caricato tutti e 7 i file (Aiutante compreso); poi `--draft=false --latest`. _(2026-11-14)_
 - `npm run pubblica` (test + build + Aiutante) supera i 10 minuti: va in sottofondo da solo; la release resta in bozza e i 7 file compaiono a poco a poco, si pubblica solo a exit 0. _(2026-11-17)_
 - `pubblica-app` copia da solo `app-android.json` anche su v0.110.0: dopo, basta controllare con `cmp`, senza `--clobber`. _(2026-11-19)_
@@ -448,10 +446,12 @@
 - Il rilascio non va lanciato mentre il programma prova un'unione nella cartella principale (file in staging = unione in corso): rilanciarlo subito dopo l'evento di unione. _(2026-11-20)_
 - `npm run pubblica` supera i 10 minuti (prove, build, installer Aiutante): finisce in background e l'output resta vuoto fino alla fine; controllare gli asset con `gh release view`. _(2026-11-23)_
 - `npm run pubblica` supera i 10 minuti (suite di prove, build, Aiutante): va in sottofondo da solo e si controllano gli allegati con `gh release view`, senza lanciarlo due volte. _(2026-11-23)_
+- `npm run pubblica` supera i 10 minuti: l'installer dell'Aiutante e `aiutante.yml` arrivano per ultimi, dopo il blockmap. Con 5 file la bozza non va pubblicata. _(2026-11-23)_
+- `gh release list --limit 1` non prova nulla: la bozza compare comunque. Controllare `isDraft` e i 7 asset con `gh release view`. _(2026-11-23)_
+- se la bozza ha 5 file su 7, prima vedere se `npm run pubblica` è ancora attivo: `allega-aiutante` carica i due file dell'Aiutante per ultimi, e basta aspettare. _(2026-11-23)_
 
 ## quaderno
 
-- i lotti di errori arrivati stanno solo nella copia principale (`.sierradeck/errori-arrivati/lotto-*.md`), non nei worktree; vanno letti da lì senza modificarli. _(2026-11-11)_
 - `.sierradeck/quaderno/lezioni.md` risulta modificato nella cartella principale: lo scrive il programma e sporca main prima del rilascio. _(2026-11-13)_
 - il file del lotto in .sierradeck/errori-arrivati/ non è tracciato: si legge con Read dal percorso della cartella principale, non dal worktree. _(2026-11-13)_
 - errori-arrivati.md usa fine riga CRLF: per aggiungere voci usare Edit ancorato all'ultima frase, non append da shell. _(2026-11-14)_
@@ -465,7 +465,6 @@
 
 ## controllo-pc
 
-- un errore 504 (risponde ma lento) non è «non risponde»: ora si riprova una volta e se resta lento non è criticità. _(2026-11-11)_
 - «PC A non raggiunge B» con B che risponde agli altri: guardare rete/Tailscale/firewall di A prima del codice; la Salute dice già «attenzione» e non «guasto». _(2026-11-14)_
 
 ## preferenze
@@ -577,6 +576,7 @@
 - `npm run pubblica` esegue tutta la suite (~5 min) prima di costruire: un test vecchio in main blocca la release dopo tag e bozza già creati. Lanciare i test prima del tag. _(2026-11-23)_
 - Il criterio `gh release view vX` passa anche per una bozza senza file: per un compito di pubblicazione usare `gh release list --limit 1` (Latest) e contare i file. _(2026-11-23)_
 - un test fermo alla 0.82.0 non è stato visto dalla 0.115.1: `vitest related` non basta per i test che leggono i sorgenti come testo _(2026-11-23)_
+- Dopo un push di main che cambia solo test e quaderno il tag può restare sul commit vecchio: il prodotto è identico, quindi basta rilanciare `pubblica` sulla stessa bozza. _(2026-11-23)_
 
 ## build
 
