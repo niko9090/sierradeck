@@ -362,9 +362,6 @@
 
 ## cancello
 
-- L'esito di rifiuto Gradle nel piano è tagliato e perde il nome del test fallito: salvare le righe FAILED per diagnosticare. _(2026-11-14)_
-- `motivoProveRotte` in `src/autopilot-host/ambiente-copia.ts` compone l'esito del ramo respinto; il suo test vecchio vive in `tests/autopilot-host`, non in `tests/main`. _(2026-11-14)_
-- la prova prima/dopo dell'unione deve misurare solo il codice: i criteri su release o remoto passano sul principale e cadono sul ramo che alza la versione _(2026-11-14)_
 - Il cancello che unisce gira col SierraDeck INSTALLATO: una correzione al cancello unita in main non vale finché Nicholas non installa la versione che la contiene. _(2026-11-15)_
 - Una correzione al cancello (criteri-prova.ts) vale solo dalla versione installata: unita in main non sblocca subito i rami respinti dal cancello che gira; serve un'unione fuori dal cancello. _(2026-11-17)_
 - Il criterio di un compito già unito (es. k-v1 di r-141) non si può correggere con piano_scrivi: richiesta fatta. Un criterio di versione sbagliato resta nel cancello fino alla nuova installazione. _(2026-11-17)_
@@ -387,7 +384,6 @@
 
 ## pubblica
 
-- Con bozza già creata, collegata al tag con `gh release edit --tag` e note, `npm run pubblica` ha caricato tutti e 7 i file (Aiutante compreso); poi `--draft=false --latest`. _(2026-11-14)_
 - `npm run pubblica` (test + build + Aiutante) supera i 10 minuti: va in sottofondo da solo; la release resta in bozza e i 7 file compaiono a poco a poco, si pubblica solo a exit 0. _(2026-11-17)_
 - `pubblica-app` copia da solo `app-android.json` anche su v0.110.0: dopo, basta controllare con `cmp`, senza `--clobber`. _(2026-11-19)_
 - `gh release create --draft` mostra un URL «untagged-…» ma la release prende il tag giusto alla pubblicazione, se il tag è già sul remoto (`--verify-tag`). _(2026-11-20)_
@@ -402,6 +398,8 @@
 - `gh release list --limit 1` non prova nulla: la bozza compare comunque. Controllare `isDraft` e i 7 asset con `gh release view`. _(2026-11-23)_
 - se la bozza ha 5 file su 7, prima vedere se `npm run pubblica` è ancora attivo: `allega-aiutante` carica i due file dell'Aiutante per ultimi, e basta aspettare. _(2026-11-23)_
 - creando prima la bozza con `gh release create --draft --verify-tag`, `npm run pubblica` l'ha riusata: nessuna seconda bozza. _(2026-11-23)_
+- `npm run pubblica` dura più di 10 minuti (suite, build, Aiutante): passa in sottofondo da solo; il fatto che finisca si vede da `gh release view` più che dal suo output, vuoto fino alla fine. _(2026-11-23)_
+- Lo script stampa a fine corsa che la release è ancora in bozza: `--draft=false --latest` va fatto a mano dopo aver visto i 7 file `uploaded`. _(2026-11-23)_
 
 ## quaderno
 
@@ -414,6 +412,7 @@
 - errori-arrivati.md usa fine riga CRLF: Edit ancorato all'ultima riga funziona, ma controllare che le righe nuove non restino miste. _(2026-11-20)_
 - Il quaderno sul «mai fermo» (0.84–0.85) descrive le chat vecchie: dalla 0.89 gli specialisti sono sotto-agenti dell'orchestratore, la difesa sta in `servizio-orchestratore.ts` e `lavoro-fermo.ts`. _(2026-11-22)_
 - i titoli di errori-arrivati.md hanno la forma «(lotto <nome>)»: con nomi che iniziano già per «lotto-» il titolo ripete la parola, ed è voluto per far trovare il nome intero. _(2026-11-23)_
+- le voci di errori-arrivati.md vanno in coda; il file non finisce con a capo, quindi si aggiunge con Edit sull'ultima frase _(2026-11-23)_
 
 ## controllo-pc
 
@@ -683,6 +682,7 @@
 ## codice
 
 - `chatViva` esiste già in `autopilota-telefono.ts` (senza `nelRecupero`): quello condiviso è `chatInVita` in `autopilota.ts`; non confonderli. _(2026-11-16)_
+- foto e ripristino dei file rigenerati stanno in src/autopilot-host/worktree.ts, non in un worktree.ts a parte: `src/**/worktree.ts` trova solo quello _(2026-11-23)_
 
 ## dati
 
