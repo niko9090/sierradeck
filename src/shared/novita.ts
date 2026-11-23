@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.117.3',
+    righe: [
+      '**Rapporto dei lavori:** le unioni che non partono, per esempio per file non salvati nella cartella, non contano più come prove da 0 secondi. Si vedono a parte.',
+      '**Rapporti dei lavori:** si mandano e si analizzano solo quando ci sono intoppi, non a ogni giro. Per gli errori restano i log.',
+    ],
+  },
+  {
     versione: '0.117.2',
     righe: [
       '**Rapporto dei lavori:** se un PC con una versione vecchia non manda i conti nuovi, il riassunto non scrive più «NaN». Quei conti valgono 0.',
