@@ -77,7 +77,8 @@ export function creaNucleo(x: {
       if (nuovo) x.errore(`[aiuto] il piano di Claude su questo Aiutante ha finito la quota: niente lavori nuovi fino alle ${new Date(fino).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`)
       return
     }
-    if (f.stato === 'fallito') x.errore(`[aiuto] lavoro ${f.id}${f.ruolo !== undefined ? ` (${f.ruolo})` : ''} per ${f.perPc ?? 'un altro PC'} non riuscito: ${(f.motivo ?? 'motivo non detto').slice(0, 300)}`)
+    // k-183b: il fallimento lo riporta già come errore il PC che ha affidato il lavoro: qui solo cronaca (non va negli «Errori arrivati»).
+    if (f.stato === 'fallito') x.log(`[aiuto] lavoro ${f.id}${f.ruolo !== undefined ? ` (${f.ruolo})` : ''} per ${f.perPc ?? 'un altro PC'} non riuscito: ${(f.motivo ?? 'motivo non detto').slice(0, 300)}`)
   }
   const lavoratore = x.lavoratore ?? creaLavoratoreAiuto({
     cartella: x.cartella,

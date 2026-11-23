@@ -153,9 +153,14 @@ export function raggruppa(p: {
   const qui = minore(p.versioneQui)
   const perChiave = new Map<string, GruppoErrori>()
   let vecchie = 0
+  // k-183b: la stessa voce arrivata due volte (invio rifatto dopo una risposta persa, o via Drive e via rete) non è un errore in più.
+  const viste = new Set<string>()
   for (const a of p.arrivi) {
     for (const v of a.voci) {
       if (typeof v?.messaggio !== 'string') continue
+      const impronta = `${a.da}|${v.dove}|${v.quando}|${v.ultima ?? ''}|${v.volte ?? 1}|${v.messaggio}`
+      if (viste.has(impronta)) continue
+      viste.add(impronta)
       const ver = v.versione ?? a.versione
       const m = minore(ver)
       if (v.dove !== 'app' && qui !== undefined && m !== undefined && piuVecchia(m, qui)) { vecchie += 1; continue }
