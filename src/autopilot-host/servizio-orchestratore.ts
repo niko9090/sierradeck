@@ -53,7 +53,8 @@ import { RAMI_SEGNALATI_MAX, SVEGLIE_MAX } from './orchestratore-store'
 import type { LimitiPc } from '@shared/limiti-pc'
 import { POSTI_MAX } from '@shared/posti-chat'
 import { fermataSpecialista } from './stop-specialista'
-import { MEZZE_FINI_MAX, fermoAMeta } from './finito-a-meta'
+import { FERMATI_RILANCI_MAX, MEZZE_FINI_MAX, fermoAMeta } from './finito-a-meta'
+import { rigaRapporto } from '@shared/rapporti-chat'
 import { cartellaDelWorkspace, hookAdottato, nuovoUnico, obiettiviInCoda, passaAllUnico, type CampiVecchi, type Vecchio } from './migra-orchestratore'
 import { quandoInParole, riassuntoOrchestratore } from './riassunto-orchestratore'
 import { motivoSpecialistaDoppio, ripresaDopoRiavvio } from './ripresa-riavvio'
@@ -216,6 +217,10 @@ export type ContestoUnico = {
   raccoltaEventiMs?: number
   chiamateMax?: number
   inattivoMs?: number
+  /** k-178k: dopo quanto senza righe un turno (o gli specialisti in sottofondo) si dà per appeso. */
+  mutoMs?: number
+  /** k-178k: il tempo massimo di uno specialista in sottofondo. */
+  specialistaMaxMs?: number
   /** `false` (solo i test di `unisci` a mano): lo specialista finito non si unisce da solo. */
   unioneDaSola?: boolean
   /** 0.90.0: dove Claude Code tiene le trascrizioni (nei test, una cartella di prova). */
@@ -753,6 +758,23 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
   const primaDelLancio = new Map<string, CompitoPiano>()
   /** k-174a: quante volte uno specialista è finito «a metà» (workspace|compito): oltre `MEZZE_FINI_MAX` lo si tratta come finito. */
   const mezzeFini = new Map<string, number>()
+  /** k-178k: quante volte uno specialista fermato (appeso o morto) a metà è stato rilanciato (workspace|compito). */
+  const rilanciFermati = new Map<string, number>()
+  /** k-178k: cosa ha salvato uno specialista fermato: «RAPPORTO: finita» nel riepilogo, e i commit sul suo ramo. */
+  const lavoroDelFermato = (ws: string, s: Specialista): { finito: boolean; commit: number } => {
+    const finito = s.riepilogo !== undefined && rigaRapporto(s.riepilogo)?.tipo === 'finita'
+    let commit = 0
+    const u = unicoDi(ws)
+    const ramo = ramoDelloSpecialistaFinito(s)
+    if (x.git !== undefined && u?.ramoBase !== undefined && ramo !== undefined) {
+      try {
+        const r = x.git(['rev-list', '--count', `${u.ramoBase}..${ramo}`], u.cwd)
+        const n = Number(r.uscita.trim())
+        if (r.codice === 0 && Number.isInteger(n) && n > 0) commit = n
+      } catch { commit = 0 }
+    }
+    return { finito, commit }
+  }
   // ---------------------------------------------------------------- i posti degli altri PC (0.103.0)
   let affidatiMem: LavoroAffidato[] = []
   const archivioAiuti = x.aiuti ?? { leggi: () => affidatiMem, scrivi: (l: LavoroAffidato[]) => { affidatiMem = l } }
@@ -1190,7 +1212,7 @@ ${NOTA_SENZA_GIT}`,
       if (e.tipo !== 'specialista-partito' && e.tipo !== 'specialista-finito') continue
       // Uno specialista finito libera un posto: il primo in fila lo ha prenotato e viene svegliato.
       if (e.tipo === 'specialista-finito') queueMicrotask(() => { try { rivediFila() } catch (err) { console.error('[attesa] giro della lista d’attesa non riuscito:', err) } })
-      const s = e.specialista
+      let s = e.specialista
       const u = unicoDi(ws)
       if (e.tipo === 'specialista-partito') {
         const k = s.compito !== undefined ? x.orchestratori.piano(ws).compiti.find((c) => c.id === s.compito) : undefined
@@ -1233,6 +1255,36 @@ ${NOTA_SENZA_GIT}`,
         cambiaCompito(ws, s.compito, (c) => conRamoRicordato(c, suo))
       }
       const k = s.compito !== undefined ? x.orchestratori.piano(ws).compiti.find((c) => c.id === s.compito && c.chat === s.id) : undefined
+      // k-178k: uno specialista «fermato» senza che Nicholas o l'autopilota l'abbiano chiesto (appeso, o morto col
+      // processo): prima di segnarlo si guarda il lavoro salvato. «RAPPORTO: finita» → in unione; a metà → si rilancia.
+      if (s.stato === 'fermato' && !RUOLI_SOLA_LETTURA.has(s.ruolo) && !fermaChiesta.has(s.id) && !fermatiDaNicholas.has(s.id)) {
+        const lavoro = lavoroDelFermato(ws, s)
+        if (lavoro.finito) s = { ...s, stato: 'finito' }
+        else {
+          const chiave = `${ws}|${s.compito ?? s.id}`
+          const n = rilanciFermati.get(chiave) ?? 0
+          const ramo = ramoDelloSpecialistaFinito(s)
+          const cosa = lavoro.commit > 0 ? `ha ${lavoro.commit} commit sul ramo ${ramo}` : 'senza lavoro salvato'
+          if (n < FERMATI_RILANCI_MAX) {
+            rilanciFermati.set(chiave, n + 1)
+            if (k !== undefined && k.stato !== 'unito') {
+              cambiaCompito(ws, k.id, (c) => ({ ...(lavoro.commit === 0 ? senzaRamo(c) : c), stato: 'da-fare', esito: `${s.ruolo} si è fermato senza finire (${cosa}): va rilanciato${lavoro.commit > 0 ? ' sullo stesso ramo' : ''}` }))
+            }
+            if (s.prompt !== undefined) {
+              archivioAttesa.scrivi(rifiutataDalTetto(archivioAttesa.leggi(), { workspace: ws, ...(u !== undefined ? { autopilota: u.id } : {}), descrizione: s.descrizione, tipo: s.ruolo, prompt: s.prompt }, { adesso: oraMs(), id: randomUUID }))
+            }
+            if (u !== undefined) {
+              const dopo = { ...u }
+              x.annota(dopo, `${s.ruolo} si è fermato senza finire (${cosa})`, avanzamento(s.id, `${chiSpecialista(s.ruolo)} si è fermato senza finire: ${cosaDel(s.descrizione)}. Lo rilancio.`))
+              x.salva(dopo)
+            }
+            evento(ws, { tipo: 'fermo', quando: x.adesso(), chat: s.id, testo: `${s.compito ?? chiSpecialista(s.ruolo)} si è fermato senza finire (appeso o morto col processo; ${cosa}). Il compito è tornato «da fare» e il suo prompt è salvato in fila. Rilancialo adesso${ramo !== undefined && lavoro.commit > 0 ? ` sul suo ramo ${ramo}, senza rifare quello che c’è già` : ''} (rilancio ${n + 1} di ${FERMATI_RILANCI_MAX}).` })
+            ricalcola(ws, `${s.compito ?? s.ruolo} fermato a metà`)
+            continue
+          }
+          evento(ws, { tipo: 'fermo', quando: x.adesso(), chat: s.id, testo: `${s.compito ?? chiSpecialista(s.ruolo)} si è fermato senza finire per la ${FERMATI_RILANCI_MAX + 1}ª volta (${cosa}): il programma non lo rilancia più da solo. Cambia strada: spezza il compito o guarda cosa lo blocca.` })
+        }
+      }
       // k-174a: «riprendo…», «aspetto l'esito» come ultima parola non è un compito finito: niente unione, si rilancia.
       const promessa = s.stato === 'finito' && !RUOLI_SOLA_LETTURA.has(s.ruolo) ? fermoAMeta(s.ruolo, s.riepilogo) : undefined
       const chiaveMezza = `${ws}|${s.compito ?? s.id}`
@@ -1327,6 +1379,8 @@ ${NOTA_SENZA_GIT}`,
     // 11/11: quanti autopiloti hanno il turno insieme lo decide Nicholas, e vale subito.
     ...(x.chiamateMax !== undefined ? { globaliMax: x.chiamateMax } : x.limiti !== undefined ? { globaliMax: () => x.limiti!().turniAutopilota } : {}),
     ...(x.inattivoMs !== undefined ? { inattivoMs: x.inattivoMs } : {}),
+    ...(x.mutoMs !== undefined ? { mutoMs: x.mutoMs } : {}),
+    ...(x.specialistaMaxMs !== undefined ? { specialistaMaxMs: x.specialistaMaxMs } : {}),
     lavoroDaPortareAvanti: (ws) => lavoroDaPortareAvanti(ws),
     // 11/11: nessun permesso aspetta più Nicholas (decide il programma): niente `attendeNicholas`.
     limite: limiteRaggiunto,
@@ -2981,6 +3035,8 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     try { suonaSveglie(ora) } catch (err) { console.error('[orchestratore] sveglie non suonate, riprovo al prossimo giro:', err) }
     // Dopo le sveglie: se una suona è lei il messaggio con cui riparte; altrimenti lo dice il promemoria di ripresa.
     try { riavviaSeMorto(ora) } catch (err) { console.error('[orchestratore] riavvio dell’autopilota non riuscito:', err) }
+    // k-178k: uno specialista in sottofondo oltre il tempo massimo si ferma davvero.
+    try { orchestratore.fermaAppesi() } catch (err) { console.error('[orchestratore] fermo degli specialisti appesi non riuscito:', err) }
     for (const a of unici()) {
       for (const c of specialistiVivi(a)) {
         if (c.stato !== 'lavoro') continue

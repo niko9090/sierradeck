@@ -155,6 +155,10 @@ export type Dipendenze = {
   raccoltaEventiMs?: number
   /** Per le prove: dopo quanto si spegne un orchestratore a riposo (poi riparte con --resume). */
   inattivoOrchestratoreMs?: number
+  /** k-178k, per le prove: dopo quanto senza righe un turno (o gli specialisti in sottofondo) si dà per appeso. */
+  mutoOrchestratoreMs?: number
+  /** k-178k, per le prove: il tempo massimo di uno specialista in sottofondo. */
+  specialistaMaxMs?: number
   /** Per i test di `unisci` chiamato a mano: `false` spegne l'unione da sola alla fine di uno specialista (0.89.4). */
   unioneDaSola?: boolean
   /** 06/11: dopo quanto un'unione di prova nel principale si chiude e si rimette in fila (di serie 45 minuti, `tempi-unione.ts`). */
@@ -1759,6 +1763,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     ultimoSegnale: (id, chat) => ultimoSegnale(chiaveTurno(id, chat)),
     ...(deps.raccoltaEventiMs !== undefined ? { raccoltaEventiMs: deps.raccoltaEventiMs } : {}),
     ...(deps.inattivoOrchestratoreMs !== undefined ? { inattivoMs: deps.inattivoOrchestratoreMs } : {}),
+    ...(deps.mutoOrchestratoreMs !== undefined ? { mutoMs: deps.mutoOrchestratoreMs } : {}),
+    ...(deps.specialistaMaxMs !== undefined ? { specialistaMaxMs: deps.specialistaMaxMs } : {}),
     ...(deps.unioneDaSola !== undefined ? { unioneDaSola: deps.unioneDaSola } : {}),
     ...(deps.unioneMaxMs !== undefined ? { unioneMaxMs: deps.unioneMaxMs } : {}),
     ...(deps.unioneRiprovaMs !== undefined ? { unioneRiprovaMs: deps.unioneRiprovaMs } : {}),

@@ -83,6 +83,8 @@ export const INATTIVO_MS = 55 * 60_000
 export const SILENZIO_SPECIALISTA_MS = 20 * 60_000
 /** Un turno senza nessuna riga in uscita per tanto (fuori da un permesso in attesa) è appeso: si uccide e si riprova. */
 export const TURNO_MUTO_MS = 20 * 60_000
+/** k-178k: uno specialista in sottofondo che lavora da più di così è appeso: si ferma davvero (processo spento). */
+export const SPECIALISTA_MAX_MS = 3 * 60 * 60_000
 /** Rete assente: la prima attesa prima di riprovare, che raddoppia a ogni errore fino al tetto. */
 export const RIPROVA_RETE_MS = 30_000
 export const RIPROVA_RETE_MAX_MS = 10 * 60_000
@@ -303,6 +305,8 @@ export type DipendenzeOrchestratore = {
   lavoroDaPortareAvanti?: (ws: string) => boolean
   /** Il cane da guardia: un turno senza righe per tanto si dà per appeso. */
   mutoMs?: number
+  /** k-178k: il tempo massimo di uno specialista in sottofondo (poi si ferma davvero). */
+  specialistaMaxMs?: number
   /** Attesa prima di riprovare dopo l'n-esimo errore di rete di fila (n da 1): cresce, ha un tetto. */
   riprovaReteMs?: (n: number) => number
   /** Attesa prima di riprovare dopo l'n-esimo guasto di fila non di rete (n da 2: il primo riprova subito). */
@@ -340,6 +344,11 @@ export type Orchestratore = {
    * Agent non conta più al lavoro) e lo restituisce; `undefined` se non c'è o è già finito. Non tocca ramo né copia.
    */
   segnaFermato: (ws: string, id: string) => Specialista | undefined
+  /**
+   * k-178k: ferma davvero (spegne il processo) i workspace con uno specialista al lavoro da più del tempo massimo;
+   * torna quanti specialisti ha fermato.
+   */
+  fermaAppesi: () => number
   /** Per i test e lo spegnimento: si risolve quando nessun turno è in corso né pronto. */
   quiete: () => Promise<void>
   /**
@@ -392,6 +401,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
   const soglia = d.sogliaRotazione ?? ROTAZIONE_TOKEN
   const inattivoMs = d.inattivoMs ?? INATTIVO_MS
   const mutoMs = d.mutoMs ?? TURNO_MUTO_MS
+  const specialistaMaxMs = d.specialistaMaxMs ?? SPECIALISTA_MAX_MS
   const riprovaReteMs = d.riprovaReteMs ?? ((n: number): number => Math.min(RIPROVA_RETE_MAX_MS, RIPROVA_RETE_MS * 2 ** (n - 1)))
   const riprovaGuastoMs = d.riprovaGuastoMs ?? attesaGuastoMs
   const nuova = d.nuovaSessione ?? ((): string => randomUUID())
@@ -515,7 +525,17 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
     if (s.proc === undefined) return
     s.cane = setTimeout(() => {
       s.cane = undefined
-      if (s.proc === undefined || !inTurno(s)) return
+      if (s.proc === undefined) return
+      if (!inTurno(s)) {
+        // k-178k: nessun turno, ma specialisti in sottofondo e nessuna riga (neppure loro) da `mutoMs`: sono appesi.
+        if (specialistiAlLavoro(s.flusso).length === 0) return
+        if (d.attendeNicholas?.(ws) === true) { armaCane(ws, s); return }
+        const m = Math.round(mutoMs / 60_000)
+        console.error(`[orchestratore] ${ws} — specialisti appesi: nessuna riga da ${m} minuti`)
+        spegniSe(ws, s, `specialisti appesi (nessuna riga da ${m} minuti)`)
+        fermaSpecialisti(ws, s, true)
+        return
+      }
       if (d.attendeNicholas?.(ws) === true) { armaCane(ws, s); return }
       rimettiInAttesa(s)
       const minuti = Math.round(mutoMs / 60_000)
@@ -601,7 +621,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
       if (s.proc !== p) return
       const r = applicaRiga(s.flusso, riga, adesso())
       s.flusso = r.stato
-      if (s.flusso.inTurno) armaCane(ws, s)
+      if (s.flusso.inTurno || specialistiAlLavoro(s.flusso).length > 0) armaCane(ws, s)
       else if (s.cane !== undefined) { clearTimeout(s.cane); s.cane = undefined }
       if (r.effetti.length > 0) suEffetti(ws, s, r.effetti)
       else try { d.flusso?.(ws, [], s.flusso) } catch { /* solo la vista */ }
@@ -708,6 +728,24 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
       const fermato = { ...vivo, stato: 'fermato' as const, fine: adesso() }
       s.flusso = { ...s.flusso, specialisti: s.flusso.specialisti.map((y) => (y.id === id ? fermato : y)) }
       return fermato
+    },
+    fermaAppesi: () => {
+      let fermati = 0
+      const ora = Date.parse(adesso())
+      for (const [ws, s] of stati) {
+        if (s.proc === undefined) continue
+        const vecchi = specialistiAlLavoro(s.flusso).filter((y) => {
+          const t = Date.parse(y.inizio)
+          return Number.isFinite(t) && ora - t > specialistaMaxMs
+        })
+        if (vecchi.length === 0) continue
+        const ore = Math.round((specialistaMaxMs / 3_600_000) * 10) / 10
+        console.error(`[orchestratore] ${ws} — specialista oltre il tempo massimo (${ore} ore)`)
+        spegniSe(ws, s, `specialista oltre il tempo massimo (${ore} ore)`)
+        fermaSpecialisti(ws, s, true)
+        fermati += vecchi.length
+      }
+      return fermati
     },
     quiete: () => new Promise<void>((r) => { attese.push(r); forseQuiete() }),
     accessoCambiato: ({ riavvia }) => {
