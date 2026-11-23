@@ -127,6 +127,8 @@ class AscoltoService : Service() {
     private val sveglia = Channel<Unit>(Channel.CONFLATED)
     private var richiamo: ConnectivityManager.NetworkCallback? = null
     @Volatile private var rigaMostrata: String? = null
+    /** Android ha detto che la rete di default è sparita (e non è ancora tornata). */
+    @Volatile private var senzaRete = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -183,7 +185,7 @@ class AscoltoService : Service() {
             aggiornaRiga(ciclo.stato.value)
             // Le risposte rimaste indietro, a ogni giro andato bene.
             if (ciclo.stato.value.motivo == null) try { InvioRisposte.giro(applicationContext) } catch (_: Exception) { }
-            if (attesa != null && attesa > 0) withTimeoutOrNull(attesa) { sveglia.receive(); ciclo.azzeraAttese() }
+            if (attesa != null && attesa > 0) withTimeoutOrNull(RegoleAvvisi.attesaConRete(attesa, senzaRete)) { sveglia.receive(); ciclo.azzeraAttese() }
         }
     }
 
@@ -205,8 +207,15 @@ class AscoltoService : Service() {
             override fun onAvailable(network: Network) {
                 val prima = ultima
                 ultima = network
+                val persa = senzaRete
+                senzaRete = false
                 // La prima chiamata arriva subito, con la rete di adesso: non è un cambio.
-                if (prima != null && prima != network) sveglia.trySend(Unit)
+                if (RegoleAvvisi.reteCambiata(prima, network, persa)) sveglia.trySend(Unit)
+            }
+
+            override fun onLost(network: Network) {
+                // Passando da wifi a dati arriva prima la nuova e poi la perdita della vecchia: quella non conta.
+                if (network == ultima) senzaRete = true
             }
         }
         try { cm.registerDefaultNetworkCallback(r); richiamo = r } catch (_: Exception) { }

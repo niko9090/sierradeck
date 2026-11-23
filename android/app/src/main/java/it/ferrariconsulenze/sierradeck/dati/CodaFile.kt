@@ -1,6 +1,7 @@
 package it.ferrariconsulenze.sierradeck.dati
 
 import it.ferrariconsulenze.sierradeck.nucleo.EsitoInvio
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -84,7 +85,8 @@ class CodaFile(
     fun metti(pc: String, nome: String, byte: Long, sha256: String?, tipo: String, destId: String, destNome: String, apri: () -> InputStream): Voce {
         val v = Voce(UUID.randomUUID().toString(), pc, nome, byte, sha256, tipo, destId, destNome, orologio())
         copie.mkdirs()
-        apri().use { i -> copiaDi(v).outputStream().use { o -> i.copyTo(o) } }
+        // Una copia a metà (disco pieno, file sparito) non resta a occupare spazio.
+        try { apri().use { i -> copiaDi(v).outputStream().use { o -> i.copyTo(o) } } } catch (x: Exception) { copiaDi(v).delete(); throw x }
         _voci.value = _voci.value + v
         scrivi()
         return v
@@ -108,10 +110,20 @@ class CodaFile(
             if (!copia.exists()) { cambia(v.id) { it.copy(stato = "rifiutato", messaggio = "Il file non c’è più sul telefono.") }; continue }
             cambia(v.id) { it.copy(stato = "invio", messaggio = null) }
             var ultimo = 0L
-            val e = manda(v, copia) { fatti, _ ->
+            val e = try {
+                manda(v, copia) { fatti, _ ->
                 // Su file ogni tanto, non a ogni pezzo.
-                if (fatti - ultimo >= 256 * 1024 || fatti >= v.byte) { ultimo = fatti; cambia(v.id) { it.copy(fatti = fatti) } }
-                else _voci.value = _voci.value.map { if (it.id == v.id) it.copy(fatti = fatti) else it }
+                    if (fatti - ultimo >= 256 * 1024 || fatti >= v.byte) { ultimo = fatti; cambia(v.id) { it.copy(fatti = fatti) } }
+                    else _voci.value = _voci.value.map { if (it.id == v.id) it.copy(fatti = fatti) else it }
+                }
+            } catch (x: CancellationException) {
+                // App o lavoro fermati a metà: la voce non resta «in invio» per sempre, riparte da dove era.
+                cambia(v.id) { it.copy(stato = "attesa") }
+                throw x
+            } catch (x: Exception) {
+                // Un errore imprevisto (disco, lettura): il file resta in coda, riprova al prossimo giro.
+                cambia(v.id) { it.copy(stato = "attesa", messaggio = x.message ?: "errore imprevisto") }
+                return@withLock
             }
             when (e) {
                 is EsitoInvio.Arrivato -> { copia.delete(); cambia(v.id) { it.copy(stato = "arrivato", fatti = it.byte, messaggio = e.percorso.ifBlank { null }) } }

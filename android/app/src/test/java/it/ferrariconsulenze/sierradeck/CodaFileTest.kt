@@ -32,6 +32,40 @@ class CodaFileTest {
         assertFalse(c2.copiaDi(v).exists())
     }
 
+    @Test fun erroreImprevistoRimetteInAttesaENonLasciaInvio() = runBlocking {
+        val dir = Files.createTempDirectory("codafile").toFile()
+        var rompi = true
+        val c = CodaFile(dir, { v, _, _ -> if (rompi) throw java.io.IOException("disco") else EsitoInvio.Arrivato(v.nome, "x", null, null) })
+        c.metti("p", "a.txt", 1, null, "autopilota", "a1", "Sito") { "x".byteInputStream() }
+        c.svuota()
+        val v = c.voci.value.single()
+        assertEquals("attesa", v.stato)
+        assertEquals("disco", v.messaggio)
+        rompi = false
+        c.svuota()
+        assertEquals("arrivato", c.voci.value.single().stato)
+    }
+
+    @Test fun invioFermatoACanaleTornaInAttesa() = runBlocking {
+        val dir = Files.createTempDirectory("codafile").toFile()
+        val c = CodaFile(dir, { _, _, _ -> throw kotlinx.coroutines.CancellationException("fermato") })
+        c.metti("p", "a.txt", 1, null, "autopilota", "a1", "Sito") { "x".byteInputStream() }
+        try { c.svuota() } catch (_: kotlinx.coroutines.CancellationException) { }
+        assertEquals("attesa", c.voci.value.single().stato)
+    }
+
+    @Test fun copiaSpezzataNonRestaSulTelefono() {
+        val dir = Files.createTempDirectory("codafile").toFile()
+        val c = CodaFile(dir, { _, _, _ -> EsitoInvio.Rifiutato(0, "no") })
+        try {
+            c.metti("p", "a.txt", 1, null, "autopilota", "a1", "Sito") {
+                object : java.io.InputStream() { override fun read(): Int = throw java.io.IOException("letto male") }
+            }
+        } catch (_: java.io.IOException) { }
+        assertTrue(c.voci.value.isEmpty())
+        assertEquals(0, java.io.File(dir, "in-uscita").listFiles()?.size ?: 0)
+    }
+
     @Test fun rifiutoVeroNonRiparte() = runBlocking {
         val dir = Files.createTempDirectory("codafile").toFile()
         var n = 0

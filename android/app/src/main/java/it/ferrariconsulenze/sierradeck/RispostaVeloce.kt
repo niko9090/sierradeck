@@ -47,6 +47,8 @@ class RispostaVeloce : BroadcastReceiver() {
             domanda = intent.getStringExtra(EXTRA_TESTO_DOMANDA) ?: "",
             creata = System.currentTimeMillis()
         )
+        // La riga «Hai risposto» è sua: il giro di prima non deve toglierla quando la domanda sparisce dall'elenco.
+        it.ferrariconsulenze.sierradeck.sottofondo.Ronda.rispostaDallaNotifica(avviso)
         // Subito un riscontro: una notifica identica dopo il tocco sembra non aver sentito.
         Avvisatore.inInvio(app, invio.avviso, invio.titolo, invio.testo)
         val attesa = goAsync()
