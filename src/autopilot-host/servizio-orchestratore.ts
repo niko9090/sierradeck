@@ -93,6 +93,8 @@ import { causaDelFallimento, causaDelMotivo, chiaveCompito, COMPITI_PER_PAUSA_PC
 
 /** 0.89.4: dopo quanto il lavoro fermo sveglia l'autopilota. 11/11: senza un tetto di spinte (`lavoro-fermo.ts`). */
 export const FERMO_DOPO_MS = 3 * 60_000
+/** k-178j: una chat adottata muta da tanto non conta come «al lavoro» per il controllo del lavoro fermo. */
+export const CHAT_MUTA_NON_OCCUPA_MS = 60 * 60_000
 /**
  * k-178a: il riavvio dell'autopilota morto con lavoro da portare avanti. Il primo è subito (primo giro della guardia),
  * poi 1, 2, 4 minuti fino a `RISVEGLIO_MAX_MS` se non cambia niente; dopo `RISVEGLI_VELOCI` risvegli uguali, ogni `RISVEGLIO_LENTO_MS`.
@@ -2502,16 +2504,24 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     (imp(ws).sveglie ?? []).filter((s) => Date.parse(s.il) > ora).sort((p, q) => p.il.localeCompare(q.il))[0]
   /** k-178h: in pausa per ordine di Nicholas: nessuna spinta, sveglia o rilancio finché non riscrive. */
   const inPausa = (ws: string): boolean => imp(ws).pausa !== undefined
+  /**
+   * k-178j: una chat adottata che risulta «al lavoro» ma è muta da ore (nessun segnale, nessun rapporto) non
+   * tiene «occupato» il workspace: altrimenti la spinta e il rilancio tacciono per sempre dietro a una chat morta.
+   */
+  const chatAdottataAttiva = (a: Autopilota, c: ChatGovernata, ora: number): boolean => {
+    if (c.stato !== 'lavoro') return false
+    const ultimo = x.ultimoSegnale(a.id, c.id) ?? (c.dal !== undefined ? Date.parse(c.dal) : undefined)
+    return ultimo === undefined || Number.isNaN(ultimo) || ora - ultimo < CHAT_MUTA_NON_OCCUPA_MS
+  }
   const spingiFermi = (ora: number): void => {
     for (const a of unici()) {
       const ws = wsDi(a)
       if (inPausa(ws)) { fermiVisti.delete(ws); continue }
-      // 0.102.1: con una sveglia futura il fermo è voluto («riprendo stasera, come mi hai chiesto»):
-      // prima lo si svegliava lo stesso ogni ora, ~2,5 $ a turno per sentirsi dire «aspetto la sveglia».
-      if (prossimaSveglia(ws, ora) !== undefined) { fermiVisti.delete(ws); continue }
+      // k-178j: la sveglia (anche lontana) non spegne la spinta: vale solo per ciò che aspetta un orario,
+      // e tutto quello che `lavoroFermo` elenca (compiti pronti, orfani, da unire) non aspetta un orario.
       const attesa = orchestratore.inAttesa(ws)
       const occupato = orchestratore.inVolo(ws) || attesa.messaggi > 0 || attesa.eventi > 0
-        || alLavoroNel(ws) > 0 || specialistiVivi(a).some((c) => c.stato === 'lavoro') || unioniVive(ws, ora).length > 0
+        || alLavoroNel(ws) > 0 || specialistiVivi(a).some((c) => chatAdottataAttiva(a, c, ora)) || unioniVive(ws, ora).length > 0
       const vivi = new Set(subagenti(ws).filter((y) => y.stato === 'avviato' || y.stato === 'lavoro').map((y) => y.id))
       const ferme = (filaUnioni.get(ws) ?? []).filter((l) => unioneFerma(l, ora) && l.compito !== undefined)
       const f = lavoroFermo({ coda: coda(ws), piano: x.orchestratori.piano(ws), alLavoro: vivi, inUnione: new Set(unioniVive(ws, ora).flatMap((l) => (l.compito !== undefined ? [l.compito] : []))), unioniFerme: new Map(ferme.map((l) => [l.compito!, l.sporcaDal !== undefined ? 'ferma per file non salvati nella cartella principale (la domanda a Nicholas la fa il programma)' : 'riprova da sola fra poco'])) })
@@ -2884,10 +2894,10 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
    * (compiti pronti, orfani, da unire, richieste da pianificare o da chiudere). No con la coda vuota, o se
    * resta solo una decisione di Nicholas (o unioni ferme che il programma riprova da sé).
    */
-  const chatAdottateAlLavoro = (ws: string): number => specialistiVivi(unicoDi(ws)).filter((c) => c.stato === 'lavoro').length
+  const chatAdottateAlLavoro = (ws: string, ora: number = oraMs()): number => { const u = unicoDi(ws); return u === undefined ? 0 : specialistiVivi(u).filter((c) => chatAdottataAttiva(u, c, ora)).length }
   const lavoroDaPortareAvanti = (ws: string, ora: number = oraMs()): boolean => {
     if (!conLavoroAperto(ws) || inPausa(ws)) return false
-    if (alLavoroNel(ws) > 0 || unioniIn(ws) > 0 || chatAdottateAlLavoro(ws) > 0) return true
+    if (alLavoroNel(ws) > 0 || unioniIn(ws) > 0 || chatAdottateAlLavoro(ws, ora) > 0) return true
     return firmaLavoroPortabile(ws, ora) !== undefined
   }
   /** La firma di quello che si può muovere, `undefined` se non c'è niente (o aspetta solo unioni che il programma riprova da sé). */
@@ -2915,9 +2925,8 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       if (orchestratore.vivo(ws) || orchestratore.inVolo(ws)) continue
       const attesa = orchestratore.inAttesa(ws)
       if (attesa.messaggi > 0 || attesa.eventi > 0) continue
-      // Una pausa voluta (sveglia futura) o una quota finita: l'autopilota riparte quando deve, non lo si forza.
-      if (prossimaSveglia(ws, ora) !== undefined) continue
-      const firma = firmaLavoroPortabile(ws, ora) ?? `specialisti:${alLavoroNel(ws)}|adottate:${chatAdottateAlLavoro(ws)}|unioni:${unioniIn(ws)}`
+      // k-178j: la sveglia futura non ferma il rilancio: con lavoro portabile l'autopilota riparte subito.
+      const firma = firmaLavoroPortabile(ws, ora) ?? `specialisti:${alLavoroNel(ws)}|adottate:${chatAdottateAlLavoro(ws, ora)}|unioni:${unioniIn(ws)}`
       let v = risvegliVisti.get(ws)
       // Un risveglio di molte ore fa non conta: il conto riparte.
       if (v === undefined || v.firma !== firma || ora - v.ultima > 2 * 3_600_000) v = { firma, n: 0, ultima: -Infinity }
