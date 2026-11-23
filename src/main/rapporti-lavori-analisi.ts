@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
-import { WORKSPACE_GENERALE, ruoloDi, type LavoriWorkspace, type RapportoLavori } from '@shared/rapporto-lavori'
+import { UNIONE_LENTA_ATTESA_MS, UNIONE_LENTA_PROVA_MS, WORKSPACE_GENERALE, haIntoppi, ruoloDi, unioniLente, type LavoriWorkspace, type RapportoLavori } from '@shared/rapporto-lavori'
 import { testoRegistroRemoto, type RegistroWorkspaceVisto } from '@shared/registro-workspace'
 import { CARTELLA_RAPPORTI, leggiRapportiArrivati } from './rapporti-lavori'
 
@@ -20,9 +20,7 @@ import { CARTELLA_RAPPORTI, leggiRapportiArrivati } from './rapporti-lavori'
 
 /** Dopo l'ultimo arrivo si aspetta un po': i rapporti vicini vanno insieme. */
 export const QUIETE_RAPPORTI_MS = 10 * 60_000
-/** Una unione è «lenta» se in media, o al massimo, supera queste soglie. */
-export const UNIONE_LENTA_ATTESA_MS = 60_000
-export const UNIONE_LENTA_PROVA_MS = 5 * 60_000
+export { UNIONE_LENTA_ATTESA_MS, UNIONE_LENTA_PROVA_MS }
 export const NOME_ANALISI = 'Rapporti dei lavori'
 const FILE_STATO = '.analisi.json'
 
@@ -111,7 +109,7 @@ function righeWorkspace(s: Somma): string[] {
   const r: string[] = []
   const u = s.unioni
   if (u.prove > 0) {
-    const lenta = media(u.attesaMs, u.prove) > UNIONE_LENTA_ATTESA_MS || u.attesaMaxMs > UNIONE_LENTA_ATTESA_MS || media(u.provaMs, u.prove) > UNIONE_LENTA_PROVA_MS || u.provaMaxMs > UNIONE_LENTA_PROVA_MS
+    const lenta = unioniLente(u)
     r.push(`- unioni: ${u.prove} prove${lenta ? ' — **LENTE**' : ''} · attesa del turno media ${sec(media(u.attesaMs, u.prove))}, massima ${sec(u.attesaMaxMs)} · prova media ${sec(media(u.provaMs, u.prove))}, massima ${sec(u.provaMaxMs)} · scadute ${u.scadute}`)
   }
   if (u.nonPartite > 0) {
@@ -150,6 +148,12 @@ function sezione(titolo: string, ws: Record<string, Somma>): string[] {
     fuori.push(`${titolo} ${nome === WORKSPACE_GENERALE ? 'senza workspace (righe generali del programma)' : `workspace ${nome}`}`, '', ...righe, '')
   }
   return fuori
+}
+
+/** Lo stesso riassunto, ma con i soli workspace che hanno intoppi (i conti restano quelli). */
+export function soloIntoppi(r: RiassuntoLavori): RiassuntoLavori {
+  const filtra = (ws: Record<string, Somma>): Record<string, Somma> => Object.fromEntries(Object.entries(ws).filter(([, s]) => haIntoppi(s)))
+  return { ...r, pc: Object.fromEntries(Object.entries(r.pc).map(([pc, ws]) => [pc, filtra(ws)] as const).filter(([, ws]) => Object.keys(ws).length > 0)), totale: filtra(r.totale) }
 }
 
 /** Il riassunto per l'autopilota, in markdown: prima tutti i PC, poi ogni PC. */
@@ -235,10 +239,16 @@ export async function giroAnalisiRapporti(d: {
     // I rapporti vicini vanno insieme: si parte quando l'ultimo è arrivato da un po'.
     if (adesso - Date.parse(sommario.al) < (d.quieteMs ?? QUIETE_RAPPORTI_MS)) return undefined
     const ora = new Date(adesso).toISOString()
+    if (!Object.values(sommario.totale).some(haIntoppi)) {
+      // Nessun intoppo (anche dai PC vecchi che mandano sempre): niente richiesta, ma si va avanti come se fosse analizzato.
+      scriviJsonAtomico(join(radice, CARTELLA_RAPPORTI, FILE_STATO), { fino: sommario.al, riassunti: stato.riassunti }, 'rapporti-analisi')
+      d.log(`[rapporti] rapporti senza intoppi: nessuna analisi (${sommario.rapporti} ${sommario.rapporti === 1 ? 'rapporto' : 'rapporti'})`)
+      return undefined
+    }
     const id = d.nuovoId?.() ?? ora.replace(/[-:.TZ]/g, '').slice(0, 14)
     const file = join(radice, CARTELLA_RAPPORTI, `riassunto-${id}.md`)
     const remoti = d.registroRemoto !== undefined ? await registriDelleScadute(sommario, d.registroRemoto) : ''
-    writeFileSync(file, testoRiassunto(id, sommario) + remoti, 'utf8')
+    writeFileSync(file, testoRiassunto(id, soloIntoppi(sommario)) + remoti, 'utf8')
     await d.affida({ testo: richiestaAnalisi({ file, rapporti: sommario.rapporti }), cwd: radice })
     scriviJsonAtomico(join(radice, CARTELLA_RAPPORTI, FILE_STATO), { fino: sommario.al, riassunti: [...stato.riassunti, { id, il: ora, rapporti: sommario.rapporti }].slice(-50) }, 'rapporti-analisi')
     d.log(`[rapporti] riassunto ${id}: ${sommario.rapporti} rapporti affidati all'autopilota`)

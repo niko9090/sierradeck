@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest'
-import { riassumi, testoRiassunto } from '../../src/main/rapporti-lavori-analisi'
-import type { RapportoLavori } from '../../src/shared/rapporto-lavori'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { giroAnalisiRapporti, leggiStatoAnalisi, riassumi, testoRiassunto } from '../../src/main/rapporti-lavori-analisi'
+import { salvaRapportoArrivato } from '../../src/main/rapporti-lavori'
+import { lavoriVuoti, type LavoriWorkspace, type RapportoLavori } from '../../src/shared/rapporto-lavori'
 
 const nuovo = {
   unioni: { prove: 2, attesaMs: 1000, attesaMaxMs: 800, provaMs: 4000, provaMaxMs: 3000, scadute: 1, inFila: 1, motivi: { tempo: 1 } },
@@ -61,5 +65,45 @@ describe('riassunto dei rapporti dei lavori', () => {
   it('sezioni intere mancanti non rompono la somma', () => {
     const r = riassumi([rapporto('C', '2026-11-20T12:00:00.000Z', { criteri: { finiti: 1 } })])!
     expect(testoRiassunto('x', r)).not.toContain('NaN')
+  })
+})
+
+describe('giroAnalisiRapporti: solo se ci sono intoppi', () => {
+  let radice: string
+  beforeEach(() => { radice = mkdtempSync(join(tmpdir(), 'rapporti-intoppi-')) })
+  afterEach(() => { rmSync(radice, { recursive: true, force: true }) })
+  const deps = (richieste: string[], log: string[]) => ({
+    radice: () => radice,
+    adesso: () => Date.parse('2026-11-21T00:00:00.000Z'),
+    affida: async (p: { testo: string; cwd: string }) => { richieste.push(p.testo) },
+    log: (r: string) => { log.push(r) },
+    nuovoId: () => 'id1'
+  })
+  const metti = (r: RapportoLavori): void => { expect(salvaRapportoArrivato(radice, r).ok).toBe(true) }
+  const ws = (parte: Partial<LavoriWorkspace['criteri']>, rifiuti = 0): LavoriWorkspace => {
+    const v = lavoriVuoti()
+    return { ...v, criteri: { ...v.criteri, ...parte }, compiti: { ...v.compiti, rifiuti } }
+  }
+
+  it('senza intoppi: nessuna affida, stato avanzato, una riga di log', async () => {
+    metti(rapporto('A', '2026-11-20T10:00:00.000Z', ws({ finiti: 5, riusciti: 3, rossi: 2 })))
+    const richieste: string[] = []
+    const log: string[] = []
+    expect(await giroAnalisiRapporti(deps(richieste, log))).toBeUndefined()
+    expect(richieste).toEqual([])
+    expect(leggiStatoAnalisi(radice).fino).toBe('2026-11-20T10:00:00.000Z')
+    expect(log.join('\n')).toContain('rapporti senza intoppi: nessuna analisi')
+    // Il giro dopo non trova niente di nuovo.
+    expect(await giroAnalisiRapporti(deps(richieste, log))).toBeUndefined()
+  })
+
+  it('con un intoppo: affida, e il riassunto mostra solo i workspace con intoppi', async () => {
+    metti({ da: 'A', giorno: '2026-11-20', dal: '2026-11-19T00:00:00.000Z', al: '2026-11-20T10:00:00.000Z', workspace: { sereno: ws({ finiti: 2, riusciti: 2 }), guaio: ws({}, 1) } })
+    const richieste: string[] = []
+    const file = await giroAnalisiRapporti(deps(richieste, []))
+    expect(richieste).toHaveLength(1)
+    const md = readFileSync(file!, 'utf8')
+    expect(md).toContain('workspace guaio')
+    expect(md).not.toContain('workspace sereno')
   })
 })

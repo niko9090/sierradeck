@@ -60,6 +60,46 @@ export function eVuoto(l: LavoriWorkspace): boolean {
   return JSON.stringify(l) === JSON.stringify(lavoriVuoti())
 }
 
+/** Una unione è «lenta» se in media, o al massimo, supera queste soglie (un punto solo: analisi e intoppi). */
+export const UNIONE_LENTA_ATTESA_MS = 60_000
+export const UNIONE_LENTA_PROVA_MS = 5 * 60_000
+
+const numero = (x: unknown): number => (typeof x === 'number' && Number.isFinite(x) && x >= 0 ? x : 0)
+
+/** Le unioni di prova di questo workspace sono lente (i campi che mancano valgono 0). */
+export function unioniLente(u: Partial<LavoriWorkspace['unioni']> | undefined): boolean {
+  const prove = numero(u?.prove)
+  if (prove <= 0) return false
+  const mediaAttesa = Math.round(numero(u?.attesaMs) / prove)
+  const mediaProva = Math.round(numero(u?.provaMs) / prove)
+  return mediaAttesa > UNIONE_LENTA_ATTESA_MS || numero(u?.attesaMaxMs) > UNIONE_LENTA_ATTESA_MS || mediaProva > UNIONE_LENTA_PROVA_MS || numero(u?.provaMaxMs) > UNIONE_LENTA_PROVA_MS
+}
+
+/** Un riavvio è normale se è un avvio con versione nota o un aggiornamento (lo dice il motivo scritto da `contaLavori`). */
+const riavvioNormale = (motivo: string): boolean => motivo.startsWith('avvio con la versione ') || motivo.startsWith('aggiornamento da ')
+
+/**
+ * k-int: c'è un intoppo da riferire? Unioni scadute, non partite o lente; criteri scaduti per tempo o
+ * rossi senza correzione; spinte sospese; limite del piano; lavoro fermo; permessi negati; fermate o
+ * rallentamenti del servizio; riavvii che non sono un avvio normale né un aggiornamento. NON sono
+ * intoppi: criteri rossi normali (si correggono da soli), non misurati, attesa del turno, compiti
+ * affidati, ruoli. Un campo che manca vale 0 (rapporti dei PC vecchi).
+ */
+export function haIntoppi(l: LavoriWorkspace): boolean {
+  const u: Partial<LavoriWorkspace['unioni']> = l.unioni ?? {}
+  const c: Partial<LavoriWorkspace['criteri']> = l.criteri ?? {}
+  const k: Partial<LavoriWorkspace['compiti']> = l.compiti ?? {}
+  const a: Partial<LavoriWorkspace['avanzamento']> = l.avanzamento ?? {}
+  const f: Partial<LavoriWorkspace['fermate']> = l.fermate ?? {}
+  if (numero(u.scadute) > 0 || numero(u.nonPartite) > 0 || unioniLente(u)) return true
+  if (numero(c.scaduti) > 0) return true
+  if (numero(a.criterioRosso) > 0 || numero(a.spinteSospese) > 0 || numero(a.limiteDelPiano) > 0 || numero(a.svegli) > 0) return true
+  if (numero(k.rifiuti) > 0) return true
+  if (numero(f.fermo) > 0) return true
+  const normali = Object.entries(f.motiviRiavvio ?? {}).filter(([m]) => riavvioNormale(m)).reduce((s, [, n]) => s + numero(n), 0)
+  return numero(f.riavvii) > normali
+}
+
 /** Un motivo corto, senza percorsi né numeri che cambiano a ogni riga. */
 export function motivoBreve(testo: string): string {
   return testo

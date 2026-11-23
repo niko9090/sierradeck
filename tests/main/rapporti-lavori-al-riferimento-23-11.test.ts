@@ -103,10 +103,11 @@ describe('rapporti dei lavori: invio e salvataggio con cartelle vere', () => {
     expect((await giro(cartella, { adesso: adesso + INTERVALLO_RAPPORTO_MS + 1, manda })).ok).toBe(false)
     expect(inviati).toHaveLength(1)
     // Righe nuove: parte solo il nuovo.
-    writeFileSync(join(cartella, 'sierradeck-2026-11-23.log'), [...LOG, riga(T(70), '[criterio] finito con 0 in 5 s: x')].join('\n'))
+    writeFileSync(join(cartella, 'sierradeck-2026-11-23.log'), [...LOG, riga(T(70), '[criterio] finito con 0 in 5 s: x'), riga(T(71), '[orchestratore] ws-nuovo — permesso negato dal programma: rete')].join('\n'))
     await giro(cartella, { adesso: adesso + 2 * INTERVALLO_RAPPORTO_MS, manda })
     expect(inviati).toHaveLength(2)
     expect(inviati[1]!.workspace.generale!.criteri.finiti).toBe(1)
+    expect(inviati[1]!.workspace['ws-nuovo']!.compiti.rifiuti).toBe(1)
     expect(inviati[1]!.workspace.generale!.unioni.prove).toBe(0)
   })
 
@@ -149,6 +150,36 @@ describe('rapporti dei lavori: invio e salvataggio con cartelle vere', () => {
     let chiamato = false
     const qui = await mandaRapporto({ ...base, pcRiferimento: 'io', io: { id: 'io', nome: 'io' }, chiama: async () => { chiamato = true } })
     expect(qui.ok).toBe(true); expect(chiamato).toBe(false)
+  })
+})
+
+describe('invio solo con intoppi', () => {
+  let dati: string
+  beforeEach(() => { dati = mkdtempSync(join(tmpdir(), 'rapporti-sen-')) })
+  afterEach(() => { rmSync(dati, { recursive: true, force: true }) })
+  const lancia = (righe: string[], manda: (r: RapportoLavori) => Promise<{ ok: boolean; messaggio: string }>) => {
+    const cartella = join(dati, 'log')
+    mkdirSync(cartella, { recursive: true })
+    writeFileSync(join(cartella, 'sierradeck-2026-11-23.log'), righe.join('\n'))
+    let stato: StatoRapporto | undefined = { fino: T(-5) }
+    return giroRapportoLavori({
+      righe: (g) => righeDeiRegistri(cartella, g),
+      stato: { leggi: () => stato, scrivi: (s) => { stato = s } },
+      pcRiferimento: () => 'pc-fisso', adesso: () => Date.parse(T(60)), da: () => 'PC-prova', versione: '1.0.0', manda, log: () => {}
+    }).then((e) => ({ e, stato }))
+  }
+  it('solo criteri verdi e rossi normali: non manda e il punto «fino» avanza', async () => {
+    let mandati = 0
+    const { e, stato } = await lancia([riga(T(1), '[criterio] finito con 0 in 5 s: a'), riga(T(2), '[criterio] finito con 1 in 5 s: b')], async () => { mandati += 1; return { ok: true, messaggio: 'ok' } })
+    expect(mandati).toBe(0)
+    expect(e.ok).toBe(true)
+    expect(stato?.fino).toBe(T(2))
+  })
+  it('con un intoppo manda', async () => {
+    let mandati = 0
+    const { stato } = await lancia([riga(T(1), '[criterio] finito con 0 in 5 s: a'), riga(T(2), '[orchestratore] ws-uno — permesso negato dal programma: rete')], async () => { mandati += 1; return { ok: true, messaggio: 'ok' } })
+    expect(mandati).toBe(1)
+    expect(stato?.fino).toBe(T(2))
   })
 })
 

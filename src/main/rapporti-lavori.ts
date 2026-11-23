@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { TEMPO_MASSIMO_INVIO_MS, dopoFallimento, mandaConTempoMassimo, quantoAspettare, type AttesaInvio } from '@shared/attesa-invio'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 import { cartellaMittente } from '@shared/storico-errori'
-import { BYTE_RAPPORTO, contaLavori, eVuoto, idRapporto, rapportoPerLInvio, type RapportoLavori } from '@shared/rapporto-lavori'
+import { BYTE_RAPPORTO, contaLavori, eVuoto, haIntoppi, idRapporto, rapportoPerLInvio, type RapportoLavori } from '@shared/rapporto-lavori'
 
 /**
  * I rapporti dei lavori verso il PC di riferimento (k-193a). Stesso canale e
@@ -149,6 +149,11 @@ export async function giroRapportoLavori(d: {
     // Righe nuove ma nessuna che conta: si va avanti da lì, senza mandare niente.
     if (c.ultima !== undefined) d.stato.scrivi({ ...stato, fino: c.ultima })
     return { ok: false, messaggio: 'Non c’è niente di nuovo da riferire.' }
+  }
+  if (!Object.values(c.workspace).some(haIntoppi)) {
+    // Nessun intoppo: il rapporto non si manda (per gli errori ci sono i log); si va avanti da lì così non torna dopo.
+    d.stato.scrivi({ ...stato, fino: c.ultima })
+    return { ok: true, messaggio: 'Nessun intoppo da riferire: rapporto non mandato.' }
   }
   const rapporto: RapportoLavori = {
     da: d.da(),
