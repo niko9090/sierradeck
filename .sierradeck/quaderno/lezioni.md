@@ -102,6 +102,7 @@
 - togliere un flag dai comandi dei criteri (es. --rerun di gradle) cambia i comandi attesi in criteri-prova.test.ts: aggiornarli insieme. _(2026-11-23)_
 - Nei test della guardia con orologio finto servono 3 min di storia più 1 min di rilascio prima che un PC piccolo stabile risulti libero: misurare ogni 5 s per oltre 4 min. _(2026-11-23)_
 - nei test del server con più workspace, l'ordine di `processi[]` non segue i workspace: riconoscere ogni processo dal `ws=` nel suo `--mcp-config`. Le cartelle (cwd) devono esistere. _(2026-11-23)_
+- Il turno aperto da un messaggio di Nicholas contiene già «Il lavoro è fermo» nel riassunto: per contare le spinte vere nei test serve un riferimento preso dopo il messaggio. _(2026-11-23)_
 
 ## worktree
 
@@ -224,6 +225,8 @@
 - Mai criteri «versione === X» per un compito di versione: il cancello li rimisura e blocca ogni versione dopo. Usare «almeno X» (confronto numerico >=) o `gh release view vX`. _(2026-11-15)_
 - un criterio con versione fissa passa sul principale ma cade su ogni ramo che alza la versione: va escluso dalla prova prima/dopo (`fissaLaVersione`), non rimisurato. _(2026-11-15)_
 - Mai criterio `grep -q '"version": "X"' package.json`: fissaLaVersione ≤0.109.1 non lo riconosce e il cancello respinge ogni bump dopo (0.109.2). Usare `git rev-parse vX`. _(2026-11-17)_
+- dimenticaIRossi azzera ogni esito non passato: ogni nuova memoria con esiti «non misurati» va esclusa per prefisso di chiave, o muore a ogni unione _(2026-11-23)_
+- EsitoVerifica non conserva il codice di uscita (126/127): il riconoscimento «programma assente» si basa solo sul testo dell'uscita _(2026-11-23)_
 
 ## processo
 
@@ -466,18 +469,14 @@
 
 ## voce
 
-- Il `tar` di Git Bash non apre gli zip: serve `%SystemRoot%\System32\tar.exe` (bsdtar), che accetta anche i nomi con `*` per estrarre solo alcuni file. _(2026-11-13)_
 - La conversazione a voce era solo sul PC (voce-autopilota.ts, parlato.ts, speechSynthesis): nell'app c'era solo la dettatura. Nell'app gli id delle frasi vengono dal contenuto, non dall'indice. _(2026-11-14)_
 
 ## permessi
 
-- `gh` è negato sia da Bash sia da PowerShell in questa copia: la verifica «release già pubblicata?» non si può fare da qui, va fatta dallo specialista «rilascio». _(2026-11-13)_
 - nella CLI un divieto (--disallowedTools) vince sempre su --allowedTools: per aprire una forma di `gh` va stretto il divieto, non aggiunta un'eccezione _(2026-11-23)_
 
 ## rilascio
 
-- il tag v0.106.3 è su 43744ae9 (ramo worktree), non su main: dopo l'unione verificare che punti al commit giusto prima di caricare i file e rendere Latest. _(2026-11-13)_
-- Se la release esiste già pubblicata (anche pre-release), electron-builder non carica nulla: allega-aiutante dice «mancano …». Caricare a mano con gh release upload --clobber. _(2026-11-13)_
 - In dist/ gli installer hanno gli spazi («SierraDeck Setup X.exe»), ma latest.yml cita i trattini: copiare con i nomi «SierraDeck-Setup-X.exe» prima di caricare a mano. _(2026-11-13)_
 - La release fissa dell'app si trova col tag `app-android`, non col nome: `gh release view "App Android"` dice «not found». Prima di alzare la versione guardare `gh release view app-android`. _(2026-11-14)_
 - Il controllo del programma rifiuta `git merge` anche con compito esplicito dell'autopilota: l'unione va fatta dall'autopilota stesso, lo specialista del rilascio parte da main già unito. _(2026-11-14)_
@@ -931,3 +930,7 @@
 ## note
 
 - `novita.ts` è CRLF: pulendo le righe con sed restano apici e backslash nelle note. Usa `tr -d '\r'`, o meglio node, prima di `gh release edit`. _(2026-11-23)_
+
+## lavoro-fermo
+
+- `fermiVisti.spinte` si azzera a ogni cambio di firma, quindi vale già come conteggio delle spinte senza effetto. I test che si aspettavano spinte senza fine andavano adattati. _(2026-11-23)_
