@@ -100,6 +100,7 @@
 - lo stato mostra gli eventi tagliati a circa 200 caratteri: le parole che contano (numero scadenze, «non è un caso») vanno all'inizio della frase _(2026-11-23)_
 - un'attesa nuova nel servizio delle unioni (es. raccolta raffica) rompe i test che fanno partire il primo ramo da solo: ogni attesa va resa passabile dal server nei test. _(2026-11-23)_
 - togliere un flag dai comandi dei criteri (es. --rerun di gradle) cambia i comandi attesi in criteri-prova.test.ts: aggiornarli insieme. _(2026-11-23)_
+- Nei test della guardia con orologio finto servono 3 min di storia più 1 min di rilascio prima che un PC piccolo stabile risulti libero: misurare ogni 5 s per oltre 4 min. _(2026-11-23)_
 
 ## worktree
 
@@ -139,11 +140,6 @@
 
 ## release
 
-- Dopo un cherry-pick di una correzione nata con un'altra versione, cercare nel resto del repo (test, quaderno) il vecchio numero: va corretto anche lì, non solo in package.json e novita.ts. _(2026-11-13)_
-- `gh release create --target` vuole lo sha COMPLETO (o un ramo): con lo sha abbreviato dà «target_commitish invalid». Crea anche il tag sul remoto. _(2026-11-13)_
-- Con la release già creata `npm run pubblica` non carica exe, blockmap e latest.yml e `allega-aiutante.mjs` si ferma («mancano…»): caricarli a mano con `--clobber`, poi rilanciare `node scripts/allega… _(2026-11-13)_
-- `allega-aiutante.mjs` può caricare l'Aiutante anche se la release non è ancora Latest (avvisa solo «ultima: vX»): va bene, poi `gh release edit --prerelease=false --draft=false --latest`. _(2026-11-13)_
-- 0.107.1: la pre-release vuota fatta per sbloccare l'unione mette il tag sul commit del ramo, non sul main finale; tag lasciato lì (spostarlo è vietato), build da main: va bene. _(2026-11-13)_
 - `package-lock.json` resta a 0.107.0 mentre `package.json` è già a 0.107.x: i bump non lo aggiornano; la versione si ripete solo in `package.json` e `src/shared/novita.ts`. _(2026-11-14)_
 - `noteDi` in `scripts/note-novita.mjs` restituisce un array di righe, non una stringa: per le note della release unirle con "- " e scrivere in UTF-8. _(2026-11-14)_
 - la versione sta in package.json e due volte in package-lock.json (radice e "packages.\"\""); le novità in src/shared/novita.ts, voce in cima. _(2026-11-15)_
@@ -285,6 +281,7 @@
 - in `guardia` `riavviaSeMorto` va dopo `suonaSveglie`: se prima, il turno di ripresa è in volo e la sveglia aspetta in coda dietro di lui. _(2026-11-22)_
 - `comandiGit` ha il flag `i`: `-c <x>` e `-C "<percorso con spazi>"` si confondono se l'alternativa `-c` viene prima. Tenere `-C` prima. _(2026-11-22)_
 - `giudicaGuardiaOrchestratore` può testarsi con tool_name 'Agent' e contesto minimo { radice, specialistiSulPc, tettoPc, dipendenze }. _(2026-11-23)_
+- Su un PC piccolo il carico di fondo (minimo su 10 min) è il «non suo»: le soglie salgono sopra quello, tetti in scala; un PC grande (>=8 CPU e >=12 GB) resta com'era. _(2026-11-23)_
 
 ## renderer
 
@@ -561,6 +558,7 @@
 - `origin/main` può restare indietro di molti commit (qui 19): il bump a 0.116.0 era solo locale, quindi il push di main fa parte della procedura. _(2026-11-23)_
 - Un'unione lanciata dall'autopilota mentre gira `npm run pubblica` (circa 10 minuti) cambia l'albero a metà build: fermare la fila delle unioni prima di cominciare. _(2026-11-23)_
 - `npm run pubblica` può essere interrotto con exit 143 nel pacchetto dell'Aiutante: controllare gli asset e `.git/MERGE_HEAD` prima di rilanciarlo. _(2026-11-23)_
+- costruire la release in un git worktree fermo sul tag (junction node_modules): le unioni del programma nella cartella principale cambiano l'albero a metà di npm run pubblica _(2026-11-23)_
 
 ## build
 
@@ -759,6 +757,7 @@
 ## rotte
 
 - `/api/pc` esclude i PC da rimuovere; l'app Android può contare su `stato`, `frase` e `giorniAllaRimozione`. _(2026-11-19)_
+- `VistaOrchestratore` non ha l'elenco dei compiti, solo i conteggi: per esporre il piano serve `/orchestratore/piano` (pianoCompiti) nel servizio degli autopiloti. _(2026-11-23)_
 
 ## novita
 
@@ -921,6 +920,7 @@
 
 - i riassunti (`riassunto-*.md`) e `.analisi.json` stanno nella cartella dei rapporti arrivati: `leggiRapportiArrivati` li salta perché non sono cartelle di mittente. _(2026-11-23)_
 - il segno `[ws: NOME]` si toglie dalla riga prima dei parser; le righe senza segno restano «generale». _(2026-11-23)_
+- nei rapporti dei lavori il PC è il nome da mostrare (`da`), non il pcId: per richiamare quel PC si risolve il nome con `altriPcGlobale`. _(2026-11-23)_
 
 ## pc-glos
 
