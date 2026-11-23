@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.114.3',
+    righe: [
+      '**Specialisti bloccati dai filtri di Claude:** se i filtri di sicurezza di Claude bloccano uno specialista, il programma lo dice chiaramente invece di «il servizio non ha risposto» e non mette in pausa il PC. Un lavoro fallito su un altro PC compare una sola volta negli errori (Aiutante 1.3.1).',
+    ],
+  },
+  {
     versione: '0.114.2',
     righe: [
       '**Aggiornamenti:** il tasto «Cerca aggiornamenti» c\'è sempre (tranne mentre cerca, scarica o installa). Con una versione già scaricata il programma continua a cercare: se ne esce una più nuova, scarica quella e «Installa» mette la più recente.',

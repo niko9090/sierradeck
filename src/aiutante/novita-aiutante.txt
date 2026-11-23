@@ -3,6 +3,8 @@ cima). Dal 13/11 l'Aiutante esce allegato alla release del programma
 completo (scripts/allega-aiutante.mjs, dentro npm run pubblica).
 Ogni riga fra apici singoli; dentro, un apice si scrive \'.
 
+versione: '1.3.1'
+  'Se i filtri di sicurezza di Claude bloccano un lavoro, l\'Aiutante lo dice chiaramente invece di «il servizio non ha risposto», e non si mette in pausa. Un lavoro fallito compare una sola volta fra gli errori.'
 versione: '1.3.0'
   'Le chiavi di rete (credenziali) arrivano anche ai lavori eseguiti dal Servizio dell\'Aiutante, solo per i lavori affidati e solo quando servono. Il Servizio può anche fare azioni su un altro PC su richiesta dell\'autopilota.'
   'L\'Aiutante non dice più «il Drive è scollegato» per un attimo di ritardo del portachiavi o per un giro storto: serve il segno vero, o due controlli di fila.'
