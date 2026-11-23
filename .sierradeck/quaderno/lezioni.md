@@ -330,10 +330,6 @@
 
 ## rete
 
-- «Aiuta la rete» rimanda lo stesso compito a un PC con l'accesso Claude scaduto («OAuth session expired»): fallisce in pochi secondi e al rilancio va di nuovo lì (13/11, DESKTOP-O2DITVE). _(2026-11-13)_
-- Se «Aiuta la rete» manda un compito a un PC che fallisce sempre, l'Agent lanciato con isolation: "worktree" resta su questo PC (13/11, k-152). _(2026-11-13)_
-- Correzione: isolation "worktree" NON tiene l'Agent su questo PC (k-154 è andato lo stesso a un Aiutante). Finché il servizio non ha la correzione di k-152, il PC scelto è a caso. _(2026-11-13)_
-- la cartella E:\Users\nikof\... della cartella principale non è raggiungibile da tutti i PC: le voci del quaderno su lotti d'errore vanno scritte anche senza i file originali. _(2026-11-13)_
 - un autopilota letto da un altro PC con altra versione può non avere campi array: leggerli sempre con `Array.isArray(...)`. _(2026-11-13)_
 - pauseAiuti (src/shared/aiuto-esito.ts) esclude un PC dopo un solo fallimento per accesso; il fallimento in sé è il segnale per l'utente, non un difetto. _(2026-11-14)_
 - Se un PC è raggiunto da tutti ma non raggiunge nessuno (anche la posta fa `fetch failed`), la causa è la sua rete in uscita o Tailscale, non gli indirizzi pubblicati. _(2026-11-15)_
@@ -556,6 +552,9 @@
 - Un'unione lanciata dall'autopilota mentre gira `npm run pubblica` (circa 10 minuti) cambia l'albero a metà build: fermare la fila delle unioni prima di cominciare. _(2026-11-23)_
 - `npm run pubblica` può essere interrotto con exit 143 nel pacchetto dell'Aiutante: controllare gli asset e `.git/MERGE_HEAD` prima di rilanciarlo. _(2026-11-23)_
 - costruire la release in un git worktree fermo sul tag (junction node_modules): le unioni del programma nella cartella principale cambiano l'albero a metà di npm run pubblica _(2026-11-23)_
+- `controlla-pacchetto --prima` rifiuta node_modules come junction: per costruire in una copia ferma sul tag serve `npm ci` nella copia, non `mklink /J`. _(2026-11-23)_
+- `npm run pubblica` intero supera i 10 minuti (prove 6 min): se le prove sono già passate sul tag, lancia i passi uno per uno, nello stesso ordine. _(2026-11-23)_
+- In questa copia `git fetch` fallisce (origin è un bundle sparito) e `gh` non c'è: il controllo delle release va fatto dalla cartella principale. _(2026-11-23)_
 
 ## build
 
@@ -931,3 +930,7 @@
 ## turni
 
 - `turni.pesante` ora è rientrante (AsyncLocalStorage): chi tiene il turno e chiama `conTurni` sulla stessa istanza non si blocca. Un pesante dentro l'unione della stessa cartella invece sì. _(2026-11-23)_
+
+## note
+
+- `novita.ts` è CRLF: pulendo le righe con sed restano apici e backslash nelle note. Usa `tr -d '\r'`, o meglio node, prima di `gh release edit`. _(2026-11-23)_
