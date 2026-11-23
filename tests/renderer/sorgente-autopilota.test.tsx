@@ -69,14 +69,15 @@ describe('la sorgente di un altro PC', () => {
 
 describe('le schermate sono le stesse', () => {
   const app = readFileSync('src/renderer/App.tsx', 'utf8')
-  it('il workspace di un altro PC usa ChatAutopilota e ChatSpecialisti, non più componenti suoi', () => {
+  it('il workspace di un altro PC usa ChatAutopilota e il pannello degli agenti, non più componenti suoi', () => {
     expect(app).not.toContain('<AutopilotaRemoto')
     expect(app).toContain('<FornisciSorgente value={sorgente}>')
-    expect(app).toMatch(/<FornisciSorgente value=\{sorgente\}><ChatSpecialisti/)
+    // 23/11: a destra c'è il pannello degli agenti (r-176), non più le chat degli specialisti.
+    expect(app).toMatch(/<FornisciSorgente value=\{sorgente\}>\s*<aside className="agenti-colonna"[^>]*>\s*<PannelloAgenti /)
     expect(app).toContain('Workspace remoto · su {pcNome}')
   })
   it('i componenti leggono dalla sorgente, non da window.gestore', () => {
-    for (const f of ['TestaOrchestratore', 'ChatSpecialisti', 'CodaWorkspace', 'MenuSpecialisti']) {
+    for (const f of ['TestaOrchestratore', 'ChatSpecialisti', 'CodaWorkspace', 'MenuSpecialisti', 'PannelloAgenti']) {
       const src = readFileSync(`src/renderer/components/${f}.tsx`, 'utf8')
       expect(src, f).toContain('useSorgente()')
       expect(src, f).not.toMatch(/window\.gestore\.autopilota\.(orchestratore|coda|specialista|attesaSpecialisti|prioritaAttesa|suSpecialistiCambiati)\(/)

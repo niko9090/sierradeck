@@ -1,6 +1,7 @@
 import type { VistaAttesa } from '@shared/attesa-specialisti'
 import type { EsitoUnione, StatoDopoLavoro } from '@shared/dati-pannello-agenti'
 import { daQuanto, nomeWorkspace } from '@shared/attesa-vista'
+import { chiaveWorkspace } from '@shared/coda-richieste'
 
 /**
  * **Il pannello degli agenti** (k-176a): la parte pura, senza DOM. Filtri,
@@ -140,6 +141,199 @@ export function dopoFinito(vista: VistaAttesa, riferimenti: readonly string[]): 
     .map((d) => ({ id: d.id, titolo: d.titolo, durata: testoDurata(d.durataMs), stato: d.stato, parole: STATI_DOPO[d.stato].parole, colore: STATI_DOPO[d.stato].colore }))
 }
 
+/* ───────── 23/11: il pannello a destra, completo (richieste r-174, r-176, r-177) ───────── */
+
+/** I modi in cui un workspace si chiama (chiave, cartella): per filtrare la lista dell'autopilota davanti. */
+export function riferimentiWorkspace(workspace: string, a?: { workspace?: string | undefined; cwd?: string | undefined }): string[] {
+  const r = [workspace]
+  if (a !== undefined) r.push(chiaveWorkspace(a), a.cwd ?? '', a.workspace ?? '')
+  return r.filter((x) => x.trim() !== '')
+}
+
+/** Lo stato di un agente: un colore fisso per ognuno, sempre lo stesso in tutto il pannello. */
+export type StatoAgente = 'lavora' | 'invio' | 'in-prova' | 'in-fila' | 'rimandato' | 'finito'
+export type ColoreAgente = 'verde' | 'viola' | 'blu' | 'ambra' | 'rosso' | 'grigio'
+
+export const STATI_AGENTE: Record<StatoAgente, { parole: string; colore: ColoreAgente; spiega: string }> = {
+  lavora: { parole: 'al lavoro', colore: 'verde', spiega: 'sta lavorando adesso' },
+  invio: { parole: 'invio dati - fine lavori', colore: 'viola', spiega: 'ha finito su un altro PC e sta rimandando qui il suo lavoro' },
+  'in-prova': { parole: 'in prova / unione', colore: 'blu', spiega: 'ha finito: il programma prova il suo lavoro e lo unisce' },
+  'in-fila': { parole: 'in fila', colore: 'ambra', spiega: 'aspetta un posto o il suo turno per l’unione' },
+  rimandato: { parole: 'rimandato indietro', colore: 'rosso', spiega: 'il criterio è rosso o c’è un conflitto: il lavoro torna indietro' },
+  finito: { parole: 'finito', colore: 'grigio', spiega: 'ha finito e il suo lavoro è unito' }
+}
+const ORDINE_STATI: StatoAgente[] = ['lavora', 'invio', 'in-prova', 'in-fila', 'rimandato', 'finito']
+
+/** La frase quando nessuno lavora: il pannello non sparisce mai. */
+export const FRASE_NESSUNO = 'Nessun agente al lavoro adesso.'
+/** Quanti agenti «finito» (già uniti) restano in vista. */
+export const FINITI_VISIBILI = 3
+
+export type SchedaAgente = {
+  id: string
+  stato: StatoAgente
+  parole: string
+  colore: ColoreAgente
+  /** Il ruolo (tipo di specialista), se si sa. */
+  ruolo: string
+  compito?: string
+  titolo: string
+  /** Dove gira, in parole («questo PC», «su PC-DUE», «qui, per PC-TRE»); vuoto se non si sa ancora. */
+  pc: string
+  /** Il nome per raggruppare il consumo: «questo PC» o il nome dell'altro PC. */
+  pcNome: string
+  durata: string
+  token: number
+  file: string[]
+  fileAltri: number
+  adesso: string
+  /** Una riga in più: perché aspetta, o a che punto è. */
+  nota: string
+  puoFermare: boolean
+  fermaRichiesta: boolean
+}
+
+const PAROLE_FASE = { 'in-arrivo': 'in arrivo', 'in-preparazione': 'in preparazione' } as const
+
+/**
+ * Tutti gli agenti del workspace, con uno stato e un colore: chi lavora, chi ha finito e
+ * rimanda i dati, chi è in prova o in unione, chi è in fila, chi è stato rimandato indietro
+ * e i finiti da poco. Ordinati per stato. Le chat compaiono come agenti solo se lavorano
+ * davvero (o se `chatAperte` le tiene).
+ */
+export function schedeAgenti(vista: VistaAttesa, riferimenti: readonly string[], adesso: number, chatAperte?: ReadonlySet<string>): SchedaAgente[] {
+  const fuori: SchedaAgente[] = []
+  for (const v of vista.alLavoro) {
+    if (!delWorkspace(v.workspace, riferimenti)) continue
+    if (v.chat === true && chatAperte !== undefined && !chatAperte.has(v.id)) continue
+    const inFase = v.fase !== undefined
+    const invio = v.pannello?.invio === 'invio'
+    const stato: StatoAgente = inFase ? 'in-fila' : invio ? 'invio' : 'lavora'
+    const altro = v.suPc ?? v.pannello?.pc.nome
+    fuori.push({
+      id: v.id,
+      stato,
+      parole: inFase ? PAROLE_FASE[v.fase!] : STATI_AGENTE[stato].parole,
+      colore: inFase ? 'ambra' : STATI_AGENTE[stato].colore,
+      ruolo: v.tipo,
+      ...(v.compito !== undefined ? { compito: v.compito } : {}),
+      titolo: (v.titolo ?? v.pannello?.azione.titolo ?? v.descrizione).trim(),
+      pc: testoPc(v),
+      pcNome: altro !== undefined && altro !== '' ? altro : 'questo PC',
+      durata: v.pannello?.durataMs !== undefined ? testoDurata(v.pannello.durataMs) : daQuanto(v.dal, adesso),
+      token: v.pannello?.token?.totale ?? 0,
+      file: v.pannello?.file ?? [],
+      fileAltri: v.pannello?.fileAltri ?? 0,
+      adesso: (v.pannello?.azione.ultima ?? v.cosaFa ?? '').trim(),
+      nota: invio ? 'Il ramo sta tornando qui.' : '',
+      puoFermare: !inFase && v.chat !== true && v.perPc === undefined && v.fermaRichiesta !== true,
+      fermaRichiesta: v.fermaRichiesta === true
+    })
+  }
+  for (const f of vista.inFila) {
+    if (!delWorkspace(f.workspace, riferimenti)) continue
+    const nota = f.perUnione !== undefined && f.perUnione.length > 0
+      ? `Aspetta l’unione di ${f.perUnione.join(', ')}.`
+      : f.prenotata ? 'Il posto è suo: sta per partire.' : f.parcheggiata === true ? 'Riparte dal suo ramo.' : 'Aspetta un posto libero.'
+    fuori.push({
+      id: f.id,
+      stato: 'in-fila',
+      parole: STATI_AGENTE['in-fila'].parole,
+      colore: 'ambra',
+      ruolo: f.tipo,
+      ...(f.compito !== undefined ? { compito: f.compito } : {}),
+      titolo: (f.titolo ?? f.descrizione).trim(),
+      pc: '',
+      pcNome: 'questo PC',
+      durata: daQuanto(f.dal, adesso),
+      token: 0,
+      file: [],
+      fileAltri: 0,
+      adesso: '',
+      nota,
+      puoFermare: false,
+      fermaRichiesta: false
+    })
+  }
+  const finiti: SchedaAgente[] = []
+  for (const d of vista.dopoLavoro ?? []) {
+    if (!delWorkspace(d.workspace, riferimenti)) continue
+    const stato: StatoAgente = d.stato === 'in-unione' ? 'in-prova' : d.stato === 'in-fila' ? 'in-fila' : d.stato === 'unito' ? 'finito' : 'rimandato'
+    const parole = d.stato === 'in-fila' ? 'in fila per l’unione' : d.stato === 'unito' ? 'finito e unito' : d.stato === 'criterio-rosso' ? 'rimandato: criterio rosso' : d.stato === 'conflitto' ? 'rimandato: conflitto' : STATI_AGENTE[stato].parole
+    const s: SchedaAgente = {
+      id: d.id, stato, parole, colore: STATI_AGENTE[stato].colore, ruolo: '', titolo: d.titolo.trim(),
+      pc: '', pcNome: 'questo PC', durata: testoDurata(d.durataMs), token: 0, file: [], fileAltri: 0, adesso: '', nota: '',
+      puoFermare: false, fermaRichiesta: false
+    }
+    if (stato === 'finito') { if (finiti.length < FINITI_VISIBILI) finiti.push(s) } else fuori.push(s)
+  }
+  fuori.push(...finiti)
+  return fuori
+    .map((s, i) => ({ s, i }))
+    .sort((a, b) => ORDINE_STATI.indexOf(a.s.stato) - ORDINE_STATI.indexOf(b.s.stato) || a.i - b.i)
+    .map(({ s }) => s)
+}
+
+/** Quanti agenti lavorano davvero (al lavoro o in invio dati). */
+export const contaAlLavoro = (schede: readonly SchedaAgente[]): number => schede.filter((s) => s.stato === 'lavora' || s.stato === 'invio').length
+
+/** Un numero di token in parole corte: «850», «12 mila», «1,2 mln». */
+export function testoToken(n: number): string {
+  const x = Number.isFinite(n) && n > 0 ? Math.round(n) : 0
+  const c = (v: number): string => (v < 10 ? v.toFixed(1).replace(/\.0$/u, '') : String(Math.round(v))).replace('.', ',')
+  if (x < 1000) return String(x)
+  if (x < 1_000_000) return `${c(x / 1000)} mila`
+  return `${c(x / 1_000_000)} mln`
+}
+
+/** I contatori dei token del workspace: totale e di oggi (la somma dei workspace scelti). */
+export function contatoriToken(vista: VistaAttesa, riferimenti: readonly string[]): { totali: number; oggi: number } {
+  let totali = 0
+  let oggi = 0
+  for (const [ws, t] of Object.entries(vista.pannelloTotali ?? {})) {
+    if (!delWorkspace(ws, riferimenti)) continue
+    totali += t.tokenTotali
+    oggi += t.tokenOggi
+  }
+  return { totali, oggi }
+}
+
+export type RigaPc = { pc: string; agenti: number; token: number }
+
+/** Il consumo per PC degli agenti che lavorano adesso: questo PC e gli altri, il maggiore prima. */
+export function consumoPerPc(schede: readonly SchedaAgente[]): RigaPc[] {
+  const per = new Map<string, RigaPc>()
+  for (const s of schede) {
+    if (s.stato !== 'lavora' && s.stato !== 'invio') continue
+    const r = per.get(s.pcNome) ?? { pc: s.pcNome, agenti: 0, token: 0 }
+    r.agenti += 1
+    r.token += s.token
+    per.set(s.pcNome, r)
+  }
+  return [...per.values()].sort((a, b) => b.token - a.token || b.agenti - a.agenti || a.pc.localeCompare(b.pc))
+}
+
+export const FILE_IN_MODIFICA_MAX = 12
+export type RigaFile = { file: string; chi: string[] }
+
+/** I file che gli agenti stanno modificando adesso, con chi li tocca (compito o ruolo). */
+export function fileInModifica(schede: readonly SchedaAgente[]): { righe: RigaFile[]; altri: number } {
+  const per = new Map<string, string[]>()
+  let extra = 0
+  for (const s of schede) {
+    if (s.stato !== 'lavora' && s.stato !== 'invio') continue
+    const chi = s.compito ?? s.ruolo
+    for (const f of s.file) {
+      const l = per.get(f) ?? []
+      if (!l.includes(chi)) l.push(chi)
+      per.set(f, l)
+    }
+    extra += s.fileAltri
+  }
+  const tutti = [...per.entries()].map(([file, chi]) => ({ file, chi }))
+  return { righe: tutti.slice(0, FILE_IN_MODIFICA_MAX), altri: Math.max(0, tutti.length - FILE_IN_MODIFICA_MAX) + extra }
+}
+
 /** Il nome corto del workspace, per chi ne guarda più d'uno. */
 export const nomeCorto = nomeWorkspace
 
@@ -148,7 +342,10 @@ export const TESTO_FERMA = { tasto: 'Ferma', domanda: 'Fermarlo? Il lavoro fatto
 
 /** Il «?» spiega tutto: nel pannello restano frasi corte. */
 export const SPIEGA_PANNELLO =
-  'Qui vedi solo gli agenti che lavorano adesso. Per ognuno: il ruolo, cosa deve fare, i file toccati, il PC su cui lavora, da quanto e l’ultima cosa fatta. «Ferma» lo interrompe: il lavoro già fatto non si cancella e il compito resta da fare. Una chat compare solo se è aperta a parte, non se è un’adottata ferma.'
+  'Ogni agente del workspace, con uno stato e sempre lo stesso colore: verde al lavoro, viola invio dati - fine lavori (un agente di un altro PC che rimanda il suo ramo), blu in prova / unione, ambra in fila, rosso rimandato indietro, grigio finito. Per ognuno: cosa fa, dove gira, da quanto e quanti token ha consumato. «Ferma» lo interrompe, con conferma: il lavoro già fatto non si cancella e il compito resta da fare. Le chat si aprono a parte, dalle linguette.'
+
+export const SPIEGA_TOKEN =
+  'I token sono il consumo dell’intelligenza artificiale: quelli di oggi e quelli di sempre per questo workspace, più quelli degli agenti che lavorano adesso, divisi per PC.'
 
 export const SPIEGA_UNIONI =
   'Quando uno specialista finisce, il programma prova il suo lavoro e lo unisce, una unione alla volta. In fila: quella in corso e le successive. Gli esiti recenti sono verdi se il criterio è passato, rossi se no: in quel caso il lavoro torna indietro.'

@@ -5084,7 +5084,31 @@ label.gc-voce { cursor: pointer; }
 .agenti { display: flex; flex-direction: column; gap: 14px; }
 .agenti__sezione { display: flex; flex-direction: column; gap: 6px; }
 .agenti__elenco { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.agenti__scheda { display: flex; flex-direction: column; gap: 4px; padding: 8px 12px; border: 1px solid var(--incisione); border-radius: var(--raggio); box-shadow: inset 3px 0 0 var(--verde); }
+.agenti__scheda { --st: var(--verde); display: flex; flex-direction: column; gap: 4px; padding: 8px 12px; border: 1px solid var(--incisione); border-radius: var(--raggio); box-shadow: inset 3px 0 0 var(--st); }
+/* Un colore fisso per stato (23/11): verde al lavoro, viola invio dati, blu in prova/unione, ambra in fila, rosso rimandato, grigio finito. */
+.agenti-st--verde { --st: var(--verde); }
+.agenti-st--viola { --st: #b48cf0; }
+.agenti-st--blu { --st: var(--blu); }
+.agenti-st--ambra { --st: var(--ambra); }
+.agenti-st--rosso { --st: var(--rosso); }
+.agenti-st--grigio { --st: var(--testo-quieto); }
+.agenti-testo--verde { color: var(--verde); }
+.agenti-testo--blu { color: var(--blu); }
+.agenti-testo--ambra { color: var(--ambra); }
+.agenti-testo--rosso { color: var(--rosso); }
+.agenti-sfondo--verde { background: var(--verde); }
+.agenti-sfondo--rosso { background: var(--rosso); }
+.agenti__pillola { color: var(--st); border: 1px solid var(--st); border-radius: 999px; padding: 0 8px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.agenti__cifre { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.agenti__cifra { display: flex; flex-direction: column; padding: 6px 8px; border: 1px solid var(--incisione); border-radius: var(--raggio); }
+.agenti__cifra b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.agenti__cifra span { color: var(--testo-quieto); font-size: 12px; }
+.agenti__token { font-variant-numeric: tabular-nums; }
+.agenti__nota { color: var(--testo-quieto); font-size: 12px; }
+.agenti__nomefile { font-family: var(--mono, monospace); font-size: 12px; }
+.agenti__nessuno { padding: 6px 2px; }
+.agenti-colonna { flex: 0 0 360px; min-width: 0; min-height: 0; overflow: auto; padding: 10px; border-left: 1px solid var(--bordo); background: var(--fondo); }
+.pan2-centro > .agenti { max-width: 760px; }
 .agenti__testa { display: flex; align-items: center; gap: 8px; }
 .agenti__ruolo { font-weight: 700; }
 .agenti__durata { color: var(--testo-quieto); font-size: 12px; font-variant-numeric: tabular-nums; }

@@ -36,10 +36,10 @@ describe('«Adesso» nella Panoramica, una volta sola', () => {
     expect(html).not.toContain('chat finita')
   })
 
-  it('la Panoramica le usa al posto di «Nessuna chat al lavoro», e la conversazione non le ripete', () => {
+  it('la conversazione non le ripete; la Panoramica con autopilota ha il pannello degli agenti (23/11), non queste righe', () => {
     const pan = readFileSync('src/renderer/components/WorkspacePanoramica.tsx', 'utf8')
-    expect(pan).toContain('<AdessoAutopilota autopilota={autopilota!} dentro />')
-    expect(pan).toContain('<AdessoAutopilota autopilota={autopilota} dentro soloFerme />')
+    expect(pan).not.toContain('<AdessoAutopilota')
+    expect(pan).toContain('<PannelloAgenti riferimenti=')
     const chatAp = readFileSync('src/renderer/components/ChatAutopilota.tsx', 'utf8')
     // 30/10: il Punto non c'è più; in testa c'è l'avanzamento del workspace.
     expect(chatAp).toContain('<TestaOrchestratore workspace={chiaveWorkspace(autopilota)}>')

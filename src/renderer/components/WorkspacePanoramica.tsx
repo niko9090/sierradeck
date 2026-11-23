@@ -11,9 +11,8 @@ import { RUOLI, type Ruolo } from '@shared/ruoli-agenti'
 import { attivitaDaSegnali } from '@shared/attivita-chat'
 import type { Segnale } from '@shared/segnali-chat'
 import { ChatAutopilota } from './ChatAutopilota'
-import { ChatSpecialisti } from './ChatSpecialisti'
-import { AdessoAutopilota } from './DalVivoAutopilota'
-import { adessoDi, AIUTO_ADESSO, type SegniDalVivo } from '@shared/adesso'
+import { PannelloAgenti } from './PannelloAgenti'
+import { riferimentiWorkspace } from '../pannello-agenti-vista'
 import { Aiuto } from './Aiuto'
 import { LegendaAttivita, SegnoAttivita } from './SegnoAttivita'
 import { coloreDi } from '@shared/colori-attivita'
@@ -223,10 +222,6 @@ export function CorpoPanoramica({ workspace, autopilota, dormiente, cwd, remoto,
   // Cosa fa adesso ogni chat al lavoro (0.79.0): dai segnali di Claude Code, riletti da soli.
   const segnali = useSegnaliDi(schede.filter((x) => x.stato === 'lavora' || x.stato === 'chiede').flatMap((x) => (x.sessione !== undefined && x.suPc === undefined ? [x.sessione] : [])))
   const { adesso, finite } = adessoEFinite(schede)
-  // 0.81.0: le chat dell'autopilota dai suoi dati, anche quelle mai comparse in
-  // una finestra (c-14 e c-15 il 20/10): senza, qui si leggeva «Nessuna chat al
-  // lavoro» mentre erano ferme da ore.
-  const righeAp = autopilota !== undefined ? adessoDi(autopilota as Autopilota & SegniDalVivo, ora).righe : []
   // Le chat che non lavorano: quelle del workspace (anche adottate) nella sezione «Chat»,
   // quelle dell'autopilota (specialisti, la sua chat) in «Finite: N ▸».
   const chat = finite.filter((s) => s.specialista !== true)
@@ -266,40 +261,33 @@ export function CorpoPanoramica({ workspace, autopilota, dormiente, cwd, remoto,
         classe="divisore--griglia"
       />
       <section className="pan2-centro" aria-label="Il lavoro del workspace">
-        {/* 0.90.0: le chat degli specialisti al lavoro, da guardare dal vivo. */}
-        {autopilota !== undefined ? <ChatSpecialisti workspace={workspace} /> : null}
-        <RiassuntoAlLavoro righe={riassuntoAlLavoro(autopilota, schede, ora, (sessione) => attivitaDaSegnali(segnali[sessione] ?? [], ora))} schede={schede} onApri={onApri} />
-        {/* 0.82.0: vuoto, «Adesso» ripeteva «Nessuna chat al lavoro» della riga sopra: non si mostra. */}
-        {adesso.length === 0 && (autopilota === undefined || righeAp.length === 0) ? null : (
-        <div className="pan2-sezione">
-          <div className="serigrafia con-aiuto" aria-live="polite">
-            Adesso · {adesso.length > 0 ? adesso.length : righeAp.length}
-            {righeAp.length > 0 ? <Aiuto di="il riquadro Adesso">{AIUTO_ADESSO}</Aiuto> : null}
-          </div>
-          {adesso.length === 0 ? (
-            <AdessoAutopilota autopilota={autopilota!} dentro />
-          ) : (
-            <>
-              <div className="pan2-adesso">
-                {adesso.map((s) => <SchedaAdesso key={s.id} s={s} ora={ora} onApri={onApri} onSoloMia={onSoloMia} />)}
+        {/* 23/11 (r-174, r-176): con un autopilota (qui o su un altro PC) a destra c'è sempre il pannello degli agenti,
+            non più le chat: le chat si aprono a parte, dalle linguette. Senza autopilota restano le schede delle chat. */}
+        {autopilota !== undefined || remoto !== undefined ? <PannelloAgenti riferimenti={riferimentiWorkspace(workspace, autopilota)} /> : null}
+        {autopilota !== undefined || remoto !== undefined ? null : (
+          <>
+            <RiassuntoAlLavoro righe={riassuntoAlLavoro(autopilota, schede, ora, (sessione) => attivitaDaSegnali(segnali[sessione] ?? [], ora))} schede={schede} onApri={onApri} />
+            {adesso.length === 0 ? null : (
+              <div className="pan2-sezione">
+                <div className="serigrafia" aria-live="polite">Adesso · {adesso.length}</div>
+                <div className="pan2-adesso">
+                  {adesso.map((s) => <SchedaAdesso key={s.id} s={s} ora={ora} onApri={onApri} onSoloMia={onSoloMia} />)}
+                </div>
               </div>
-              {autopilota !== undefined ? <AdessoAutopilota autopilota={autopilota} dentro soloFerme /> : null}
-            </>
-          )}
-        </div>
+            )}
+            {chat.length > 0 ? (
+              <div className="pan2-sezione">
+                <div className="serigrafia">Chat · {chat.length}</div>
+                <div className="pan2-chat">
+                  {chat.map((s) => <SchedaChatFerma key={s.id} s={s} ora={ora} onApri={onApri} onSoloMia={onSoloMia} />)}
+                </div>
+              </div>
+            ) : null}
+            {schede.length === 0 ? (
+              <p className="pan2-vuoto">Nessuna chat. Puoi aprirne una con «+ Nuova chat».</p>
+            ) : null}
+          </>
         )}
-        {chat.length > 0 ? (
-          <div className="pan2-sezione">
-            <div className="serigrafia">Chat · {chat.length}</div>
-            <div className="pan2-chat">
-              {chat.map((s) => <SchedaChatFerma key={s.id} s={s} ora={ora} onApri={onApri} onSoloMia={onSoloMia} />)}
-            </div>
-          </div>
-        ) : null}
-        {finiteAp.length > 0 ? <Finite schede={finiteAp} ora={ora} onApri={onApri} /> : null}
-        {schede.length === 0 ? (
-          <p className="pan2-vuoto">Nessuna chat. L’autopilota le apre quando serve; puoi anche aprirne una con «+ Nuova chat».</p>
-        ) : null}
       </section>
     </div>
   )

@@ -79,7 +79,8 @@ import type { StatoLavoro } from '../main/cassaforte/lavoro-in-corso'
 import { useAvviaNomiPc } from './state/nomi-pc'
 import { BarraAffiancate, BarraLinguette, CorpoPanoramica, PANORAMICA, type SchedaVista } from './components/WorkspacePanoramica'
 import { ChatAutopilota } from './components/ChatAutopilota'
-import { ChatSpecialisti } from './components/ChatSpecialisti'
+import { PannelloAgenti } from './components/PannelloAgenti'
+import { riferimentiWorkspace } from './pannello-agenti-vista'
 import { RigaPcGiu, useAutopilotaRemoto } from './components/ChatAutopilotaRemota'
 import { FornisciSorgente, SORGENTE_LOCALE, sorgenteRemota } from './sorgente-autopilota'
 import { FornisciRegolaChatRemote, useWorkspaceRemoti } from './workspace-remoti'
@@ -1996,8 +1997,15 @@ export function App(): React.JSX.Element {
               </div>
             </div>
           )}
-          {/* 0.90.0: gli specialisti dell'autopilota, come chat da guardare sulla destra. */}
-          {autopilotaVisto !== undefined ? <FornisciSorgente value={sorgente}><ChatSpecialisti workspace={workspace.attivo} colonna pieno={root === undefined} /></FornisciSorgente> : null}
+          {/* 23/11 (r-174, r-176): a destra c'è sempre il pannello degli agenti (anche per un workspace di un altro PC),
+              non più le chat degli specialisti: quelle si aprono a parte. Nella Panoramica sta al centro della pagina. */}
+          {(autopilotaVisto !== undefined || remotoDelWorkspace !== undefined) && !(vistaElenco !== undefined && linguetta === PANORAMICA) ? (
+            <FornisciSorgente value={sorgente}>
+              <aside className="agenti-colonna" aria-label="Gli agenti al lavoro">
+                <PannelloAgenti riferimenti={riferimentiWorkspace(workspace.attivo, autopilotaVisto)} />
+              </aside>
+            </FornisciSorgente>
+          ) : null}
           {/* La Panoramica (0.77.0): sopra i terminali, che restano montati e della stessa misura. */}
           {vistaElenco !== undefined && linguetta === PANORAMICA ? (
             // La stessa sorgente della colonna e degli specialisti: per un workspace di un altro PC,
