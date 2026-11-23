@@ -41,6 +41,16 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.115.0',
+    righe: [
+      '**Terminale dal vivo su un altro PC:** il riquadro di una chat che gira su un altro PC mostra l\'uscita del suo terminale mentre esce, e riprende senza buchi se la connessione cade. Un PC con una versione vecchia resta com\'è.',
+      '**Salvataggio sul Drive:** un salvataggio fermato apposta (aggiornamento o chiusura) non conta più come guasto. Un tempo scaduto si riprova una volta, e la consegna ripresa ha un nome nel registro.',
+      '**Errori rimandati:** non si contano più due volte, «1 e poi 2» fa 2.',
+      '**Lavoro che torna due volte:** se lo stesso lavoro torna da un altro PC due volte nello stesso momento, i due ritiri vanno in fila e non si scontrano.',
+      '**Specialisti sugli altri PC:** possono leggere da GitHub ma non scriverci (Aiutante 1.4.0).',
+    ],
+  },
+  {
     versione: '0.114.3',
     righe: [
       '**Specialisti bloccati dai filtri di Claude:** se i filtri di sicurezza di Claude bloccano uno specialista, il programma lo dice chiaramente invece di «il servizio non ha risposto» e non mette in pausa il PC. Un lavoro fallito su un altro PC compare una sola volta negli errori (Aiutante 1.3.1).',
