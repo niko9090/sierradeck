@@ -90,6 +90,8 @@
 - per testare lotti di unioni nel servizio serve un cancello sul primo comando git: il primo ramo parte da solo con la fila vuota, il lotto lo formano quelli accodati dopo _(2026-11-22)_
 - `autopiloti-unificata.test.tsx` conta i componenti in `PannelloAutopiloti.tsx` con una regex: se cambi la scheda, aggiorna anche quel controllo. _(2026-11-22)_
 - la guardia apre da sola un turno («silenzio» per una chat muta): nei test sulla spinta va chiuso con un result finto dopo ogni giro, o il turno resta «in volo» e la spinta tace. _(2026-11-23)_
+- con `dorme` finto istantaneo, un finto PC che non finisce mai manda `segui` in un giro infinito di microtask: vitest si blocca e non scatta il timeout. Ogni PC finto deve finire. _(2026-11-23)_
+- una task_notification riapre inTurno nel flusso: negli eventi di prova va chiusa con un result, o gli eventi raccolti all'autopilota non partono _(2026-11-23)_
 
 ## worktree
 
@@ -245,13 +247,6 @@
 
 - Le voci di versione del quaderno sono file datati (`AAAA-MM-GG-...md`). `errori-arrivati.md` è solo per gli errori arrivati. _(2026-11-19)_
 - Un bump tocca 3 file di note: `src/shared/novita.ts`, `android/novita-app.txt` e `src/aiutante/novita-aiutante.txt` (righe che cominciano con `versione:`); app e Aiutante hanno la loro versione. _(2026-11-20)_
-
-## drive
-
-- Il 403 storageQuotaExceeded non entra in «rifiutate» (risorse.ts 179-183): le rifiutate sono solo limiti di velocità. _(2026-11-10)_
-- `conFreno` alza il freno sulla prima risposta 429/rateLimit, quindi un controllo `attesaMs() > 0` dentro `conRitenta` equivale a «mai ritentare i limiti»; i test che si aspettano il ritentativo vanno… _(2026-11-10)_
-- in `conLimite` un errore ferma solo il suo lavoratore: gli altri continuano con le voci rimaste. Per fermare tutto serve un flag condiviso, come `pienoVisto` in `salvaIncrementale`. _(2026-11-10)_
-- I giri periodici sono frenati, ma le letture chiamate da fuori (`pcSubito` per telefono e controllo) no: senza memoria dopo un errore, ogni chiamata ripete la richiesta a vuoto. _(2026-11-10)_
 
 ## tooling
 
@@ -438,6 +433,7 @@
 - un compito che nomina un ramo locale di un altro PC non si può eseguire qui: prima di assegnarlo va portato il ramo (bundle o patch) nella copia. _(2026-11-22)_
 - Un conflitto da risolvere affidato a un altro PC non vede i rami locali: nel prompt va messo il diff completo (git diff main...ramo), non il nome del ramo da cui fare cherry-pick. _(2026-11-22)_
 - Uno specialista su un altro PC (Aiuta la rete) riceve solo main: per riapplicare un ramo locale in conflitto, mettere la modifica intera nel prompt. _(2026-11-23)_
+- `ritira` usa file e ramo fissi per lavoro (`<id>-ritorno.bundle`, `ramoDiRitorno(id)`): `attendiRitorno` e la nuova spedizione possono ritirare insieme e scontrarsi. _(2026-11-23)_
 
 ## cancello
 
@@ -462,6 +458,7 @@
 
 - Un rifiuto dell'hook che contiene «sottofondo/async/background» viene letto dal flusso come Agent partito in sottofondo: nessun «finito», il compito resta «in-corso». Evitare quelle parole nei motivi. _(2026-11-10)_
 - `usage` di `task_progress` è cumulativo per task: per i token di un agente vale il massimo visto. Nel `result` dell'orchestratore invece l'`usage` somma il turno. _(2026-11-22)_
+- il ramo di uno specialista fermato si ricava da agente/ramo (worktree-agent-<id>): rev-list richiede u.ramoBase, quindi la chat deve averlo valorizzato _(2026-11-23)_
 
 ## piano
 
