@@ -61,6 +61,7 @@ export function sommaDi(a: Somma, b: LavoriWorkspace): void {
   x.svegli += y.svegli; x.limiteDelPiano += y.limiteDelPiano; x.criterioRosso += y.criterioRosso
   const f = a.fermate, g = b.fermate
   f.fermo += g.fermo; f.riavvii += g.riavvii; f.fermoMaxMs = Math.max(f.fermoMaxMs, g.fermoMaxMs)
+  for (const [m, n] of Object.entries(g.motiviRiavvio ?? {})) (f.motiviRiavvio ??= {})[m] = (f.motiviRiavvio[m] ?? 0) + n
 }
 
 export type RiassuntoLavori = {
@@ -123,7 +124,11 @@ function righeWorkspace(s: Somma): string[] {
     r.push(`- avanzamento: lavori svegliati perché fermi ${a.svegli}, limite del piano ${a.limiteDelPiano}, criterio rosso senza correzione ${a.criterioRosso}`)
   }
   const f = s.fermate
-  if (f.fermo > 0 || f.riavvii > 0) r.push(`- fermate del programma: ${f.fermo} (la più lunga ${sec(f.fermoMaxMs)}) · riavvii: ${f.riavvii}`)
+  if (f.fermo > 0 || f.riavvii > 0) {
+    const fermate = f.fermo > 0 ? `fermate del programma: ${f.fermo} (la più lunga ${sec(f.fermoMaxMs)})` : 'fermate: 0'
+    const motivi = f.motiviRiavvio !== undefined && Object.keys(f.motiviRiavvio).length > 0 ? ` (${elenco(f.motiviRiavvio)})` : ''
+    r.push(`- ${fermate} · riavvii: ${f.riavvii}${motivi}`)
+  }
   return r
 }
 

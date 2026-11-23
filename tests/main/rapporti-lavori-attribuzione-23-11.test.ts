@@ -60,7 +60,7 @@ describe('rapporti dei lavori: workspace delle unioni, dei criteri e delle ferma
       riga('00:01', '[unione di prova] ramo-1: attesa del turno 3 s, prova 40 s'),
       riga('00:02', '[criterio] finito con 0 in 20 s: npm test'),
       riga('00:03', '[servizio] fermo 12.5 s senza rispondere (1 volta oltre 10 s dall\'ultima riga)', 'servizio'),
-      riga('00:04', '━━━ sessione avviata · SierraDeck v1 · win32 · Node 1 · Electron 1 ━━━')
+      riga('00:04', '━━━ sessione avviata · SierraDeck v1 · win32 · Node 1 · Electron 1 ━━━', 'servizio')
     ])
     const g = c.workspace[WORKSPACE_GENERALE]!
     expect(g.unioni.prove).toBe(1)
@@ -73,7 +73,7 @@ describe('rapporti dei lavori: workspace delle unioni, dei criteri e delle ferma
     const c = contaLavori([
       riga('00:01', `[unione di prova] ${segnoWorkspace('WsA')}ramo-1: attesa del turno 3 s, prova 40 s`),
       riga('00:02', '[orchestratore] WsA — il lavoro ha una unione in fila, 2ª'),
-      riga('00:03', '━━━ sessione avviata · SierraDeck v1 ━━━')
+      riga('00:03', '━━━ sessione avviata · SierraDeck v1 ━━━', 'servizio')
     ])
     const r: RapportoLavori = { da: 'PC-X', giorno: '2026-11-20', dal: '2026-11-20T09:00:00Z', al: '2026-11-20T11:00:00Z', workspace: c.workspace }
     const testo = testoRiassunto('t', riassumi([r])!)

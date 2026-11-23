@@ -15,7 +15,8 @@ export type LavoriWorkspace = {
   criteri: { finiti: number; riusciti: number; rossi: number; durataMs: number; durataMaxMs: number; scaduti: number; inAttesa: number }
   compiti: { affidati: number; restatiQui: number; inFila: number; rifiuti: number; ruoli: Record<string, number> }
   avanzamento: { svegli: number; limiteDelPiano: number; criterioRosso: number }
-  fermate: { fermo: number; fermoMaxMs: number; riavvii: number }
+  /** `motiviRiavvio`: perché il servizio è ripartito (motivo breve → quante volte). */
+  fermate: { fermo: number; fermoMaxMs: number; riavvii: number; motiviRiavvio?: Record<string, number> }
 }
 
 export type RapportoLavori = {
@@ -96,6 +97,7 @@ export function contaLavori(righe: readonly string[], dopo?: string): { workspac
   }
   let ultima: string | undefined
   let lette = 0
+  let versioneAvvio: string | undefined
   for (const r of righe) {
     const m = ORA.exec(r)
     if (m === null) continue
@@ -155,8 +157,20 @@ export function contaLavori(righe: readonly string[], dopo?: string): { workspac
       const f = di(WORKSPACE_GENERALE).fermate
       f.fermo += 1; f.fermoMaxMs = Math.max(f.fermoMaxMs, Math.round(Number(x[1]) * 1000))
       lette += 1
-    } else if (/^━━━ sessione avviata/.test(t)) {
-      di(WORKSPACE_GENERALE).fermate.riavvii += 1; lette += 1
+    } else if ((x = /^━━━ sessione avviata · SierraDeck v(\S+)/.exec(t)) !== null) {
+      // k-199h: ogni avvio scrive una riga per il programma e una per il servizio: si conta solo il servizio
+      // (un riavvio del servizio, non la finestra riaperta), e si dice perché (versione cambiata o no).
+      lette += 1
+      if (/^\S+ \[[^\]]+\] \[servizio\] /.test(r)) {
+        const f = di(WORKSPACE_GENERALE).fermate
+        f.riavvii += 1
+        const v = x[1] as string
+        const motivo = versioneAvvio === undefined ? `avvio con la versione ${v} (la precedente non è nota)`
+          : versioneAvvio === v ? `riavvio senza aggiornamento (versione ${v})` : `aggiornamento da ${versioneAvvio} a ${v}`
+        const m = (f.motiviRiavvio ??= {})
+        m[motivo] = (m[motivo] ?? 0) + 1
+        versioneAvvio = v
+      }
     }
   }
   return { workspace: ws, ...(ultima !== undefined ? { ultima } : {}), righe: lette }
@@ -207,7 +221,7 @@ export function leggiRapportoLavori(x: unknown): { ok: true; rapporto: RapportoL
       criteri: { finiti: num(c.finiti), riusciti: num(c.riusciti), rossi: num(c.rossi), durataMs: num(c.durataMs), durataMaxMs: num(c.durataMaxMs), scaduti: num(c.scaduti), inAttesa: num(c.inAttesa) },
       compiti: { affidati: num(k.affidati), restatiQui: num(k.restatiQui), inFila: num(k.inFila), rifiuti: num(k.rifiuti), ruoli: conti(k.ruoli) },
       avanzamento: { svegli: num(a.svegli), limiteDelPiano: num(a.limiteDelPiano), criterioRosso: num(a.criterioRosso) },
-      fermate: { fermo: num(f.fermo), fermoMaxMs: num(f.fermoMaxMs), riavvii: num(f.riavvii) }
+      fermate: { fermo: num(f.fermo), fermoMaxMs: num(f.fermoMaxMs), riavvii: num(f.riavvii), ...(Object.keys(conti(f.motiviRiavvio)).length > 0 ? { motiviRiavvio: conti(f.motiviRiavvio) } : {}) }
     }
   }
   const giorno = typeof o.giorno === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(o.giorno) ? o.giorno : al.slice(0, 10)
