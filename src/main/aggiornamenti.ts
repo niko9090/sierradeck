@@ -587,7 +587,25 @@ export function creaAggiornamenti(
     }
   }
 
+  /**
+   * Ricerca fatta con una versione già scaricata e pronta: in silenzio, senza
+   * «cerco», e la finestra resta su «pronto» finché non si trova una versione
+   * più nuova di quella scaricata.
+   */
+  let ricercaSilenziosa = false
+  /** `a` è più nuova di `b`? Confronto numerico per pezzi (0.114.1 > 0.114.0). */
+  const piuNuova = (a: string, b: string): boolean => {
+    const pa = a.split(/[.-]/).map((x) => Number.parseInt(x, 10) || 0)
+    const pb = b.split(/[.-]/).map((x) => Number.parseInt(x, 10) || 0)
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+      const d = (pa[i] ?? 0) - (pb[i] ?? 0)
+      if (d !== 0) return d > 0
+    }
+    return false
+  }
   autoUpdater.on('update-available', (info) => {
+    // Con una versione già pronta, quella che si trova uguale (o più vecchia) non cambia niente.
+    if (ricercaSilenziosa && installerScaricato !== undefined && versioneScaricata !== undefined && !piuNuova(String(info.version), versioneScaricata)) return
     mancaDetto = false
     noteDellAggiornamento = info.releaseNotes ?? undefined
     dataDellAggiornamento = info.releaseDate
@@ -622,6 +640,8 @@ export function creaAggiornamenti(
     // anche Claude Code) non partirebbe mai nel flusso normale, e si ripiegherebbe
     // sempre su `quitAndInstall`. `downloadedFile` è il file che ha appena scritto.
     const scaricato = (info as { downloadedFile?: string }).downloadedFile
+    // Una versione diversa da quella di prima: l'installer vecchio non vale più.
+    if (versioneScaricata !== undefined && versioneScaricata !== String(info.version)) installerScaricato = undefined
     if (typeof scaricato === 'string' && scaricato.toLowerCase().endsWith('.exe')) {
       installerScaricato = scaricato
     }
@@ -643,6 +663,12 @@ export function creaAggiornamenti(
   const erroreUpdater = (err: unknown): void => {
     const letto = leggiErroreAggiornamento(err)
     const { manca, breve } = letto
+    // Un guasto durante la ricerca silenziosa non toglie la versione già pronta.
+    if (ricercaSilenziosa && installerScaricato !== undefined) {
+      nota(`ricerca silenziosa non riuscita, resta la ${versioneScaricata ?? '?'} pronta: ${breve}`)
+      nienteDiNuovo()
+      return
+    }
     if (!manca && eFileRilascioMancante(letto.completo)) {
       const v = valutaFileRilascioMancante(episodio404, Date.now())
       episodio404 = v.episodio
@@ -712,7 +738,9 @@ export function creaAggiornamenti(
     // lampeggiare «cerco» → «pronto» → «attendo» sotto gli occhi di chi
     // aspettava: mentre si installa non si cerca.
     if (installazioneAvviata) return
-    annuncia({ ...stato, fase: 'cerco' })
+    // Con una versione già scaricata e pronta si cerca in silenzio: niente «cerco».
+    ricercaSilenziosa = stato.fase === 'pronto' && installerScaricato !== undefined
+    if (!ricercaSilenziosa) annuncia({ ...stato, fase: 'cerco' })
     // Con lo scaricamento automatico electron-updater scarica appena trova:
     // la base del differenziale va sistemata prima di cercare.
     preparaBaseDifferenziale()
@@ -726,15 +754,15 @@ export function creaAggiornamenti(
       esito?.downloadPromise?.catch(() => {})
     } catch (err) {
       erroreUpdater(err)
+    } finally {
+      ricercaSilenziosa = false
     }
   }
 
   setTimeout(() => void cerca(), 10_000)
-  setInterval(() => {
-    // Con una versione già pronta non si cerca (la fase «cerco» lampeggerebbe
-    // ogni dieci minuti) e non si installa: aspetta il tasto (0.69.0).
-    if (stato.fase !== 'pronto') void cerca()
-  }, RICONTROLLA_MS)
+  // Si cerca anche con una versione pronta (in silenzio): una più nuova va
+  // scaricata. Non si installa mai da soli: aspetta il tasto (0.69.0).
+  setInterval(() => void cerca(), RICONTROLLA_MS)
 
   /**
    * Avvia lo scaricamento della versione trovata.
@@ -971,7 +999,7 @@ export function creaAggiornamenti(
     cerca,
     scarica: avviaScaricamento,
     async note() {
-      const nuova = versioneScaricata ?? stato.versione ?? ''
+      const nuova = stato.versione ?? versioneScaricata ?? ''
       const installata = app.getVersion()
       if (nuova === '') {
         return { versione: '', installata, note: [], fonte: 'nessuna', dove: PAGINA_VERSIONI, avviso: 'Non c’è nessun aggiornamento pronto da installare.' }
