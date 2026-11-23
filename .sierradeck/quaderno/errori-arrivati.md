@@ -337,3 +337,8 @@ Corretto nella versione 0.114.3. Questa è la riga giusta, e resta (un solo erro
 
 ## Gruppo 3: «[aiuto] lavoro rba4ca9869603 (sviluppatore) per Portatile Asus non riuscito: …» (dove pc, Aiutante DESKTOP-O2DITVE 1.3.0, 1 volta)
 Corretto nella versione 0.114.3 (Aiutante 1.3.1). Doppione della riga del gruppo 2: ora è un avviso e non un errore (k-183b, src/aiutante/nucleo.ts), col motivo giusto (k-183a).
+
+# Errori arrivati (lotto lotto-20261123213402)
+
+## Gruppo 1: «[blocco] BG4 — unione di k-156 ferma da 8 minuti: l’unione di prova non si è potuta fare (la cartella di lavoro ha modifiche non salvate)» (servizio di fisso_scrivania_glos, versione 0.117.2, 1 volta)
+Non corretto, perché non è un difetto: è un caso atteso. Nella cartella principale di BG4 su quel PC ci sono modifiche non salvate fuori da `.sierradeck/`. Il programma non le tocca: aspetta, rifà il tentativo e avvisa Nicholas da solo. Le note del programma dentro `.sierradeck/` invece le salva da solo prima di unire (src/autopilot-host/worktree.ts, intorno alla riga 682), quindi non sono la causa. Da 0.117.3 questi tentativi si contano a parte nel rapporto, come «unioni non partite».
