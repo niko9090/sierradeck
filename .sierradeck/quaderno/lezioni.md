@@ -305,6 +305,8 @@
 ## aggiornamenti
 
 - `creaAggiornamenti` prende parametri posizionali in coda: un nuovo aggancio (come `annunciaAgliAltri`) va aggiunto per ultimo, senza toccare l'ordine. _(2026-11-19)_
+- `note()` leggeva `versioneScaricata` prima di `stato.versione`: durante lo scaricamento di una versione più nuova mostrava le note della vecchia. _(2026-11-23)_
+- I test della ricerca silenziosa usano timer finti e `RICONTROLLA_MS`; la fase `attendo` compare solo se `attendiQuiete` chiama `avvisa`. _(2026-11-23)_
 
 ## guardia
 
@@ -368,9 +370,6 @@
 
 ## rete
 
-- nel client dell'autopilota ogni POST che fa scrivere il servizio su disco deve passare `attesaScrittura`: senza, valgono i 3 s di lettura e sotto carico scade. _(2026-11-10)_
-- gli errori di rete dell'API nei turni (ENOTFOUND, Can't reach the API server) vanno trattati come passeggeri, come quelli dell'aggiornamento: avviso, non ERRORE. _(2026-11-10)_
-- `eErroreDiRete` in src/shared/errori-rete.ts è l'unico elenco degli errori di rete, condiviso da aggiornamenti e autopilota: aggiungere i codici lì. _(2026-11-10)_
 - «Aiuta la rete» rimanda lo stesso compito a un PC con l'accesso Claude scaduto («OAuth session expired»): fallisce in pochi secondi e al rilancio va di nuovo lì (13/11, DESKTOP-O2DITVE). _(2026-11-13)_
 - Se «Aiuta la rete» manda un compito a un PC che fallisce sempre, l'Agent lanciato con isolation: "worktree" resta su questo PC (13/11, k-152). _(2026-11-13)_
 - Correzione: isolation "worktree" NON tiene l'Agent su questo PC (k-154 è andato lo stesso a un Aiutante). Finché il servizio non ha la correzione di k-152, il PC scelto è a caso. _(2026-11-13)_
@@ -423,7 +422,6 @@
 
 ## cancello
 
-- il messaggio «anche nella cartella principale non passa» (server.ts 698/708) vuole dire che il ramo rompe criteri che su main passano: il testo è invertito e non mostra i nomi dei test. Tre rami dive… _(2026-11-10)_
 - il criterio aggregato «npx vitest run» senza percorsi (k-170) fa girare l'intera suite in un solo comando: 3 minuti qui, ma la prova ha 15 minuti in totale contro 20 del comando. _(2026-11-10)_
 - Rifiuto «anche nella cartella principale non passa» = il ramo rompe prove che su main passano (testo invertito, senza nomi): far girare `npx vitest run` intero sul ramo unito a main per trovarle. _(2026-11-10)_
 - un ramo già unito e cancellato non si misura: serve un ramo nuovo aggiornato a main (già scritto nel quaderno). _(2026-11-10)_
@@ -595,6 +593,8 @@
 - Non lanciare il rilascio durante un'unione: l'unione di prova lascia file in staging nella cartella principale e il rilascio si ferma. Lanciarlo a fila unioni vuota. _(2026-11-23)_
 - Il hook blocca ogni sleep e i cicli di attesa a mano: dopo il timeout si può solo controllare lo stato con `gh release view` e aspettare la notifica. _(2026-11-23)_
 - nelle copie degli specialisti manca il tag v0.114.0 e `gh` può essere negato: per le correzioni dopo il tag serve il commit del tag, non solo quello del bump. _(2026-11-23)_
+- `npm run pubblica` con tail in pipe non scrive nulla finché non finisce: per vedere l'avanzamento controllare `gh release view --json assets`, non il file di output. _(2026-11-23)_
+- `gh release create --draft` stampa un URL «untagged-…» anche con tag già sul remoto: è normale per le bozze, il tag resta quello di `--verify-tag`. _(2026-11-23)_
 
 ## build
 
