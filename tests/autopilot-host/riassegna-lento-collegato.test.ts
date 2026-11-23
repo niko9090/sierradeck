@@ -67,7 +67,7 @@ const prova = async (pcs: PcProva[], requisiti: string[] = []) => {
       return {}
     },
     cartella: mkdtempSync(join(tmpdir(), 'spedizioni-')), git, log: () => undefined, errore: () => undefined, avviso: () => undefined,
-    registra: (e) => { if (e.tipo === 'riassegnato') eventi.push(e) },
+    registra: (e) => { if (e.tipo === 'riassegnato' || e.tipo === 'arreso') eventi.push(e) },
     adesso: () => ora, dorme: async () => { ora += 1000 }
   })
   try {
@@ -108,9 +108,9 @@ describe('riassegnazione per lentezza nel ciclo dello spedizioniere', () => {
     const r = await prova([{ id: 'pc-uno' }, { id: 'pc-due', programmi: ['git'] }], ['adb'])
     expect(r.l.stato).toBe('fallito')
     expect(r.l.causa).toBe('pc')
-    expect(r.l.motivo).toMatch(/riparte qui/u)
+    expect(r.l.motivo).toMatch(/lo chiudo come non riuscito/u)
     expect(r.eventi).toHaveLength(1)
-    expect(r.eventi[0]).toMatchObject({ tipo: 'riassegnato', aPc: 'questo PC' })
+    expect(r.eventi[0]).toMatchObject({ tipo: 'arreso', daPc: 'Uno' })
   })
 
   it('il risultato tardivo del PC lento è ignorato: una sola copia viva', async () => {
