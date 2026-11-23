@@ -42,7 +42,17 @@ export type TurniCriteri = {
   prenotato: () => { chi: string; dal: number; fino: number; inSottofondo: boolean } | undefined
   /** Per il registro e le prove: chi gira adesso e quanti aspettano. */
   stato: () => { inCorso: string | undefined; inFila: number; unioni: number }
+  /** 24/11: il codice che gira ha già il turno pesante (una misura di prova): un pesante non aspetta nessuno. */
+  giaDentro?: () => boolean
 }
+
+/**
+ * 24/11: dentro la misura di una prova di unione, le attese che non sono la prova (la guardia del PC,
+ * fino a due minuti per comando pesante) passano da qui e fermano la scadenza della prova (`inFila`).
+ * Il 23/11 una prova è scaduta a 330 s con la scadenza ferma a 5 minuti, avendo contato anche quelle attese.
+ */
+export type AttesaDellaProva = <R>(fai: () => Promise<R>) => Promise<R>
+export const attesaDellaProva = new AsyncLocalStorage<AttesaDellaProva>()
 
 /**
  * 11/11: «un comando pesante alla volta» spento da Nicholas (`@shared/limiti-pc`).
@@ -230,7 +240,8 @@ export function creaTurni(opz: { ora?: () => number; unioneMaxMs?: number; liber
     },
     rilascia(chi) { libera(chi) },
     prenotato: () => (prenotazione !== undefined ? { chi: prenotazione.chi, dal: prenotazione.dal, fino: prenotazione.fino, inSottofondo: prenotazione.inSottofondo } : undefined),
-    stato: () => ({ inCorso, inFila: fila.length, unioni: [...unioni.values()].reduce((s, n) => s + n, 0) })
+    stato: () => ({ inCorso, inFila: fila.length, unioni: [...unioni.values()].reduce((s, n) => s + n, 0) }),
+    giaDentro: () => dentro.getStore() === chiaveTurni
   }
 
   function libera(chi: string): void {
@@ -320,10 +331,17 @@ export function conTurni(esegui: Esecutore, turni: TurniCriteri = TURNI_PC, guar
     }
     if (scattato()) return annullatoPrima
     if (!ePesante(comando, cwd)) return lancia()
-    if (guardia !== undefined) await guardia.attendi(`«${comando.slice(0, 80)}»`)
+    if (guardia !== undefined) {
+      const cosa = `«${comando.slice(0, 80)}»`
+      // 24/11: dentro una prova di unione l'attesa della guardia non conta nella sua scadenza.
+      const fuoriDallaProva = attesaDellaProva.getStore()
+      if (fuoriDallaProva !== undefined) await fuoriDallaProva(() => guardia.attendi(cosa))
+      else await guardia.attendi(cosa)
+    }
     if (scattato()) return annullatoPrima
     const s = turni.stato()
-    const davanti = s.inFila + (s.inCorso !== undefined ? 1 : 0)
+    // 24/11: chi ha già il turno (la misura di una prova) non aspetta dietro nessuno: niente riga che dice il falso.
+    const davanti = turni.giaDentro?.() === true ? 0 : s.inFila + (s.inCorso !== undefined ? 1 : 0)
     if (davanti > 0) console.info(`[criterio] ${segnoDiLog(ws)}aspetta il suo turno dietro ${davanti} comandi lunghi: ${comando.slice(0, 120)}`)
     return turni.pesante(cwd, lancia)
   }
