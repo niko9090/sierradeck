@@ -85,6 +85,11 @@ export const SILENZIO_SPECIALISTA_MS = 20 * 60_000
 export const TURNO_MUTO_MS = 20 * 60_000
 /** k-178k: uno specialista in sottofondo che lavora da più di così è appeso: si ferma davvero (processo spento). */
 export const SPECIALISTA_MAX_MS = 3 * 60 * 60_000
+/**
+ * k-178q: il silenzio che si concede a chi aspetta un Bash/PowerShell che non ha ancora restituito l'esito (suite da
+ * 6 minuti, build, npm install, typecheck). Mai oltre `SPECIALISTA_MAX_MS`.
+ */
+export const COMANDO_MUTO_MS = 60 * 60_000
 /** Rete assente: la prima attesa prima di riprovare, che raddoppia a ogni errore fino al tetto. */
 export const RIPROVA_RETE_MS = 30_000
 export const RIPROVA_RETE_MAX_MS = 10 * 60_000
@@ -307,6 +312,8 @@ export type DipendenzeOrchestratore = {
   mutoMs?: number
   /** k-178k: il tempo massimo di uno specialista in sottofondo (poi si ferma davvero). */
   specialistaMaxMs?: number
+  /** k-178q: il silenzio concesso a chi aspetta un comando lungo (Bash/PowerShell in volo); mai oltre il tempo massimo. */
+  mutoComandoMs?: number
   /** Attesa prima di riprovare dopo l'n-esimo errore di rete di fila (n da 1): cresce, ha un tetto. */
   riprovaReteMs?: (n: number) => number
   /** Attesa prima di riprovare dopo l'n-esimo guasto di fila non di rete (n da 2: il primo riprova subito). */
@@ -390,7 +397,10 @@ type StatoWs = {
   /** 11/11: il limite del piano è già stato detto; vale finché un turno non riesce. */
   limite?: boolean
   /** Il cane da guardia del turno: riparte a ogni riga. */
-  cane?: ReturnType<typeof setTimeout>}
+  cane?: ReturnType<typeof setTimeout>
+  /** k-178q: quando è arrivata l'ultima riga dal processo (ms). */
+  ultimaRiga?: number
+}
 
 export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
   const stati = new Map<string, StatoWs>()
@@ -402,6 +412,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
   const inattivoMs = d.inattivoMs ?? INATTIVO_MS
   const mutoMs = d.mutoMs ?? TURNO_MUTO_MS
   const specialistaMaxMs = d.specialistaMaxMs ?? SPECIALISTA_MAX_MS
+  const mutoComandoMs = Math.min(Math.max(d.mutoComandoMs ?? COMANDO_MUTO_MS, mutoMs), specialistaMaxMs)
   const riprovaReteMs = d.riprovaReteMs ?? ((n: number): number => Math.min(RIPROVA_RETE_MAX_MS, RIPROVA_RETE_MS * 2 ** (n - 1)))
   const riprovaGuastoMs = d.riprovaGuastoMs ?? attesaGuastoMs
   const nuova = d.nuovaSessione ?? ((): string => randomUUID())
@@ -519,7 +530,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
    * turni del PC. Si spegne, quello che il turno portava torna in attesa e si
    * riprova una volta con `--resume`.
    */
-  const armaCane = (ws: string, s: StatoWs): void => {
+  const armaCane = (ws: string, s: StatoWs, attesaMs: number = mutoMs): void => {
     if (s.cane !== undefined) clearTimeout(s.cane)
     s.cane = undefined
     if (s.proc === undefined) return
@@ -528,7 +539,13 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
       if (s.proc === undefined) return
       if (!inTurno(s)) {
         // k-178k: nessun turno, ma specialisti in sottofondo e nessuna riga (neppure loro) da `mutoMs`: sono appesi.
-        if (specialistiAlLavoro(s.flusso).length === 0) return
+        const vivi = specialistiAlLavoro(s.flusso)
+        if (vivi.length === 0) return
+        // k-178q: se tutti aspettano l'esito di un Bash/PowerShell la soglia è più larga (sempre dentro il tempo massimo).
+        if (mutoComandoMs > mutoMs && s.ultimaRiga !== undefined && vivi.every((y) => y.comando !== undefined)) {
+          const silenzio = Date.parse(adesso()) - s.ultimaRiga
+          if (Number.isFinite(silenzio) && silenzio < mutoComandoMs) { armaCane(ws, s, Math.max(1000, mutoComandoMs - silenzio)); return }
+        }
         if (d.attendeNicholas?.(ws) === true) { armaCane(ws, s); return }
         const m = Math.round(mutoMs / 60_000)
         console.error(`[orchestratore] ${ws} — specialisti appesi: nessuna riga da ${m} minuti`)
@@ -543,7 +560,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
       spegniSe(ws, s, `turno appeso (nessuna riga da ${minuti} minuti)`)
       fermaSpecialisti(ws, s, true)
       guasto(ws, s, `il turno era appeso (nessuna risposta dalla CLI da ${minuti} minuti): l’ho fermato`, false)
-    }, mutoMs)
+    }, attesaMs)
     s.cane.unref?.()
   }
 
@@ -619,6 +636,8 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
     console.info(`[orchestratore] ${ws} — processo avviato (${nuovaSess ? 'sessione nuova' : `ripresa ${id.slice(0, 8)}`}, al più ${ctx.tetto} specialisti insieme)`)
     p.suRiga((riga) => {
       if (s.proc !== p) return
+      const oraRiga = Date.parse(adesso())
+      s.ultimaRiga = Number.isFinite(oraRiga) ? oraRiga : undefined
       const r = applicaRiga(s.flusso, riga, adesso())
       s.flusso = r.stato
       if (s.flusso.inTurno || specialistiAlLavoro(s.flusso).length > 0) armaCane(ws, s)
