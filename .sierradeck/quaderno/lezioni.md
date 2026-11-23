@@ -4,7 +4,6 @@
 
 ## test
 
-- per la regola del quaderno usare un repository git vero (repositoryDiPartenza): i mock non vedono il comportamento di `git status`/`add`/`commit` sui file riscritti. _(2026-11-11)_
 - la suite completa (vitest, circa 620 file) richiede circa 3,5 minuti: usare un timeout ampio. _(2026-11-12)_
 - per logica di percorsi Windows passare path.win32 come parametro, così il test gira uguale su ogni sistema _(2026-11-13)_
 - tests/shared/novita.test.ts limita ogni voce delle novità a 8 righe: per aggiungere una correzione a una voce piena bisogna unire due righe. _(2026-11-13)_
@@ -99,13 +98,11 @@
 
 ## worktree
 
-- Una copia con `android/app/build` non si toglie con `git worktree remove` («Filename too long»): staccare la junction di `node_modules`, controllare che dentro non ci siano altri collegamenti, poi `Remove-Item -LiteralPath '\\?\<percorso>' -Recurse -Force` e `git worktree prune`. _(2026-11-11)_
 - per togliere un worktree con giunzione node_modules: verificare LinkType, `cmd /c rmdir` sulla giunzione, poi `git worktree remove` e `prune`; il node_modules principale resta intatto. _(2026-11-17)_
 - Le copie «locked» possono non avere più la cartella su disco: `unlock` e poi `worktree remove --force` toglie il riferimento senza errori. _(2026-11-22)_
 
 ## android
 
-- Sull’emulatore in sessione RDP l’avvio si blocca (Vulkan e finestra dei crash): partire con `-gpu swangle -crash-report-mode disabled`. _(2026-11-11)_
 - Dalla 3.0.0 le foto delle schermate dell’app le fa `gradle testDebugUnitTest` (Robolectric + Roborazzi) in `android/app/build/foto-schermate/`: guardarle prima di pubblicare, hanno trovato difetti che le prove non vedono. _(2026-11-11)_
 - Prova dell’app dal vero: copia del PC con `SIERRADECK_PROVA` e porte 47650/47651 dentro `preferenze`, emulatore su `10.0.2.2:47650`; l’APK 2.99.0 di rilascio installato e poi `adb install -r` della 3.0.0 prova che l’aggiornamento non chiede un nuovo accoppiamento. _(2026-11-11)_
 - Dopo un `AGGIORNA=1` di `impostazioni.json` vanno rilanciate anche le prove Kotlin che leggono quell’asset (`ImpostazioniVociTest`), non solo i vitest. _(2026-11-11)_
@@ -531,6 +528,7 @@
 ## permessi
 
 - `gh` è negato sia da Bash sia da PowerShell in questa copia: la verifica «release già pubblicata?» non si può fare da qui, va fatta dallo specialista «rilascio». _(2026-11-13)_
+- nella CLI un divieto (--disallowedTools) vince sempre su --allowedTools: per aprire una forma di `gh` va stretto il divieto, non aggiunta un'eccezione _(2026-11-23)_
 
 ## rilascio
 
@@ -665,6 +663,8 @@
 - SierraDeck Aiutante crea la sincronia dentro `colleghiRete` dopo `aiuto`: per dargli `chiediCredenziali` serve un cambio d'ordine, non l'ho fatto. _(2026-11-20)_
 - L'Aiutante non ha cassaforte di credenziali: per i lavori affidati chiede solo al PC che li ha affidati (`chiedi` senza deposito), collegato in `rete.ts`, non in `index.ts`. _(2026-11-20)_
 - `novita-aiutante.txt` ha una riga di testo per versione tra apici singoli: un apice dentro il testo si scrive `\'`. I test di pubblicazione e aggiornamento dell'Aiutante lo leggono. _(2026-11-20)_
+- i divieti degli specialisti stanno in VIETATI_AIUTO (src/shared/aiuto-rete.ts), codice condiviso con l'Aiutante: toccarlo vuol dire alzare anche la sua versione _(2026-11-23)_
+- Divieti degli specialisti dell'Aiutante: VIETATI_AIUTO in src/shared/aiuto-rete.ts, letto da autopilot-host/aiuto-lavoratore.ts. Toccarli = alzare l'Aiutante. _(2026-11-23)_
 
 ## blocco
 
