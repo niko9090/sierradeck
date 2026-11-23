@@ -98,6 +98,7 @@
 - per far ritirare insieme due PC dello stesso lavoro: PC muto >30 min e secondo PC, entrambi «finito» al medesimo `ora` finto; un `await` nella chiamata «ritira» rende lo scontro certo. _(2026-11-23)_
 - i test in `tests/main` verificano il cablaggio leggendo i sorgenti con `readFileSync`: cambiare i nomi dei canali o delle rotte li rompe _(2026-11-23)_
 - Gli id dei lavori affidati devono essere `r` + 12 cifre esadecimali (`idLavoroValido`): altrimenti il file `aiuti-affidati.json` li scarta in silenzio. _(2026-11-23)_
+- Diversi test leggono il sorgente di `App.tsx` e `WorkspacePanoramica.tsx` con regex: cambiando le viste, `vitest related` non li trova. Lancia `tests/renderer` per intero. _(2026-11-23)_
 
 ## worktree
 
@@ -200,7 +201,6 @@
 
 ## autopilota
 
-- lo stato `fermo` era tolto: un guasto non di rete non aspetta più Nicholas, riprova da solo con attesa crescente (tetto 5 min). _(2026-11-11)_
 - il client non sa il workspace di un id sparito: lo ricorda lui (id→cwd/workspace) e riscrive via /orchestratore/messaggio, che riusa l'autopilota del workspace. _(2026-11-13)_
 - Mai criteri «la versione di package.json è già su GitHub»: dopo, il programma li rimisura su ogni ramo e respinge il bump successivo (13/11, 0.106.3 bloccata, sbloccata con pre-release vuota). _(2026-11-13)_
 - il client segna `scaduto` (timeout) e `spento` (fetch failed/ECONNREFUSED/ECONNRESET): per un errore atteso usare `servizioIndisponibile`, non il solo `scaduto _(2026-11-13)_
@@ -219,7 +219,6 @@
 
 ## controllo
 
-- un rapporto «Controllo di tutti i PC» mostra la versione dei PC: prima di aprire un difetto verificare che sia sotto l'ultima versione corretta (qui 0.99.1 vs fix in 0.99.2). _(2026-11-11)_
 - Un rapporto di controllo può venire da una build più vecchia della correzione: prima di cercare un buco, riprodurre il caso nel codice attuale con un test. _(2026-11-20)_
 - Nelle copie mancano i tag: «nessun tag contiene X» va verificato dall'autopilota con git tag --contains. 6f52ac0f (battito Aiutante) è già in v0.110.2+, quindi non spiega l'allarme del 20/11. _(2026-11-20)_
 
@@ -259,8 +258,6 @@
 
 ## unioni
 
-- la prova di unione salva con un commit solo `.sierradeck/quaderno/` (anche riscritto); le altre note di `.sierradeck/` restano «solo aggiunte» (numstat): un test deve coprire entrambi i rami. _(2026-11-11)_
-- Fino alla 0.99.1 installata una nota del quaderno con righe cambiate o tolte ferma tutta la fila: la sblocca solo un commit di `.sierradeck/quaderno` fatto da una chat aperta nella cartella principale (dalla 0.99.2 la salva il programma). _(2026-11-11)_
 - Dalla 0.100.0 un file non salvato nella cartella principale ferma un’unione solo se il ramo lo tocca; in quel caso dopo 5 minuti è il programma a chiedere a Nicholas «Salvali e unisci», non l’autopilota. _(2026-11-11)_
 - rami con rotte nuove: il conflitto sta nel tipo `FonteAiuto` di `src/main/rotte-aiuto.ts`; tenere i campi opzionali di entrambi i lati. _(2026-11-20)_
 - `turni.unione` rende `TurnoScaduto` subito ma libera cartella e conteggio solo a `fai()` chiuso; pulizia della prova scaduta sempre dentro `turni.unione _(2026-11-22)_
@@ -278,6 +275,8 @@
 - Nel menu dei workspace le azioni dietro «⋯» sono contate da test e pagina servita: il riordino sta in controlli a parte, non come nuova azione di `azioniMenuWorkspace`. _(2026-11-20)_
 - Il menu principale ha già una funzione «Computer» che non è la sezione Computer delle Impostazioni: le voci delle impostazioni stanno solo in impostazioni-struttura.ts. _(2026-11-20)_
 - `FlussoChat` è condiviso da chat locale e remota: chi lo usa deve passare `fondo` dall'hook `useSegueFondo`, altrimenti niente `onScroll` né tasto. _(2026-11-22)_
+- Nelle viste con autopilota il pannello agenti sta in `CorpoPanoramica` e in una colonna di `App.tsx`: se ne cambi una, controlla anche l'altra. _(2026-11-23)_
+- `PannelloAgenti` legge dalla sorgente (`useSorgente`): per un altro PC basta il provider `sorgenteRemota`, e "Ferma" resta solo locale. _(2026-11-23)_
 
 ## salute
 
@@ -410,6 +409,7 @@
 - `ritira` usa file e ramo fissi per lavoro (`<id>-ritorno.bundle`, `ramoDiRitorno(id)`): `attendiRitorno` e la nuova spedizione possono ritirare insieme e scontrarsi. _(2026-11-23)_
 - file e ramo di ritorno sono uno per lavoro (`<id>-ritorno.bundle`, `ramoDiRitorno`): ogni ritiro nuovo dello stesso id va messo nella coda di `ritira`, non fatto a parte. _(2026-11-23)_
 - `/api/flusso` risponde sempre 200 con `flusso:true`: 404/405/409/501 o risposta senza il segno vogliono dire PC vecchio, ogni altro errore è rete e si riprende dal cursore _(2026-11-23)_
+- Le richieste di Nicholas (coda.json) stanno in AppData\Roaming\sierradeck\orchestratori: uno specialista su un altro PC non le vede, quindi le sue parole vanno copiate intere nel prompt. _(2026-11-23)_
 
 ## cancello
 
