@@ -45,6 +45,8 @@ export type CompitoPiano = {
   rami?: string[]
   /** 11/11: il ruolo dell'ultimo specialista partito: dice, anche dopo un riavvio, se è un'analisi senza niente da unire. */
   ruolo?: string
+  /** k-178p: l'Agent rifiutato perché il compito aspetta un «dopo»: prompt intero, ruolo e descrizione, per rilanciarlo così com'è a unione fatta. */
+  promptDopo?: { prompt: string; ruolo: string; descrizione: string }
   /** L'ultimo esito del cancello `unisci`: il criterio misurato dopo l'unione. */
   criterioVerde?: boolean
   /** L'ultimo esito in parole (unione, criterio, motivo del rifiuto). */
@@ -610,11 +612,20 @@ function leggiCompitoPiano(x: unknown): CompitoPiano | undefined {
     ...(typeof o.ramo === 'string' && o.ramo !== '' ? { ramo: o.ramo.slice(0, 200) } : {}),
     ...(Array.isArray(o.rami) && o.rami.some((r) => typeof r === 'string' && r !== '') ? { rami: o.rami.filter((r): r is string => typeof r === 'string' && r !== '').map((r) => r.slice(0, 200)).slice(-RAMI_RICORDATI) } : {}),
     ...(typeof o.ruolo === 'string' && o.ruolo !== '' ? { ruolo: o.ruolo.slice(0, 60) } : {}),
+    ...(leggiPromptDopo(o.promptDopo) !== undefined ? { promptDopo: leggiPromptDopo(o.promptDopo)! } : {}),
     ...(typeof o.criterioVerde === 'boolean' ? { criterioVerde: o.criterioVerde } : {}),
     ...(typeof o.esito === 'string' && o.esito !== '' ? { esito: o.esito.slice(0, 600) } : {}),
     ...(typeof o.unitoIl === 'string' && o.unitoIl !== '' ? { unitoIl: o.unitoIl } : {}),
     ...(leggiChiusura(o.chiuso) !== undefined ? { chiuso: leggiChiusura(o.chiuso)! } : {})
   }
+}
+
+function leggiPromptDopo(x: unknown): CompitoPiano['promptDopo'] {
+  if (typeof x !== 'object' || x === null) return undefined
+  const q = x as Record<string, unknown>
+  if (typeof q.prompt !== 'string' || q.prompt.trim() === '') return undefined
+  // Il prompt non si accorcia: è quello che l'autopilota rilancerà.
+  return { prompt: q.prompt, ruolo: typeof q.ruolo === 'string' ? q.ruolo.slice(0, 60) : 'sviluppatore', descrizione: typeof q.descrizione === 'string' ? q.descrizione.slice(0, 300) : '' }
 }
 
 function leggiChiusura(x: unknown): ChiusuraCompito | undefined {

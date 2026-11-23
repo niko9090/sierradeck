@@ -65,7 +65,7 @@ export type ContestoGuardia = {
   /** Lo stesso compito ha già uno specialista al lavoro: il motivo del rifiuto (un rilancio doppio dopo un aggiornamento). */
   doppio?: (r: { descrizione: string; tipo: string }) => string | undefined
   /** 10/11: il compito aspetta un'unione («dopo» non ancora unito): il motivo del rifiuto, e il programma lo mette in fila. */
-  dipendenze?: (r: { descrizione: string; tipo: string }) => string | undefined
+  dipendenze?: (r: { descrizione: string; tipo: string; prompt?: string }) => string | undefined
   /** 11/11: il compito ha già finito e aspetta l'unione: il motivo del rifiuto (un rilancio azzerava il lavoro pronto, k-133). */
   inUnione?: (r: { descrizione: string; tipo: string }) => string | undefined
   /** 11/11: il sì di Nicholas per un'azione protetta (`permessi-nicholas.ts`): «sempre» nel progetto, o «questa volta» per quel comando. */
@@ -236,7 +236,8 @@ export function giudicaGuardiaOrchestratore(corpo: Record<string, unknown>, c: C
       if (doppio !== undefined) return { ok: false, motivo: doppio }
       const finito = c.inUnione?.({ descrizione: s(input.description) ?? s(input.prompt)?.slice(0, 120) ?? 'specialista', tipo })
       if (finito !== undefined) return { ok: false, motivo: finito }
-      const aspetta = c.dipendenze?.({ descrizione: s(input.description) ?? s(input.prompt)?.slice(0, 120) ?? 'specialista', tipo })
+      const promptAgent = s(input.prompt)
+      const aspetta = c.dipendenze?.({ descrizione: s(input.description) ?? s(input.prompt)?.slice(0, 120) ?? 'specialista', tipo, ...(promptAgent !== undefined ? { prompt: promptAgent } : {}) })
       if (aspetta !== undefined) return { ok: false, motivo: aspetta }
       const altrove = c.affida?.({ descrizione: s(input.description) ?? s(input.prompt)?.slice(0, 120) ?? 'specialista', tipo, prompt: s(input.prompt) ?? '' })
       if (altrove !== undefined) return { ok: false, motivo: altrove }
