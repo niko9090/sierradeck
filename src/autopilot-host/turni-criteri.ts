@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { ePesante } from './criteri-veloci'
@@ -78,6 +79,9 @@ export function creaTurni(opz: { ora?: () => number; unioneMaxMs?: number; liber
   const liberaDopoMs = opz.liberaDopoMs ?? UNIONE_LIBERA_DOPO_MS
   const registra = opz.registra ?? ((testo: string): void => { console.warn(testo) })
   let inCorso: string | undefined
+  /** Dice se il codice che gira ha già il turno pesante di questi turni (vedi `pesante`). */
+  const dentro = new AsyncLocalStorage<object>()
+  const chiaveTurni = {}
   /** Il turno di una chat (`prenota`): chi lo tiene, fino a quando, e il timer che lo rende. */
   let prenotazione: { chi: string; dal: number; fino: number; inSottofondo: boolean; timer?: ReturnType<typeof setTimeout> } | undefined
   /** Quando è partito il pesante del servizio che gira adesso. */
@@ -100,6 +104,9 @@ export function creaTurni(opz: { ora?: () => number; unioneMaxMs?: number; liber
 
   return {
     async pesante(cwd, fai) {
+      // k-197c: chi ha già il turno pesante (la misura di una prova di unione) e lancia un comando
+      // che lo chiede ancora (`conTurni`) non si mette in fila dietro a se stesso: sarebbe un'attesa circolare.
+      if (dentro.getStore() === chiaveTurni) return fai()
       const dove = normale(cwd)
       const mio = ++numero
       fila.push({ n: mio, dove })
@@ -111,7 +118,7 @@ export function creaTurni(opz: { ora?: () => number; unioneMaxMs?: number; liber
       inCorso = dove
       partitoIl = ora()
       try {
-        return await fai()
+        return await dentro.run(chiaveTurni, fai)
       } finally {
         inCorso = undefined
         sveglia()
