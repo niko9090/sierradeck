@@ -306,6 +306,9 @@
 - Con la release creata prima da `gh release create`, serve poi `gh release edit --draft=false --latest`: `pubblica` non la segna Latest da sola. _(2026-11-20)_
 - Se lancio `npm run pubblica` oltre i 10 minuti, passa in sottofondo da solo: i file arrivano uno alla volta e la bozza va pubblicata solo quando il comando è finito. Prima si contano i 7 file. _(2026-11-23)_
 - I comandi con `sleep` sono bloccati dal programma. Per aspettare, uso controlli brevi di `gh release view`, senza pause lunghe. _(2026-11-23)_
+- se la release è in bozza con pochi file, controlla con Get-CimInstance se `npm run pubblica` è ancora vivo: il caricamento dell'installer da 114 MB e dell'Aiutante richiede circa 3 minuti. _(2026-11-23)_
+- latest.yml si verifica con `openssl dgst -sha512 -binary <exe> | base64 -w0`: deve coincidere con lo sha512 scritto nel file. _(2026-11-23)_
+- Dopo aver ricostruito l'installer dell'Aiutante, confrontare sha512 (base64) e size dell'exe scaricato dalla release con `aiutante.yml` allegato: è il controllo che l'updater fa. _(2026-11-23)_
 
 ## servizio
 
@@ -330,7 +333,6 @@
 
 ## rete
 
-- un autopilota letto da un altro PC con altra versione può non avere campi array: leggerli sempre con `Array.isArray(...)`. _(2026-11-13)_
 - pauseAiuti (src/shared/aiuto-esito.ts) esclude un PC dopo un solo fallimento per accesso; il fallimento in sé è il segnale per l'utente, non un difetto. _(2026-11-14)_
 - Se un PC è raggiunto da tutti ma non raggiunge nessuno (anche la posta fa `fetch failed`), la causa è la sua rete in uscita o Tailscale, non gli indirizzi pubblicati. _(2026-11-15)_
 - il registro eventi-aiuto.json lo scrive il PC che affida: sull'Aiutante resta vuoto finché qualcuno non registra lì i passaggi. _(2026-11-16)_
@@ -383,7 +385,6 @@
 
 ## cancello
 
-- il controllo «gh release view v<versione>» sul ramo del cambio versione si sblocca con una pre-release vuota non Latest, senza toccare gli aggiornamenti automatici. _(2026-11-13)_
 - L'esito di rifiuto Gradle nel piano è tagliato e perde il nome del test fallito: salvare le righe FAILED per diagnosticare. _(2026-11-14)_
 - `motivoProveRotte` in `src/autopilot-host/ambiente-copia.ts` compone l'esito del ramo respinto; il suo test vecchio vive in `tests/autopilot-host`, non in `tests/main`. _(2026-11-14)_
 - la prova prima/dopo dell'unione deve misurare solo il codice: i criteri su release o remoto passano sul principale e cadono sul ramo che alza la versione _(2026-11-14)_
@@ -398,8 +399,6 @@
 
 ## piano
 
-- Criterio «gh release view v<versione>»: se un'altra chat pubblica quella versione, il cancello lo prova su ogni ramo e respinge unioni giuste. Escludere la versione già uscita. _(2026-11-13)_
-- Mai criterio «gh release view v»+versione di package.json: dopo l'uscita il cancello respinge ogni bump (k-149 ha bloccato la 0.106.3). Usare la versione fissa: `gh release view v0.X.Y`. _(2026-11-13)_
 - i campi nuovi di CompitoPiano vanno letti anche in leggiCompitoPiano (piano-orchestratore.ts), altrimenti si perdono alla rilettura da disco _(2026-11-22)_
 - `promptDopo` sopravvive al rifiuto per dipendenze solo perché `senzaRamo(c)` fa lo spread del compito; va tolto esplicitamente alla partenza. _(2026-11-23)_
 
@@ -428,8 +427,6 @@
 
 ## quaderno
 
-- `.sierradeck/quaderno/lezioni.md` risulta modificato nella cartella principale: lo scrive il programma e sporca main prima del rilascio. _(2026-11-13)_
-- il file del lotto in .sierradeck/errori-arrivati/ non è tracciato: si legge con Read dal percorso della cartella principale, non dal worktree. _(2026-11-13)_
 - errori-arrivati.md usa fine riga CRLF: per aggiungere voci usare Edit ancorato all'ultima frase, non append da shell. _(2026-11-14)_
 - in errori-arrivati.md il testo esatto va controllato prima di un Edit: «la porta 47640» non è «e porta 47640», e l'ancora sbagliata fa fallire l'Edit. _(2026-11-16)_
 - «prossima versione» è corretto finché package.json resta indietro: controllare la versione prima di scrivere il numero. _(2026-11-16)_
@@ -453,18 +450,12 @@
 - Un canale nuovo va dichiarato in `src/preload/index.ts` e in `src/renderer/env.d.ts`, che è la fonte dei tipi di `window.gestore`: solo nel preload il typecheck fallisce. _(2026-11-20)_
 - Per i segreti: il canale fa entrare il valore e non lo restituisce, e la vista del renderer ricopia solo i campi senza valore, così un valore in più si ferma lì. _(2026-11-20)_
 
-## testo
-
-- Nella Salute la differenza di versione va guardata con major.minor (`stessoMinor` in src/shared/salute.ts): le funzioni elencate a mano nei messaggi diventano false con le release. _(2026-11-13)_
-
 ## windows
 
-- path.relative fra dischi diversi dà un percorso assoluto, non '..': dopo relative controllare sempre isAbsolute _(2026-11-13)_
 - Per risolvere conflitti in file CRLF, con Edit gli a capo si rischiano: meglio PowerShell con regex `\r?\n` e verifica del conteggio CRLF. _(2026-11-16)_
 
 ## errori
 
-- `chiama` ora porta stato e motivo nell'errore: riconoscere i 404 dal motivo, non dal testo del messaggio. _(2026-11-13)_
 - Il registro dell'errore di render (ConfineErrori) è per-PC: la pila di un altro PC non si vede da qui, serve il suo registro. _(2026-11-19)_
 - Specialisti «Aiuta la rete» girano su un altro PC e non vedono il registro di qui: la pila la legge l'autopilota in AppData\Roaming\SierraDeck\log e la mette nel prompt. _(2026-11-19)_
 - la cartella .sierradeck della cartella principale non si legge dalle copie (collegamento non risolvibile): la pila di un errore va chiesta all'autopilota. _(2026-11-20)_
@@ -475,7 +466,6 @@
 
 ## voce
 
-- whisper.cpp 1.9.2 su questo PC (i7-3770, niente AVX2, CPU al 100%): 15-37 s per una frase di 3 s col modello small q5_1; «Sierra» la scrive giusta, «fammi» a volte «famiglia». Le misure vanno rifatte a PC scarico. _(2026-11-13)_
 - Il `tar` di Git Bash non apre gli zip: serve `%SystemRoot%\System32\tar.exe` (bsdtar), che accetta anche i nomi con `*` per estrarre solo alcuni file. _(2026-11-13)_
 - La conversazione a voce era solo sul PC (voce-autopilota.ts, parlato.ts, speechSynthesis): nell'app c'era solo la dettatura. Nell'app gli id delle frasi vengono dal contenuto, non dall'indice. _(2026-11-14)_
 
@@ -555,6 +545,8 @@
 - `controlla-pacchetto --prima` rifiuta node_modules come junction: per costruire in una copia ferma sul tag serve `npm ci` nella copia, non `mklink /J`. _(2026-11-23)_
 - `npm run pubblica` intero supera i 10 minuti (prove 6 min): se le prove sono già passate sul tag, lancia i passi uno per uno, nello stesso ordine. _(2026-11-23)_
 - In questa copia `git fetch` fallisce (origin è un bundle sparito) e `gh` non c'è: il controllo delle release va fatto dalla cartella principale. _(2026-11-23)_
+- `npm run pubblica` supera i 10 minuti di timeout dello strumento (installer da 114 MB): passa in sottofondo e lo specialista non può aspettarlo con sleep o cicli, che l'hook blocca. _(2026-11-23)_
+- Alla ripresa di un rilascio interrotto: se tag e bozza ci sono e la bozza è vuota, riparti da `npm run pubblica`. Android invariato = niente `pubblica-app`. _(2026-11-23)_
 
 ## build
 
@@ -918,6 +910,11 @@
 - i riassunti (`riassunto-*.md`) e `.analisi.json` stanno nella cartella dei rapporti arrivati: `leggiRapportiArrivati` li salta perché non sono cartelle di mittente. _(2026-11-23)_
 - il segno `[ws: NOME]` si toglie dalla riga prima dei parser; le righe senza segno restano «generale». _(2026-11-23)_
 - nei rapporti dei lavori il PC è il nome da mostrare (`da`), non il pcId: per richiamare quel PC si risolve il nome con `altriPcGlobale`. _(2026-11-23)_
+- Il conteggio dei rossi somma ogni «finito con» non zero: non misurati, rimisure e timeout entrano tutti. Il log non porta il flag «non misurato». _(2026-11-23)_
+- «sessione avviata» la scrivono app e servizio nello stesso file: ogni avvio conta due volte. _(2026-11-23)_
+- La spia di ritardo conta minuti, non fermate: e il lavoro fermo non va nella stessa voce dei ritardi del servizio. _(2026-11-23)_
+- i riassunti sui rapporti dei PC non aggiornati mostrano righe senza `[ws:]` (scritte prima di k-193e): «senza workspace» alto non è per forza un bug del codice attuale _(2026-11-23)_
+- nelle righe `[aiuto] … affidato a` la parola dopo il trattino deve essere il ruolo; `ruoloDi` scarta gli id dei compiti perché i PC vecchi li scrivevano lì _(2026-11-23)_
 
 ## pc-glos
 
