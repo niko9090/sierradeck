@@ -184,6 +184,7 @@
 - La bozza creata prima di avere il tag online risulta «untagged-…», ma `npm run pubblica` la riempie lo stesso. Il tag `v0.112.0` era già sul remoto prima della bozza. _(2026-11-20)_
 - `errori-arrivati.md` è in CRLF: un Edit che aggiunge righe porta fine riga LF e il file resta con fine riga misti. _(2026-11-20)_
 - `noteDi` (scripts/note-novita.mjs) restituisce [] se le novità stanno su una riga sola, `righe: ['...']`: note della release e di app-android.json vuote. Scriverle a mano o correggere il parser. _(2026-11-20)_
+- `gh release create --draft` stampa un URL «untagged-…» ed è normale: con `--verify-tag` il tag c'è già e la release prende `v0.114.2` alla pubblicazione. _(2026-11-23)_
 
 ## git
 
@@ -422,8 +423,6 @@
 
 ## cancello
 
-- un ramo già unito e cancellato non si misura: serve un ramo nuovo aggiornato a main (già scritto nel quaderno). _(2026-11-10)_
-- Il cancello salva le note `.sierradeck/` prima di unire solo se il diff è fatto di sole aggiunte (numstat, zero righe tolte); righe cambiate o tolte restano di Nicholas. _(2026-11-10)_
 - il controllo «gh release view v<versione>» sul ramo del cambio versione si sblocca con una pre-release vuota non Latest, senza toccare gli aggiornamenti automatici. _(2026-11-13)_
 - L'esito di rifiuto Gradle nel piano è tagliato e perde il nome del test fallito: salvare le righe FAILED per diagnosticare. _(2026-11-14)_
 - `motivoProveRotte` in `src/autopilot-host/ambiente-copia.ts` compone l'esito del ramo respinto; il suo test vecchio vive in `tests/autopilot-host`, non in `tests/main`. _(2026-11-14)_
@@ -431,10 +430,6 @@
 - Il cancello che unisce gira col SierraDeck INSTALLATO: una correzione al cancello unita in main non vale finché Nicholas non installa la versione che la contiene. _(2026-11-15)_
 - Una correzione al cancello (criteri-prova.ts) vale solo dalla versione installata: unita in main non sblocca subito i rami respinti dal cancello che gira; serve un'unione fuori dal cancello. _(2026-11-17)_
 - Il criterio di un compito già unito (es. k-v1 di r-141) non si può correggere con piano_scrivi: richiesta fatta. Un criterio di versione sbagliato resta nel cancello fino alla nuova installazione. _(2026-11-17)_
-
-## consenso
-
-- il consenso a cancellare nasce solo in rispondiAllaDomanda (server.ts), da una risposta di Nicholas: mai da testo della chat; scade in 30 min ed è in memoria _(2026-11-10)_
 
 ## flusso
 
@@ -479,6 +474,7 @@
 - prima di tag e build controllare `git status` nella cartella principale: altre chat possono lasciare modifiche in staging su main, e finirebbero nell'installer. _(2026-11-20)_
 - Il rilascio non va lanciato mentre il programma prova un'unione nella cartella principale (file in staging = unione in corso): rilanciarlo subito dopo l'evento di unione. _(2026-11-20)_
 - `npm run pubblica` supera i 10 minuti (prove, build, installer Aiutante): finisce in background e l'output resta vuoto fino alla fine; controllare gli asset con `gh release view`. _(2026-11-23)_
+- `npm run pubblica` supera i 10 minuti (suite di prove, build, Aiutante): va in sottofondo da solo e si controllano gli allegati con `gh release view`, senza lanciarlo due volte. _(2026-11-23)_
 
 ## quaderno
 
@@ -530,6 +526,7 @@
 - Il registro dell'errore di render (ConfineErrori) è per-PC: la pila di un altro PC non si vede da qui, serve il suo registro. _(2026-11-19)_
 - Specialisti «Aiuta la rete» girano su un altro PC e non vedono il registro di qui: la pila la legge l'autopilota in AppData\Roaming\SierraDeck\log e la mette nel prompt. _(2026-11-19)_
 - la cartella .sierradeck della cartella principale non si legge dalle copie (collegamento non risolvibile): la pila di un errore va chiesta all'autopilota. _(2026-11-20)_
+- «API Error:» in testa non vuol dire guasto del servizio: i rifiuti dei filtri di Claude arrivano con quel prefisso (result success). I controlli specifici vanno prima della regola 'api'. _(2026-11-23)_
 
 ## voce
 
