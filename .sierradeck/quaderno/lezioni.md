@@ -465,12 +465,7 @@
 
 ## preferenze
 
-- impostaPreferenze non tiene nulla in memoria: ogni preferenze() rilegge il disco. Il testo «Valgono fino alla chiusura» (impostazioni-store.ts:98) è falso nel main. _(2026-11-12)_
 - una preferenza booleana con default «vero» si salva solo quando è `false`: normalizzaPreferenze la omette altrimenti, così i file vecchi restano validi. _(2026-11-22)_
-
-## scritture
-
-- rinominaConRiprova attende con Atomics.wait: 600 ms totali bloccano il thread principale (scrittura-atomica.ts:5-22). Un ritentativo più lungo va fatto in modo asincrono. _(2026-11-12)_
 
 ## ipc
 
@@ -715,6 +710,7 @@
 - il dato `affidati` ha solo data e versione, non l'esito della chiusura: «si ripresenta» non può distinguere correzione fallita da azione a mano non fatta. _(2026-11-16)_
 - il rapporto del lotto in .sierradeck/errori-arrivati/ non è nella copia del worktree: va passato nel messaggio del compito. _(2026-11-16)_
 - `volte` è un totale cumulativo: la serie va riconosciuta con PC+dove+punto+quando+messaggio grezzo, aggiungendo solo la differenza; la chiave normalizzata da sola fonde errori diversi. _(2026-11-23)_
+- il giro degli errori arrivati (ogni 2 min, `index.ts`) è il punto dove agganciare altri compiti affidati all'autopilota di SierraDeck: riusa `affidaSierraDeck`. _(2026-11-23)_
 
 ## vista
 
@@ -922,3 +918,7 @@
 ## canale
 
 - Un nuovo tipo di invio verso il PC di riferimento vuole tre pezzi: rotta in client-rotte, comando in posta.ts con gestione in index.ts, e un messaggio di rifiuto in aiutante/rete.ts. _(2026-11-23)_
+
+## rapporti
+
+- i riassunti (`riassunto-*.md`) e `.analisi.json` stanno nella cartella dei rapporti arrivati: `leggiRapportiArrivati` li salta perché non sono cartelle di mittente. _(2026-11-23)_
