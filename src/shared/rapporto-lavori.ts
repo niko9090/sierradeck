@@ -12,9 +12,12 @@
 /** I conti di un workspace (o di «generale», per le righe che non lo dicono). */
 export type LavoriWorkspace = {
   unioni: { prove: number; attesaMs: number; attesaMaxMs: number; provaMs: number; provaMaxMs: number; scadute: number; inFila: number; motivi: Record<string, number> }
-  criteri: { finiti: number; riusciti: number; rossi: number; durataMs: number; durataMaxMs: number; scaduti: number; inAttesa: number }
+  /** `nonMisurati` (k-199c): ambiente rotto, comando assente, codice 126: non sono rossi. */
+  criteri: { finiti: number; riusciti: number; rossi: number; nonMisurati: number; durataMs: number; durataMaxMs: number; scaduti: number; inAttesa: number }
   compiti: { affidati: number; restatiQui: number; inFila: number; rifiuti: number; ruoli: Record<string, number> }
-  avanzamento: { svegli: number; limiteDelPiano: number; criterioRosso: number }
+  /** `lavoroFermoMaxMin`: l'età del lavoro fermo più lungo, in minuti. `spinteSospese`: spinte senza effetto (k-199d). */
+  avanzamento: { svegli: number; limiteDelPiano: number; criterioRosso: number; lavoroFermoMaxMin: number; spinteSospese: number }
+  /** `fermo`: rallentamenti del servizio oltre 1,5 s (ogni volta conta), `fermoMaxMs` il più lungo. */
   fermate: { fermo: number; fermoMaxMs: number; riavvii: number }
 }
 
@@ -46,9 +49,9 @@ export const idRapporto = (r: Pick<RapportoLavori, 'da' | 'dal' | 'al'>): string
 export function lavoriVuoti(): LavoriWorkspace {
   return {
     unioni: { prove: 0, attesaMs: 0, attesaMaxMs: 0, provaMs: 0, provaMaxMs: 0, scadute: 0, inFila: 0, motivi: {} },
-    criteri: { finiti: 0, riusciti: 0, rossi: 0, durataMs: 0, durataMaxMs: 0, scaduti: 0, inAttesa: 0 },
+    criteri: { finiti: 0, riusciti: 0, rossi: 0, nonMisurati: 0, durataMs: 0, durataMaxMs: 0, scaduti: 0, inAttesa: 0 },
     compiti: { affidati: 0, restatiQui: 0, inFila: 0, rifiuti: 0, ruoli: {} },
-    avanzamento: { svegli: 0, limiteDelPiano: 0, criterioRosso: 0 },
+    avanzamento: { svegli: 0, limiteDelPiano: 0, criterioRosso: 0, lavoroFermoMaxMin: 0, spinteSospese: 0 },
     fermate: { fermo: 0, fermoMaxMs: 0, riavvii: 0 }
   }
 }
@@ -74,7 +77,8 @@ export function segnoWorkspace(workspace: string): string {
 
 const SEGNO = /^(\[(?:unione di prova|criterio)\]) \[ws: ([^\]]+)\] /
 
-const ORA =/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z) \[[^\]]+\] \[[^\]]+\] (.*)$/
+/** Gruppi: l'istante, chi ha scritto la riga (`app`, `servizio`), il messaggio. */
+const ORA =/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z) \[[^\]]+\] \[([^\]]+)\] (.*)$/
 
 function aggiungiMotivo(l: LavoriWorkspace, motivo: string): void {
   const m = motivoBreve(motivo)
@@ -96,13 +100,16 @@ export function contaLavori(righe: readonly string[], dopo?: string): { workspac
   }
   let ultima: string | undefined
   let lette = 0
+  // D1: l'ultimo criterio finito non verde. Se poi arriva «rosso per tempo scaduto» (si rimisura), quel finito non è l'esito: si toglie.
+  let pendente: { ws: string; nonMisurato: boolean; ms: number } | undefined
   for (const r of righe) {
     const m = ORA.exec(r)
     if (m === null) continue
     const quando = m[1] as string
     if (dopo !== undefined && quando <= dopo) continue
     ultima = ultima === undefined || quando > ultima ? quando : ultima
-    let t = m[2] as string
+    const chi = m[2] as string
+    let t = m[3] as string
     // Il segno del workspace si toglie dalla riga (le righe vecchie non l'hanno: restano «generale»).
     let wsRiga = WORKSPACE_GENERALE
     const s = SEGNO.exec(t)
@@ -117,14 +124,31 @@ export function contaLavori(righe: readonly string[], dopo?: string): { workspac
       u.attesaMaxMs = Math.max(u.attesaMaxMs, att); u.provaMaxMs = Math.max(u.provaMaxMs, prova)
       if (x[3] !== undefined) { u.scadute += 1; aggiungiMotivo(di(wsRiga), `scaduta: ${x[3]}`) }
       lette += 1
-    } else if ((x = /^\[criterio\] finito con (-?\d+) in (\d+) s/.exec(t)) !== null) {
+    } else if ((x = /^\[criterio\] finito con (-?\d+) in (\d+) s(?: \(non misurato: [^)]*\))?/.exec(t)) !== null) {
       const c = di(wsRiga).criteri
       const ms = Number(x[2]) * 1000
+      // Le righe vecchie non portano il flag: restano rosse come prima.
+      const nonMisurato = /^\[criterio\] finito con -?\d+ in \d+ s \(non misurato:/.test(t)
       c.finiti += 1; c.durataMs += ms; c.durataMaxMs = Math.max(c.durataMaxMs, ms)
-      if (Number(x[1]) === 0) c.riusciti += 1; else c.rossi += 1
+      if (Number(x[1]) === 0) { c.riusciti += 1; pendente = undefined }
+      else {
+        if (nonMisurato) c.nonMisurati += 1; else c.rossi += 1
+        pendente = { ws: wsRiga, nonMisurato, ms }
+      }
       lette += 1
+    } else if (/^\[criterio\] .*non misurabile su questo PC/.test(t)) {
+      di(wsRiga).criteri.nonMisurati += 1; lette += 1
     } else if (/^\[criterio\] .*rosso per tempo scaduto/.test(t)) {
-      di(wsRiga).criteri.scaduti += 1; lette += 1
+      const c = di(wsRiga).criteri
+      c.scaduti += 1
+      // Il finito di prima era il tempo scaduto, non l'esito: l'esito è quello della rimisura.
+      if (pendente !== undefined && (pendente.ws === wsRiga || wsRiga === WORKSPACE_GENERALE)) {
+        const p = di(pendente.ws).criteri
+        p.finiti = Math.max(0, p.finiti - 1); p.durataMs = Math.max(0, p.durataMs - pendente.ms)
+        if (pendente.nonMisurato) p.nonMisurati = Math.max(0, p.nonMisurati - 1); else p.rossi = Math.max(0, p.rossi - 1)
+      }
+      pendente = undefined
+      lette += 1
     } else if (/^\[criterio\] aspetta il suo turno/.test(t)) {
       di(wsRiga).criteri.inAttesa += 1; lette += 1
     } else if ((x = /^\[orchestratore\] (.+?) — .*unione in fila, (\d+)ª/.exec(t)) !== null) {
@@ -133,9 +157,12 @@ export function contaLavori(righe: readonly string[], dopo?: string): { workspac
       di(x[1] as string).avanzamento.criterioRosso += 1; lette += 1
     } else if ((x = /^\[orchestratore\] (.+?) — lavoro fermo da (\d+) minuti/.exec(t)) !== null) {
       const l = di(x[1] as string)
-      l.avanzamento.svegli += 1; l.fermate.fermo += 1
-      l.fermate.fermoMaxMs = Math.max(l.fermate.fermoMaxMs, Number(x[2]) * 60_000)
+      // D6: il lavoro fermo ha il suo campo (minuti), fuori dalle fermate del servizio (ms).
+      l.avanzamento.svegli += 1
+      l.avanzamento.lavoroFermoMaxMin = Math.max(l.avanzamento.lavoroFermoMaxMin, Number(x[2]))
       lette += 1
+    } else if ((x = /^\[orchestratore\] (.+?) — .*spinte sospese: (\d+)/.exec(t)) !== null) {
+      di(x[1] as string).avanzamento.spinteSospese += Number(x[2]); lette += 1
     } else if ((x = /^\[orchestratore\] (.+?) — limite del piano raggiunto/.exec(t)) !== null) {
       di(x[1] as string).avanzamento.limiteDelPiano += 1; lette += 1
     } else if ((x = /^\[aiuto\] (.+?) — (\S+) affidato a /.exec(t)) !== null) {
@@ -151,11 +178,14 @@ export function contaLavori(righe: readonly string[], dopo?: string): { workspac
       di(x[1] as string).compiti.inFila += 1; lette += 1
     } else if ((x = /^\[orchestratore\] (.+?) — permesso negato dal programma/.exec(t)) !== null) {
       di(x[1] as string).compiti.rifiuti += 1; lette += 1
-    } else if ((x = /^\[servizio\] fermo ([\d.]+) s senza rispondere/.exec(t)) !== null) {
+    } else if ((x = /^\[servizio\] fermo ([\d.]+) s senza rispondere(?: \((\d+) vol)?/.exec(t)) !== null) {
       const f = di(WORKSPACE_GENERALE).fermate
-      f.fermo += 1; f.fermoMaxMs = Math.max(f.fermoMaxMs, Math.round(Number(x[1]) * 1000))
+      // D5: la spia scrive al più una riga al minuto con «(N volte …)»: si sommano le N (le righe vecchie senza N valgono 1).
+      f.fermo += x[2] !== undefined ? Math.max(1, Number(x[2])) : 1
+      f.fermoMaxMs = Math.max(f.fermoMaxMs, Math.round(Number(x[1]) * 1000))
       lette += 1
-    } else if (/^━━━ sessione avviata/.test(t)) {
+    } else if (chi === 'servizio' && /^━━━ sessione avviata/.test(t)) {
+      // D4: app e servizio scrivono la stessa riga a ogni avvio: se ne conta una sola, quella del servizio.
       di(WORKSPACE_GENERALE).fermate.riavvii += 1; lette += 1
     }
   }
@@ -204,9 +234,9 @@ export function leggiRapportoLavori(x: unknown): { ok: true; rapporto: RapportoL
     const u = w.unioni ?? {}, c = w.criteri ?? {}, k = w.compiti ?? {}, a = w.avanzamento ?? {}, f = w.fermate ?? {}
     workspace[nome.slice(0, 80)] = {
       unioni: { prove: num(u.prove), attesaMs: num(u.attesaMs), attesaMaxMs: num(u.attesaMaxMs), provaMs: num(u.provaMs), provaMaxMs: num(u.provaMaxMs), scadute: num(u.scadute), inFila: num(u.inFila), motivi: conti(u.motivi) },
-      criteri: { finiti: num(c.finiti), riusciti: num(c.riusciti), rossi: num(c.rossi), durataMs: num(c.durataMs), durataMaxMs: num(c.durataMaxMs), scaduti: num(c.scaduti), inAttesa: num(c.inAttesa) },
+      criteri: { finiti: num(c.finiti), riusciti: num(c.riusciti), rossi: num(c.rossi), nonMisurati: num(c.nonMisurati), durataMs: num(c.durataMs), durataMaxMs: num(c.durataMaxMs), scaduti: num(c.scaduti), inAttesa: num(c.inAttesa) },
       compiti: { affidati: num(k.affidati), restatiQui: num(k.restatiQui), inFila: num(k.inFila), rifiuti: num(k.rifiuti), ruoli: conti(k.ruoli) },
-      avanzamento: { svegli: num(a.svegli), limiteDelPiano: num(a.limiteDelPiano), criterioRosso: num(a.criterioRosso) },
+      avanzamento: { svegli: num(a.svegli), limiteDelPiano: num(a.limiteDelPiano), criterioRosso: num(a.criterioRosso), lavoroFermoMaxMin: num(a.lavoroFermoMaxMin), spinteSospese: num(a.spinteSospese) },
       fermate: { fermo: num(f.fermo), fermoMaxMs: num(f.fermoMaxMs), riavvii: num(f.riavvii) }
     }
   }

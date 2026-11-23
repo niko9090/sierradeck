@@ -34,9 +34,9 @@ export type Somma = LavoriWorkspace
 function sommaVuota(): Somma {
   return {
     unioni: { prove: 0, attesaMs: 0, attesaMaxMs: 0, provaMs: 0, provaMaxMs: 0, scadute: 0, inFila: 0, motivi: {} },
-    criteri: { finiti: 0, riusciti: 0, rossi: 0, durataMs: 0, durataMaxMs: 0, scaduti: 0, inAttesa: 0 },
+    criteri: { finiti: 0, riusciti: 0, rossi: 0, nonMisurati: 0, durataMs: 0, durataMaxMs: 0, scaduti: 0, inAttesa: 0 },
     compiti: { affidati: 0, restatiQui: 0, inFila: 0, rifiuti: 0, ruoli: {} },
-    avanzamento: { svegli: 0, limiteDelPiano: 0, criterioRosso: 0 },
+    avanzamento: { svegli: 0, limiteDelPiano: 0, criterioRosso: 0, lavoroFermoMaxMin: 0, spinteSospese: 0 },
     fermate: { fermo: 0, fermoMaxMs: 0, riavvii: 0 }
   }
 }
@@ -51,7 +51,7 @@ export function sommaDi(a: Somma, b: LavoriWorkspace): void {
   u.attesaMaxMs = Math.max(u.attesaMaxMs, v.attesaMaxMs); u.provaMaxMs = Math.max(u.provaMaxMs, v.provaMaxMs)
   unisciConti(u.motivi, v.motivi)
   const c = a.criteri, d = b.criteri
-  c.finiti += d.finiti; c.riusciti += d.riusciti; c.rossi += d.rossi; c.durataMs += d.durataMs; c.scaduti += d.scaduti; c.inAttesa += d.inAttesa
+  c.finiti += d.finiti; c.riusciti += d.riusciti; c.rossi += d.rossi; c.nonMisurati += d.nonMisurati; c.durataMs += d.durataMs; c.scaduti += d.scaduti; c.inAttesa += d.inAttesa
   c.durataMaxMs = Math.max(c.durataMaxMs, d.durataMaxMs)
   const k = a.compiti, l = b.compiti
   k.affidati += l.affidati; k.restatiQui += l.restatiQui; k.inFila += l.inFila; k.rifiuti += l.rifiuti
@@ -59,6 +59,7 @@ export function sommaDi(a: Somma, b: LavoriWorkspace): void {
   for (const [ruolo, n] of Object.entries(l.ruoli)) k.ruoli[ruoloDi(ruolo)] = (k.ruoli[ruoloDi(ruolo)] ?? 0) + n
   const x = a.avanzamento, y = b.avanzamento
   x.svegli += y.svegli; x.limiteDelPiano += y.limiteDelPiano; x.criterioRosso += y.criterioRosso
+  x.spinteSospese += y.spinteSospese; x.lavoroFermoMaxMin = Math.max(x.lavoroFermoMaxMin, y.lavoroFermoMaxMin)
   const f = a.fermate, g = b.fermate
   f.fermo += g.fermo; f.riavvii += g.riavvii; f.fermoMaxMs = Math.max(f.fermoMaxMs, g.fermoMaxMs)
 }
@@ -110,8 +111,8 @@ function righeWorkspace(s: Somma): string[] {
   if (u.inFila > 0) r.push(`- unioni messe in fila: ${u.inFila}`)
   if (Object.keys(u.motivi).length > 0) r.push(`- motivi delle unioni scadute: ${elenco(u.motivi)}`)
   const c = s.criteri
-  if (c.finiti > 0 || c.scaduti > 0 || c.inAttesa > 0) {
-    r.push(`- criteri: ${c.finiti} finiti, ${c.riusciti} verdi, ${c.rossi} ROSSI${c.rossi > 0 ? ' — **da guardare**' : ''}, ${c.scaduti} rossi per tempo scaduto, ${c.inAttesa} in attesa del turno · durata media ${sec(media(c.durataMs, c.finiti))}, massima ${sec(c.durataMaxMs)}`)
+  if (c.finiti > 0 || c.scaduti > 0 || c.inAttesa > 0 || c.nonMisurati > 0) {
+    r.push(`- criteri: ${c.finiti} finiti, ${c.riusciti} verdi, ${c.rossi} ROSSI${c.rossi > 0 ? ' — **da guardare**' : ''}, ${c.nonMisurati} non misurati (ambiente o comando, non rossi), ${c.scaduti} scaduti per tempo (poi rimisurati), ${c.inAttesa} in attesa del turno · durata media ${sec(media(c.durataMs, c.finiti))}, massima ${sec(c.durataMaxMs)}`)
   }
   const k = s.compiti
   if (k.affidati > 0 || k.restatiQui > 0 || k.inFila > 0 || k.rifiuti > 0) {
@@ -119,11 +120,11 @@ function righeWorkspace(s: Somma): string[] {
     if (k.rifiuti > 0) r.push(`- permessi negati dal programma: ${k.rifiuti}`)
   }
   const a = s.avanzamento
-  if (a.svegli > 0 || a.limiteDelPiano > 0 || a.criterioRosso > 0) {
-    r.push(`- avanzamento: lavori svegliati perché fermi ${a.svegli}, limite del piano ${a.limiteDelPiano}, criterio rosso senza correzione ${a.criterioRosso}`)
+  if (a.svegli > 0 || a.limiteDelPiano > 0 || a.criterioRosso > 0 || a.spinteSospese > 0) {
+    r.push(`- avanzamento: lavori svegliati perché fermi ${a.svegli}, limite del piano ${a.limiteDelPiano}, criterio rosso senza correzione ${a.criterioRosso}, spinte sospese ${a.spinteSospese}${a.lavoroFermoMaxMin > 0 ? ` · lavoro fermo più lungo: ${a.lavoroFermoMaxMin} min` : ''}`)
   }
   const f = s.fermate
-  if (f.fermo > 0 || f.riavvii > 0) r.push(`- fermate del programma: ${f.fermo} (la più lunga ${sec(f.fermoMaxMs)}) · riavvii: ${f.riavvii}`)
+  if (f.fermo > 0 || f.riavvii > 0) r.push(`- rallentamenti del servizio oltre 1,5 s: ${f.fermo} (il più lungo ${sec(f.fermoMaxMs)}) · riavvii: ${f.riavvii}`)
   return r
 }
 
