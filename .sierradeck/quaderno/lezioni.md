@@ -173,7 +173,6 @@
 
 ## git
 
-- 12/11: v0.101.1 uscita da clone (a2df43ce). Il .git del principale (config, refs/heads/main e refs/remotes/origin/main a zeri) è stato riparato il 12/11 col sì di Nicholas: config ricostruito, main da `logs/refs/heads/main`, `reset --mixed a2df43ce`, fsck pulito; le copie rotte sono in `.git/*.rovinato*`. Resta da togliere SierraDeck-rilascio-0101 (decide Nicholas). _(2026-11-12)_
 - Prima di una pubblicazione manuale controllare MERGE_HEAD e i file in stage nella cartella principale: il programma può avere un'unione a metà che blocca il rilascio per minuti. _(2026-11-14)_
 - Il `lezioni.md` modificato dal programma sporca la cartella, ma non ha fermato `pubblica-app`. _(2026-11-14)_
 - in questa copia `git fetch` può fallire se il remoto è un bundle sparito; `merge --ff-only main` basta _(2026-11-16)_
@@ -301,7 +300,6 @@
 
 ## renderer
 
-- le chiamate preferenze.imposta hanno un .catch vuoto (App.tsx:979 e simili): un salvataggio fallito non si vede. _(2026-11-12)_
 - Un hook che cambia sorgente (workspace o PC) non deve tenere il valore di prima: `useSondaggio` lo legava al sondaggio vecchio, e `useAutopilotaRemoto` lasciava scrivere una lettura in viaggio del workspace precedente. Ogni lettura va legata al suo giro. _(2026-11-13)_
 - le guardie sui campi array dell'autopilota vanno messe anche nei chiamanti di `adessoDi` (es. DalVivoAutopilota): la riga «chat sola» li fa passare anche senza `chats`. _(2026-11-13)_
 - SORGENTE_LOCALE (sorgente-autopilota.tsx) è il punto unico da cui il renderer chiama coda/orchestratore/specialista: le guardie sul workspace vanno lì. _(2026-11-16)_
@@ -616,6 +614,7 @@
 ## log
 
 - consoleNelRegistro: console.warn va come info (fuori dallo storico errori), console.error come ERRORE; per casi attesi di rete usare warn. _(2026-11-14)_
+- Le righe [unione di prova] e [criterio] non portano il workspace: i rapporti le contano sotto «generale». Per attribuirle bisogna prima cambiare il formato delle righe in server.ts e verifiche.ts. _(2026-11-23)_
 
 ## aiuto
 
@@ -919,3 +918,7 @@
 ## pty
 
 - il buffer di uscita sta in `ipc.ts` (`flussiPty`), agganciato al `client.on` prima di instradare: copre anche i pty in sottofondo; la chat si mappa al pty via `sessione _(2026-11-23)_
+
+## canale
+
+- Un nuovo tipo di invio verso il PC di riferimento vuole tre pezzi: rotta in client-rotte, comando in posta.ts con gestione in index.ts, e un messaggio di rifiuto in aiutante/rete.ts. _(2026-11-23)_
