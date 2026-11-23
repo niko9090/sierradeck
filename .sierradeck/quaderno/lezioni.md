@@ -258,7 +258,6 @@
 
 ## unioni
 
-- Dalla 0.100.0 un file non salvato nella cartella principale ferma un’unione solo se il ramo lo tocca; in quel caso dopo 5 minuti è il programma a chiedere a Nicholas «Salvali e unisci», non l’autopilota. _(2026-11-11)_
 - rami con rotte nuove: il conflitto sta nel tipo `FonteAiuto` di `src/main/rotte-aiuto.ts`; tenere i campi opzionali di entrambi i lati. _(2026-11-20)_
 - `turni.unione` rende `TurnoScaduto` subito ma libera cartella e conteggio solo a `fai()` chiuso; pulizia della prova scaduta sempre dentro `turni.unione _(2026-11-22)_
 - il lucchetto della cartella principale sta in turni.unione (turni-criteri.ts): si rende a corsa chiusa o dopo UNIONE_LIBERA_DOPO_MS dalla scadenza, mai prima _(2026-11-22)_
@@ -331,7 +330,6 @@
 
 ## servizio
 
-- Dalla 0.101.0 telefono, pagina e Telegram leggono lo stesso registro degli avvisi (`src/main/avvisi.ts`, `/api/eventi`): una regola su quando avvisare va lì, non nelle schermate; `avvisi=0` vuol dire «da capo» e l’attesa deve svegliarsi per ogni avviso nato dopo. _(2026-11-11)_
 - `dati += buffer` e `buffer.toString()` per pezzo spezzano i caratteri multibyte (U+FFFD): usare StringDecoder o setEncoding('utf8') su ogni lettura a pezzi. _(2026-11-14)_
 - `percentuale` per i lavori ospitati è inventata (10 + minuti): non mostrare una barra senza una stima vera. _(2026-11-16)_
 - il servizio autopiloti non conosce porta del client né gettoni del programma: per parlargli c'è `ponte-locale.json` nella cartella dati (porta+gettone), riscritto a ogni avvio del programma. _(2026-11-20)_
@@ -581,6 +579,7 @@
 - Dopo `--draft=false` il link `releases/latest/download/<file>` può dare 404 dalla cache per qualche minuto: verificare con `gh release download` o con l'URL `/download/<tag>/`. _(2026-11-23)_
 - `npm run pubblica` supera i 10 minuti: va in sottofondo da solo. Non rilanciarlo; aspetta che compaia aiutante.yml fra gli asset (è l'ultimo), poi pubblica. _(2026-11-23)_
 - `git fetch` può fallire per un bundle in aiuto\arrivi: la versione di partenza si trova con `git log -S"x.y.z" -- package.json`. _(2026-11-23)_
+- se il fetch fallisce perché il bundle in `aiuto\arrivi` non c'è, il controllo su origin/main resta al rilascio. _(2026-11-23)_
 
 ## build
 
@@ -783,6 +782,7 @@
 
 - Una versione tocca package.json, package-lock.json (2 punti), novita.ts e una nota nel quaderno. Android si alza solo se android/ cambia oltre a novita-app.txt, che è solo testo. _(2026-11-19)_
 - Il commit di versione tocca `package.json`, `package-lock.json` (due righe) e `src/shared/novita.ts`. `novita.test.ts` ammette al massimo 8 righe per voce. _(2026-11-23)_
+- `package-lock.json` ha la versione due volte (riga 3 e riga 9 sotto `packages[""]`): vanno alzate entrambe. _(2026-11-23)_
 
 ## aggiornamento
 
