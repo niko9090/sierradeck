@@ -1244,7 +1244,7 @@ ${NOTA_SENZA_GIT}`,
       const k = s.compito !== undefined ? x.orchestratori.piano(ws).compiti.find((c) => c.id === s.compito && c.chat === s.id) : undefined
       // k-178k: uno specialista «fermato» senza che Nicholas o l'autopilota l'abbiano chiesto (appeso, o morto col
       // processo): prima di segnarlo si guarda il lavoro salvato. «RAPPORTO: finita» → in unione; a metà → si rilancia.
-      if (s.stato === 'fermato' && !RUOLI_SOLA_LETTURA.has(s.ruolo) && !fermaChiesta.has(s.id)) {
+      if (s.stato === 'fermato' && !RUOLI_SOLA_LETTURA.has(s.ruolo) && !fermaChiesta.has(s.id) && !fermatiDaNicholas.has(s.id)) {
         const lavoro = lavoroDelFermato(ws, s)
         if (lavoro.finito) s = { ...s, stato: 'finito' }
         else {
