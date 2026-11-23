@@ -300,6 +300,10 @@ object Scaricatore {
                 attendi(minOf(15_000L, 1000L * tentativi * tentativi))
             }
         }
+        // Il PC ha smesso di mandare dati prima della fine: non è «fatto», il pezzo arrivato resta per la ripresa.
+        if (totale >= 0 && parte.length() < totale && parte.length() < massimo) {
+            return Esito.Fallito(0, "Il file è arrivato a metà (${FileVista.misura(parte.length())} di ${FileVista.misura(totale)}). Riprovo più tardi, da dov'era.")
+        }
         if (sha256 != null && parte.length() == totale && FileVista.impronta(parte) != sha256.lowercase()) {
             parte.delete()
             return Esito.Fallito(422, "Il file è arrivato diverso da com'era sul PC (l'impronta non torna): lo riscarico da capo.")
