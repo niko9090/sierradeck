@@ -352,11 +352,6 @@
 - `Registro` ha solo info ed errore: l'«avviso» è una riga info con prefisso [avviso]; solo `errore` entra nello storico degli errori arrivati. _(2026-11-16)_
 - «riparte con --resume» non basta: investimento è stato spento il 21/11 13:25 senza ripresa nei log, probabilmente perché nessuna sveglia era rimasta fissata. _(2026-11-22)_
 
-## ripresa
-
-- Dopo un riavvio la memoria degli specialisti non c'è più: per riprendere un'unione serve il ramo salvato nel piano (CompitoPiano.ramo), non il solo id del compito. _(2026-11-10)_
-- riprendiOrchestratori può arrivare secondi dopo l'avvio (gestore-avviato): non rifarci lavoro già avviato all'avvio, la fila evita i doppioni solo mentre l'unione è ancora dentro _(2026-11-10)_
-
 ## pc-remoto
 
 - ROTTE_LENTE deve combaciare con Api.kt dell'app (test android): le rotte lente solo fra PC vanno in ROTTE_LENTE_FRA_PC, così non serve un APK nuovo. _(2026-11-11)_
@@ -370,10 +365,6 @@
 ## merge
 
 - Più gruppi di correzioni sugli stessi file grossi (servizio-orchestratore.ts): una copia per gruppo, poi un ramo di integrazione; i conflitti stanno negli import e nel cancello, e dopo ogni unione vanno rilanciati typecheck e l’intera suite. _(2026-11-11)_
-
-## verifica
-
-- su Windows il checkout con autocrlf dà CRLF nei file del worktree: un confronto byte a byte con la cartella principale segnala «diversi» anche con contenuto uguale. Confrontare ignorando i CR (`tr -d… _(2026-11-10)_
 
 ## rete
 
@@ -491,6 +482,7 @@
 - Con `pubblica` i nomi dei file sono già con i trattini e i sette file arrivano da soli: il caricamento a mano da dist/ non è servito per la 0.111.2. _(2026-11-20)_
 - prima di tag e build controllare `git status` nella cartella principale: altre chat possono lasciare modifiche in staging su main, e finirebbero nell'installer. _(2026-11-20)_
 - Il rilascio non va lanciato mentre il programma prova un'unione nella cartella principale (file in staging = unione in corso): rilanciarlo subito dopo l'evento di unione. _(2026-11-20)_
+- `npm run pubblica` supera i 10 minuti (prove, build, installer Aiutante): finisce in background e l'output resta vuoto fino alla fine; controllare gli asset con `gh release view`. _(2026-11-23)_
 
 ## quaderno
 
@@ -601,6 +593,8 @@
 - Per una versione mancante usare `noteDiOErrore` (errore con messaggio chiaro); `noteDi` dà `[]`. _(2026-11-22)_
 - Prima di pubblicare controllare `git status`: modifiche in staging nella cartella principale finiscono nel pacchetto e sfasano tag e installer. _(2026-11-23)_
 - Non lanciare il rilascio durante un'unione: l'unione di prova lascia file in staging nella cartella principale e il rilascio si ferma. Lanciarlo a fila unioni vuota. _(2026-11-23)_
+- Il hook blocca ogni sleep e i cicli di attesa a mano: dopo il timeout si può solo controllare lo stato con `gh release view` e aspettare la notifica. _(2026-11-23)_
+- nelle copie degli specialisti manca il tag v0.114.0 e `gh` può essere negato: per le correzioni dopo il tag serve il commit del tag, non solo quello del bump. _(2026-11-23)_
 
 ## build
 
