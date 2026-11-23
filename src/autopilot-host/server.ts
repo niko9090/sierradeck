@@ -844,10 +844,20 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       if (soloVers.size > 0) cambiatiPerProva = senzaSolaVersione(cambiati, soloVers)
     }
     const criteri = criteriPerLaProva(tutti, cambiatiPerProva)
-    const misura = async (criteri: Criterio[], segnale: AbortSignal) => {
+    // k-197c: le misure passano dal turno pesante del PC (uno alla volta fra workspace). L'attesa in fila non conta
+    // nella scadenza della prova (`inFila`); i comandi dentro il turno non lo chiedono ancora (`pesante` è rientrante).
+    const misura = async (criteri: Criterio[], segnale: AbortSignal, inFila: <R>(fai: () => Promise<R>) => Promise<R>) => {
       if (criteri.length === 0) return []
       const impronta = await improntaCodiceAsincrona(gitA(git), a.cwd)
-      return (await conWorkspaceDiLog(chiaveWorkspace(a), () => misuraCriteri(criteri, a.cwd, deps.esegui, { memoria: memoriaCriteri, adesso: orologio, tutti: true, segnale, ...(impronta !== undefined ? { impronta } : {}) }))).esiti
+      let via = (): void => {}
+      const partita = new Promise<void>((ris) => { via = ris })
+      const girata = turni.pesante(a.cwd, async () => {
+        via()
+        return (await conWorkspaceDiLog(chiaveWorkspace(a), () => misuraCriteri(criteri, a.cwd, deps.esegui, { memoria: memoriaCriteri, adesso: orologio, tutti: true, segnale, ...(impronta !== undefined ? { impronta } : {}) }))).esiti
+      })
+      girata.catch(() => {})
+      await inFila(() => partita)
+      return girata
     }
     await aspettaProve(a.cwd)
     let fine = (): void => {}
@@ -857,7 +867,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     const stato = { scaduta: false, punto: 'unire il ramo' }
     // 23/11: il motivo dice in che punto è scaduta (prima solo «prova scaduta»): l'autopilota e Nicholas vedono cosa è lento.
     const provaScaduta = (): string => `prova scaduta mentre stava per ${stato.punto}`
-    const corpo = async (segnale: AbortSignal, iniziata: () => void): Promise<EsitoProvaPrincipale> => {
+    const corpo = async (segnale: AbortSignal, iniziata: () => void, inFila: <R>(fai: () => Promise<R>) => Promise<R>): Promise<EsitoProvaPrincipale> => {
       const eScaduta = (): boolean => stato.scaduta || segnale.aborted
       const PER_TEMPO = 'una misura è scaduta per tempo (PC carico), non è colpa del ramo'
       const unisci = async (): Promise<EsitoProvaPrincipale | undefined> => {
@@ -879,7 +889,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       let peggiorati: string[] = []
       stato.punto = 'misurare i criteri'
       try {
-        const rossi =(await misura(criteri, segnale)).filter((e) => !e.passato)
+        const rossi =(await misura(criteri, segnale, inFila)).filter((e) => !e.passato)
         if (eScaduta()) return { unito: false, motivo: provaScaduta(), ritenta: 'scaduta' }
         // 11/11: una misura interrotta per tempo non dice niente sul ramo (07/11: rami respinti
         // a PC carico). La prova si chiude e l'unione torna in fila.
@@ -890,7 +900,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         if (rossi.length > 0) {
           stato.punto = 'rimisurare i criteri senza il ramo'
           await turni.unione(a.cwd, (segnale) => chiudiProvaAsincrono(gitFermabile(git, segnale), { cwd: a.cwd, tieni: false }), tempo)
-          const prima = await misura(criteri.filter((c) => rossi.some((r) => r.descrizione === c.descrizione)), segnale)
+          const prima = await misura(criteri.filter((c) => rossi.some((r) => r.descrizione === c.descrizione)), segnale, inFila)
           if (eScaduta()) return { unito: false, motivo: provaScaduta(), ritenta: 'scaduta' }
           if (prima.some((e) => !e.passato && interrottoPerTempo(e.uscita))) return { unito: false, motivo: PER_TEMPO, ritenta: 'scaduta' }
           peggiorati = peggioratiDelRamo(prima, rossi, true).delRamo
@@ -916,7 +926,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       // 11/11: alla scadenza il segnale ferma davvero il comando figlio (e rende il turno dei
       // pesanti): il tentativo dopo non aspetta una suite fantasma. I tempi vanno nel registro.
       const r = await conScadenza(
-        (segnale, iniziata) => corpo(segnale, iniziata).catch((err: unknown) => { if (err instanceof TurnoScaduto) return 'scaduta' as const; throw err }),
+        (segnale, iniziata, inFila) => corpo(segnale, iniziata, inFila).catch((err: unknown) => { if (err instanceof TurnoScaduto) return 'scaduta' as const; throw err }),
         // 11/11: la durata massima della prova la decide Nicholas (di serie `PROVA_MAX_MS`).
         // k-191e: adattiva (4 × la mediana delle ultime prove del workspace, almeno 5 minuti), con più tempo a ogni scadenza.
         scadenzaAdattiva(proveRecenti.get(chiaveWorkspace(a)) ?? [], deps.provaMaxMs ?? (deps.limiti !== undefined ? deps.limiti.leggi().provaMaxMin * 60_000 : PROVA_MAX_MS), tempo.piuTempo ?? 1),

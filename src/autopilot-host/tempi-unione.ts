@@ -45,7 +45,7 @@ export type MisuraTempi = { attesaMs: number; esecuzioneMs: number }
  * lavorare: i tempi si scrivono separati (attesa, esecuzione).
  */
 export async function conScadenza<T>(
-  corpo: (segnale: AbortSignal, iniziata: () => void) => Promise<T>,
+  corpo: (segnale: AbortSignal, iniziata: () => void, inFila: <R>(fai: () => Promise<R>) => Promise<R>) => Promise<T>,
   maxMs: number,
   opz: { ora?: () => number; scrivi?: (t: MisuraTempi & { scaduta: boolean }) => void } = {}
 ): Promise<{ scaduta: false; valore: T } | { scaduta: true }> {
@@ -54,8 +54,35 @@ export async function conScadenza<T>(
   const t0 = ora()
   let t1: number | undefined
   let timer: ReturnType<typeof setTimeout> | undefined
-  const scadenza = new Promise<'scaduta'>((ris) => { timer = setTimeout(() => ris('scaduta'), maxMs); timer.unref?.() })
-  const lavoro = corpo(controllo.signal, () => { t1 ??= ora() })
+  let scattaScadenza = (): void => {}
+  const scadenza = new Promise<'scaduta'>((ris) => { scattaScadenza = () => ris('scaduta') })
+  /** Quanto tempo resta alla scadenza; il timer si ferma mentre il corpo aspetta in fila (`inFila`). */
+  let resto = maxMs
+  let partito = t0
+  let inFilaMs = 0
+  let inAttesa = 0
+  let chiusa = false
+  const avviaTimer = (): void => {
+    if (chiusa) return
+    partito = ora()
+    timer = setTimeout(scattaScadenza, Math.max(0, resto))
+    timer.unref?.()
+  }
+  avviaTimer()
+  /** k-197c: l'attesa del turno del PC non è tempo della prova: la scadenza si ferma finché dura, poi riparte da dove era. */
+  const inFila = async <R>(fai: () => Promise<R>): Promise<R> => {
+    const da = ora()
+    if (inAttesa === 0 && timer !== undefined) { clearTimeout(timer); timer = undefined; resto -= da - partito }
+    inAttesa += 1
+    try {
+      return await fai()
+    } finally {
+      inAttesa -= 1
+      inFilaMs += ora() - da
+      if (inAttesa === 0 && timer === undefined) avviaTimer()
+    }
+  }
+  const lavoro = corpo(controllo.signal, () => { t1 ??= ora() }, inFila)
   // Il corpo che finisce dopo la scadenza (o con un errore) non deve restare senza chi lo ascolta.
   lavoro.catch(() => {})
   let esito: { scaduta: false; valore: T } | { scaduta: true }
@@ -69,10 +96,11 @@ export async function conScadenza<T>(
       esito = { scaduta: true }
     } else esito = { scaduta: false, valore: r }
   } finally {
+    chiusa = true
     if (timer !== undefined) clearTimeout(timer)
     const fine = ora()
     const inizio = t1 ?? fine
-    try { opz.scrivi?.({ attesaMs: inizio - t0, esecuzioneMs: fine - inizio, scaduta: controllo.signal.aborted }) } catch { /* il registro non ferma l'unione */ }
+    try { opz.scrivi?.({ attesaMs: inizio - t0 + inFilaMs, esecuzioneMs: Math.max(0, fine - inizio - inFilaMs), scaduta: controllo.signal.aborted }) } catch { /* il registro non ferma l'unione */ }
   }
   return esito
 }
