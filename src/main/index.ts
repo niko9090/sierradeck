@@ -229,6 +229,8 @@ import { testoDaCopiare, type InvioErrori, type StoricoErrori } from '@shared/st
 import { cartellaDiSierraDeck, mandaErrori, salvaErroriArrivati } from './errori-arrivati'
 import { giroErroriArrivati, vistaArrivi } from './errori-arrivati-lavoro'
 import { eventiPiuRecentiInCima, leggiEventiAiuto, registraEventoAiuto } from '@shared/eventi-aiuto'
+import { GIRO_RAPPORTO_MS, giroRapportoLavori, mandaRapporto, righeDeiRegistri, salvaRapportoArrivato, type StatoRapporto } from './rapporti-lavori'
+import type { RapportoLavori } from '@shared/rapporto-lavori'
 import { GIRO_INVIO_MS, giroInvioErrori, pcSviluppoDi, vistaErrori, type StatoInvio } from './errori-invio-automatico'
 import { eRemotoDiSviluppo, pcProclamato, perchéNonProclama } from '@shared/pc-sviluppo'
 import type { AttesaInvio } from '@shared/attesa-invio'
@@ -268,6 +270,8 @@ let nomePcSviluppoGlobale: (() => string | undefined) | undefined
 let rigaArriviGlobale: string | undefined
 let giroArriviGlobale: (() => void) | undefined
 let radiceSierraDeckGlobale: (() => string | undefined) | undefined
+/** k-193a: riceve il rapporto dei lavori di un altro PC (rotta /api/rapporti/arrivati). */
+let riceviRapportoGlobale: ((r: RapportoLavori, chi: string) => Promise<{ ok: true; file: string } | { ok: false; stato: number; errore: string }>) | undefined
 let riceviErroriGlobale: ((invio: InvioErrori, chi: string) => Promise<{ ok: true; file: string } | { ok: false; stato: number; errore: string }>) | undefined
 /** Cambia il nome scelto e lo dice alle finestre; il battito lo porta agli altri PC al prossimo giro. */
 function impostaNomePc(nome: string): import('./progetti/pc').IdentitaPc {
@@ -2222,6 +2226,12 @@ if (!app.requestSingleInstanceLock()) {
             if (r === undefined) return { ok: false, riprova: true, esito: 'questo PC non è ancora pronto a ricevere gli errori' }
             return r.ok ? { ok: true, esito: `salvati in ${r.file}` } : { ok: false, esito: r.errore }
           }
+          // k-193a: il rapporto dei lavori lasciato sul Drive mentre questo PC era spento.
+          if (c.tipo === 'rapporto-lavori') {
+            const r = riceviRapportoGlobale === undefined ? undefined : await riceviRapportoGlobale(c.rapporto, `per posta da ${voce.daNome}`)
+            if (r === undefined) return { ok: false, riprova: true, esito: 'questo PC non è ancora pronto a ricevere i rapporti' }
+            return r.ok ? { ok: true, esito: `salvato in ${r.file}` } : { ok: false, esito: r.errore }
+          }
           // Gestione progetti (13/11): rinomina, elimina, pulisci copia, sposta qui.
           if (c.tipo === 'progetto-rinomina' || c.tipo === 'progetto-elimina' || c.tipo === 'progetto-pulisci-copia' || c.tipo === 'progetto-sposta-qui') {
             const r = gestioneGlobale === undefined ? undefined : await gestioneGlobale.comando(c, voce.daPc)
@@ -2763,6 +2773,58 @@ if (!app.requestSingleInstanceLock()) {
         const b = postino.altrui().find((x) => x.pcId === pc)
         return b !== undefined ? nomeDaMostrare(b) : 'un PC che non si vede adesso'
       }
+      // ── I rapporti dei lavori verso il PC di riferimento (k-193a): stesso PC, stesso canale ──
+      riceviRapportoGlobale = async (rapporto, chi) => {
+        const radice = radiceSierraDeck()
+        if (radice === undefined) return { ok: false, stato: 409, errore: 'Su questo PC non c’è la cartella di SierraDeck: scegli come PC di sviluppo quello dove c’è.' }
+        const e = salvaRapportoArrivato(radice, rapporto)
+        registro.info(e.ok ? `[rapporti] rapporto dei lavori da «${rapporto.da}» (${chi}): ${e.doppio ? 'già arrivato' : e.file}` : `[rapporti] rapporto da «${rapporto.da}» non salvato: ${e.errore}`)
+        return e.ok ? e : { ok: false, stato: 500, errore: e.errore }
+      }
+      const fileRapporto = join(dati, 'rapporti-lavori-invio.json')
+      const leggiStatoRapporto = (): StatoRapporto | undefined => { try { return JSON.parse(readFileSync(fileRapporto, 'utf8')) as StatoRapporto } catch { return undefined } }
+      let rapportoInCorso = false
+      let motivoRapportoFallito: string | undefined
+      let attesaRapporto: AttesaInvio | undefined
+      const giroRapporti = async (forza = false): Promise<{ ok: boolean; messaggio: string }> => {
+        if (rapportoInCorso) return { ok: false, messaggio: 'Sto già mandando il rapporto dei lavori.' }
+        rapportoInCorso = true
+        try {
+          const io = identitaPc.leggi()
+          return await giroRapportoLavori({
+            righe: (giorno) => righeDeiRegistri(dirname(registro.file()), giorno),
+            stato: { leggi: leggiStatoRapporto, scrivi: (s) => { scriviJsonAtomico(fileRapporto, s, 'rapporti-invio') } },
+            pcRiferimento: pcSviluppo,
+            adesso: () => Date.now(),
+            da: () => nomeDaMostrare(io),
+            versione: app.getVersion(),
+            manda: (rapporto) => mandaRapporto({
+              pcRiferimento: pcSviluppo(),
+              io: { id: io.id, nome: nomeDaMostrare(io) },
+              rapporto,
+              nomeDi: (pc) => { const b = postino.altrui().find((x) => x.pcId === pc); return b !== undefined ? nomeDaMostrare(b) : undefined },
+              chiama: (pc, percorso, corpo) => remoto.chiama(pc, percorso, corpo),
+              salvaQui: (r) => { const radice = radiceSierraDeck(); return radice === undefined ? { ok: false, errore: 'Su questo PC non c’è la cartella di SierraDeck.' } : salvaRapportoArrivato(radice, r) },
+              perPosta: async (pc, r, err) => {
+                if (err instanceof ErroreRemoto && err.stato !== undefined) return false
+                return await postino.aggiungi(pc, { comando: { tipo: 'rapporto-lavori', rapporto: r }, cwd: '', testo: `rapporto dei lavori da ${r.da}` }) !== undefined
+              },
+              log: (riga) => registro.info(riga)
+            }),
+            log: (riga) => registro.info(riga),
+            fallimento: { leggi: () => motivoRapportoFallito, scrivi: (m) => { motivoRapportoFallito = m } },
+            attesa: { leggi: () => attesaRapporto, scrivi: (a) => { attesaRapporto = a } },
+            forza
+          })
+        } catch (err) {
+          registro.info(`[rapporti] giro non riuscito: ${err instanceof Error ? err.message : String(err)}`)
+          return { ok: false, messaggio: 'Rapporto non mandato: riprovo da solo.' }
+        } finally {
+          rapportoInCorso = false
+        }
+      }
+      setInterval(() => { void giroRapporti() }, GIRO_RAPPORTO_MS)
+      setTimeout(() => { void giroRapporti() }, 60_000)
       ipcMain.handle('errori:manda', () => giro(true))
       ipcMain.handle('errori:sviluppo', () => ({ ...(statoSviluppoGlobale?.() ?? { puo: false, proclamato: false }), ...(nomePcSviluppoGlobale?.() !== undefined ? { pc: nomePcSviluppoGlobale!() } : {}) }))
 
@@ -4960,6 +5022,7 @@ if (!app.requestSingleInstanceLock()) {
           manda: () => mandaErroriGlobale?.() ?? Promise.resolve({ ok: false, messaggio: 'Il collegamento con gli altri PC non è ancora pronto: riprova fra qualche secondo.' })
         },
         erroriArrivati: (invio: InvioErrori, chi: string) => riceviErroriGlobale !== undefined ? riceviErroriGlobale(invio, chi) : Promise.resolve({ ok: false as const, stato: 409, errore: 'Questo PC non è ancora pronto a ricevere gli errori: riprova fra qualche secondo.' }),
+        rapportoArrivato: (rapporto: RapportoLavori, chi: string) => riceviRapportoGlobale !== undefined ? riceviRapportoGlobale(rapporto, chi) : Promise.resolve({ ok: false as const, stato: 409, errore: 'Questo PC non è ancora pronto a ricevere i rapporti: riprova fra qualche secondo.' }),
         fileProgetti: apriFileProgetti({
           candidati: async (): Promise<string[]> => [
             ...await (rotte.cartelle as () => Promise<string[]>)().catch(() => [] as string[]),

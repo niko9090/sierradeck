@@ -50,7 +50,7 @@ function dentroGit(rel: string): boolean {
 const CARTELLE_ESCLUSE = [
   '.sierradeck/recuperati', '.claude/worktrees', '.git/worktrees',
   // 0.95.6: file passati da un PC all'altro e arrivati: gia' consegnati, non sono lavoro.
-  '.sierradeck/allegati', '.sierradeck/consegne', '.sierradeck/errori-arrivati'
+  '.sierradeck/allegati', '.sierradeck/consegne', '.sierradeck/errori-arrivati', '.sierradeck/rapporti-lavori-arrivati'
 ]
 export function cartellaEsclusa(rel: string): boolean {
   return CARTELLE_ESCLUSE.some((c) => rel === c || rel.endsWith(`/${c}`))

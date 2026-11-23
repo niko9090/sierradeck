@@ -149,7 +149,7 @@ export function colleghiRete(d: {
     ...(d.blocco !== undefined ? { bloccoAiutante: d.blocco } : {}),
     // Nessuna cartella qui: una voce per una chat fallisce e lo dice a chi l'ha mandata.
     cartellaEsiste: () => false,
-    comando: async (c) => ({ ok: false, esito: c.tipo === 'errori' ? 'questo è SierraDeck Aiutante: gli errori vanno al PC di sviluppo' : 'questo è SierraDeck Aiutante: non apre chat né progetti' }),
+    comando: async (c) => ({ ok: false, esito: c.tipo === 'errori' || c.tipo === 'rapporto-lavori' ? 'questo è SierraDeck Aiutante: errori e rapporti vanno al PC di sviluppo' : 'questo è SierraDeck Aiutante: non apre chat né progetti' }),
     apriChat: () => {},
     riprendiChat: () => {},
     scrivi: () => {},
