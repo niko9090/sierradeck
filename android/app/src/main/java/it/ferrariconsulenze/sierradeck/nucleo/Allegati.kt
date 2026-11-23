@@ -46,6 +46,7 @@ object Allegati {
     )
     /** Quante volte di fila si riprova un pezzo prima di arrendersi (poi «Riprova» riparte da dove era). */
     const val TENTATIVI = 8
+    const val TESTO_FILE_CAMBIATO = "Il file sul telefono è cambiato o si è accorciato mentre lo mandavo. Sceglilo di nuovo."
 
     fun estensione(nome: String): String {
         val p = nome.lastIndexOf('.')
@@ -229,6 +230,8 @@ object Invio {
                         posizione = da
                     }
                     val dati = Allegati.leggiPezzo(flusso!!, lunghezza)
+                    // Il file è finito prima del previsto (cambiato o troncato sul telefono): senza questo si rimandava un pezzo vuoto, all'infinito.
+                    if (dati.isEmpty()) return EsitoInvio.Rifiutato(422, Allegati.TESTO_FILE_CAMBIATO)
                     posizione += dati.size
                     val r = t.chiama("/api/allegati/pezzo", buildJsonObject {
                         put("id", id); put("da", da); put("dati", Base64.getEncoder().encodeToString(dati))
@@ -239,7 +242,12 @@ object Invio {
                 } catch (e: Api.Errore) {
                     // 409: un pezzo fuori posto, il PC dice da dove riprendere.
                     val dove = numero(e.corpo, "ricevuti")
-                    if (e.codice == 409 && dove != null) { ricevuti = dove; continue }
+                    if (e.codice == 409 && dove != null) {
+                        // Se il PC rimanda allo stesso punto senza avanzare, non si gira a vuoto per sempre.
+                        if (dove == ricevuti) tentativi += 1 else tentativi = 0
+                        if (tentativi > Allegati.TENTATIVI) return EsitoInvio.Rifiutato(0, "Il computer non accetta il pezzo a $dove byte. Riprova: ripartirà da dove era.")
+                        ricevuti = dove; continue
+                    }
                     // Un rifiuto vero (PIN, invio sparito, troppo grande): non si riprova.
                     if (e.codice in 400..499) return EsitoInvio.Rifiutato(e.codice, errore(e))
                     tentativi += 1
