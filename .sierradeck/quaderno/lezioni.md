@@ -95,6 +95,8 @@
 - `vitest related` sui file toccati prende anche i test fuori da tests/autopilot-host e tests/shared (qui tests/main): lanciarlo prima di dire «verde». _(2026-11-23)_
 - per provare il cane con fake timer su setTimeout avanzare anche `adesso()` a passi di 30 s: la soglia larga confronta il silenzio con adesso(), non con i timer. _(2026-11-23)_
 - giroInvioErrori + salvaErroriArrivati + raggruppa si provano insieme con file veri in una cartella temporanea: i nomi dei file arrivo sono l'ora UTC _(2026-11-23)_
+- per far ritirare insieme due PC dello stesso lavoro: PC muto >30 min e secondo PC, entrambi «finito» al medesimo `ora` finto; un `await` nella chiamata «ritira» rende lo scontro certo. _(2026-11-23)_
+- i test in `tests/main` verificano il cablaggio leggendo i sorgenti con `readFileSync`: cambiare i nomi dei canali o delle rotte li rompe _(2026-11-23)_
 
 ## worktree
 
@@ -103,9 +105,6 @@
 
 ## android
 
-- Dalla 3.0.0 le foto delle schermate dell’app le fa `gradle testDebugUnitTest` (Robolectric + Roborazzi) in `android/app/build/foto-schermate/`: guardarle prima di pubblicare, hanno trovato difetti che le prove non vedono. _(2026-11-11)_
-- Prova dell’app dal vero: copia del PC con `SIERRADECK_PROVA` e porte 47650/47651 dentro `preferenze`, emulatore su `10.0.2.2:47650`; l’APK 2.99.0 di rilascio installato e poi `adb install -r` della 3.0.0 prova che l’aggiornamento non chiede un nuovo accoppiamento. _(2026-11-11)_
-- Dopo un `AGGIORNA=1` di `impostazioni.json` vanno rilanciate anche le prove Kotlin che leggono quell’asset (`ImpostazioniVociTest`), non solo i vitest. _(2026-11-11)_
 - targetSdk 35 = edge-to-edge forzato su Android 15: ogni schermata fuori da Scaffold ha bisogno di safeDrawingPadding, e la topBar dello Scaffold non scavalca la barra di stato da sola. _(2026-11-12)_
 - Le foto Roborazzi hanno varianti (stretto 360 dp, scala 1.3, veste chiara) nelle sottoclassi di FotoSchermateTest: i difetti veri (testo spezzato, "?" fuori dal cerchio) escono solo lì. _(2026-11-12)_
 - Banco può essere chiaro (veste del PC): colori fissi della tabella attività vanno passati da leggibile(), il bordo dei tasti da bordoTasto() (3:1), mai usare incisione per i bordi. _(2026-11-12)_
@@ -140,11 +139,6 @@
 
 ## release
 
-- `gh release upload` con `file#etichetta` non cambia il nome dell'asset: GitHub mette i punti al posto degli spazi. Rinominare il file in `SierraDeck-Setup-X.exe` prima di caricarlo, come in `latest.y… _(2026-11-11)_
-- `npm run pubblica` vuole GH_TOKEN nell'ambiente: `export GH_TOKEN=$(gh auth token)`. Crea una bozza col solo blockmap: carica a mano exe e latest.yml, poi `gh release edit --draft=false`. _(2026-11-11)_
-- in `src/shared/novita.ts` il file ha fine riga CRLF: un replace con `\n` non trova nulla, quindi rileggere il fine riga prima di inserire la voce. _(2026-11-11)_
-- la verifica di una release va fatta con `gh release view --json assets`: il nome dell'APK (2.x) non coincide con la versione della release (0.x), quindi non va cercato per nome esatto. _(2026-11-11)_
-- `controlla-pacchetto` rifiuta `node_modules` come junction: nel worktree serve una copia vera (robocopy /E /MT:16, exit code 1 = ok), da rimpiazzare alla junction usata per tsc/vitest. _(2026-11-11)_
 - Con `gh release create --draft` la release resta «untagged» nell'URL, ma electron-builder la riempie lo stesso e `gh release view` mostra il tag giusto; verificare i 5 file prima di `--draft=false`. _(2026-11-11)_
 - Una release pubblicata da un ramo (push su origin/main) lascia indietro la cartella principale: fino alla 0.99.4 si riallinea a mano con `git merge origin/main` da una chat aperta lì; dalla 0.100.0 lo fa il programma ogni 10 minuti. _(2026-11-11)_
 - Dalla 0.100.0 pubblica lo specialista «rilascio», che lavora nella cartella principale senza Edit/Write: versione e novità le prepara prima uno sviluppatore, nel suo ramo. _(2026-11-11)_
@@ -417,6 +411,8 @@
 - Un conflitto da risolvere affidato a un altro PC non vede i rami locali: nel prompt va messo il diff completo (git diff main...ramo), non il nome del ramo da cui fare cherry-pick. _(2026-11-22)_
 - Uno specialista su un altro PC (Aiuta la rete) riceve solo main: per riapplicare un ramo locale in conflitto, mettere la modifica intera nel prompt. _(2026-11-23)_
 - `ritira` usa file e ramo fissi per lavoro (`<id>-ritorno.bundle`, `ramoDiRitorno(id)`): `attendiRitorno` e la nuova spedizione possono ritirare insieme e scontrarsi. _(2026-11-23)_
+- file e ramo di ritorno sono uno per lavoro (`<id>-ritorno.bundle`, `ramoDiRitorno`): ogni ritiro nuovo dello stesso id va messo nella coda di `ritira`, non fatto a parte. _(2026-11-23)_
+- `/api/flusso` risponde sempre 200 con `flusso:true`: 404/405/409/501 o risposta senza il segno vogliono dire PC vecchio, ogni altro errore è rete e si riprende dal cursore _(2026-11-23)_
 
 ## cancello
 
@@ -727,6 +723,7 @@
 
 - il dato `affidati` ha solo data e versione, non l'esito della chiusura: «si ripresenta» non può distinguere correzione fallita da azione a mano non fatta. _(2026-11-16)_
 - il rapporto del lotto in .sierradeck/errori-arrivati/ non è nella copia del worktree: va passato nel messaggio del compito. _(2026-11-16)_
+- `volte` è un totale cumulativo: la serie va riconosciuta con PC+dove+punto+quando+messaggio grezzo, aggiungendo solo la differenza; la chiave normalizzata da sola fonde errori diversi. _(2026-11-23)_
 
 ## vista
 
@@ -913,3 +910,15 @@
 ## script
 
 - `noteDi` ha due formati di input: `righe: [` per novita.ts e novita-app.txt, e stringhe una per riga per novita-aiutante.txt. Cambiandone uno si rompe l'altro. _(2026-11-22)_
+
+## drive
+
+- «This operation was aborted» nel registro = lavoro Drive annullato da installazione/chiusura, non rete; il tetto di 60 s dà invece «Drive: nessuna risposta da…» _(2026-11-23)_
+
+## consegne
+
+- una consegna ripresa dopo un riavvio ha `id` vuoto: i messaggi di registro vanno scritti con `nomeConsegna(c)`, mai con `c?.id ?? '' _(2026-11-23)_
+
+## pty
+
+- il buffer di uscita sta in `ipc.ts` (`flussiPty`), agganciato al `client.on` prima di instradare: copre anche i pty in sottofondo; la chat si mappa al pty via `sessione _(2026-11-23)_
