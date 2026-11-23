@@ -70,6 +70,8 @@ type Porte = {
   comandi: string[][]
   /** Quanti commit dei file detti da Nicholas falliscono ancora (23/11). */
   commitFallisce?: number
+  /** 24/11: `git status` non risponde: la cartella risulta sporca ma senza nessun file da elencare. */
+  statoRotto?: boolean
 }
 
 function gitDiProva(porte: Porte): { git: Git; asinc: GitAsincrono } {
@@ -77,7 +79,7 @@ function gitDiProva(porte: Porte): { git: Git; asinc: GitAsincrono } {
   const git: Git = (args) => {
     porte.comandi.push(args)
     const a = args.join(' ')
-    if (a.startsWith('status --porcelain')) return { codice: 0, uscita: porte.sporchi.map((f) => ` M ${f}`).join('\n') }
+    if (a.startsWith('status --porcelain')) return porte.statoRotto === true ? { codice: 1, uscita: 'fatal' } : { codice: 0, uscita: porte.sporchi.map((f) => ` M ${f}`).join('\n') }
     if (a === 'diff --cached --name-only') return { codice: 0, uscita: '' }
     const toccati = /^diff --name-only (?:--no-renames )?main\.\.\.(.+)$/u.exec(a)
     if (toccati !== null) return { codice: 0, uscita: (porte.tocca[toccati[1]!] ?? []).join('\n') }
@@ -278,6 +280,24 @@ describe('file non salvati nella cartella principale: la fila non resta ferma (1
     porte.sporchi = []
     await attendi(() => unitoK('k-1'), { cosa: 'k-1 unito appena il file è salvato' })
     expect(salvataggi(porte)).toEqual([])
+    maiVietati(porte)
+  })
+
+  it('cartella sporca senza nessun file da elencare: nessuna domanda «li salvo?», ma Nicholas viene avvisato una volta sola, e l’unione riparte da sola (k-err1)', async () => {
+    zitto()
+    const avvisi: string[] = []
+    const porte = porteNuove({ statoRotto: true })
+    await prepara(porte, { avvisa: (tipo, testo) => { if (tipo === 'avviso') avvisi.push(testo ?? '') } })
+    await strumento('unisci', { compito: 'k-1' })
+    await attendi(() => avvisi.length === 1, { cosa: 'l’avviso a Nicholas' })
+    expect(avvisi[0]).toContain('nessun file da salvare')
+    expect(avvisi[0]).toContain('modifiche non salvate')
+    await pausa(150)
+    expect(avvisi).toHaveLength(1)
+    expect(domandeSalva()).toEqual([])
+    expect(salvataggi(porte)).toEqual([])
+    porte.statoRotto = false
+    await attendi(() => unitoK('k-1'), { cosa: 'k-1 unito appena git risponde' })
     maiVietati(porte)
   })
 
