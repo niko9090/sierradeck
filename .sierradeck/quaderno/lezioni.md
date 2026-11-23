@@ -99,6 +99,8 @@
 - i test in `tests/main` verificano il cablaggio leggendo i sorgenti con `readFileSync`: cambiare i nomi dei canali o delle rotte li rompe _(2026-11-23)_
 - Gli id dei lavori affidati devono essere `r` + 12 cifre esadecimali (`idLavoroValido`): altrimenti il file `aiuti-affidati.json` li scarta in silenzio. _(2026-11-23)_
 - Diversi test leggono il sorgente di `App.tsx` e `WorkspacePanoramica.tsx` con regex: cambiando le viste, `vitest related` non li trova. Lancia `tests/renderer` per intero. _(2026-11-23)_
+- `tests/main/grafica-0-82-0.test.ts` controlla stringhe esatte in `WorkspacePanoramica.tsx`: il rifacimento del pannello agenti 0.115.1 lo ha rotto e va aggiornato nello stesso commit. _(2026-11-23)_
+- i test grafici che cercano stringhe di JSX in WorkspacePanoramica.tsx si rompono a ogni rifacimento del pannello: lanciare tests/main e tests/renderer interi prima di pubblicare _(2026-11-23)_
 
 ## worktree
 
@@ -342,17 +344,12 @@
 
 ## pc-remoto
 
-- ROTTE_LENTE deve combaciare con Api.kt dell'app (test android): le rotte lente solo fra PC vanno in ROTTE_LENTE_FRA_PC, così non serve un APK nuovo. _(2026-11-11)_
 - due funzioni si chiamano `statoPc` (`shared/stato-pc.ts` e `shared/scoperta-pc.ts`): i titoli del riquadro vengono dalla seconda, il tempo dal battito della prima. _(2026-11-19)_
 
 ## pagina
 
 - La pagina del telefono è una stringa gigante: i testi condivisi vanno iniettati con `${JSON.stringify(...)}` e le funzioni si provano estraendole dallo script, come in tests/main/client-pagina-domand… _(2026-11-19)_
 - pannelliDelPosto (shared/navigazione-telefono) decide quali pannelli sono «aperti»: 'specialisti' ora è aperto su tutta la voce Workspace, quindi la lista si rilegge ogni 4 s lì. _(2026-11-19)_
-
-## merge
-
-- Più gruppi di correzioni sugli stessi file grossi (servizio-orchestratore.ts): una copia per gruppo, poi un ramo di integrazione; i conflitti stanno negli import e nel cancello, e dopo ogni unione vanno rilanciati typecheck e l’intera suite. _(2026-11-11)_
 
 ## rete
 
@@ -426,9 +423,6 @@
 
 ## piano
 
-- Un criterio con comando che legge solo file sotto .sierradeck/ (es. grep sul quaderno) è rifiutato: per le note scrivere il criterio a parole, lo giudica il supervisore. _(2026-11-11)_
-- Un compito «unito» con un criterio generico (`npx vitest run tests/shared`) può avere il ramo vero rimasto fuori (k-165): per saperlo, `git merge-tree --write-tree main <ramo>` e confronto con l’albero di main. _(2026-11-11)_
-- Dalla 0.100.0 un compito che non va più fatto si chiude con `piano_chiudi` (superato o annullato): prima restava «in revisione» per sempre e teneva aperta la richiesta. _(2026-11-11)_
 - Criterio «gh release view v<versione>»: se un'altra chat pubblica quella versione, il cancello lo prova su ogni ramo e respinge unioni giuste. Escludere la versione già uscita. _(2026-11-13)_
 - Mai criterio «gh release view v»+versione di package.json: dopo l'uscita il cancello respinge ogni bump (k-149 ha bloccato la 0.106.3). Usare la versione fissa: `gh release view v0.X.Y`. _(2026-11-13)_
 - i campi nuovi di CompitoPiano vanno letti anche in leggiCompitoPiano (piano-orchestratore.ts), altrimenti si perdono alla rilettura da disco _(2026-11-22)_
@@ -580,6 +574,9 @@
 - `npm run pubblica` supera i 10 minuti: va in sottofondo da solo. Non rilanciarlo; aspetta che compaia aiutante.yml fra gli asset (è l'ultimo), poi pubblica. _(2026-11-23)_
 - `git fetch` può fallire per un bundle in aiuto\arrivi: la versione di partenza si trova con `git log -S"x.y.z" -- package.json`. _(2026-11-23)_
 - se il fetch fallisce perché il bundle in `aiuto\arrivi` non c'è, il controllo su origin/main resta al rilascio. _(2026-11-23)_
+- `npm run pubblica` esegue tutta la suite (~5 min) prima di costruire: un test vecchio in main blocca la release dopo tag e bozza già creati. Lanciare i test prima del tag. _(2026-11-23)_
+- Il criterio `gh release view vX` passa anche per una bozza senza file: per un compito di pubblicazione usare `gh release list --limit 1` (Latest) e contare i file. _(2026-11-23)_
+- un test fermo alla 0.82.0 non è stato visto dalla 0.115.1: `vitest related` non basta per i test che leggono i sorgenti come testo _(2026-11-23)_
 
 ## build
 
