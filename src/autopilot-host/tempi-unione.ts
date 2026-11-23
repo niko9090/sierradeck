@@ -11,6 +11,31 @@
 export const PROVA_MAX_MS = 45 * 60_000
 export const UNIONE_MAX_MS = 60 * 60_000
 
+/** k-191e: la scadenza adattiva non scende mai sotto questo (una prova sana a volte ne vuole di più). */
+export const PROVA_MIN_ADATTIVA_MS = 5 * 60_000
+/** Quante prove recenti contano, e quante ne servono per fidarsi della mediana. */
+export const PROVE_RICORDATE = 10
+export const PROVE_MINIME_ADATTIVA = 3
+/** Quante volte la mediana è ancora una prova normale. */
+export const FATTORE_ADATTIVO = 4
+
+/**
+ * k-191e: la scadenza di una prova segue com'è fatto il workspace: `max(5 minuti, 4 × la mediana
+ * delle ultime 10 prove)`, mai sopra il tetto (di serie 45 minuti). Una prova che dura 4 volte il normale
+ * è già anomala e si ritenta subito invece di bloccare la fila per 45 minuti. Con meno di 3 prove
+ * ricordate, o nessuna misura, vale il tetto. `piuTempo` (k-191a, ×1…×3 a ogni scadenza) allarga
+ * anche questa: dopo una scadenza il tentativo dopo ha più tempo, fino al tetto.
+ */
+export function scadenzaAdattiva(durateMs: readonly number[], tettoMs: number, piuTempo = 1): number {
+  const buone = durateMs.filter((d) => Number.isFinite(d) && d >= 0).slice(-PROVE_RICORDATE)
+  if (buone.length < PROVE_MINIME_ADATTIVA) return tettoMs
+  const ordinate = [...buone].sort((a, b) => a - b)
+  const meta = ordinate.length / 2
+  const mediana = ordinate.length % 2 === 1 ? ordinate[Math.floor(meta)]! : (ordinate[meta - 1]! + ordinate[meta]!) / 2
+  const base = Math.max(PROVA_MIN_ADATTIVA_MS, FATTORE_ADATTIVO * mediana)
+  return Math.min(tettoMs, Math.round(base * Math.max(1, piuTempo)))
+}
+
 export type MisuraTempi = { attesaMs: number; esecuzioneMs: number }
 
 /**
