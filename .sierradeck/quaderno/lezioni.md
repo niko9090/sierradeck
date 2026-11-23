@@ -4,7 +4,6 @@
 
 ## test
 
-- il cane da guardia (20 min) e il backoff si sommano: nei test con fake timer il secondo riavvio parte 30 s dopo lo scatto del cane, non subito. _(2026-11-11)_
 - per la regola del quaderno usare un repository git vero (repositoryDiPartenza): i mock non vedono il comportamento di `git status`/`add`/`commit` sui file riscritti. _(2026-11-11)_
 - la suite completa (vitest, circa 620 file) richiede circa 3,5 minuti: usare un timeout ampio. _(2026-11-12)_
 - per logica di percorsi Windows passare path.win32 come parametro, così il test gira uguale su ogni sistema _(2026-11-13)_
@@ -96,6 +95,7 @@
 - `pty-host-client.test.ts` avvia processi figli veri: primo sospetto per eventi tardivi dopo la fine del test _(2026-11-23)_
 - `vitest related` sui file toccati prende anche i test fuori da tests/autopilot-host e tests/shared (qui tests/main): lanciarlo prima di dire «verde». _(2026-11-23)_
 - per provare il cane con fake timer su setTimeout avanzare anche `adesso()` a passi di 30 s: la soglia larga confronta il silenzio con adesso(), non con i timer. _(2026-11-23)_
+- giroInvioErrori + salvaErroriArrivati + raggruppa si provano insieme con file veri in una cartella temporanea: i nomi dei file arrivo sono l'ora UTC _(2026-11-23)_
 
 ## worktree
 
@@ -448,15 +448,9 @@
 
 ## orchestratore
 
-- s.tentativi si azzera a ogni risposta, anche con errore: il limite di un riprovo non vale per gli errori del result, e ogni risveglio lancia un turno nuovo. _(2026-11-10)_
-- su un `result` con `is_error` il turno non riprova da solo con rete assente: `pronto()` ora è falso durante `riprova` e `fermo`, altrimenti `suEffetti` rilancia il turno a raffica. _(2026-11-10)_
 - «sveglia futura» e «lavoro fermo» sono cose diverse: la sveglia vale solo per chi aspetta un orario, non spegne spinta né rilancio. Solo pausa vera, turno in corso o unione in corso li zittiscono. _(2026-11-23)_
 - Uno specialista «fermato» ha 3 origini: `fermaChiesta` (precedenza), `fermatiDaNicholas` (stop manuale) e appeso/morto. Solo l'ultima si rilancia da sola. _(2026-11-23)_
 - il cane scatta a mutoMs dall'ultima riga: con un Bash in volo si riarma per il resto della soglia larga (tetto specialistaMaxMs); serve `ultimaRiga` da adesso(), non dal timer. _(2026-11-23)_
-
-## modelli
-
-- Il telefono (pagina e app Android) legge `/api/modelli` dal servizio: basta cambiare `src/shared/modelli.ts` o la scoperta, senza ricompilare l'APK. _(2026-11-10)_
 
 ## pubblica
 
@@ -526,6 +520,7 @@
 - «API Error:» in testa non vuol dire guasto del servizio: i rifiuti dei filtri di Claude arrivano con quel prefisso (result success). I controlli specifici vanno prima della regola 'api'. _(2026-11-23)_
 - il lotto non era leggibile dalla copia: per i «doppioni» da conteggio serve il file vero; il sospetto è l'invio ripetuto (timeout + Drive), non la scrittura del registro. _(2026-11-23)_
 - un fallimento di lavoro affidato si riporta come errore in un punto solo (il servizio); spedizioniere e Aiutante scrivono avviso o cronaca. _(2026-11-23)_
+- l'invio degli errori porta `volte` cumulativo con `quando` fisso: un invio rifatto non è identico al primo, quindi il dedup per voce identica non basta _(2026-11-23)_
 
 ## voce
 
@@ -592,6 +587,8 @@
 - la copia può avere origin = bundle non più presente: `git fetch` fallisce e non si può verificare se un altro PC ha già alzato la versione. _(2026-11-23)_
 - una release di SierraDeck tocca solo package.json, package-lock.json (2 punti) e la voce in cima a NOVITA in src/shared/novita.ts. _(2026-11-23)_
 - Se cambia solo src/aiutante/nucleo.ts, l'Aiutante va alzato a parte: versione.json più voce in cima a novita-aiutante.txt (una riga basta). _(2026-11-23)_
+- Dopo `--draft=false` il link `releases/latest/download/<file>` può dare 404 dalla cache per qualche minuto: verificare con `gh release download` o con l'URL `/download/<tag>/`. _(2026-11-23)_
+- `npm run pubblica` supera i 10 minuti: va in sottofondo da solo. Non rilanciarlo; aspetta che compaia aiutante.yml fra gli asset (è l'ultimo), poi pubblica. _(2026-11-23)_
 
 ## build
 
