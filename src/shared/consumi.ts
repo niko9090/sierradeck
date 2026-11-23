@@ -1,5 +1,6 @@
 import type { SessionSummary } from './types'
 import type { Costo, Limiti } from './polso-chat'
+import type { ConsumiPerChat } from './consumi-chat'
 
 export type Quota = {
   ingresso: number
@@ -48,6 +49,11 @@ export type Consumi = {
    * Con l'abbonamento è un'indicazione, non una spesa.
    */
   orchestratori?: CostoOrchestratore[]
+  /**
+   * k-con1: i consumi divisi per chat e quanto resta per giornata e settimana,
+   * con la memoria su disco (sopravvivono a chiusure e aggiornamenti).
+   */
+  perChat?: ConsumiPerChat
 }
 
 /** Il costo dell'orchestratore di un workspace, sommato per periodo (dollari di listino). */
