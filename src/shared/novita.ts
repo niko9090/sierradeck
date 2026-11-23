@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.114.2',
+    righe: [
+      '**Aggiornamenti:** il tasto «Cerca aggiornamenti» c\'è sempre (tranne mentre cerca, scarica o installa). Con una versione già scaricata il programma continua a cercare: se ne esce una più nuova, scarica quella e «Installa» mette la più recente.',
+    ],
+  },
+  {
     versione: '0.114.1',
     righe: [
       '**Agenti che aspettano un comando lungo:** se un agente sano aspetta un comando lento, il silenzio non lo ferma più. Resta valido il limite di 3 ore.',
