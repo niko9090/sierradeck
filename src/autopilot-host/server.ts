@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { creaLavoratoreAiuto, type LavoratoreAiuto } from './aiuto-lavoratore'
 import { causaValida } from '@shared/aiuto-esito'
+import { motivoBreve } from '@shared/rapporto-lavori'
 import { capacitaValida } from '@shared/capacita-pc'
 import { lavoroAffidatoValido, modoAiutoValido, programmaAiuto, TETTO_CORPO_PEZZO, type Aiutante, type LavoroAffidato } from '@shared/aiuto-rete'
 import { createHash } from 'node:crypto'
@@ -864,7 +865,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     proveInCorso.set(chiaveProva(a.cwd), new Promise<void>((r) => { fine = r }))
     // 06/11: la prova ha un tempo massimo. Scaduto, si chiude (la cartella si ripulisce da sola)
     // e l'unione si rimette in fila: mai appesa, mai un riavvio del servizio per sbloccarla.
-    const stato = { scaduta: false, punto: 'unire il ramo' }
+    // 23/11: `nonPartita` = il motivo breve per cui la prova non è nemmeno partita (cartella con file non salvati…): il registro lo dice, e non scrive «prova 0 s».
+    const stato: { scaduta: boolean; punto: string; partita: boolean; nonPartita?: string } = { scaduta: false, punto: 'unire il ramo', partita: false }
     // 23/11: il motivo dice in che punto è scaduta (prima solo «prova scaduta»): l'autopilota e Nicholas vedono cosa è lento.
     const provaScaduta = (): string => `prova scaduta mentre stava per ${stato.punto}`
     const corpo = async (segnale: AbortSignal, iniziata: () => void, inFila: <R>(fai: () => Promise<R>) => Promise<R>): Promise<EsitoProvaPrincipale> => {
@@ -874,10 +876,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         const inizio = await turni.unione(a.cwd, (segnale) => iniziaProvaAsincrono(gitFermabile(git, segnale), { cwd: a.cwd, ramo, base, ...(altri.length > 0 ? { altri } : {}) }), tempo)
         if (inizio.ok) return undefined
         // Cartella con file di Nicholas a metà: non si tocca, l'unione aspetta il suo turno.
+        if (!stato.partita) stato.nonPartita = inizio.motivo === MOTIVO_CARTELLA_SPORCA ? 'cartella con file non salvati' : motivoBreve(inizio.motivo)
         return { unito: false, motivo: `l’unione di prova non si è potuta fare (${inizio.motivo})`, ...(inizio.motivo === MOTIVO_CARTELLA_SPORCA ? { ritenta: 'sporca' as const } : {}), ...(inizio.file !== undefined ? { file: inizio.file } : {}) }
       }
       const fallita = await unisci()
       if (fallita !== undefined) return fallita
+      stato.partita = true
       iniziata()
       // 11/11: scaduta mentre git univa: l'unione appena aperta si richiude qui, non al tentativo dopo.
       if (eScaduta()) {
@@ -931,6 +935,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         // k-191e: adattiva (4 × la mediana delle ultime prove del workspace, almeno 5 minuti), con più tempo a ogni scadenza.
         scadenzaAdattiva(proveRecenti.get(chiaveWorkspace(a)) ?? [], deps.provaMaxMs ?? (deps.limiti !== undefined ? deps.limiti.leggi().provaMaxMin * 60_000 : PROVA_MAX_MS), tempo.piuTempo ?? 1),
         { scrivi: (t) => {
+          // 23/11: una prova che non è partita non è una prova: riga a parte (il rapporto la conta come «non partita», non nelle medie).
+          if (!t.scaduta && stato.nonPartita !== undefined) { console.info(`[unione di prova] ${segnoDiLog(chiaveWorkspace(a))}${ramo}: non partita (${stato.nonPartita})`); return }
           if (!t.scaduta && t.esecuzioneMs > 0) proveRecenti.set(chiaveWorkspace(a), [...(proveRecenti.get(chiaveWorkspace(a)) ?? []), t.esecuzioneMs].slice(-PROVE_RICORDATE))
           console.info(`[unione di prova] ${segnoDiLog(chiaveWorkspace(a))}${ramo}: attesa del turno ${Math.round(t.attesaMs / 1000)} s, prova ${Math.round(t.esecuzioneMs / 1000)} s${t.scaduta ? ` (scaduta mentre stava per ${stato.punto})` : ''}`) } }
       )

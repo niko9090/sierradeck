@@ -33,7 +33,7 @@ export type Somma = LavoriWorkspace
 
 function sommaVuota(): Somma {
   return {
-    unioni: { prove: 0, attesaMs: 0, attesaMaxMs: 0, provaMs: 0, provaMaxMs: 0, scadute: 0, inFila: 0, motivi: {} },
+    unioni: { prove: 0, attesaMs: 0, attesaMaxMs: 0, provaMs: 0, provaMaxMs: 0, scadute: 0, inFila: 0, motivi: {}, nonPartite: 0 },
     criteri: { finiti: 0, riusciti: 0, rossi: 0, nonMisurati: 0, durataMs: 0, durataMaxMs: 0, scaduti: 0, inAttesa: 0 },
     compiti: { affidati: 0, restatiQui: 0, inFila: 0, rifiuti: 0, ruoli: {} },
     avanzamento: { svegli: 0, limiteDelPiano: 0, criterioRosso: 0, lavoroFermoMaxMin: 0, spinteSospese: 0 },
@@ -53,6 +53,8 @@ export function sommaDi(a: Somma, b: LavoriWorkspace): void {
   u.prove += num(v.prove); u.attesaMs += num(v.attesaMs); u.provaMs += num(v.provaMs); u.scadute += num(v.scadute); u.inFila += num(v.inFila)
   u.attesaMaxMs = Math.max(u.attesaMaxMs, num(v.attesaMaxMs)); u.provaMaxMs = Math.max(u.provaMaxMs, num(v.provaMaxMs))
   unisciConti(u.motivi, v.motivi)
+  u.nonPartite += num(v.nonPartite)
+  for (const [m, n] of Object.entries(v.motiviNonPartite ?? {})) (u.motiviNonPartite ??= {})[m] = (u.motiviNonPartite[m] ?? 0) + num(n)
   const c = a.criteri, d: Partial<Somma['criteri']> = b.criteri ?? {}
   c.finiti += num(d.finiti); c.riusciti += num(d.riusciti); c.rossi += num(d.rossi); c.nonMisurati += num(d.nonMisurati); c.durataMs += num(d.durataMs); c.scaduti += num(d.scaduti); c.inAttesa += num(d.inAttesa)
   c.durataMaxMs = Math.max(c.durataMaxMs, num(d.durataMaxMs))
@@ -111,6 +113,10 @@ function righeWorkspace(s: Somma): string[] {
   if (u.prove > 0) {
     const lenta = media(u.attesaMs, u.prove) > UNIONE_LENTA_ATTESA_MS || u.attesaMaxMs > UNIONE_LENTA_ATTESA_MS || media(u.provaMs, u.prove) > UNIONE_LENTA_PROVA_MS || u.provaMaxMs > UNIONE_LENTA_PROVA_MS
     r.push(`- unioni: ${u.prove} prove${lenta ? ' — **LENTE**' : ''} · attesa del turno media ${sec(media(u.attesaMs, u.prove))}, massima ${sec(u.attesaMaxMs)} · prova media ${sec(media(u.provaMs, u.prove))}, massima ${sec(u.provaMaxMs)} · scadute ${u.scadute}`)
+  }
+  if (u.nonPartite > 0) {
+    const mp = u.motiviNonPartite ?? {}
+    r.push(`- unioni: ${u.nonPartite} non partite${Object.keys(mp).length > 0 ? ` (${elenco(mp)})` : ''}: non sono prove, non contano nelle medie`)
   }
   if (u.inFila > 0) r.push(`- unioni messe in fila: ${u.inFila}`)
   if (Object.keys(u.motivi).length > 0) r.push(`- motivi delle unioni scadute: ${elenco(u.motivi)}`)
