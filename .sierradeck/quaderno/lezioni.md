@@ -448,7 +448,6 @@
 
 ## orchestratore
 
-- il ramo risposta con errore del result scarta s.inviati senza rimettere i messaggi in coda, a differenza dell'uscita del processo: un messaggio nel turno fallito si perde. _(2026-11-10)_
 - s.tentativi si azzera a ogni risposta, anche con errore: il limite di un riprovo non vale per gli errori del result, e ogni risveglio lancia un turno nuovo. _(2026-11-10)_
 - su un `result` con `is_error` il turno non riprova da solo con rete assente: `pronto()` ora è falso durante `riprova` e `fermo`, altrimenti `suEffetti` rilancia il turno a raffica. _(2026-11-10)_
 - «sveglia futura» e «lavoro fermo» sono cose diverse: la sveglia vale solo per chi aspetta un orario, non spegne spinta né rilancio. Solo pausa vera, turno in corso o unione in corso li zittiscono. _(2026-11-23)_
@@ -592,6 +591,7 @@
 - `gh release create --draft` stampa un URL «untagged-…» anche con tag già sul remoto: è normale per le bozze, il tag resta quello di `--verify-tag`. _(2026-11-23)_
 - la copia può avere origin = bundle non più presente: `git fetch` fallisce e non si può verificare se un altro PC ha già alzato la versione. _(2026-11-23)_
 - una release di SierraDeck tocca solo package.json, package-lock.json (2 punti) e la voce in cima a NOVITA in src/shared/novita.ts. _(2026-11-23)_
+- Se cambia solo src/aiutante/nucleo.ts, l'Aiutante va alzato a parte: versione.json più voce in cima a novita-aiutante.txt (una riga basta). _(2026-11-23)_
 
 ## build
 
