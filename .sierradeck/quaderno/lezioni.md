@@ -4,8 +4,6 @@
 
 ## test
 
-- Centralino accetta un orologio iniettato: nelle prove usarlo fermo invece di misurare ms veri (<500 dentro un'attesa di 1 s salta col PC carico). _(2026-11-14)_
-- `tsc` ha noUncheckedIndexedAccess: negli indici di array serve `?? ''`, altrimenti il typecheck del criterio fallisce. _(2026-11-14)_
 - criteriPerLaProva è usata anche da servizio-orchestratore.ts per un solo comando: se scarta il comando si ricade sull'originale, non sul vuoto _(2026-11-14)_
 - per riprodurre un multibyte spezzato basta tagliare il Buffer a metà dei 3 byte di › ed emettere due 'data' su una richiesta finta. _(2026-11-14)_
 - vitest tests/main tests/shared nel worktree dura qualche minuto (470 file): lanciarlo una volta sola, l'output è enorme, leggere solo la riga «Test Files» con grep -a. _(2026-11-15)_
@@ -914,6 +912,8 @@
 - i riassunti sui rapporti dei PC non aggiornati mostrano righe senza `[ws:]` (scritte prima di k-193e): «senza workspace» alto non è per forza un bug del codice attuale _(2026-11-23)_
 - nelle righe `[aiuto] … affidato a` la parola dopo il trattino deve essere il ruolo; `ruoloDi` scarta gli id dei compiti perché i PC vecchi li scrivevano lì _(2026-11-23)_
 - ogni avvio scrive due «sessione avviata» ([app] e [servizio]): chi conta gli avvii deve filtrare per fonte, altrimenti 1 avvio = 2 riavvii. _(2026-11-23)_
+- Il parser dei registri deve guardare chi scrive la riga (`app` o `servizio`): le righe dette da entrambi, come «sessione avviata», si contano una volta sola. _(2026-11-23)_
+- I campi nuovi del rapporto vanno letti con `num()` in `leggiRapportoLavori`: i PC con versioni vecchie non li mandano e il riassunto darebbe NaN. _(2026-11-23)_
 
 ## pc-glos
 
