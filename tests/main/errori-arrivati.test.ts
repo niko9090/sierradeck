@@ -140,7 +140,7 @@ describe('chi manda: «Manda al PC di sviluppo»', () => {
 
   it('se nemmeno il Drive prende la voce, dice perché come prima', async () => {
     const e = await mandaErrori({ ...base, pcSviluppo: 'pc-la', storico: storico(), chiama: async () => { throw new Error('Portatile non raggiungibile') }, salvaQui: () => ({ ok: false, errore: 'no' }), perPosta: async () => { throw new Error('Drive spento') } })
-    expect(e).toEqual({ ok: false, messaggio: 'Non mandati a Portatile: Portatile non raggiungibile' })
+    expect(e).toEqual({ ok: false, messaggio: 'Non mandati a Portatile: Portatile non raggiungibile — sul Drive: Drive spento' })
   })
 })
 

@@ -79,6 +79,7 @@ import { CLASSI, DURATA_PERMESSO_MIN, SOLO_QUESTA_VOLTA, leggiPermessi, partiDom
 import { DOMANDA_PERMESSO_VALE_MS, concessoDa, type Concesso, type PermessiNicholas } from './permessi-nicholas'
 import { leggiRichiestaConsenso, nicholasHaChiestoDiInstallare } from './richiesta-consenso'
 import { leggiTrascrizione, trovaTrascrizione } from './trascrizione-specialista'
+import { pianoVisto, type PianoVisto } from '@shared/registro-workspace'
 import { homedir } from 'node:os'
 import { attesaVuota, cambiaPrecedenzaWorkspace, cambiaPriorita, inFila, parcheggia, passo as passoAttesa, rifiutata as rifiutataDalTetto, rivedi as rivediPosti, togliVoce, type Mossa, type MossaAttesa, type StatoAttesa, type VistaAttesa } from '@shared/attesa-specialisti'
 import { nomeWorkspace } from '@shared/attesa-vista'
@@ -269,6 +270,8 @@ export type ServizioUnico = {
   vista: (ws: string) => VistaOrchestratore
   /** 0.90.0: la conversazione di uno specialista, da guardare nella colonna a destra. */
   trascrizione: (ws: string, id: string) => TrascrizioneSpecialista
+  /** k-197d: compiti e richieste del workspace, ridotti a stati ed esiti (per un altro PC). */
+  pianoCompiti: (ws: string) => PianoVisto
   /**
    * L'autopilota del workspace, creato se non c'è ancora, con gli autopiloti
    * di prima passati a lui; con `obiettivo`, il primo messaggio.
@@ -3333,6 +3336,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
         ...vistaLavoro(coda(ws), piano, u !== undefined ? x.domande.aperte(u.id).length : 0)
       }
     },
+    pianoCompiti: (ws) => pianoVisto(x.orchestratori.piano(ws).compiti, coda(ws).richieste),
     trascrizione(ws, id) {
       const u = unicoDi(ws)
       const s = subagenti(ws).find((x) => x.id === id)

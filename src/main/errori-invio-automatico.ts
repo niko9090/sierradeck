@@ -1,4 +1,4 @@
-import { dopoFallimento, quantoAspettare, type AttesaInvio } from '@shared/attesa-invio'
+import { TEMPO_MASSIMO_INVIO_MS, dopoFallimento, mandaConTempoMassimo, quantoAspettare, type AttesaInvio } from '@shared/attesa-invio'
 import { chiaveErrore, storicoPerLInvio, type StoricoErrori, type VoceErrore } from '@shared/storico-errori'
 
 /**
@@ -140,6 +140,8 @@ export async function giroInvioErrori(d: {
   /** L'attesa crescente dopo i fallimenti (stato tenuto da chi chiama): si azzera al primo invio riuscito. `forza` la salta. */
   attesa?: { leggi: () => AttesaInvio | undefined; scrivi: (a: AttesaInvio | undefined) => void }
   forza?: boolean
+  /** Dopo quanto un invio appeso si dà per fallito (di serie `TEMPO_MASSIMO_INVIO_MS`). */
+  tempoMassimoMs?: number
 }): Promise<{ ok: boolean; messaggio: string }> {
   const adesso = d.adesso()
   if (d.pcSviluppo() === undefined) return { ok: false, messaggio: 'Prima scegli il PC di sviluppo.' }
@@ -159,12 +161,15 @@ export async function giroInvioErrori(d: {
   }
   // Prima del tetto di peso: le voci che non ci stanno restano da mandare, non si segnano.
   const invio = storicoPerLInvio({ voci: dovuti.map((x) => x.voce) })
-  const e = await d.manda(invio)
+  // Un invio appeso o che scoppia è un fallimento come gli altri: attesa crescente, mai il giro spento.
+  const e = await mandaConTempoMassimo(() => d.manda(invio), d.tempoMassimoMs ?? TEMPO_MASSIMO_INVIO_MS)
   if (!e.ok) {
-    d.attesa?.scrivi(dopoFallimento(d.attesa.leggi(), e.messaggio, adesso))
-    if (d.fallimento === undefined || d.fallimento.leggi() !== e.messaggio) {
+    const nuovaAttesa = dopoFallimento(d.attesa?.leggi(), e.messaggio, adesso)
+    d.attesa?.scrivi(nuovaAttesa)
+    const cambiato = d.fallimento === undefined || d.fallimento.leggi() !== e.messaggio
+    if (cambiato || nuovaAttesa.fallimenti % 10 === 0) {
       d.fallimento?.scrivi(e.messaggio)
-      d.log(`[errori] invio automatico non riuscito, riprovo al prossimo giro (non lo ripeto finche' il motivo e' lo stesso): ${e.messaggio}`)
+      d.log(`[errori] invio automatico non riuscito (${nuovaAttesa.fallimenti}ª volta di fila), riprovo fra ${Math.round((nuovaAttesa.fino - adesso) / 1000)} secondi: ${e.messaggio}`)
     }
     return { ok: false, messaggio: e.messaggio }
   }

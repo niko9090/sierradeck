@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { dopoFallimento, quantoAspettare, type AttesaInvio } from '@shared/attesa-invio'
+import { TEMPO_MASSIMO_INVIO_MS, dopoFallimento, mandaConTempoMassimo, quantoAspettare, type AttesaInvio } from '@shared/attesa-invio'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 import { cartellaMittente } from '@shared/storico-errori'
 import { BYTE_RAPPORTO, contaLavori, eVuoto, idRapporto, rapportoPerLInvio, type RapportoLavori } from '@shared/rapporto-lavori'
@@ -98,11 +98,15 @@ export async function mandaRapporto(p: {
     return { ok: true, messaggio: `Rapporto dei lavori mandato a ${chiamato}.` }
   } catch (err) {
     const perche = err instanceof Error ? err.message : String(err)
-    if (p.perPosta !== undefined && await p.perPosta(p.pcRiferimento, rapporto, err).catch(() => false)) {
+    let motivoPosta: string | undefined
+    const lasciato = p.perPosta !== undefined && await p.perPosta(p.pcRiferimento, rapporto, err).catch((e: unknown) => { motivoPosta = e instanceof Error ? e.message : String(e); return false })
+    if (lasciato) {
       p.log(`[rapporti] ${chiamato} non risponde (${perche}): rapporto lasciato sul Drive`)
       return { ok: true, messaggio: `${chiamato} adesso non risponde: rapporto lasciato sul Drive, arriva appena si accende.` }
     }
-    return { ok: false, messaggio: `Rapporto non mandato a ${chiamato}: ${perche}` }
+    const haRisposto = (err as { stato?: unknown } | null)?.stato !== undefined
+    const sulDrive = haRisposto || p.perPosta === undefined ? '' : ` — sul Drive: ${motivoPosta ?? 'non ha preso la voce (non collegato?)'}`
+    return { ok: false, messaggio: `Rapporto non mandato a ${chiamato}: ${perche}${sulDrive}` }
   }
 }
 
@@ -125,6 +129,8 @@ export async function giroRapportoLavori(d: {
   fallimento?: { leggi: () => string | undefined; scrivi: (motivo: string | undefined) => void }
   attesa?: { leggi: () => AttesaInvio | undefined; scrivi: (a: AttesaInvio | undefined) => void }
   forza?: boolean
+  /** Dopo quanto un invio appeso si dà per fallito (di serie `TEMPO_MASSIMO_INVIO_MS`). */
+  tempoMassimoMs?: number
 }): Promise<{ ok: boolean; messaggio: string }> {
   const adesso = d.adesso()
   if (d.pcRiferimento() === undefined) return { ok: false, messaggio: 'Prima scegli il PC di sviluppo.' }
@@ -152,12 +158,13 @@ export async function giroRapportoLavori(d: {
     al: c.ultima,
     workspace: c.workspace
   }
-  const e = await d.manda(rapporto)
+  const e = await mandaConTempoMassimo(() => d.manda(rapporto), d.tempoMassimoMs ?? TEMPO_MASSIMO_INVIO_MS)
   if (!e.ok) {
-    d.attesa?.scrivi(dopoFallimento(d.attesa.leggi(), e.messaggio, adesso))
-    if (d.fallimento === undefined || d.fallimento.leggi() !== e.messaggio) {
+    const nuovaAttesa = dopoFallimento(d.attesa?.leggi(), e.messaggio, adesso)
+    d.attesa?.scrivi(nuovaAttesa)
+    if (d.fallimento === undefined || d.fallimento.leggi() !== e.messaggio || nuovaAttesa.fallimenti % 10 === 0) {
       d.fallimento?.scrivi(e.messaggio)
-      d.log(`[rapporti] invio del rapporto dei lavori non riuscito, riprovo (non lo ripeto finche' il motivo e' lo stesso): ${e.messaggio}`)
+      d.log(`[rapporti] invio del rapporto dei lavori non riuscito (${nuovaAttesa.fallimenti}ª volta di fila), riprovo fra ${Math.round((nuovaAttesa.fino - adesso) / 1000)} secondi: ${e.messaggio}`)
     }
     return { ok: false, messaggio: e.messaggio }
   }

@@ -180,7 +180,9 @@ const ROTTE_LENTE_FRA_PC: readonly string[] = ['/api/salute',
   // «Altri PC» (13/11): l'autopilota di un workspace remoto nasce su quel PC, e partire ci mette più di 4 s.
   '/api/autopilota/crea',
   // k-166n3: un'azione singola (versione di un programma, prova di rete) ci mette qualche secondo.
-  '/api/azione']
+  '/api/azione',
+  // k-197d: il registro del giorno si legge e si filtra per workspace.
+  '/api/lavori/registro']
 const ATTESA_LENTA_PREDEFINITA_MS = 45_000
 /**
  * Le risposte alle domande (0.84.1): quel PC preme, riguarda il suo schermo e

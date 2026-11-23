@@ -60,6 +60,7 @@ import { TASTI_REMOTI, tastoRemotoValido } from '@shared/tasti-remoti'
 import { rispostaFlusso, type BufferFlusso } from '@shared/flusso-terminale'
 import { rispondiAiuto, type FonteAiuto } from './rotte-aiuto'
 import { rispondiAzione, type DipendenzeEsecutore } from './azione-pc'
+import { rispondiRegistroWorkspace, type FonteRegistroWorkspace } from './registro-workspace-pc'
 
 /** 0.103.0: le rotte di «Aiuta la rete», fra PC. */
 import type { GuardianoPin } from './pin-guardiano'
@@ -241,6 +242,8 @@ export type DipendenzeRotte = {
    * non le conosce, o il workspace non ha ancora un autopilota.
    */
   avanzamentoAutopilota?: (ws: string) => Promise<{ orchestratore?: VistaOrchestratore; coda?: VistaCoda }>
+  /** k-197d: il registro (unioni, criteri) e il piano di un workspace di questo PC, per un altro PC (`/api/lavori/registro`). */
+  registroWorkspace?: FonteRegistroWorkspace
   /** 11/11: solo la vista dell'orchestratore di un workspace, per lo stato del telefono in `/api/stato` (`stato-telefono-rotta.ts`). */
   orchestratoreWorkspace?: (ws: string) => Promise<VistaOrchestratore | undefined>
   /** 0.95.1: la conversazione di uno specialista, da guardare dal telefono (come a destra sul PC). */
@@ -1652,6 +1655,9 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     // k-166n3: una azione singola chiesta da un altro PC (elenco chiuso, capacità controllata).
     const azione = await rispondiAzione(r, deps.azione)
     if (azione !== undefined) return azione
+    // k-197d: il registro delle unioni e dei criteri e il piano di un workspace di questo PC, per un altro PC.
+    const registroWs = await rispondiRegistroWorkspace(r, deps.registroWorkspace)
+    if (registroWs !== undefined) return registroWs
 
     // 0.95.1: la conversazione di uno specialista dell'autopilota di un workspace,
     // la stessa che il PC mostra a destra. Il telefono la guarda e basta.

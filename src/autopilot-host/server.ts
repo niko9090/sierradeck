@@ -1337,6 +1337,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             rispondi(res, 200, servizio().vista(ws))
             return
           }
+          // k-197d: compiti e richieste, solo stati ed esiti (la rotta `/api/lavori/registro` fra PC).
+          if (metodo === 'GET' && percorso === '/orchestratore/piano') {
+            const ws = url.searchParams.get('ws')?.trim() ?? ''
+            if (ws === '') { rispondi(res, 400, { errore: 'manca il workspace (?ws=)' }); return }
+            rispondi(res, 200, servizio().pianoCompiti(ws))
+            return
+          }
           // 0.90.0: la conversazione di uno specialista, per la colonna a destra.
           if (metodo === 'GET' && percorso === '/orchestratore/specialista') {
             const ws = url.searchParams.get('ws')?.trim() ?? ''
