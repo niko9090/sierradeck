@@ -102,6 +102,7 @@
 - in questa copia i file di test sono CRLF, e gli heredoc di bash convertono `\0` in un NUL vero: scrivere gli escape da un file Node con `String.fromCharCode`. _(2026-11-23)_
 - Per provare Invio/Scaricatore basta un Trasporto o una lambda finta in memoria; usare un contatore di chiamate con check() per far fallire i cicli infiniti invece di bloccare gradle. _(2026-11-23)_
 - se in un confronto si serializza un oggetto per decidere se riscrivere, l'ordine delle chiavi conta: i rami che creano la stessa voce devono dare le chiavi nello stesso ordine _(2026-11-23)_
+- nel finto git di unioni-file-non-salvati-11-11 `statoRotto` simula `git status` che fallisce: cartella sporca senza file. _(2026-11-23)_
 
 ## worktree
 
@@ -234,6 +235,9 @@
 - il turno pesante del PC (`conTurni` in index.ts) già serializza le misure di tutti i workspace: il collo 3 del rapporto 23/11 non serviva cambiarlo. _(2026-11-23)_
 - la prova parte dopo qualche secondo dal `unisci`: per testare l'attesa del turno aspettare `turni.stato().inFila > 0`, non un tempo fisso. _(2026-11-23)_
 - i criteri girano nella cartella principale: ogni script che riscrive file tracciati la sporca. Il blocco si rigenera da solo, quindi il programma deve rimettere a posto ciò che sporca lui. _(2026-11-23)_
+- un blocco «cartella sporca» senza «(N file)» nell'errore = git non ha dato file: la domanda «li salvo?» non può partire, serve un avviso a parte. _(2026-11-23)_
+- la scadenza adattiva della prova ha un minimo fisso: con prove veloci in memoria una prova con molti criteri o un gradle a freddo scade; ora il minimo cresce con i criteri _(2026-11-23)_
+- dentro la misura di una prova ogni attesa che non è la prova va passata a `inFila` (ora `attesaDellaProva` in turni-criteri.ts), altrimenti consuma la scadenza _(2026-11-23)_
 
 ## ui
 
@@ -450,8 +454,6 @@
 
 ## rilascio
 
-- Prima di pubblicare controllare `.git/MERGE_HEAD` e i file preparati: il cancello può avere un'unione a metà in main, e il pacchetto va costruito solo su main pulito. _(2026-11-14)_
-- Il controllo di unione fa `gh release view <tag>` e fallisce senza release: una bozza vuota basta. Il tag resta da creare prima della pubblicazione vera. _(2026-11-14)_
 - `gh release create --draft` senza tag crea un URL "untagged-…": il tag va creato e mandato sul remoto prima della pubblicazione vera. _(2026-11-15)_
 - prima di taggare controllare che package.json in main dica la versione da pubblicare: il compito di pubblicazione può partire prima che l'unione del bump sia avvenuta. _(2026-11-15)_
 - Prima di un compito di rilascio controllare che il bump di versione sia già in main: qui la bozza v0.107.4 esisteva su GitHub ma package.json era fermo a 0.107.3. _(2026-11-15)_
@@ -522,8 +524,6 @@
 
 ## build
 
-- Gradle di sistema in /e/Programs/Gradle/gradle-8.11.1 funziona nelle copie: su albero pulito servono ~3 min, con cache ~1 min; il tail di "BUILD FAILED" da solo non basta, serve --stacktrace. _(2026-11-14)_
-- Il gate Android (testDebugUnitTest assembleDebug) sul worktree a freddo dura circa 8 minuti; due gradle sulla stessa copia si bloccano sul lock. _(2026-11-14)_
 - Nel cancello «N actionable tasks: 1 executed» con N=28 è il comando solo `testDebugUnitTest --rerun` (con `assembleDebug` sono 45): il task caduto è un test, non assembleDebug. _(2026-11-14)_
 - Il cancello deve stampare nel riepilogo le righe FAILED e «Execution failed for task»: la sola coda «BUILD FAILED» non basta per capire quale test cade. _(2026-11-14)_
 - Rifiuto del cancello con «28 tasks: 1 executed» = solo testDebugUnitTest --rerun (con assembleDebug sono 45): cade un test a intermittenza, non la build. _(2026-11-14)_
