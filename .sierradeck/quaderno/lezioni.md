@@ -101,6 +101,7 @@
 - `npx vitest related` va lanciato con `--run`, altrimenti resta in attesa. La suite dei file collegati a rapporto-lavori.ts dura oltre 2 minuti e finisce in background. _(2026-11-23)_
 - in questa copia i file di test sono CRLF, e gli heredoc di bash convertono `\0` in un NUL vero: scrivere gli escape da un file Node con `String.fromCharCode`. _(2026-11-23)_
 - Per provare Invio/Scaricatore basta un Trasporto o una lambda finta in memoria; usare un contatore di chiamate con check() per far fallire i cicli infiniti invece di bloccare gradle. _(2026-11-23)_
+- se in un confronto si serializza un oggetto per decidere se riscrivere, l'ordine delle chiavi conta: i rami che creano la stessa voce devono dare le chiavi nello stesso ordine _(2026-11-23)_
 
 ## worktree
 
@@ -123,6 +124,10 @@
 - impostazioni-struttura.ts alimenta android/.../assets/impostazioni.json: cambiare un testo lì richiede `AGGIORNA=1 npx vitest run tests/shared/impostazioni-struttura.test.ts`. _(2026-11-20)_
 - nella cartella android non c'è gradlew: i test Kotlin si lanciano col gradle di sistema (`gradle --offline testDebugUnitTest`), circa 3 minuti. _(2026-11-20)_
 - Invio.manda e Scaricatore.scarica sono cicli while(true): ogni ramo che non avanza (pezzo vuoto, 409 allo stesso punto) deve avere un limite o un'uscita, altrimenti gira a vuoto. _(2026-11-23)_
+- Con `registerDefaultNetworkCallback`, passando da wifi a dati arriva `onAvailable(nuova)` prima di `onLost(vecchia)`: in `onLost` vale solo se la rete è l'ultima vista. _(2026-11-23)_
+- I record di chiusura dei record di `/api/eventi` hanno un `n` nuovo e lo stesso `id` dell'apertura: in un pacco unico vanno filtrati (`RegoleAvvisi.senzaSuperati`) o l'avviso suona e sparisce. _(2026-11-23)_
+- I test Android usano JUnit4 (org.junit), non kotlin.test; i parametri nuovi di CorpoWorkspace vanno in fondo con default, perché FotoSchermateTest lo chiama in modo posizionale. _(2026-11-23)_
+- mettiInCoda (schermate/comune/PezziLavoro.kt) restituisce false in silenzio se coda o telefono non sono pronti: nessuna schermata dà riscontro all'utente. _(2026-11-23)_
 
 ## release
 
@@ -439,21 +444,12 @@
 - un fallimento di lavoro affidato si riporta come errore in un punto solo (il servizio); spedizioniere e Aiutante scrivono avviso o cronaca. _(2026-11-23)_
 - l'invio degli errori porta `volte` cumulativo con `quando` fisso: un invio rifatto non è identico al primo, quindi il dedup per voce identica non basta _(2026-11-23)_
 
-## voce
-
-- La conversazione a voce era solo sul PC (voce-autopilota.ts, parlato.ts, speechSynthesis): nell'app c'era solo la dettatura. Nell'app gli id delle frasi vengono dal contenuto, non dall'indice. _(2026-11-14)_
-
 ## permessi
 
 - nella CLI un divieto (--disallowedTools) vince sempre su --allowedTools: per aprire una forma di `gh` va stretto il divieto, non aggiunta un'eccezione _(2026-11-23)_
 
 ## rilascio
 
-- La release fissa dell'app si trova col tag `app-android`, non col nome: `gh release view "App Android"` dice «not found». Prima di alzare la versione guardare `gh release view app-android`. _(2026-11-14)_
-- Il controllo del programma rifiuta `git merge` anche con compito esplicito dell'autopilota: l'unione va fatta dall'autopilota stesso, lo specialista del rilascio parte da main già unito. _(2026-11-14)_
-- Il circolo «criterio rimisura gh release view v<versione>» su un'alzata di versione si risolve solo unendo fuori dal cancello e pubblicando subito dopo. _(2026-11-14)_
-- Il vecchio criterio `gh release view v<versione>` cade sul ramo del bump finché non c'è una release: una bozza lo soddisfa senza toccare gli aggiornamenti. _(2026-11-14)_
-- Una bozza creata senza tag ha URL «untagged-…»: il tag va poi creato e spinto sul commit della versione prima di pubblicarla. _(2026-11-14)_
 - Prima di pubblicare controllare `.git/MERGE_HEAD` e i file preparati: il cancello può avere un'unione a metà in main, e il pacchetto va costruito solo su main pulito. _(2026-11-14)_
 - Il controllo di unione fa `gh release view <tag>` e fallisce senza release: una bozza vuota basta. Il tag resta da creare prima della pubblicazione vera. _(2026-11-14)_
 - `gh release create --draft` senza tag crea un URL "untagged-…": il tag va creato e mandato sul remoto prima della pubblicazione vera. _(2026-11-15)_
@@ -931,3 +927,7 @@
 ## da-fare
 
 - Rimandati dopo la 0.117.1: il riassunto dei rapporti scrive «1 compiti» (plurale fisso); npm run pubblica crea a volte due bozze con lo stesso tag e i file divisi (va reso atomico). _(2026-11-23)_
+
+## consumi
+
+- Claude Code dà solo i limiti di 5 ore e settimana: per la giornata non c'è un dato vero, il campo "rimasto.giornata" resta noto:false e porta solo la prossima mezzanotte _(2026-11-23)_
