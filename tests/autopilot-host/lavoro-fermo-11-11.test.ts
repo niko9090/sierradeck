@@ -32,7 +32,7 @@ describe('le spinte al lavoro fermo, senza tetto', () => {
   it('la riga per Nicholas è corta, dice da quanto e quante volte, e non è una domanda', () => {
     expect(SPINTE_PRIMA_DI_DIRLO).toBe(3)
     const una = rigaFermoPerNicholas(fermo(1), 21, 3)
-    expect(una).toBe('Lavoro fermo da 21 minuti (una cosa in sospeso): ho svegliato l’autopilota 3 volte e non è ripartito. Continuo a provarci, sempre più di rado.')
+    expect(una).toBe('Lavoro fermo da 21 minuti (una cosa in sospeso): ho svegliato l’autopilota 3 volte e non è ripartito. Se non cambia niente smetto di insistere, finché non cambia qualcosa o mi scrivi.')
     expect(rigaFermoPerNicholas(fermo(4), 180, 6)).toMatch(/^Lavoro fermo da 3 ore \(4 cose in sospeso\)/u)
     for (const r of [una, rigaFermoPerNicholas(fermo(9), 600, 12)]) {
       expect(r).not.toContain('?')

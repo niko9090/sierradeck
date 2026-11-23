@@ -628,36 +628,21 @@ describe('il motore non si ferma (0.89.4)', () => {
     expect(fermoANicholas()[0]!.testo).toMatch(/^Lavoro fermo da \d+ minuti \(una cosa in sospeso\): ho svegliato l’autopilota 3 volte/u)
     expect(fermoANicholas()[0]!.testo).not.toContain('?')
     expect(archivio.leggi(orch.impostazioni('Lavoro').autopilota!)!.annuncio?.titolo).toBe('Lavoro fermo')
-    // Mentre l'autopilota lavora (il turno della terza spinta è ancora aperto) niente spinte, e il conto resta.
-    avanti += 8 * FERMO_DOPO_MS
-    server!.controllaChatFerme()
-    await new Promise((ris) => setTimeout(ris, 30))
-    expect(sveglie()).toBe(3)
+    // k-199d: terza spinta senza effetto: alla quarta scadenza il programma sospende (una riga [blocco]) e non sveglia più.
     fine('Va bene.')
-    // La quiete riparte da quando ha finito: subito dopo, ancora niente.
-    server!.controllaChatFerme()
-    avanti += 8 * FERMO_DOPO_MS - 1000
-    server!.controllaChatFerme()
-    await new Promise((ris) => setTimeout(ris, 30))
-    expect(sveglie()).toBe(3)
-    avanti += 1000
-    server!.controllaChatFerme()
-    await attendi(() => sveglie() === 4, { cosa: 'sveglia 4' })
-    fine('Va bene.')
-    // Avanti così, con il tetto di un'ora fra una spinta e l'altra: mai un'ultima. E a Nicholas una riga sola.
-    for (let n = 5; n <= 8; n += 1) {
+    for (let n = 0; n < 6; n += 1) {
       avanti += 60 * 60_000
       server!.controllaChatFerme()
-      await attendi(() => sveglie() === n, { cosa: `sveglia ${n}` })
-      fine('Va bene.')
+      await new Promise((ris) => setTimeout(ris, 30))
     }
+    expect(sveglie()).toBe(3)
     expect(fermoANicholas()).toHaveLength(1)
-    // k-178j: una sveglia futura NON spegne la spinta (prima, 0.102.1, tacevano): vale solo per chi aspetta un orario,
-    // mentre qui c'è un compito pronto. La pausa vera di Nicholas è un'altra cosa (pausa-e-occupato-22-11).
+    // La sveglia futura non cambia il conto: le spinte restano sospese finché la firma non cambia o Nicholas scrive.
     orch.cambiaImpostazioni('Lavoro', (i) => ({ ...i, sveglie: [{ il: '2099-01-01T19:02:00.000Z', perche: 'riprendo stasera', chiesta: '2026-11-12T12:00:00.000Z' }] }))
     avanti += 60 * 60_000
     server!.controllaChatFerme()
-    await attendi(() => sveglie() === 9, { cosa: 'spinta nonostante la sveglia lontana' })
+    await new Promise((ris) => setTimeout(ris, 30))
+    expect(sveglie()).toBe(3)
   })
 
   /**

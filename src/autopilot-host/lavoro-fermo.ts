@@ -88,6 +88,8 @@ export const SPINTA_MASSIMA_MS = 60 * 60_000
 export const SPINTA_MASSIMA_CON_DOMANDE_MS = 4 * 60 * 60_000
 /** Da questa spinta in poi lo si dice anche a Nicholas: una riga, una volta per stato. */
 export const SPINTE_PRIMA_DI_DIRLO = 3
+/** k-199d: dopo tante spinte senza che la firma cambi si smette, finché la firma non cambia o Nicholas non scrive. */
+export const SPINTE_SENZA_EFFETTO_MAX = 3
 
 /** Quanta quiete serve prima della prossima spinta: `gia` sono quelle già date per questo stato. */
 export function intervalloSpinta(gia: number, base: number, domandeAperte: boolean): number {
@@ -100,7 +102,7 @@ export function intervalloSpinta(gia: number, base: number, domandeAperte: boole
 export function rigaFermoPerNicholas(f: LavoroFermo, minuti: number, spinte: number): string {
   const durata = minuti >= 120 ? `${Math.round(minuti / 60)} ore` : `${minuti} minuti`
   const cose = f.righe.length === 1 ? 'una cosa in sospeso' : `${f.righe.length} cose in sospeso`
-  return `Lavoro fermo da ${durata} (${cose}): ho svegliato l’autopilota ${spinte} volte e non è ripartito. Continuo a provarci, sempre più di rado.`
+  return `Lavoro fermo da ${durata} (${cose}): ho svegliato l’autopilota ${spinte} volte e non è ripartito. Se non cambia niente smetto di insistere, finché non cambia qualcosa o mi scrivi.`
 }
 
 /** Il testo dell'evento per l'autopilota. */

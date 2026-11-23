@@ -71,7 +71,7 @@ import { giudicaGuardiaOrchestratore } from './guardia-orchestratore'
 import type { Giudizio } from './divieti'
 import { doppioniDaArchiviare, rigaDoppione, type Doppione, type RichiestaDoppioni } from '@shared/autopiloti-doppioni'
 import type { ArchivioDoppioni } from './doppioni-store'
-import { chiedeDiFermarsi, intervalloSpinta, lavoroFermo, rigaFermoPerNicholas, SPINTE_PRIMA_DI_DIRLO, testoLavoroFermo } from './lavoro-fermo'
+import { chiedeDiFermarsi, intervalloSpinta, lavoroFermo, rigaFermoPerNicholas, SPINTE_PRIMA_DI_DIRLO, SPINTE_SENZA_EFFETTO_MAX, testoLavoroFermo } from './lavoro-fermo'
 import { aspettaDipendenze, compitiInFilaPerUnione, righeDopoUnione, rigaUnioneEPoi, salvaPromptDopo } from './dipendenze'
 import { promemoriaRosso, type RossoVisto } from './criterio-rosso'
 import { permessoDaSolo } from './permessi-automatici'
@@ -672,7 +672,7 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
   /** 06/11: i compiti con il criterio rosso dopo l'unione, per workspace, e i promemoria già mandati. */
   const rossiVisti = new Map<string, Map<string, RossoVisto>>()
   /** `dal`: da quando è quieto; `ultima`: l'ultima spinta (o l'ultimo momento in cui lavorava); `detto`: Nicholas lo sa già (11/11). */
-  const fermiVisti = new Map<string, { firma: string; dal: number; ultima: number; spinte: number; detto?: boolean }>()
+  const fermiVisti = new Map<string, { firma: string; dal: number; ultima: number; spinte: number; detto?: boolean; sospesa?: boolean }>()
   const memoriaCriteri: MemoriaCriteri = x.memoriaCriteri ?? new Map()
   /** Gli specialisti già uniti, per workspace (sopravvivono al flusso in memoria). */
   const uniti = new Map<string, Set<string>>()
@@ -2519,6 +2519,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     x.orchestratori.aggiungiDialogo(ws, { quando, da: 'tu', testo, ...(opz.daProgramma === true ? {} : { nicholas: true as const }) })
     // k-178h: un messaggio di Nicholas toglie la pausa; se dice «resta fermo» ne mette una nuova.
     if (opz.daProgramma !== true) {
+      fermiVisti.delete(ws) // k-199d: Nicholas ha scritto, le spinte senza effetto ripartono da zero
       const frase = chiedeDiFermarsi(testo)
       x.orchestratori.cambiaImpostazioni(ws, (i) => {
         const { pausa: _via, ...senza } = i
@@ -2664,7 +2665,15 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       if (visto === undefined || visto.firma !== f.firma) { fermiVisti.set(ws, { firma: f.firma, dal: ora, ultima: ora, spinte: 0 }); continue }
       if (occupato) { visto.dal = ora; visto.ultima = ora; continue }
       const aperte = x.domande.aperte(a.id).length
+      if (visto.sospesa === true) continue
       if (ora - visto.ultima < intervalloSpinta(visto.spinte, FERMO_DOPO_MS, aperte > 0)) continue
+      // k-199d: la firma è la stessa dopo `SPINTE_SENZA_EFFETTO_MAX` spinte: insistere non serve (61 ore, 28 sveglie
+      // senza effetto). Una riga sola; si riparte se la firma cambia o se Nicholas scrive (`fermiVisti.delete`).
+      if (visto.spinte >= SPINTE_SENZA_EFFETTO_MAX) {
+        visto.sospesa = true
+        console.error(`[blocco] ${ws} — spinte sospese: ${visto.spinte} senza effetto, motivo: ${f.righe.join(' / ').slice(0, 400)}`)
+        continue
+      }
       visto.spinte += 1
       visto.ultima = ora
       const minuti = Math.round((ora - visto.dal) / 60_000)
