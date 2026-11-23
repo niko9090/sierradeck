@@ -97,7 +97,7 @@ describe('i criteri dell’unione di prova', () => {
   it('16/11: gradle col percorso (-p android) si salta senza file in android/', () => {
     const g = 'E:/Programs/Gradle/gradle-8.11.1/bin/gradle -p android testDebugUnitTest --rerun --offline'
     expect(criteriPerLaProva([c(g)], ['src/main/a.ts']).map((x) => x.comando)).toEqual([])
-    expect(criteriPerLaProva([c(g)], ['android/app/A.kt']).map((x) => x.comando)).toEqual([g])
+    expect(criteriPerLaProva([c(g)], ['android/app/A.kt']).map((x) => x.comando)).toEqual([g.replace(' --rerun', '')])
   })
 })
 

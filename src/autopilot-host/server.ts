@@ -168,6 +168,8 @@ export type Dipendenze = {
   /** 06/11, per i test: tempi della fila delle unioni (vedi `ContestoUnico`). */
   unioneMaxMs?: number
   unioneRiprovaMs?: number
+  /** k-191e, per i test: raccolta della raffica prima della testa della fila. */
+  raccoltaRafficaMs?: number
   unioneTentativiMax?: number
   /** 11/11, per i test: i tempi dei file non salvati nella principale (vedi `ContestoUnico`). */
   chiediSalvaDopoMs?: number
@@ -1791,6 +1793,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     ...(deps.unioneDaSola !== undefined ? { unioneDaSola: deps.unioneDaSola } : {}),
     ...(deps.unioneMaxMs !== undefined ? { unioneMaxMs: deps.unioneMaxMs } : {}),
     ...(deps.unioneRiprovaMs !== undefined ? { unioneRiprovaMs: deps.unioneRiprovaMs } : {}),
+    ...(deps.raccoltaRafficaMs !== undefined ? { raccoltaRafficaMs: deps.raccoltaRafficaMs } : {}),
     ...(deps.unioneTentativiMax !== undefined ? { unioneTentativiMax: deps.unioneTentativiMax } : {}),
     ...(deps.chiediSalvaDopoMs !== undefined ? { chiediSalvaDopoMs: deps.chiediSalvaDopoMs } : {}),
     ...(deps.sporcaInFondoDopoMs !== undefined ? { sporcaInFondoDopoMs: deps.sporcaInFondoDopoMs } : {}),

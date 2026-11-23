@@ -242,7 +242,9 @@ async function avviaServizio(git: Git, asinc: GitAsincrono, esegui: Esecutore): 
     git,
     gitAsincrono: asinc,
     unioneDaSola: false,
-    unioneRiprovaMs: 10
+    unioneRiprovaMs: 10,
+    // k-191e: qui la prima parte da sola (il cancello la tiene ferma): niente raccolta di raffica.
+    raccoltaRafficaMs: 0
   })
   server = s
   await new Promise<void>((ris) => s.listen(0, '127.0.0.1', () => { porta = (s.address() as { port: number }).port; ris() }))
