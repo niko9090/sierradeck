@@ -139,13 +139,6 @@
 
 ## release
 
-- vitest stampa «×» nei nomi di alcuni test (es. «(×2)»): cercare i fallimenti con «FAIL» o col riepilogo finale, non con «×» _(2026-11-13)_
-- `gh release view --json` non ha il campo isLatest: lo stato latest si legge da `gh release list` (colonna «Latest»). _(2026-11-13)_
-- `npm run pubblica` con una release in bozza già creata carica i file ma la lascia bozza: serve sempre `gh release edit --draft=false --latest`. _(2026-11-13)_
-- REGOLA di Nicholas: l'Aiutante esce SEMPRE allegato alla release del programma completo (`npm run pubblica` → `scripts/allega-aiutante.mjs`: installer, blockmap e `aiutante.yml` per ultimo; 7 file in tutto); mai più da solo sulla pubblicazione fissa «aiutante». _(2026-11-13)_
-- i file del lotto errori-arrivati non sono tracciati e non stanno nel worktree: per il titolo del gruppo leggerli con Read dalla cartella principale. _(2026-11-13)_
-- `npm run pubblica` con la bozza già creata e il tag pushato la lascia in bozza: serve sempre `gh release edit --draft=false --latest`. L'URL della bozza è «untagged-…» finché non si pubblica. _(2026-11-13)_
-- prima del bump: `git merge --ff-only main`, poi `gh release list`; la voce in `src/shared/novita.ts` va nello stesso commit del bump, sennò `novita.test.ts` fallisce. _(2026-11-13)_
 - se una correzione entra in main dopo un bump già fatto da un'altra chat, non fare un bump nuovo: controllare `gh release list` e, se la versione non è pubblicata, farla uscire con quella. _(2026-11-13)_
 - Prima di unire/pubblicare, `git log main..origin/main` può non essere vuoto anche con main pulito: altre chat spingono quaderno e release su origin; fermarsi e chiedere. _(2026-11-13)_
 - Dopo un cherry-pick di una correzione nata con un'altra versione, cercare nel resto del repo (test, quaderno) il vecchio numero: va corretto anche lì, non solo in package.json e novita.ts. _(2026-11-13)_
@@ -397,6 +390,8 @@
 - file e ramo di ritorno sono uno per lavoro (`<id>-ritorno.bundle`, `ramoDiRitorno`): ogni ritiro nuovo dello stesso id va messo nella coda di `ritira`, non fatto a parte. _(2026-11-23)_
 - `/api/flusso` risponde sempre 200 con `flusso:true`: 404/405/409/501 o risposta senza il segno vogliono dire PC vecchio, ogni altro errore è rete e si riprende dal cursore _(2026-11-23)_
 - Le richieste di Nicholas (coda.json) stanno in AppData\Roaming\sierradeck\orchestratori: uno specialista su un altro PC non le vede, quindi le sue parole vanno copiate intere nel prompt. _(2026-11-23)_
+- Un agente sull'Aiutante non può interrogare un altro PC: le chiamate vogliono la chiave di casa del portachiavi. Da qui si legge solo `pc-altrui.json` (versione, carico, posti). _(2026-11-23)_
+- un compito che deve leggere .sierradeck/errori-arrivati va tenuto sul PC di riferimento con requisiti.rete = quel percorso: altrimenti finisce su un Aiutante che non ha la cartella _(2026-11-23)_
 
 ## cancello
 
@@ -608,6 +603,7 @@
 - consoleNelRegistro: console.warn va come info (fuori dallo storico errori), console.error come ERRORE; per casi attesi di rete usare warn. _(2026-11-14)_
 - Le righe [unione di prova] e [criterio] non portano il workspace: i rapporti le contano sotto «generale». Per attribuirle bisogna prima cambiare il formato delle righe in server.ts e verifiche.ts. _(2026-11-23)_
 - il workspace nelle righe di criteri/unioni passa da un contesto asincrono (`contesto-log.ts`): chi mette in coda va catturato prima, perché il turno può partire dal contesto di un altro. _(2026-11-23)_
+- Gli errori arrivati da un PC non contengono le righe delle unioni: «(scaduta)» e «unione in fila» stanno nel registro del servizio, che qui non arriva. Per misurarle servono i rapporti della 0.116.0. _(2026-11-23)_
 
 ## aiuto
 
@@ -723,6 +719,7 @@
 ## dati
 
 - un autopilota da un altro PC o da un file vecchio può mancare di `dialogo`, `decisioni` o `chats`: le funzioni in `shared` che lo leggono devono trattare gli elenchi assenti come vuoti. _(2026-11-16)_
+- Per leggere un workspace su un altro PC serve un agente su quel PC o su PC-Fisso, o una rotta di sola lettura nuova per registro e piano; in questa copia `E:` è vuoto. _(2026-11-23)_
 
 ## metodo
 
@@ -745,6 +742,7 @@
 - `statoPc` di scoperta-pc.ts e `statoPc` di stato-pc.ts sono due funzioni diverse (stessa parola): la prima è il bussare, la seconda la soglia del battito. _(2026-11-19)_
 - Il segno «più recente fra SierraDeck e Aiutante» richiede `host` uguale in tutti e due i battiti (`vistoConAiutante`): senza `host` l'abbinamento non scatta e il PC con solo Aiutante sembra «non risp… _(2026-11-20)_
 - l'abbinamento SierraDeck/Aiutante dipende solo dall'`host` dei due battiti: ora senza maiuscole né dominio. Se un PC resta «non risponde», controllare l'host nei due battiti sul Drive. _(2026-11-20)_
+- Il PC in Glos è piccolo (4 core, 8 GB) e risulta al 94% di carico: le misure delle unioni lì vanno in `turni.pesante`, che oggi `provaNelPrincipale` non usa. _(2026-11-23)_
 
 ## posta
 
@@ -767,6 +765,7 @@
 - in `android/novita-app.txt` la voce app va aggiunta a mano a ogni salita di versionName, altrimenti `pubblica-app` si ferma; verificarla con `noteDi` di `scripts/note-novita.mjs`. _(2026-11-19)_
 - la voce in novita.ts va in cima all'array NOVITA; nelle righe mai iniziare con «versione:». _(2026-11-20)_
 - In novita.ts le voci hanno `righe: [...]` o su una riga o su più righe: ogni parser di quel file deve gestire entrambe le forme. _(2026-11-20)_
+- il test sulle note limita ogni voce a 8 righe; la 0.116.0 ora ne ha 8, quindi altre aggiunte richiedono di accorciare le righe esistenti. _(2026-11-23)_
 
 ## versione
 
@@ -922,3 +921,7 @@
 
 - i riassunti (`riassunto-*.md`) e `.analisi.json` stanno nella cartella dei rapporti arrivati: `leggiRapportiArrivati` li salta perché non sono cartelle di mittente. _(2026-11-23)_
 - il segno `[ws: NOME]` si toglie dalla riga prima dei parser; le righe senza segno restano «generale». _(2026-11-23)_
+
+## pc-glos
+
+- PC in Glos: 4 processori, 8 GB, carico 94%, 8 cambi di versione in 7 giorni. La guardia usa soglie fisse (75% e 60%), pensate per un PC grande, quindi lì i passi pesanti aspettano quasi sempre. _(2026-11-23)_
