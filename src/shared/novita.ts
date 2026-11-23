@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.117.1',
+    righe: [
+      '**Rapporto dei lavori:** mostra i ruoli veri degli specialisti e conta giusto. Un controllo rifatto vale una volta sola, e i controlli impossibili, i rallentamenti brevi e i lavori fermi hanno ognuno la sua voce.',
+      '**Riavvii del servizio:** ognuno conta uno solo, con accanto il motivo, per esempio un aggiornamento.',
+      '**Lavoro fermo:** non viene più spinto a vuoto. Dopo 3 spinte senza effetto il programma si ferma e scrive perché. Riparte quando il lavoro si muove o quando scrivi tu.',
+      '**PC senza un programma:** i controlli che lo usano non si rilanciano a ogni giro. Il PC ricorda per mezz’ora che non si possono fare.',
+    ],
+  },
+  {
     versione: '0.117.0',
     righe: [
       '**Prove delle unioni in fila:** passano dal turno pesante del PC, quindi due workspace non provano più insieme e il tempo in fila non fa scadere la prova.',
