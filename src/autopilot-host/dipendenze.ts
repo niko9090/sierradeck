@@ -31,6 +31,19 @@ export function dipendenzeNonUnite(piano: Piano, id: string, chiuse?: ReadonlySe
 }
 
 /**
+ * 23/11: i compiti messi in fila perché aspettano l'unione di un altro (il loro Agent è stato rifiutato dal
+ * programma): si riconoscono dal piano, che sta su disco, quindi anche dopo un riavvio. Per il pannello degli agenti.
+ */
+export function compitiInFilaPerUnione(piano: Piano, chiuse?: ReadonlySet<string>): Array<{ compito: CompitoPiano; aspetta: string[] }> {
+  return piano.compiti.flatMap((c) => {
+    if (c.stato !== 'da-fare' || c.chiuso !== undefined) return []
+    if (c.promptDopo === undefined && c.esito?.startsWith('in fila: aspetta l’unione') !== true) return []
+    const aspetta = dipendenzeNonUnite(piano, c.id, chiuse)
+    return aspetta.length > 0 ? [{ compito: c, aspetta }] : []
+  })
+}
+
+/**
  * Il rifiuto per un Agent che lancia un compito «da fare» con le dipendenze
  * non unite. `undefined` se si può lanciare (nessun compito, già in corso,
  * dipendenze tutte unite). `chat`: l'id dell'Agent che chiama.

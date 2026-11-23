@@ -441,6 +441,8 @@ export type VistaAttesa = {
     parcheggiata?: true
     /** Il ramo dove il suo lavoro resta salvato. */
     ramo?: string
+    /** 23/11: in fila perché aspetta l'unione di questi compiti (non per il tetto dei posti): parte da solo a unione fatta. Id = `unione:<workspace>|<compito>`: non è una voce della lista dei posti (niente mosse di priorità). */
+    perUnione?: string[]
   } & StimaVoce>
   /** Il lavoro che resta per svuotare la lista, con i posti in parallelo (k-53). */
   totale?: { minuti: number; compiti: number }
