@@ -149,11 +149,34 @@ export function strumentiAmmessi(lista: unknown): string[] {
  * e lo unisce il PC che l'ha chiesto.
  */
 export const VIETATI_AIUTO: readonly string[] = [
-  'Bash(git push:*)', 'Bash(git config:*)', 'Bash(git remote:*)', 'Bash(gh:*)',
+  'Bash(git push:*)', 'Bash(git config:*)', 'Bash(git remote:*)',
   'Bash(npm publish:*)', 'Bash(npm run pubblica:*)', 'Bash(npm run allega-apk:*)', 'Bash(npm run pubblica-app:*)', 'Bash(npm install:*)',
-  'PowerShell(git push*)', 'PowerShell(gh *)', 'PowerShell(npm run pubblica*)', 'PowerShell(npm run allega-apk*)', 'PowerShell(npm run pubblica-app*)',
+  'PowerShell(git push*)', 'PowerShell(npm run pubblica*)', 'PowerShell(npm run allega-apk*)', 'PowerShell(npm run pubblica-app*)',
+  ...vietatiGhCurl(),
   'WebFetch', 'WebSearch', 'Agent', 'Task'
 ]
+
+/**
+ * 23/11: `gh` e `curl` in sola lettura passano (`gh release view|list`, `gh repo view`,
+ * `gh api` con GET, `curl` senza dati inviati). Un divieto vince sempre su un permesso,
+ * quindi non si nega più `gh` intero: si negano le forme che scrivono.
+ */
+function vietatiGhCurl(): string[] {
+  const gh = [
+    'release create', 'release upload', 'release delete', 'release delete-asset', 'release edit',
+    'pr', 'issue', 'repo create', 'repo delete', 'repo edit', 'repo fork', 'repo rename', 'repo archive', 'repo sync', 'repo clone',
+    'workflow', 'run', 'secret', 'variable', 'auth', 'config', 'extension', 'gist', 'label', 'ruleset', 'ssh-key', 'gpg-key', 'codespace', 'cache', 'alias'
+  ]
+  const apiScrive = [' -X', ' --method', ' -f', ' -F', ' --field', ' --raw-field', ' --input']
+  const curlScrive = [' -d', ' --data', ' -F', ' --form', ' -T', ' --upload-file', ' --json', ' -X POST', ' -X PUT', ' -X DELETE', ' -X PATCH', ' --request POST', ' --request PUT', ' --request DELETE', ' --request PATCH']
+  const forme = [
+    ...gh.map((v) => `gh ${v}`),
+    ...apiScrive.map((f) => `gh api*${f}`),
+    ...curlScrive.map((f) => `curl*${f}`),
+    ...curlScrive.map((f) => `curl.exe*${f}`)
+  ]
+  return forme.flatMap((f) => [`Bash(${f}*)`, `PowerShell(${f}*)`])
+}
 
 export const MODELLI_AIUTO: readonly string[] = ['haiku', 'sonnet', 'opus']
 
