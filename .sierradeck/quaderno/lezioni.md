@@ -139,8 +139,6 @@
 
 ## release
 
-- Con `gh release create --draft` la release resta «untagged» nell'URL, ma electron-builder la riempie lo stesso e `gh release view` mostra il tag giusto; verificare i 5 file prima di `--draft=false`. _(2026-11-11)_
-- Una release pubblicata da un ramo (push su origin/main) lascia indietro la cartella principale: fino alla 0.99.4 si riallinea a mano con `git merge origin/main` da una chat aperta lì; dalla 0.100.0 lo fa il programma ogni 10 minuti. _(2026-11-11)_
 - Dalla 0.100.0 pubblica lo specialista «rilascio», che lavora nella cartella principale senza Edit/Write: versione e novità le prepara prima uno sviluppatore, nel suo ramo. _(2026-11-11)_
 - L’installatore locale si chiama `dist/SierraDeck Setup X.exe` (con gli spazi), l’asset su GitHub `SierraDeck-Setup-X.exe`: per confrontare lo sha512 con `latest.yml` scaricare l’asset o usare il nome con gli spazi. _(2026-11-11)_
 - `.git/config` può ritrovarsi tutto zeri (11/11, 18:03): ogni git fallisce con «bad config line 1». Prima di una release lanciare `git status` e, se fallisce, non provare a indovinare il config. _(2026-11-12)_
@@ -243,6 +241,7 @@
 
 - Le voci di versione del quaderno sono file datati (`AAAA-MM-GG-...md`). `errori-arrivati.md` è solo per gli errori arrivati. _(2026-11-19)_
 - Un bump tocca 3 file di note: `src/shared/novita.ts`, `android/novita-app.txt` e `src/aiutante/novita-aiutante.txt` (righe che cominciano con `versione:`); app e Aiutante hanno la loro versione. _(2026-11-20)_
+- I commit sull'Aiutante possono stare in src/shared (aiuto-rete.ts) e src/main, non in src/aiutante: per decidere il bump guardare cosa fanno, non la cartella. _(2026-11-23)_
 
 ## tooling
 
@@ -583,6 +582,7 @@
 - Se cambia solo src/aiutante/nucleo.ts, l'Aiutante va alzato a parte: versione.json più voce in cima a novita-aiutante.txt (una riga basta). _(2026-11-23)_
 - Dopo `--draft=false` il link `releases/latest/download/<file>` può dare 404 dalla cache per qualche minuto: verificare con `gh release download` o con l'URL `/download/<tag>/`. _(2026-11-23)_
 - `npm run pubblica` supera i 10 minuti: va in sottofondo da solo. Non rilanciarlo; aspetta che compaia aiutante.yml fra gli asset (è l'ultimo), poi pubblica. _(2026-11-23)_
+- `git fetch` può fallire per un bundle in aiuto\arrivi: la versione di partenza si trova con `git log -S"x.y.z" -- package.json`. _(2026-11-23)_
 
 ## build
 
