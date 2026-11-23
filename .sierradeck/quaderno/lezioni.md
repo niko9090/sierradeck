@@ -268,8 +268,6 @@
 
 ## unioni
 
-- dopo un riavvio i subagenti in memoria sono vuoti: cancelloOra trova ramo e cartella solo se il piano li ha salvati, quindi va salvato anche il worktree, non solo il ramo _(2026-11-10)_
-- Ripresa dopo il riavvio: le unioni partono solo dopo la pulizia della prova (`provaRipulita`) e una volta per avvio. Senza aggiornamento solo compiti con `ramo` e senza esito «unione non fatta». _(2026-11-10)_
 - Il quaderno riscrive righe esistenti («(×2)», riordino): il controllo «solo righe aggiunte» sul numstat non basta. Dentro .sierradeck/quaderno/ si salva sempre. _(2026-11-10)_
 - la prova di unione salva con un commit solo `.sierradeck/quaderno/` (anche riscritto); le altre note di `.sierradeck/` restano «solo aggiunte» (numstat): un test deve coprire entrambi i rami. _(2026-11-11)_
 - Fino alla 0.99.1 installata una nota del quaderno con righe cambiate o tolte ferma tutta la fila: la sblocca solo un commit di `.sierradeck/quaderno` fatto da una chat aperta nella cartella principale (dalla 0.99.2 la salva il programma). _(2026-11-11)_
@@ -632,6 +630,8 @@
 - Un MERGE_HEAD in main è durato circa 5 minuti e poi è sparito senza cambiare HEAD. Più sleep di fila nello stesso comando vengono bloccati, quindi un `sleep 20` per chiamata. _(2026-11-14)_
 - Il nome di un workspace è l'identità anche in `tolti`; l'unione ora confronta con `chiaveNomeWorkspace` (trim, spazi, minuscole) e tiene il nome già sul Drive. _(2026-11-20)_
 - Dopo una correzione di conflitto su un ramo nuovo, l'unione automatica può riprovare il ramo vecchio del compito: rilanciare unisci col ramo nuovo esplicito. _(2026-11-23)_
+- «ramo vecchio riprovato» non viene dal ramo salvato nel compito: `ramoDelCompito` mette il nuovo come principale e unisce prima gli «altri», cioè i vecchi. _(2026-11-23)_
+- `ramiFalliti` in `servizio-orchestratore.ts` è solo in memoria: dopo un riavvio il ramo vecchio fallito torna candidato e può riconflittare. _(2026-11-23)_
 
 ## pubblica-app
 
