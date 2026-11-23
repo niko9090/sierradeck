@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.117.0',
+    righe: [
+      '**Prove delle unioni in fila:** passano dal turno pesante del PC, quindi due workspace non provano più insieme e il tempo in fila non fa scadere la prova.',
+      '**Guardia del carico:** si regola su processori e memoria del PC. Un PC piccolo sempre carico va avanti lo stesso, e l’attesa ha un tetto.',
+      '**Invio automatico di errori e rapporti:** non si ferma più per un invio appeso, rispetta il limite di richieste di Drive e scrive il motivo vero.',
+      '**PC di riferimento:** può leggere da un altro PC, con la chiave di casa, il registro delle unioni e il piano di un suo workspace.',
+    ],
+  },
+  {
     versione: '0.116.0',
     righe: [
       '**Unioni che scadono:** non passano più davanti agli altri lavori e hanno più tempo a ogni tentativo. Dopo 3 scadenze arriva un avviso, e il pannello mostra le unioni in riprova.',
