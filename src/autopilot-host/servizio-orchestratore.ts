@@ -70,7 +70,7 @@ import type { Giudizio } from './divieti'
 import { doppioniDaArchiviare, rigaDoppione, type Doppione, type RichiestaDoppioni } from '@shared/autopiloti-doppioni'
 import type { ArchivioDoppioni } from './doppioni-store'
 import { chiedeDiFermarsi, intervalloSpinta, lavoroFermo, rigaFermoPerNicholas, SPINTE_PRIMA_DI_DIRLO, testoLavoroFermo } from './lavoro-fermo'
-import { aspettaDipendenze, righeDopoUnione, rigaUnioneEPoi } from './dipendenze'
+import { aspettaDipendenze, righeDopoUnione, rigaUnioneEPoi, salvaPromptDopo } from './dipendenze'
 import { promemoriaRosso, type RossoVisto } from './criterio-rosso'
 import { permessoDaSolo } from './permessi-automatici'
 import { CLASSI, DURATA_PERMESSO_MIN, SOLO_QUESTA_VOLTA, leggiPermessi, partiDomandaPermesso } from '@shared/permessi-nicholas'
@@ -1184,7 +1184,8 @@ ${NOTA_SENZA_GIT}`,
         // 11/11 (k-133): un compito finito e in fila per l'unione resta com'è (ramo compreso); degli altri si ricorda com'erano.
         if (k !== undefined && k.stato !== 'unito' && !finitoInFila(ws, k)) {
           primaDelLancio.set(s.id, k)
-          cambiaCompito(ws, k.id, (c) => ({ ...senzaRamo(c), stato: 'in-corso', chat: s.id, ruolo: s.ruolo }))
+          // k-178p: il compito è partito: il prompt in attesa ha fatto il suo.
+          cambiaCompito(ws, k.id, (c) => { const { promptDopo: _p, ...resto } = senzaRamo(c); return { ...resto, stato: 'in-corso', chat: s.id, ruolo: s.ruolo } })
         }
         if (u !== undefined) { const dopo = { ...u }; x.annota(dopo, `parte ${s.ruolo}${s.compito !== undefined ? ` (${s.compito})` : ''}: ${s.descrizione.slice(0, 140)}`, avanzamento(s.id, `Al lavoro: ${chiSpecialista(s.ruolo)} — ${cosaDel(s.descrizione)}.`)); x.salva(dopo) }
         ricalcola(ws, `${s.compito ?? s.ruolo} parte`)
@@ -3257,6 +3258,9 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
           const q = aspettaDipendenze(x.orchestratori.piano(ws), compitoDallaDescrizione(r.descrizione), idUso, richiesteChiuse(ws))
           if (q === undefined) return undefined
           if (idUso !== undefined) rifiutatiPerDipendenze.set(idUso, q.aspetta)
+          // k-178p: il prompt non si perde: sta nel compito (su disco) e lo riporta l'evento «unione». Un nuovo prompt sostituisce il vecchio.
+          const promptDopo = salvaPromptDopo(r.prompt, r.tipo, r.descrizione)
+          if (promptDopo !== undefined) cambiaCompito(ws, q.compito, (k) => ({ ...k, promptDopo }))
           console.info(`[attesa] ${ws} — ${q.compito} aspetta l’unione di ${q.aspetta.join(', ')}: in fila, lo segnalo a unione finita`)
           return q.motivo
         },

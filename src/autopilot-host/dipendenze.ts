@@ -49,6 +49,19 @@ export function aspettaDipendenze(piano: Piano, compito: string | undefined, cha
   }
 }
 
+/** k-178p: il prompt di un Agent rifiutato per un «dopo», da scrivere nel compito. `undefined` se l'Agent non ne aveva. */
+export function salvaPromptDopo(prompt: string | undefined, ruolo: string, descrizione: string): CompitoPiano['promptDopo'] {
+  if (prompt === undefined || prompt.trim() === '') return undefined
+  return { prompt, ruolo, descrizione }
+}
+
+/** k-178p: il prompt salvato, per intero, da rilanciare così com'è. Vuoto se il compito non ne ha. */
+const rigaPrompt = (c: CompitoPiano): string => {
+  const p = c.promptDopo
+  if (p === undefined) return ''
+  return `\nPrompt salvato di ${c.id}, da rilanciare così com'è (Agent subagent_type «${p.ruolo}», description «${p.descrizione}»):\n<<<PROMPT\n${p.prompt}\nPROMPT>>>`
+}
+
 /**
  * I compiti da fare con tutte le dipendenze unite, divisi fra quelli da lanciare, quelli che
  * aspettano una correzione (dipendenza unita con il criterio rosso) e quelli che aspettano
@@ -87,13 +100,13 @@ export function righeDopoUnione(piano: Piano, unitoId: string, opzioni: { riusci
   const { pronti, daCorreggere, daMisurare } = compitiSbloccati(piano, tra, opzioni.inAttesa, opzioni.chiuse)
   const righe: string[] = []
   if (pronti.length > 0) {
-    righe.push(`Adesso sono pronti da lanciare: ${pronti.map((c) => `${c.id} («${corto(c.titolo, 80)}»)`).join(', ')}. Lanciali ORA con Agent, nello stesso turno: le dipendenze sono unite e nessuno li sta facendo.`)
+    righe.push(`Adesso sono pronti da lanciare: ${pronti.map((c) => `${c.id} («${corto(c.titolo, 80)}»)`).join(', ')}. Lanciali ORA con Agent, nello stesso turno: le dipendenze sono unite e nessuno li sta facendo.${pronti.map(rigaPrompt).join('')}`)
   }
   for (const d of daCorreggere) {
-    righe.push(`${d.compito.id} aspetta la correzione di ${d.rossi.join(', ')} (unito con il criterio rosso): prima affida la correzione.`)
+    righe.push(`${d.compito.id} aspetta la correzione di ${d.rossi.join(', ')} (unito con il criterio rosso): prima affida la correzione.${rigaPrompt(d.compito)}`)
   }
   for (const d of daMisurare) {
-    righe.push(`${d.compito.id} aspetta la misura del criterio di ${d.ignote.join(', ')} (unito ma non ancora misurato): misuralo di nuovo, poi lancia ${d.compito.id}.`)
+    righe.push(`${d.compito.id} aspetta la misura del criterio di ${d.ignote.join(', ')} (unito ma non ancora misurato): misuralo di nuovo, poi lancia ${d.compito.id}.${rigaPrompt(d.compito)}`)
   }
   return righe
 }
