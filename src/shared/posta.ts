@@ -2,6 +2,7 @@ import type { CapacitaPc } from './capacita-pc'
 import type { PostiChat } from './posti-chat'
 import type { RisorsePc } from './risorse'
 import type { InvioErrori } from './storico-errori'
+import type { RapportoLavori } from './rapporto-lavori'
 import { SPENTO_DOPO_MS, statoPc } from './stato-pc'
 /**
  * La posta per un PC: i tipi e le due cose pure che servono anche al
@@ -218,6 +219,8 @@ export type ComandoPosta =
   | { tipo: 'sposta-prepara'; progetto: string; verso: string; versoNome: string; sposta: string }
   | { tipo: 'sposta-concludi'; progetto: string; verso: string; percorso: string; proprietarioDal: string; sposta: string }
   | { tipo: 'errori'; invio: InvioErrori }
+  /** k-193a: il rapporto dei lavori di un PC, per il PC di riferimento spento. */
+  | { tipo: 'rapporto-lavori'; rapporto: RapportoLavori }
   /*
    * Gestione progetti (13/11): le scelte di Nicholas per un progetto che vive
    * su un altro PC. Le esegue quel PC, anche se era spento quando sono state

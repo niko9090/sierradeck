@@ -24,7 +24,7 @@ import {
 } from './controllo-claude'
 import { creaFinestraAggiornamenti } from './finestra-aggiornamenti'
 import { NOVITA_AIUTANTE_URL, noteAiutante } from './novita-aiutante'
-import { creaInvioErrori, registroConStorico } from './errori-aiutante'
+import { creaInvioErrori, creaInvioRapporti, registroConStorico } from './errori-aiutante'
 import { creaNucleo } from './nucleo'
 import { apriPreferenzeAiutante } from './preferenze-aiutante'
 import { blocchiRete, inScarico, perLaFinestra, requisitiPersi, rigaAggiornamento, stabilizzaRete, tooltipIcona, valutaRequisiti, type StatoRete, type VoceRequisito } from './regole'
@@ -215,6 +215,20 @@ function avvia(): void {
       }
     })
     setInterval(() => { void invio.giro() }, 30_000).unref?.()
+    // k-193a: il rapporto dei lavori, allo stesso PC di riferimento e sullo stesso canale.
+    const rapporti = creaInvioRapporti({
+      dati, versione: VERSIONE, registro,
+      io: () => { const i = r.identita.leggi(); return { id: i.id, nome: nomeDaMostrare(i) } },
+      pcScelto: () => preferenze.leggi().base.pcSviluppo,
+      progetti: () => r.registroProgetti.leggi().progetti,
+      nomeDi: (pc) => nomeDi(r.postino, pc),
+      chiama: (pc, percorso, corpo) => r.remoto.chiama(pc, percorso, corpo),
+      perPosta: async (pc, rap, err) => {
+        if (erroreConRisposta(err)) return false
+        return await r.postino.aggiungi(pc, { comando: { tipo: 'rapporto-lavori', rapporto: rap }, cwd: '', testo: `rapporto dei lavori da ${rap.da}` }) !== undefined
+      }
+    })
+    setInterval(() => { void rapporti.giro() }, 60_000).unref?.()
 
     // I blocchi del collegamento (Drive scollegato, cassaforte chiusa, porta occupata), al cambio.
     // I primi due minuti non contano: il portachiavi e il token del Drive possono essere ancora da rileggere.

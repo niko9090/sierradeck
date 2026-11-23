@@ -98,6 +98,7 @@ import type { AvvisoDrive } from '@shared/scoperta-pc'
 import type { EsitoNegozio, McpVoce, PluginVoce, SkillVoce } from '@shared/negozio'
 import { idTestoValido, type StatoSottofondo } from '@shared/sottofondo'
 import { leggiErroriDelTelefono, leggiInvioErrori, type InvioErrori, type VoceErrore } from '@shared/storico-errori'
+import { leggiRapportoLavori, type RapportoLavori } from '@shared/rapporto-lavori'
 
 /**
  * Cosa può fare il Client, e cosa no.
@@ -360,6 +361,8 @@ export type DipendenzeRotte = {
    * scrive nella cartella di SierraDeck, se è il PC di sviluppo.
    */
   erroriArrivati?: (invio: InvioErrori, chi: string) => Promise<{ ok: true; file: string } | { ok: false; stato: number; errore: string }>
+  /** k-193a: il rapporto dei lavori di un altro PC, per il PC di riferimento. */
+  rapportoArrivato?: (rapporto: RapportoLavori, chi: string) => Promise<{ ok: true; file: string } | { ok: false; stato: number; errore: string }>
   /**
    * Lo storico degli errori di questo PC per la pagina e l'app (0.81.0): lo
    * leggono, ci aggiungono i propri errori (con il loro posto) e lo mandano
@@ -1211,6 +1214,16 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       if (!l.ok) return { stato: 400, corpo: { errore: l.errore } }
       const e = await depsPieni.erroriArrivati(l.invio, visore)
       return e.ok ? OK({ arrivati: l.invio.voci.length }) : { stato: e.stato, corpo: { errore: e.errore } }
+    }
+
+    // I rapporti dei lavori di un altro PC (k-193a): stesso canale e stessi controlli degli errori.
+    if (r.metodo === 'POST' && r.percorso === '/api/rapporti/arrivati') {
+      if (!daAltroPc(r.dispositivo)) return { stato: 403, corpo: { errore: 'I rapporti arrivano qui solo da un altro PC con la stessa cassaforte.' } }
+      if (depsPieni.rapportoArrivato === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora ricevere i rapporti dei lavori: va aggiornato.' } }
+      const l = leggiRapportoLavori(r.corpo)
+      if (!l.ok) return { stato: 400, corpo: { errore: l.errore } }
+      const e = await depsPieni.rapportoArrivato(l.rapporto, visore)
+      return e.ok ? OK({ arrivato: true }) : { stato: e.stato, corpo: { errore: e.errore } }
     }
 
     // ── Il Quaderno personale (0.57.0): solo questo schermo e i telefoni accoppiati qui ──
