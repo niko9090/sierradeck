@@ -41,6 +41,17 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.116.0',
+    righe: [
+      '**Unioni che scadono:** non passano più davanti agli altri lavori e hanno più tempo a ogni tentativo. Dopo 3 scadenze arriva un avviso, e il pannello mostra le unioni in riprova.',
+      '**Unioni più veloci:** un rilascio che cambia solo la versione non rilancia tutte le prove.',
+      '**App Android:** non si ricostruisce per i soli testi delle note e non rifà da capo il lavoro già fatto.',
+      '**Controlli dei rilasci già usciti:** non si ripetono.',
+      '**Lavori sullo stesso file:** entrano insieme.',
+      '**Rapporti dei lavori:** ogni SierraDeck e ogni Aiutante manda al PC di riferimento i rapporti dei suoi lavori, insieme ai log.',
+    ],
+  },
+  {
     versione: '0.115.1',
     righe: [
       '**Pannello degli agenti a destra:** c\'è in ogni vista del workspace con l\'autopilota. Mostra ogni agente con cosa fa, dove gira, da quanto tempo e quanti token consuma.',
