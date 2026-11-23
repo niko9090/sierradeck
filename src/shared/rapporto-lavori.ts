@@ -31,6 +31,10 @@ export type RapportoLavori = {
 }
 
 export const WORKSPACE_GENERALE = 'generale'
+/** Dove si contano gli affidamenti di cui la riga non dice il ruolo. */
+export const RUOLO_NON_NOTO = 'ruolo non noto'
+/** Un ruolo è una parola (sviluppatore, revisore…); un id di compito (k-178e) ha cifre e non lo è. */
+export const ruoloDi = (testo: string): string => (/^[a-zà-ù]+(?:-[a-zà-ù]+)*$/i.test(testo) ? testo : RUOLO_NON_NOTO)
 /** Quanti workspace, al più, in un rapporto, e quanti motivi diversi per workspace. */
 export const MAX_WORKSPACE = 40
 export const MAX_MOTIVI = 12
@@ -137,7 +141,8 @@ export function contaLavori(righe: readonly string[], dopo?: string): { workspac
     } else if ((x = /^\[aiuto\] (.+?) — (\S+) affidato a /.exec(t)) !== null) {
       const c = di(x[1] as string).compiti
       c.affidati += 1
-      const ruolo = x[2] as string
+      // Le righe vecchie dicevano l'id del compito (k-178e) al posto del ruolo: un id non è un ruolo.
+      const ruolo = ruoloDi(x[2] as string)
       c.ruoli[ruolo] = (c.ruoli[ruolo] ?? 0) + 1
       lette += 1
     } else if ((x = /^\[aiuto\] (.+?) — .*resta su questo PC/.exec(t)) !== null) {
