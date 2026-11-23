@@ -4,9 +4,6 @@
 
 ## test
 
-- per logica di percorsi Windows passare path.win32 come parametro, così il test gira uguale su ogni sistema _(2026-11-13)_
-- tests/shared/novita.test.ts limita ogni voce delle novità a 8 righe: per aggiungere una correzione a una voce piena bisogna unire due righe. _(2026-11-13)_
-- per simulare il servizio spento basta aprire e chiudere un server http su porta 0 e usare quella porta: `fetch failed` vero, senza mock _(2026-11-13)_
 - testDebugUnitTest Android ha test legati ai tempi (CentralinoTest <500ms, AscoltoAvvisiTest sleep 1,1 s): sotto carico del PC possono fallire a intermittenza. Riportare il nome del test, non solo "BU… _(2026-11-14)_
 - Centralino accetta un orologio iniettato: nelle prove usarlo fermo invece di misurare ms veri (<500 dentro un'attesa di 1 s salta col PC carico). _(2026-11-14)_
 - `tsc` ha noUncheckedIndexedAccess: negli indici di array serve `?? ''`, altrimenti il typecheck del criterio fallisce. _(2026-11-14)_
@@ -469,7 +466,6 @@
 
 ## ipc
 
-- `preferenze:imposta` ora risponde `{ preferenze, salvato }`: chi lo chiama dal renderer usi `salvaPreferenze` (src/renderer/salva-preferenze.ts), non `imposta` diretto. _(2026-11-12)_
 - negli handler IPC di sola lettura la validazione dell'argomento va dentro il catch/guard: un throw prima del .catch finisce nel log di Electron come errore. _(2026-11-16)_
 - Un canale nuovo va dichiarato in `src/preload/index.ts` e in `src/renderer/env.d.ts`, che è la fonte dei tipi di `window.gestore`: solo nel preload il typecheck fallisce. _(2026-11-20)_
 - Per i segreti: il canale fa entrare il valore e non lo restituisce, e la vista del renderer ricopia solo i campi senza valore, così un valore in più si ferma lì. _(2026-11-20)_
@@ -568,6 +564,8 @@
 - Il criterio `gh release view vX` passa anche per una bozza senza file: per un compito di pubblicazione usare `gh release list --limit 1` (Latest) e contare i file. _(2026-11-23)_
 - un test fermo alla 0.82.0 non è stato visto dalla 0.115.1: `vitest related` non basta per i test che leggono i sorgenti come testo _(2026-11-23)_
 - Dopo un push di main che cambia solo test e quaderno il tag può restare sul commit vecchio: il prodotto è identico, quindi basta rilanciare `pubblica` sulla stessa bozza. _(2026-11-23)_
+- prima di pubblicare controlla anche `.git/MERGE_HEAD`, non solo `git status`: l'autopilota può avere un'unione aperta nella cartella principale con file in stage. _(2026-11-23)_
+- `origin/main` può restare indietro di molti commit (qui 19): il bump a 0.116.0 era solo locale, quindi il push di main fa parte della procedura. _(2026-11-23)_
 
 ## build
 
@@ -609,6 +607,7 @@
 
 - consoleNelRegistro: console.warn va come info (fuori dallo storico errori), console.error come ERRORE; per casi attesi di rete usare warn. _(2026-11-14)_
 - Le righe [unione di prova] e [criterio] non portano il workspace: i rapporti le contano sotto «generale». Per attribuirle bisogna prima cambiare il formato delle righe in server.ts e verifiche.ts. _(2026-11-23)_
+- il workspace nelle righe di criteri/unioni passa da un contesto asincrono (`contesto-log.ts`): chi mette in coda va catturato prima, perché il turno può partire dal contesto di un altro. _(2026-11-23)_
 
 ## aiuto
 
@@ -922,3 +921,4 @@
 ## rapporti
 
 - i riassunti (`riassunto-*.md`) e `.analisi.json` stanno nella cartella dei rapporti arrivati: `leggiRapportiArrivati` li salta perché non sono cartelle di mittente. _(2026-11-23)_
+- il segno `[ws: NOME]` si toglie dalla riga prima dei parser; le righe senza segno restano «generale». _(2026-11-23)_
