@@ -107,8 +107,6 @@
 
 ## android
 
-- i colori dei tasti si prendono da Tema.kt (coloriTastoPieno/Testo/Bordo, sopra()): è lì che stanno i colori da spenti con contrasto 4.5:1. _(2026-11-14)_
-- Il cancello fonde i criteri `cd android && gradle …` in `testDebugUnitTest assembleDebug --no-daemon`; `gradle -p android …` resta separato. Le foto Roborazzi sono in modalità record, non confronto. _(2026-11-14)_
 - Le note dell'app stanno in `android/novita-app.txt` (una voce per versione), e `pubblica-app` si ferma se manca la voce della versione nuova. _(2026-11-14)_
 - I tasti dell'app vanno creati con `coloriTastoPieno/Testo/Bordo()` di `Tema.kt`, altrimenti da spenti i colori di Material non rispettano il contrasto. _(2026-11-14)_
 - Il rifiuto "BUILD FAILED" senza `<failure>` nei test non lascia log: il demone Gradle mostra solo EOF. Con `daemon=false` il worker dei test è un JVM a parte, ora con heap fisso. _(2026-11-14)_
@@ -539,6 +537,7 @@
 - `npm run pubblica` può creare due bozze con lo stesso tag (i file si dividono): riunirli nella bozza con le note via `gh api .../releases/assets/<id>` e `gh release upload`, cancellare l'altra, poi p… _(2026-11-23)_
 - `gh release download <tag>` non vede le bozze: per scaricare gli asset serve `gh api -H "Accept: application/octet-stream" repos/.../releases/assets/<id>`. _(2026-11-23)_
 - Con `npm run pubblica | tail` l'output resta vuoto fino alla fine: il progresso si segue con `gh api repos/niko9090/sierradeck/releases` sugli asset. _(2026-11-23)_
+- In questa copia git fetch fallisce: l'origin è un .bundle sparito. Prima di scegliere la patch non si possono vedere i tag remoti, solo quelli locali (qui nessuno). _(2026-11-23)_
 
 ## build
 
@@ -754,6 +753,7 @@
 - Il commit di versione tocca `package.json`, `package-lock.json` (due righe) e `src/shared/novita.ts`. `novita.test.ts` ammette al massimo 8 righe per voce. _(2026-11-23)_
 - `package-lock.json` ha la versione due volte (riga 3 e riga 9 sotto `packages[""]`): vanno alzate entrambe. _(2026-11-23)_
 - Con `git fetch` rotto (bundle in arrivi sparito) la base del bump è l'ultimo `Versione x.y.z` in main locale: far verificare all'autopilota che la nuova non sia già uscita da un altro PC. _(2026-11-23)_
+- Per alzare la versione bastano package.json, package-lock.json (2 punti) e la voce in cima a NOVITA in src/shared/novita.ts. _(2026-11-23)_
 
 ## aggiornamento
 
