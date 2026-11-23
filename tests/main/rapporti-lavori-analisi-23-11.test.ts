@@ -52,7 +52,7 @@ describe('riassumi', () => {
     const g = r.totale.generale!
     expect(g.unioni).toMatchObject({ prove: 2, scadute: 1, attesaMaxMs: 120_000, provaMaxMs: 2_700_000 })
     expect(g.criteri).toMatchObject({ finiti: 3, riusciti: 2, rossi: 1 })
-    expect(g.fermate).toMatchObject({ fermo: 1, riavvii: 1, fermoMaxMs: 12_500 })
+    expect(g.fermate).toMatchObject({ fermo: 3, riavvii: 1, fermoMaxMs: 12_500 })
     expect(r.dal).toBe(T(0))
     expect(r.al).toBe(T(30))
   })
@@ -74,7 +74,7 @@ describe('testoRiassunto', () => {
     expect(testo).toContain('1 ROSSI')
     expect(testo).toContain('per ruolo: sviluppatore ×1, revisore ×1')
     expect(testo).toContain('permessi negati dal programma: 1')
-    expect(testo).toContain('fermate del programma: 1')
+    expect(testo).toContain('rallentamenti del servizio oltre 1,5 s: 3')
     expect(testo).toContain('riavvii: 1')
   })
 
