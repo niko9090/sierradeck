@@ -100,6 +100,7 @@
 - Il turno aperto da un messaggio di Nicholas contiene già «Il lavoro è fermo» nel riassunto: per contare le spinte vere nei test serve un riferimento preso dopo il messaggio. _(2026-11-23)_
 - `npx vitest related` va lanciato con `--run`, altrimenti resta in attesa. La suite dei file collegati a rapporto-lavori.ts dura oltre 2 minuti e finisce in background. _(2026-11-23)_
 - in questa copia i file di test sono CRLF, e gli heredoc di bash convertono `\0` in un NUL vero: scrivere gli escape da un file Node con `String.fromCharCode`. _(2026-11-23)_
+- Per provare Invio/Scaricatore basta un Trasporto o una lambda finta in memoria; usare un contatore di chiamate con check() per far fallire i cicli infiniti invece di bloccare gradle. _(2026-11-23)_
 
 ## worktree
 
@@ -121,6 +122,7 @@
 - In una copia senza `gh` consentito non si sa se l'app è uscita: la voce in novita-app.txt viene committata dopo la pubblicazione, e può servire come indizio. _(2026-11-20)_
 - impostazioni-struttura.ts alimenta android/.../assets/impostazioni.json: cambiare un testo lì richiede `AGGIORNA=1 npx vitest run tests/shared/impostazioni-struttura.test.ts`. _(2026-11-20)_
 - nella cartella android non c'è gradlew: i test Kotlin si lanciano col gradle di sistema (`gradle --offline testDebugUnitTest`), circa 3 minuti. _(2026-11-20)_
+- Invio.manda e Scaricatore.scarica sono cicli while(true): ogni ramo che non avanza (pezzo vuoto, 409 allo stesso punto) deve avere un limite o un'uscita, altrimenti gira a vuoto. _(2026-11-23)_
 
 ## release
 
@@ -403,7 +405,6 @@
 
 ## quaderno
 
-- errori-arrivati.md usa fine riga CRLF: per aggiungere voci usare Edit ancorato all'ultima frase, non append da shell. _(2026-11-14)_
 - in errori-arrivati.md il testo esatto va controllato prima di un Edit: «la porta 47640» non è «e porta 47640», e l'ancora sbagliata fa fallire l'Edit. _(2026-11-16)_
 - «prossima versione» è corretto finché package.json resta indietro: controllare la versione prima di scrivere il numero. _(2026-11-16)_
 - errori-arrivati.md usa a capo CRLF: una voce aggiunta con Edit entra con LF e il file resta con a capo misti. _(2026-11-16)_
@@ -413,10 +414,6 @@
 - Il quaderno sul «mai fermo» (0.84–0.85) descrive le chat vecchie: dalla 0.89 gli specialisti sono sotto-agenti dell'orchestratore, la difesa sta in `servizio-orchestratore.ts` e `lavoro-fermo.ts`. _(2026-11-22)_
 - i titoli di errori-arrivati.md hanno la forma «(lotto <nome>)»: con nomi che iniziano già per «lotto-» il titolo ripete la parola, ed è voluto per far trovare il nome intero. _(2026-11-23)_
 - le voci di errori-arrivati.md vanno in coda; il file non finisce con a capo, quindi si aggiunge con Edit sull'ultima frase _(2026-11-23)_
-
-## controllo-pc
-
-- «PC A non raggiunge B» con B che risponde agli altri: guardare rete/Tailscale/firewall di A prima del codice; la Salute dice già «attenzione» e non «guasto». _(2026-11-14)_
 
 ## preferenze
 
