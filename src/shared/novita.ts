@@ -41,6 +41,17 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.115.1',
+    righe: [
+      '**Pannello degli agenti a destra:** c\'è in ogni vista del workspace con l\'autopilota. Mostra ogni agente con cosa fa, dove gira, da quanto tempo e quanti token consuma.',
+      '**File in modifica:** una sezione nuova elenca i file su cui gli agenti stanno lavorando.',
+      '**Contatori dei token:** quelli di oggi, i totali e quelli per ogni PC.',
+      '**Unioni:** si vedono la fila, quella in corso e gli esiti.',
+      '**Agenti su altri PC:** hanno anche lo stato «invio dati - fine lavori».',
+      '**Agenti che non spariscono più:** restano visibili mentre aspettano in fila, mentre il loro lavoro viene provato e unito, e dopo un riavvio.',
+    ],
+  },
+  {
     versione: '0.115.0',
     righe: [
       '**Terminale dal vivo su un altro PC:** il riquadro di una chat che gira su un altro PC mostra l\'uscita del suo terminale mentre esce, e riprende senza buchi se la connessione cade. Un PC con una versione vecchia resta com\'è.',
