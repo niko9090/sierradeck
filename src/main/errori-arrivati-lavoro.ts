@@ -154,29 +154,47 @@ export function raggruppa(p: {
   const perChiave = new Map<string, GruppoErrori>()
   let vecchie = 0
   // k-183b: la stessa voce arrivata due volte (invio rifatto dopo una risposta persa, o via Drive e via rete) non è un errore in più.
-  const viste = new Set<string>()
+  // Una serie = stesso PC, stesso errore (dove, punto, messaggio così com'è) e stessa prima volta: `volte` è un totale che cresce, e si aggiunge solo la differenza.
+  const viste = new Map<string, { g: GruppoErrori | undefined; volte: number }>()
   for (const a of p.arrivi) {
     for (const v of a.voci) {
       if (typeof v?.messaggio !== 'string') continue
-      const impronta = `${a.da}|${v.dove}|${v.quando}|${v.ultima ?? ''}|${v.volte ?? 1}|${v.messaggio}`
-      if (viste.has(impronta)) continue
-      viste.add(impronta)
+      const impronta = JSON.stringify([a.da, v.dove, v.punto ?? '', v.quando, v.messaggio])
+      const volteVoce = v.volte ?? 1
+      const vista = viste.get(impronta)
+      if (vista !== undefined) {
+        if (volteVoce > vista.volte) {
+          if (vista.g !== undefined) {
+            vista.g.volte += volteVoce - vista.volte
+            if ((v.ultima ?? v.quando) > vista.g.ultima) { vista.g.ultima = v.ultima ?? v.quando; if (v.cosa !== undefined) vista.g.cosa = v.cosa }
+          }
+          vista.volte = volteVoce
+        }
+        continue
+      }
       const ver = v.versione ?? a.versione
       const m = minore(ver)
-      if (v.dove !== 'app' && qui !== undefined && m !== undefined && piuVecchia(m, qui)) { vecchie += 1; continue }
+      if (v.dove !== 'app' && qui !== undefined && m !== undefined && piuVecchia(m, qui)) {
+        vecchie += 1
+        viste.set(impronta, { g: undefined, volte: volteVoce })
+        continue
+      }
       const chiave = chiaveErrore(v)
       const g = perChiave.get(chiave)
       if (g === undefined) {
-        perChiave.set(chiave, {
-          chiave, dove: v.dove, messaggio: v.messaggio, volte: v.volte ?? 1, prima: v.quando, ultima: v.ultima ?? v.quando,
+        const nuovo: GruppoErrori = {
+          chiave, dove: v.dove, messaggio: v.messaggio, volte: volteVoce, prima: v.quando, ultima: v.ultima ?? v.quando,
           da: [a.da], versioni: ver !== undefined ? [ver] : [],
           ...(v.punto !== undefined ? { punto: v.punto } : {}),
           ...(v.cosa !== undefined ? { cosa: v.cosa } : {}),
           ...(v.dettagli !== undefined ? { dettagli: v.dettagli } : {})
-        })
+        }
+        perChiave.set(chiave, nuovo)
+        viste.set(impronta, { g: nuovo, volte: volteVoce })
         continue
       }
-      g.volte += v.volte ?? 1
+      viste.set(impronta, { g, volte: volteVoce })
+      g.volte += volteVoce
       if (v.quando < g.prima) g.prima = v.quando
       if ((v.ultima ?? v.quando) > g.ultima) { g.ultima = v.ultima ?? v.quando; if (v.cosa !== undefined) g.cosa = v.cosa }
       if (!g.da.includes(a.da)) g.da.push(a.da)
