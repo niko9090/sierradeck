@@ -139,8 +139,6 @@
 
 ## release
 
-- se una correzione entra in main dopo un bump già fatto da un'altra chat, non fare un bump nuovo: controllare `gh release list` e, se la versione non è pubblicata, farla uscire con quella. _(2026-11-13)_
-- Prima di unire/pubblicare, `git log main..origin/main` può non essere vuoto anche con main pulito: altre chat spingono quaderno e release su origin; fermarsi e chiedere. _(2026-11-13)_
 - Dopo un cherry-pick di una correzione nata con un'altra versione, cercare nel resto del repo (test, quaderno) il vecchio numero: va corretto anche lì, non solo in package.json e novita.ts. _(2026-11-13)_
 - `gh release create --target` vuole lo sha COMPLETO (o un ramo): con lo sha abbreviato dà «target_commitish invalid». Crea anche il tag sul remoto. _(2026-11-13)_
 - Con la release già creata `npm run pubblica` non carica exe, blockmap e latest.yml e `allega-aiutante.mjs` si ferma («mancano…»): caricarli a mano con `--clobber`, poi rilanciare `node scripts/allega… _(2026-11-13)_
@@ -561,6 +559,8 @@
 - Dopo un push di main che cambia solo test e quaderno il tag può restare sul commit vecchio: il prodotto è identico, quindi basta rilanciare `pubblica` sulla stessa bozza. _(2026-11-23)_
 - prima di pubblicare controlla anche `.git/MERGE_HEAD`, non solo `git status`: l'autopilota può avere un'unione aperta nella cartella principale con file in stage. _(2026-11-23)_
 - `origin/main` può restare indietro di molti commit (qui 19): il bump a 0.116.0 era solo locale, quindi il push di main fa parte della procedura. _(2026-11-23)_
+- Un'unione lanciata dall'autopilota mentre gira `npm run pubblica` (circa 10 minuti) cambia l'albero a metà build: fermare la fila delle unioni prima di cominciare. _(2026-11-23)_
+- `npm run pubblica` può essere interrotto con exit 143 nel pacchetto dell'Aiutante: controllare gli asset e `.git/MERGE_HEAD` prima di rilanciarlo. _(2026-11-23)_
 
 ## build
 
