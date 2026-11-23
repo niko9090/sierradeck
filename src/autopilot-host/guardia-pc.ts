@@ -113,6 +113,56 @@ export const QUIETE_DOPO_MS = 60_000
 /** Il programma più pesante si rilegge al più così spesso. */
 const PROGRAMMA_OGNI_MS = 2 * 60_000
 
+/**
+ * **La guardia in proporzione al PC** (k-197g, 23/11). Le soglie fisse (75% e 60%)
+ * sono pensate per un PC grande. Un PC piccolo (4 processori, 8 GB) sempre al 90%
+ * era «carico» quasi sempre: ogni passo pesante aspettava fino al tetto e i posti
+ * restavano al minimo.
+ *
+ * - **Piccolo** = meno di `PROCESSORI_PC_GRANDE` processori o meno di
+ *   `MEMORIA_PC_GRANDE_MB` di memoria. Un PC grande resta com'è sempre stato.
+ * - **Quanto del carico non è suo**: il livello più basso del processore negli
+ *   ultimi `FINESTRA_BASE_MS`. Quello che c'è anche nei momenti calmi è il carico
+ *   di fondo (altri programmi, il sistema): i comandi pesanti dell'autopilota
+ *   sono i picchi sopra quel livello. Le soglie di un PC piccolo salgono sopra
+ *   il fondo (`SCARTO_ENTRATA`, `SCARTO_RILASCIO`), non oltre `SOGLIA_MASSIMA_PICCOLO`:
+ *   così un PC piccolo stabilmente carico non resta fermo, e un passo pesante
+ *   avanza lo stesso (uno alla volta, dal turno).
+ * - **Il tetto dell'attesa in scala**: `scalaPc` (da 0,25 a 1) accorcia l'attesa
+ *   di un PC piccolo; un PC grande aspetta quanto prima.
+ */
+export const PROCESSORI_PC_GRANDE = 8
+export const MEMORIA_PC_GRANDE_MB = 12 * 1024
+/** Per quanto si ricorda il livello più basso del processore, e quanto serve di storia per fidarsene. */
+export const FINESTRA_BASE_MS = 10 * 60_000
+export const STORIA_MINIMA_BASE_MS = 3 * 60_000
+export const SCARTO_ENTRATA = 8
+export const SCARTO_RILASCIO = 3
+export const SOGLIA_MASSIMA_PICCOLO = 99
+export const SCALA_MINIMA = 0.25
+
+export type Soglie = { entrata: number; rilascio: number }
+const SOGLIE_DI_SERIE: Soglie = { entrata: SOGLIA_PROCESSORE, rilascio: SOGLIA_RILASCIO }
+
+export function pcPiccolo(m: MisuraPc): boolean {
+  return m.processori < PROCESSORI_PC_GRANDE || (m.memoriaTotaleMb > 0 && m.memoriaTotaleMb < MEMORIA_PC_GRANDE_MB)
+}
+
+/** Da 0,25 (PC molto piccolo) a 1 (PC grande): quanto dei tetti di attesa si usa. */
+export function scalaPc(m: MisuraPc): number {
+  const perProcessori = m.processori / PROCESSORI_PC_GRANDE
+  const perMemoria = m.memoriaTotaleMb > 0 ? m.memoriaTotaleMb / MEMORIA_PC_GRANDE_MB : 1
+  return Math.max(SCALA_MINIMA, Math.min(1, perProcessori, perMemoria))
+}
+
+/** Le soglie del PC: di serie per un PC grande; per uno piccolo, sopra il suo carico di fondo. */
+export function soglieDelPc(m: MisuraPc, fondo: number | undefined): Soglie {
+  if (!pcPiccolo(m) || fondo === undefined) return SOGLIE_DI_SERIE
+  const entrata = Math.min(SOGLIA_MASSIMA_PICCOLO, Math.max(SOGLIA_PROCESSORE, fondo + SCARTO_ENTRATA))
+  const rilascio = Math.min(entrata, Math.max(SOGLIA_RILASCIO, fondo + SCARTO_RILASCIO))
+  return { entrata, rilascio }
+}
+
 export type Risorsa = 'processore' | 'memoria'
 
 /** Lo stato della guardia fra una misura e l'altra. */
@@ -137,12 +187,12 @@ const motivoMemoria = (m: MisuraPc): string =>
  * 75%, o subito per la memoria), si esce piano (un minuto intero sotto il 60%).
  * 11/11: c'è un'uscita anche per la memoria (`MEMORIA_LIBERA_MIN_A_LUNGO`).
  */
-export function giudicaMisura(m: MisuraPc, prec: StatoGuardia, ora: number): StatoGuardia {
+export function giudicaMisura(m: MisuraPc, prec: StatoGuardia, ora: number, soglie: Soglie = SOGLIE_DI_SERIE): StatoGuardia {
   if (prec.carico === undefined) {
     // La memoria è risalita: la tolleranza finisce, da qui vale di nuovo il 15%.
     const tollerata = prec.memoriaTollerata === true && memoriaBassa(m)
     const resto = tollerata ? { memoriaTollerata: true as const } : {}
-    const sopraDal = m.caricoPercento > SOGLIA_PROCESSORE ? (prec.sopraDal ?? ora) : undefined
+    const sopraDal = m.caricoPercento > soglie.entrata ? (prec.sopraDal ?? ora) : undefined
     if (memoriaBassa(m, tollerata ? MEMORIA_LIBERA_MIN_A_LUNGO : MEMORIA_LIBERA_MIN)) return { carico: { motivo: motivoMemoria(m), risorsa: 'memoria', dal: ora } }
     if (sopraDal !== undefined && ora - sopraDal >= PROCESSORE_PER_MS) {
       return { carico: { motivo: `processore al ${m.caricoPercento}% da ${durata(ora - sopraDal)}`, risorsa: 'processore', dal: sopraDal } }
@@ -153,7 +203,7 @@ export function giudicaMisura(m: MisuraPc, prec: StatoGuardia, ora: number): Sta
   const daTroppo = ora - c.dal >= CARICO_MASSIMO_MS
   if (memoriaBassa(m, daTroppo ? MEMORIA_LIBERA_MIN_A_LUNGO : MEMORIA_LIBERA_MIN)) return { carico: { motivo: motivoMemoria(m), risorsa: 'memoria', dal: c.dal } }
   // Carico da troppo (0.86.1): per liberarsi basta stare sotto la soglia d'entrata.
-  const soglia = daTroppo ? SOGLIA_PROCESSORE : SOGLIA_RILASCIO
+  const soglia = daTroppo ? soglie.entrata : soglie.rilascio
   if (m.caricoPercento >= soglia) {
     // Ancora pieno: il conto per liberarsi riparte da zero.
     return { carico: { motivo: `processore al ${m.caricoPercento}% da ${durata(ora - c.dal)}`, risorsa: 'processore', dal: c.dal } }
@@ -234,6 +284,8 @@ export type GuardiaPc = {
   passoLibero?: (prendi?: boolean) => boolean
   /** Comincia a misurare da sola ogni `CAMPIONE_MS`; torna la funzione che la ferma. */
   avvia?: () => () => void
+  /** k-197g: quanto dei tetti di attesa vale su questo PC, da `SCALA_MINIMA` a 1 (1 = PC grande, o non ancora misurato). */
+  scala?: () => number
 }
 
 /**
@@ -275,6 +327,16 @@ export function creaGuardiaPc(o: OpzioniGuardia): GuardiaPc {
   /** Dopo il rilascio: fino a quando parte un pesante solo, e se è già partito. */
   let quieteFino = 0
   let passoDato = false
+  /** k-197g: le ultime misure del processore, per il carico di fondo; e la scala dell'ultima misura. */
+  let campioni: { t: number; c: number }[] = []
+  let scala = 1
+
+  const fondoDelPc = (t: number): number | undefined => {
+    campioni = campioni.filter((x) => t - x.t <= FINESTRA_BASE_MS)
+    const primo = campioni[0]
+    if (primo === undefined || t - primo.t < STORIA_MINIMA_BASE_MS) return undefined
+    return Math.min(...campioni.map((x) => x.c))
+  }
 
   const cerca = (per: Risorsa): void => {
     if (o.cerca === undefined || cercando) return
@@ -294,7 +356,9 @@ export function creaGuardiaPc(o: OpzioniGuardia): GuardiaPc {
     ultimoCampione = t
     let m: MisuraPc
     try { m = o.misura() } catch { return attuale }
-    stato = giudicaMisura(m, stato, t)
+    scala = scalaPc(m)
+    campioni.push({ t, c: m.caricoPercento })
+    stato = giudicaMisura(m, stato, t, soglieDelPc(m, fondoDelPc(t)))
     const c = stato.carico
     if (c === undefined) {
       if (attuale !== undefined) {
@@ -329,6 +393,7 @@ export function creaGuardiaPc(o: OpzioniGuardia): GuardiaPc {
     valuta,
     stato: () => attuale,
     passoLibero,
+    scala: () => scala,
     avvia() {
       // La prima misura al primo giro: subito, il misuratore aspetterebbe un secondo fermo.
       daSola = true
@@ -340,9 +405,10 @@ export function creaGuardiaPc(o: OpzioniGuardia): GuardiaPc {
       const inizio = ora()
       let detto = false
       // 0.86.1: dentro un hook il tetto è più corto, o la fermata della chat scade.
-      const massimo = Math.min(o.attesaMassimaMs ?? ATTESA_MASSIMA_MS, eDentroUnHook() ? ATTESA_IN_UN_HOOK_MS : Infinity)
+      // k-197g: su un PC piccolo i tetti si accorciano in proporzione (`scalaPc`).
       for (;;) {
         const s = valuta()
+        const massimo = Math.min(o.attesaMassimaMs ?? Math.round(ATTESA_MASSIMA_MS * scala), eDentroUnHook() ? Math.round(ATTESA_IN_UN_HOOK_MS * scala) : Infinity)
         if (s === undefined && passoLibero(true)) {
           if (detto) console.info(`[guardia-pc] parte ${cosa}: il PC si è liberato dopo ${durata(ora() - inizio)}`)
           return
@@ -512,7 +578,8 @@ export async function giudicaPesanteAspettando(
   o: Parameters<typeof giudicaPesanteDellaChat>[1] & { dormi?: (ms: number) => Promise<void>; riprovaMs?: number; tettoMs?: number; tettoTurnoMs?: number }
 ): Promise<Giudizio> {
   const dormi = o.dormi ?? ((ms: number) => new Promise<void>((ok) => { setTimeout(ok, ms) }))
-  const tettoCarico = o.tettoMs ?? ATTESA_IN_UN_HOOK_MS
+  // k-197g: il tetto dell'attesa per il PC carico si accorcia su un PC piccolo; quello del turno no.
+  const tettoCarico = Math.round((o.tettoMs ?? ATTESA_IN_UN_HOOK_MS) * (o.guardia?.scala?.() ?? 1))
   const tettoTurno = Math.max(tettoCarico, o.tettoTurnoMs ?? ATTESA_TURNO_IN_UN_HOOK_MS)
   const passo = o.riprovaMs ?? 5_000
   const { guardia: _guardia, ...senzaGuardia } = o
