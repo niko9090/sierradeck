@@ -107,8 +107,6 @@
 
 ## android
 
-- `android/gradlew.bat` manca nelle copie di lavoro: si compila con `gradle -p android ...` (Gradle 8.11.1 in E:\Programs\Gradle). _(2026-11-14)_
-- `Apertura.aggiornamento` (striscia app nuova) veniva impostata solo dal tocco sulla notifica: con notifiche spente l'avviso non compariva mai. Ora lo imposta una ricerca all'apertura. _(2026-11-14)_
 - Nel worktree manca android/gradlew.bat: si usa /e/Programs/Gradle/gradle-8.11.1/bin/gradle -p android ... --offline (ci vogliono 2-4 minuti). _(2026-11-14)_
 - Il popup di DropdownMenu non compare nelle foto Roborazzi: si fotografano le DropdownMenuItem in linea. I colori spenti del Material (38%) fanno 2,3-3:1: usare i coloriVoceMenu e coloriTasto* in Tema… _(2026-11-14)_
 - In android/ non c'è gradlew: i test si lanciano con `gradle -p android testDebugUnitTest --rerun` (Gradle 8.11.1 di sistema in E:\Programs\Gradle). _(2026-11-14)_
@@ -542,6 +540,7 @@
 - In questa copia `git fetch` fallisce (origin è un bundle sparito) e `gh` non c'è: il controllo delle release va fatto dalla cartella principale. _(2026-11-23)_
 - `npm run pubblica` supera i 10 minuti di timeout dello strumento (installer da 114 MB): passa in sottofondo e lo specialista non può aspettarlo con sleep o cicli, che l'hook blocca. _(2026-11-23)_
 - Alla ripresa di un rilascio interrotto: se tag e bozza ci sono e la bozza è vuota, riparti da `npm run pubblica`. Android invariato = niente `pubblica-app`. _(2026-11-23)_
+- In questa copia `git fetch` non funziona: il remoto è un bundle sparito. Per controllare le versioni uscite serve `gh` sul PC di rilascio. _(2026-11-23)_
 
 ## build
 
@@ -749,6 +748,7 @@
 - la voce in novita.ts va in cima all'array NOVITA; nelle righe mai iniziare con «versione:». _(2026-11-20)_
 - In novita.ts le voci hanno `righe: [...]` o su una riga o su più righe: ogni parser di quel file deve gestire entrambe le forme. _(2026-11-20)_
 - il test sulle note limita ogni voce a 8 righe; la 0.116.0 ora ne ha 8, quindi altre aggiunte richiedono di accorciare le righe esistenti. _(2026-11-23)_
+- Se una riga delle note contiene «versione:», il test che legge `novita.ts` può leggerla male: nelle note evitare quella parola seguita da due punti. _(2026-11-23)_
 
 ## versione
 
