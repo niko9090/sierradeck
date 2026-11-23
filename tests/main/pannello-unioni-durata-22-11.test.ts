@@ -74,7 +74,9 @@ describe('stato del lavoro dopo la fine dello specialista', () => {
 
   it('conflitto dall’ultimo tentativo; senza notizie, niente', () => {
     expect(statoDopoLavoro({ compito: { stato: 'in-revisione' }, ultimoEsito: 'conflitto' })).toBe('conflitto')
-    expect(statoDopoLavoro({ compito: { stato: 'in-revisione' }, ultimoEsito: 'non-unita' })).toBeUndefined()
+    // 23/11: un compito ancora «in revisione» non sparisce dal pannello: il programma deve ancora unirlo.
+    expect(statoDopoLavoro({ compito: { stato: 'in-revisione' }, ultimoEsito: 'non-unita' })).toBe('in-fila')
+    expect(statoDopoLavoro({ compito: { stato: 'da-fare' }, ultimoEsito: 'non-unita' })).toBeUndefined()
     expect(statoDopoLavoro({})).toBeUndefined()
   })
 

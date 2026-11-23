@@ -567,8 +567,9 @@ export function creaClientAutopilota(p: {
             if (!r.ok) { await new Promise((ok) => setTimeout(ok, 30_000)); continue }
             const v = ((await r.json()) as { versione?: unknown }).versione
             if (typeof v !== 'number') { await new Promise((ok) => setTimeout(ok, 30_000)); continue }
-            // La prima risposta fissa solo il punto di partenza.
-            if (versione !== 0 && v !== versione && !fermo) { segnaElencoVecchio(); f() }
+            // 23/11: la prima risposta (all'avvio, o dopo un riavvio del servizio) fissa il punto di partenza ma spinge
+            // comunque una rilettura: gli agenti già al lavoro devono comparire subito, non al prossimo evento.
+            if ((versione === 0 || v !== versione) && !fermo) { segnaElencoVecchio(); f() }
             versione = v
           } catch {
             // Servizio non pronto o riavviato: si riprova fra poco; il giro periodico copre il frattempo.

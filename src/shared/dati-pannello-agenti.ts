@@ -197,7 +197,10 @@ export function statoDopoLavoro(o: {
 }): StatoDopoLavoro | undefined {
   if (o.unione !== undefined) return o.unione.inCorso ? 'in-unione' : 'in-fila'
   if (o.compito?.stato === 'unito') return o.compito.criterioVerde === true ? 'unito' : 'criterio-rosso'
+  // 23/11: finito e «in revisione» ma senza un'unione in memoria (dopo un riavvio del servizio, o nell'attimo prima che parta):
+  // il programma lo deve ancora provare e unire, non sparisce.
   if (o.ultimoEsito === 'conflitto') return 'conflitto'
+  if (o.compito?.stato === 'in-revisione') return 'in-fila'
   return undefined
 }
 

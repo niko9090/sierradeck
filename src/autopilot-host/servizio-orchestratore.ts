@@ -71,7 +71,7 @@ import type { Giudizio } from './divieti'
 import { doppioniDaArchiviare, rigaDoppione, type Doppione, type RichiestaDoppioni } from '@shared/autopiloti-doppioni'
 import type { ArchivioDoppioni } from './doppioni-store'
 import { chiedeDiFermarsi, intervalloSpinta, lavoroFermo, rigaFermoPerNicholas, SPINTE_PRIMA_DI_DIRLO, testoLavoroFermo } from './lavoro-fermo'
-import { aspettaDipendenze, righeDopoUnione, rigaUnioneEPoi, salvaPromptDopo } from './dipendenze'
+import { aspettaDipendenze, compitiInFilaPerUnione, righeDopoUnione, rigaUnioneEPoi, salvaPromptDopo } from './dipendenze'
 import { promemoriaRosso, type RossoVisto } from './criterio-rosso'
 import { permessoDaSolo } from './permessi-automatici'
 import { CLASSI, DURATA_PERMESSO_MIN, SOLO_QUESTA_VOLTA, leggiPermessi, partiDomandaPermesso } from '@shared/permessi-nicholas'
@@ -1045,12 +1045,14 @@ ${v.prompt}` : ''}` })
         const cosaFa = rigaUltimaAzione(l.attivita ?? '')
         return {
           posto: lavorano.length + chatVive.length + (x.ospitati?.().length ?? 0) + j + 1, id: l.id, workspace: l.workspace,
+          ...(unicoDi(l.workspace) !== undefined ? { autopilota: unicoDi(l.workspace)!.id } : {}),
           ...(l.compito !== undefined ? { compito: l.compito } : {}),
           descrizione: l.descrizione, tipo: l.ruolo, dal: l.inizio,
           workspaceNome: nomeWorkspace(l.workspace), titolo: titoloDi(l.workspace, l.compito, l.descrizione),
           ...(cosaFa !== '' ? { cosaFa } : {}),
           ...percentualeVera(l.percentuale), peso: pesoDi(l.workspace, l.compito),
           suPc: l.pcNome,
+          ...(l.fermareIl !== undefined ? { fermaRichiesta: true as const } : {}),
           pannello: datiPannello({
             suPc: l.pcNome, titolo: titoloDi(l.workspace, l.compito, l.descrizione), ultimaAzione: cosaFa,
             file: l.file, ...(l.origineFile !== undefined ? { origineFile: l.origineFile } : {}), token: l.token, inInvio: l.inInvio === true,
@@ -1078,7 +1080,16 @@ ${v.prompt}` : ''}` })
         ...(v.ramo !== undefined ? { ramo: v.ramo } : {}),
         workspaceNome: nomeWorkspace(v.workspace), titolo: titoloDi(v.workspace, v.compito, v.descrizione),
         percentuale: 0, minutiStimati: stima.inFila[v.id]!.minuti, peso: pesoDi(v.workspace, v.compito)
-      })),
+      })).concat(unici().flatMap((u) => {
+        // 23/11: chi aspetta l'unione di un altro compito (non ha un posto prenotato né una voce nella lista dei posti) è «in fila» lo stesso.
+        const ws = wsDi(u)
+        return compitiInFilaPerUnione(x.orchestratori.piano(ws), richiesteChiuse(ws)).map(({ compito: c, aspetta }) => ({
+          id: `unione:${ws}|${c.id}`, posizione: 0, workspace: ws, autopilota: u.id, compito: c.id,
+          descrizione: c.promptDopo?.descrizione ?? c.titolo, tipo: c.promptDopo?.ruolo ?? c.ruolo ?? 'sviluppatore', dal: c.creato, priorita: 0, prenotata: false,
+          perUnione: aspetta,
+          workspaceNome: nomeWorkspace(ws), titolo: titoloDi(ws, c.id, c.titolo), percentuale: 0, minutiStimati: 0, peso: pesoDi(ws, c.id)
+        }))
+      })).map((v, i) => ({ ...v, posizione: i + 1 })),
       totale: stima.totale
     }
   }
@@ -1185,7 +1196,11 @@ ${NOTA_SENZA_GIT}`,
   }
 
   /** Gli specialisti nativi: il piano li segue, le lezioni vanno al quaderno, il diario li racconta. */
-  const suFlusso = (ws: string, effetti: EffettoFlusso[], _stato: StatoFlusso): void => {
+  /** 23/11: l'ultima firma degli specialisti di ogni workspace (stato, ultima azione, file, token): se cambia, il pannello si aggiorna subito. */
+  const firmeSpecialisti = new Map<string, string>()
+  const suFlusso = (ws: string, effetti: EffettoFlusso[], stato: StatoFlusso): void => {
+    const firma = stato.specialisti.map((s) => `${s.id}|${s.stato}|${s.attivita ?? ''}|${s.file?.length ?? 0}|${s.token ?? 0}`).join('\n')
+    if (firmeSpecialisti.get(ws) !== firma) { firmeSpecialisti.set(ws, firma); cambiSpecialisti.segna() }
     // Spinta a evento: chi guarda gli specialisti lo sa subito, senza aspettare il giro di rilettura.
     if (effetti.some((e) => e.tipo === 'specialista-partito' || e.tipo === 'specialista-finito' || e.tipo === 'specialista-rifiutato')) cambiSpecialisti.segna()
     for (const e of effetti) {
@@ -1458,6 +1473,7 @@ ${NOTA_SENZA_GIT}`,
   const esitiUnioni = new Map<string, EsitoUnione[]>()
   const ricordaEsitoUnione = (ws: string, e: Omit<EsitoUnione, 'quando'>): void => {
     esitiUnioni.set(ws, aggiungiEsitoUnione(esitiUnioni.get(ws), { ...e, quando: x.adesso() }))
+    cambiSpecialisti.segna()
   }
   /**
    * k-176h: gli specialisti finiti da poco (al più 10 per workspace) con la durata e lo stato del loro lavoro dopo la fine:
@@ -1556,6 +1572,7 @@ ${NOTA_SENZA_GIT}`,
     const davanti = fila.filter((l) => prontaOra(l, Date.now()))
     fila.push({ chiave, chi: p.specialista ?? p.compito ?? p.ramo ?? '?', ...(idCompito !== undefined ? { compito: idCompito } : {}), p, tentativi: 0, inCorso: false })
     filaUnioni.set(ws, fila)
+    cambiSpecialisti.segna()
     if (fila.length === 1) void giraFila(ws)
     else if (davanti.length === 0) sveglieFila.get(ws)?.()
     // 11/11: «in fila, Nª» sta già nello stato (UNIONI) e nella risposta di unisci. Come evento apriva ogni volta
@@ -1673,6 +1690,7 @@ ${NOTA_SENZA_GIT}`,
       if (prima > 0) fila.unshift(...fila.splice(prima, 1))
       const lavoro = fila[0] as LavoroUnione
       lavoro.inCorso = true
+      cambiSpecialisti.segna()
       max = maxDiSerie()
       // k-178g: con altri rami indipendenti in fila, prima una prova sola per tutto il lotto. Mai un errore che ferma la fila.
       if (fila.length > 1 && lavoro.fuoriLotto !== true) await unisciLotto(ws, lavoro, fila, max).catch((err: unknown) => { console.warn(`[orchestratore] ${ws} — unione a lotti non riuscita, vado una alla volta: ${err instanceof Error ? err.message : String(err)}`) })
@@ -1701,6 +1719,7 @@ ${NOTA_SENZA_GIT}`,
       if (ancora === undefined) {
         sporcoDetto.delete(ws)
         fila.shift()
+        cambiSpecialisti.segna()
         ritiraDomandaSalva(lavoro, 'l’unione è passata: non serve più')
         // 10/11: l'unione è finita (verde o rossa): l'autopilota si sveglia SUBITO, anche se aveva chiuso il turno,
         // e con l'esito riceve i compiti diventati pronti, da lanciare adesso.
@@ -1714,6 +1733,7 @@ ${NOTA_SENZA_GIT}`,
         continue
       }
       lavoro.inCorso = false
+      cambiSpecialisti.segna()
       const compito = p.compito !== undefined ? x.orchestratori.piano(ws).compiti.find((k) => k.id === p.compito) : undefined
       if (ancora.tipo === 'sporca') {
         const adessoMs = Date.now()
