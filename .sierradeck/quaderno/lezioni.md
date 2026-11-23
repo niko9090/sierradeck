@@ -433,13 +433,11 @@
 
 ## flusso
 
-- Un rifiuto dell'hook che contiene «sottofondo/async/background» viene letto dal flusso come Agent partito in sottofondo: nessun «finito», il compito resta «in-corso». Evitare quelle parole nei motivi. _(2026-11-10)_
 - `usage` di `task_progress` è cumulativo per task: per i token di un agente vale il massimo visto. Nel `result` dell'orchestratore invece l'`usage` somma il turno. _(2026-11-22)_
 - il ramo di uno specialista fermato si ricava da agente/ramo (worktree-agent-<id>): rev-list richiede u.ramoBase, quindi la chat deve averlo valorizzato _(2026-11-23)_
 
 ## piano
 
-- `compito.ramo` va tolto (`senzaRamo`) quando il compito torna da-fare o in-corso, altrimenti la ripresa riunisce il ramo vecchio. _(2026-11-10)_
 - Un criterio con comando che legge solo file sotto .sierradeck/ (es. grep sul quaderno) è rifiutato: per le note scrivere il criterio a parole, lo giudica il supervisore. _(2026-11-11)_
 - Un compito «unito» con un criterio generico (`npx vitest run tests/shared`) può avere il ramo vero rimasto fuori (k-165): per saperlo, `git merge-tree --write-tree main <ramo>` e confronto con l’albero di main. _(2026-11-11)_
 - Dalla 0.100.0 un compito che non va più fatto si chiude con `piano_chiudi` (superato o annullato): prima restava «in revisione» per sempre e teneva aperta la richiesta. _(2026-11-11)_
@@ -527,6 +525,8 @@
 - Specialisti «Aiuta la rete» girano su un altro PC e non vedono il registro di qui: la pila la legge l'autopilota in AppData\Roaming\SierraDeck\log e la mette nel prompt. _(2026-11-19)_
 - la cartella .sierradeck della cartella principale non si legge dalle copie (collegamento non risolvibile): la pila di un errore va chiesta all'autopilota. _(2026-11-20)_
 - «API Error:» in testa non vuol dire guasto del servizio: i rifiuti dei filtri di Claude arrivano con quel prefisso (result success). I controlli specifici vanno prima della regola 'api'. _(2026-11-23)_
+- il lotto non era leggibile dalla copia: per i «doppioni» da conteggio serve il file vero; il sospetto è l'invio ripetuto (timeout + Drive), non la scrittura del registro. _(2026-11-23)_
+- un fallimento di lavoro affidato si riporta come errore in un punto solo (il servizio); spedizioniere e Aiutante scrivono avviso o cronaca. _(2026-11-23)_
 
 ## voce
 
