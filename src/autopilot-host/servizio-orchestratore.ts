@@ -88,6 +88,7 @@ import { motivoInItaliano, stessaRigaDiPrima } from './turno-non-riuscito'
 import type { ArchivioAttesa } from './attesa-store'
 import { creaCambi, type Cambi } from '@shared/spinta-specialisti'
 import { attesaDopoScadenza, UNIONE_MAX_MS } from './tempi-unione'
+import { fraseScadenzeRipetute, motivoScadenzaFila, piuTempoPerTentativo, rigaUnioneAttiva, scegliProssima, sogliaScadenze } from './unioni-che-scadono'
 import { togliCopiaUnita } from './autopulizia'
 import { togliRamiSuperati } from './rami-superati'
 import { causaDelFallimento, causaDelMotivo, chiaveCompito, COMPITI_PER_PAUSA_PC, colpaDelPc, fraseCausa, livelloRigaAiuto, motivoBreve, motivoDelRisultato, motivoSuPc, pauseAiuti, pcInPausa, serieGuasti, type CausaFallimento } from '@shared/aiuto-esito'
@@ -192,7 +193,7 @@ export type ContestoUnico = {
   limitiPiano?: () => LimitiPiano | undefined
   chatAlLavoroSulPc: () => number
   /** L'unione di prova nel principale con i criteri dell'autopilota (`provaNelPrincipale`). */
-  provaNelPrincipale: (a: Autopilota, ramo: string, altri?: string[]) => Promise<EsitoProvaPrincipale>
+  provaNelPrincipale: (a: Autopilota, ramo: string, altri?: string[], tempo?: { piuTempo?: number }) => Promise<EsitoProvaPrincipale>
   /** 11/11: porta il ramo principale di qui a quello del remoto, senza mai forzare (`riallineaAsincrono`). Assente: non si fa. */
   riallinea?: (a: Autopilota) => Promise<EsitoRiallineo>
   /** 11/11: ogni quanto si guarda il remoto, per i workspace con lavoro aperto (di serie 10 minuti). */
@@ -1436,10 +1437,14 @@ ${NOTA_SENZA_GIT}`,
    * `undefined` se la stessa unione è già lì.
    */
   /** Quello che un tentativo di unione e la fila si passano: la scadenza, e il rosso già misurato con la principale sporca (11/11). */
-  type ScambioUnione = { scaduto: boolean; rossoSporco?: string; ramoUnito?: string; rossiSporchi?: number; /** 12/11: cosa sta facendo adesso, per la frase di stato. */ fase?: 'prova' | 'criterio' }
+  type ScambioUnione = { scaduto: boolean; rossoSporco?: string; ramoUnito?: string; rossiSporchi?: number; /** 12/11: cosa sta facendo adesso, per la frase di stato. */ fase?: 'prova' | 'criterio'; /** 23/11: quante volte è già scaduto questo lavoro: ogni scadenza dà più tempo ai passi git del tentativo dopo. */ tentativi?: number }
   /** `nonPrima` (11/11, ms): un'unione scaduta aspetta il suo momento in fondo alla fila, senza fermare le altre. */
   type LavoroUnione = {
     chiave: string; chi: string; compito?: string; p: { compito?: string; specialista?: string; ramo?: string }; tentativi: number; inCorso: boolean; nonPrima?: number
+    /** 23/11: quando è partito il tentativo in corso (ms), per dire da quanto il programma ci lavora. */
+    partitaIl?: number
+    /** 23/11: l'ultimo motivo di scadenza, per lo stato e per l'esito. */
+    ultimoMotivo?: string
     /** 11/11, file non salvati nella principale: da quando è ferma (ms), se lo si è già detto, e la domanda del programma a Nicholas. */
     sporcaDal?: number
     /** 12/11: quante volte di fila è tornata ferma allo stesso modo (per riprovare sempre più di rado). */
@@ -1612,7 +1617,9 @@ ${NOTA_SENZA_GIT}`,
   }
   /** Le unioni in corso e in fila, per lo stato dell'autopilota. */
   const righeUnioni = (ws: string): string[] => (filaUnioni.get(ws) ?? []).map((l, i) => {
-    if (!l.inCorso && l.tentativi > 0 && (l.nonPrima ?? 0) > Date.now()) return `- ${l.chi}: scaduta ${l.tentativi} ${l.tentativi === 1 ? 'volta' : 'volte'}, riprova da sola fra poco`
+    // 23/11: il lavoro che il programma sta unendo adesso lo dice, con la fase e da quanto: non è «nessuno al lavoro».
+    if (l.inCorso) return rigaUnioneAttiva({ chi: l.chi, fase: l.scambio?.fase, daMs: Date.now() - (l.partitaIl ?? Date.now()), tentativi: l.tentativi })
+    if (!l.inCorso && l.tentativi > 0 && (l.nonPrima ?? 0) > Date.now()) return `- ${l.chi}: scaduta ${l.tentativi} ${l.tentativi === 1 ? 'volta' : 'volte'}${l.ultimoMotivo !== undefined ? ` (${l.ultimoMotivo.slice(0, 160)})` : ''}, riprova da sola fra poco`
     return i === 0 ? `- ${l.chi}: in corso${l.tentativi > 0 ? ` (tentativo ${l.tentativi + 1})` : ''}` : `- ${l.chi}: in fila, ${i + 1}ª`
   })
   /**
@@ -1682,7 +1689,9 @@ ${NOTA_SENZA_GIT}`,
       if (fila.length === 0) { filaUnioni.delete(ws); return }
       // 11/11: tocca alla prima che può partire adesso; chi è scaduta aspetta il suo momento senza fermare le altre.
       const ora = Date.now()
-      const prima = fila.findIndex((l) => (l.nonPrima ?? 0) <= ora)
+      // 23/11: tra i pronti passa prima chi è scaduto meno volte: un lavoro che scade sempre non tiene indietro quelli mai provati.
+      const scelta = scegliProssima(fila, ora)
+      const prima = scelta === undefined ? -1 : fila.indexOf(scelta)
       if (prima < 0) {
         await dormiFila(ws, Math.max(1, Math.min(riprova, ...fila.map((l) => (l.nonPrima ?? 0) - ora))))
         continue
@@ -1690,12 +1699,13 @@ ${NOTA_SENZA_GIT}`,
       if (prima > 0) fila.unshift(...fila.splice(prima, 1))
       const lavoro = fila[0] as LavoroUnione
       lavoro.inCorso = true
+      lavoro.partitaIl = Date.now()
       cambiSpecialisti.segna()
       max = maxDiSerie()
       // k-178g: con altri rami indipendenti in fila, prima una prova sola per tutto il lotto. Mai un errore che ferma la fila.
       if (fila.length > 1 && lavoro.fuoriLotto !== true) await unisciLotto(ws, lavoro, fila, max).catch((err: unknown) => { console.warn(`[orchestratore] ${ws} — unione a lotti non riuscita, vado una alla volta: ${err instanceof Error ? err.message : String(err)}`) })
       const { p, chi } = lavoro
-      const scambio: ScambioUnione = { scaduto: false, ...(lavoro.rossoSporco !== undefined ? { rossoSporco: lavoro.rossoSporco } : {}), ...(lavoro.rossiSporchi !== undefined ? { rossiSporchi: lavoro.rossiSporchi } : {}) }
+      const scambio: ScambioUnione = { scaduto: false, tentativi: lavoro.tentativi, ...(lavoro.rossoSporco !== undefined ? { rossoSporco: lavoro.rossoSporco } : {}), ...(lavoro.rossiSporchi !== undefined ? { rossiSporchi: lavoro.rossiSporchi } : {}) }
       lavoro.scambio = scambio
       let testo: string | undefined
       let ancora: RiprovaUnione | undefined
@@ -1704,7 +1714,7 @@ ${NOTA_SENZA_GIT}`,
         const corsa = cancelloOra(ws, lavoro.ramoUnito !== undefined && p.ramo === undefined ? { ...p, ramo: lavoro.ramoUnito } : p, scambio)
         corsa.catch(() => {})
         let timer: ReturnType<typeof setTimeout> | undefined
-        const scadenza = new Promise<never>((_, no) => { timer = setTimeout(() => { scambio.scaduto = true; no(new RiprovaUnione('scaduta', `ha superato i ${Math.max(1, Math.round(max / 60_000))} minuti`)) }, max); timer.unref?.() })
+        const scadenza = new Promise<never>((_, no) => { timer = setTimeout(() => { scambio.scaduto = true; no(new RiprovaUnione('scaduta', motivoScadenzaFila(max, scambio.fase))) }, max); timer.unref?.() })
         try { testo = await Promise.race([corsa, scadenza]) } finally {
           if (timer !== undefined) clearTimeout(timer)
           lavoro.rossoSporco = scambio.rossoSporco
@@ -1804,17 +1814,25 @@ ${NOTA_SENZA_GIT}`,
       // (il 07/11 sette lavori finiti restarono fuori dal principale dopo tre scadenze):
       // riprova da sola, sempre più di rado, e intanto le altre unioni passano.
       lavoro.tentativi += 1
+      lavoro.ultimoMotivo = ancora.perche
       const attesa = attesaDopoScadenza(lavoro.tentativi, riprova)
       lavoro.nonPrima = Date.now() + attesa
       fila.shift()
       fila.push(lavoro)
+      const ognimin = Math.max(1, Math.round(attesaDopoScadenza(99, riprova) / 60_000))
+      const soglia = sogliaScadenze(lavoro.tentativi, tentativiMax)
       if (lavoro.tentativi < tentativiMax) {
         evento(ws, { tipo: 'unione', quando: x.adesso(), ...(p.specialista !== undefined ? { chat: p.specialista } : {}), testo: `${chi}: unione ${ancora.perche}: la chiudo e la rimetto in fila (tentativo ${lavoro.tentativi + 1})` })
-      } else if (lavoro.tentativi === tentativiMax) {
-        // Detto una volta sola: dopo, i tentativi continuano in silenzio.
+      } else {
+        // 23/11: dopo ogni scadenza oltre la soglia l'esito del compito dice com'è andata (numero e motivo veri); l'autopilota
+        // viene svegliato alla soglia e al doppio, con la frase che dice cosa è lento. In mezzo i tentativi continuano.
         const resta = `unione in fila: scaduta ${lavoro.tentativi} volte, il programma riprova da solo (${ancora.perche})`
-        if (compito !== undefined) cambiaCompito(ws, compito.id, (k) => ({ ...k, esito: resta }))
-        evento(ws, { tipo: 'unione', quando: x.adesso(), ...(p.specialista !== undefined ? { chat: p.specialista } : {}), testo: `${chi}: unione scaduta ${lavoro.tentativi} volte: resta in fondo alla fila e riprova da sola (al più ogni ${Math.max(1, Math.round(attesaDopoScadenza(99, riprova) / 60_000))} minuti), le altre passano. Non serve un riavvio né rifare il lavoro. Motivo: ${ancora.perche}` })
+        if (compito !== undefined) cambiaCompito(ws, compito.id, (k) => (k.esito === resta ? k : { ...k, esito: resta }))
+        if (soglia !== undefined) {
+          const testoSoglia = fraseScadenzeRipetute({ chi, tentativi: lavoro.tentativi, motivo: ancora.perche, soglia, ognimin, fase: scambio.fase })
+          if (soglia === 'seconda') console.error(`[blocco] ${ws} — unione di ${chi} scaduta ${lavoro.tentativi} volte: ${ancora.perche.slice(0, 200)}`)
+          evento(ws, { tipo: 'unione', quando: x.adesso(), ...(p.specialista !== undefined ? { chat: p.specialista } : {}), testo: testoSoglia }, true)
+        }
       }
     }
   }
@@ -2009,7 +2027,7 @@ ${NOTA_SENZA_GIT}`,
         if (chiusoAltro === 'unito') continue
         if (scambio.scaduto) return `${nome}: unione scaduta`
         scambio.fase = 'prova'
-        const r = await x.provaNelPrincipale(unicoDi(ws) ?? a, altro.ramo)
+        const r = await x.provaNelPrincipale(unicoDi(ws) ?? a, altro.ramo, [], { piuTempo: piuTempoPerTentativo(scambio.tentativi ?? 0) })
         if (!r.unito) {
           if (r.ritenta !== undefined) throw new RiprovaUnione(r.ritenta, r.motivo, r.file)
           motivo = `${r.motivo} (ramo ${altro.ramo} di ${altro.sub.id})`
@@ -2032,7 +2050,7 @@ ${NOTA_SENZA_GIT}`,
       } else if (chiuso === undefined && ramo !== undefined) {
         if (scambio.scaduto) return `${nome}: unione scaduta`
         scambio.fase = 'prova'
-        const r = await x.provaNelPrincipale(unicoDi(ws) ?? a, ramo)
+        const r = await x.provaNelPrincipale(unicoDi(ws) ?? a, ramo, [], { piuTempo: piuTempoPerTentativo(scambio.tentativi ?? 0) })
         if (!r.unito) {
           if (r.ritenta !== undefined) throw new RiprovaUnione(r.ritenta, r.motivo, r.file)
           motivo = r.motivo
@@ -3275,8 +3293,10 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
         ...(() => {
           const vive = unioniVive(ws, ora)
           const l = vive.find((y) => y.inCorso)
-          if (l === undefined && vive.length === 0) return {}
-          return { inCorso: { ...(l !== undefined ? { unione: l.compito ?? l.chi, ...(l.scambio?.fase !== undefined ? { fase: l.scambio.fase } : {}) } : {}), inFila: vive.length } }
+          // 23/11: le unioni scadute che aspettano di riprovare non sono «vive» ma il programma ci lavora: si dicono.
+          const inRiprova = (filaUnioni.get(ws) ?? []).filter((y) => !y.inCorso && y.tentativi > 0 && y.sporcaDal === undefined && (y.nonPrima ?? 0) > ora).length
+          if (l === undefined && vive.length === 0 && inRiprova === 0) return {}
+          return { inCorso: { ...(l !== undefined ? { unione: l.compito ?? l.chi, ...(l.scambio?.fase !== undefined ? { fase: l.scambio.fase } : {}) } : {}), inFila: vive.length, ...(inRiprova > 0 ? { inRiprova } : {}) } }
         })(),
         specialisti: [
           ...subagenti(ws).filter((s) => s.unito !== true && (s.stato === 'avviato' || s.stato === 'lavoro' || ora - Date.parse(s.fine ?? s.inizio) < 3_600_000)).map((s) => ({

@@ -498,7 +498,7 @@ export type VistaOrchestratore = {
   /** 0.89.2: le domande dell'autopilota che aspettano Nicholas. */
   domandeAperte?: number
   /** 12/11: quello che il programma sta facendo da sé (unire e provare il lavoro finito): non è un fermo. */
-  inCorso?: { unione?: string; fase?: 'prova' | 'criterio'; inFila: number }
+  inCorso?: { unione?: string; fase?: 'prova' | 'criterio'; inFila: number; /** 23/11: unioni scadute che riprovano da sole (non sono ferme: il programma ci lavora). */ inRiprova?: number }
 }
 
 /**
@@ -523,11 +523,14 @@ export function quandoSveglia(il: string, ora: number = Date.now()): string {
 /** 12/11: la riga di quello che il programma sta unendo o provando, se c'è. */
 export function rigaUnioneInCorso(v: Pick<VistaOrchestratore, 'inCorso'>): string | undefined {
   const c = v.inCorso
-  if (c === undefined || c.inFila === 0) return undefined
+  const riprova = c?.inRiprova ?? 0
+  if (c === undefined || (c.inFila === 0 && riprova === 0)) return undefined
   const altre = c.unione !== undefined ? c.inFila - 1 : c.inFila
   const fa = c.unione === undefined ? '' : `il programma ${c.fase === 'criterio' ? 'misura il criterio di' : 'prova e unisce'} ${c.unione}`
   const fila = altre > 0 ? `${altre === 1 ? '1 unione' : `${altre} unioni`} in fila` : ''
-  return [fa, fila].filter((s) => s !== '').join(', ')
+  // 23/11: unioni scadute che il programma ritenta da solo: si vedono, non sono «niente al lavoro».
+  const scadute = riprova > 0 ? `${riprova === 1 ? '1 unione scaduta' : `${riprova} unioni scadute`} in riprova` : ''
+  return [fa, fila, scadute].filter((s) => s !== '').join(', ')
 }
 
 export function fraseStatoOrchestratore(v: Pick<VistaOrchestratore, 'pensa' | 'specialisti' | 'piano' | 'richieste' | 'domandeAperte' | 'vivo' | 'sveglia' | 'inCorso'>, ora: number = Date.now()): { testo: string; tono: 'lavora' | 'aspetta' | 'fermo' | 'riposo' | 'attesa' } {
