@@ -5,6 +5,7 @@ import { StringDecoder } from 'node:string_decoder'
 import type { Criterio } from '@shared/autopilota'
 import { cancellaSicura } from '@shared/cancella-sicura'
 import { radiceCriteri } from '@shared/disco-prove'
+import { segnoDiLog, workspaceDiLog } from './contesto-log'
 import { giudicaCancellazioni } from './divieti'
 
 export type EsitoVerifica = {
@@ -427,6 +428,8 @@ export function esecutoreReale(predefinitoMs: number = TIMEOUT_PREDEFINITO_MS, r
       const { file, argomenti } = comandoShell(bash, script)
       // Ogni comando nel registro (0.72.0): cosa, dove, e come è finito.
       const partito = Date.now()
+      // k-193e: il workspace di chi misura, preso alla partenza (la fine arriva da un altro contesto).
+      const wsDelComando = workspaceDiLog()
       console.info(`[criterio] parte in ${cwd}: ${comando.slice(0, 400)}`)
       const figlio = spawn(file, argomenti, {
         cwd,
@@ -495,7 +498,7 @@ export function esecutoreReale(predefinitoMs: number = TIMEOUT_PREDEFINITO_MS, r
         risposto = true
         clearTimeout(orologio)
         segnale?.removeEventListener('abort', alloStop)
-        console.info(`[criterio] finito con ${codice} in ${Math.round((Date.now() - partito) / 1000)} s: ${comando.slice(0, 120)}`)
+        console.info(`[criterio] ${segnoDiLog(wsDelComando)}finito con ${codice} in ${Math.round((Date.now() - partito) / 1000)} s: ${comando.slice(0, 120)}`)
         // Le pipe si lasciano andare: se un processo in background le tiene
         // aperte, restare in ascolto significherebbe tenere vivo un pezzo di
         // servizio per un lavoro di cui non ci importa più niente.
@@ -589,7 +592,7 @@ export async function eseguiCriteri(
       // 0.80.1: un rosso per tempo scaduto non si conta subito. Si rimisura una
       // volta da solo; se scade ancora, allora è rosso davvero.
       if (scadutoPerTempo(codice, uscita)) {
-        console.warn(`[criterio] «${criterio.descrizione}» rosso per tempo scaduto: lo rimisuro una volta`)
+        console.warn(`[criterio] ${segnoDiLog()}«${criterio.descrizione}» rosso per tempo scaduto: lo rimisuro una volta`)
         const seconda = await lancia()
         codice = seconda.codice
         uscita = scadutoPerTempo(seconda.codice, seconda.uscita)

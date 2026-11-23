@@ -28,6 +28,7 @@ import {
 import { comandoDelCriterio, fraseStatoOrchestratore } from '@shared/piano-orchestratore'
 import { esaminaComando } from '@shared/controllo-comandi'
 import type { Archivio } from './archivio'
+import { conWorkspaceDiLog, segnoDiLog } from './contesto-log'
 import { interrottoPerTempo, type Esecutore } from './verifiche'
 import { conScadenza, PROVA_MAX_MS, PROVE_RICORDATE, scadenzaAdattiva } from './tempi-unione'
 import { improntaCodiceAsincrona, misuraCriteri, type MemoriaCriteri } from './criteri-veloci'
@@ -846,7 +847,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     const misura = async (criteri: Criterio[], segnale: AbortSignal) => {
       if (criteri.length === 0) return []
       const impronta = await improntaCodiceAsincrona(gitA(git), a.cwd)
-      return (await misuraCriteri(criteri, a.cwd, deps.esegui, { memoria: memoriaCriteri, adesso: orologio, tutti: true, segnale, ...(impronta !== undefined ? { impronta } : {}) })).esiti
+      return (await conWorkspaceDiLog(chiaveWorkspace(a), () => misuraCriteri(criteri, a.cwd, deps.esegui, { memoria: memoriaCriteri, adesso: orologio, tutti: true, segnale, ...(impronta !== undefined ? { impronta } : {}) }))).esiti
     }
     await aspettaProve(a.cwd)
     let fine = (): void => {}
@@ -921,7 +922,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         scadenzaAdattiva(proveRecenti.get(chiaveWorkspace(a)) ?? [], deps.provaMaxMs ?? (deps.limiti !== undefined ? deps.limiti.leggi().provaMaxMin * 60_000 : PROVA_MAX_MS), tempo.piuTempo ?? 1),
         { scrivi: (t) => {
           if (!t.scaduta && t.esecuzioneMs > 0) proveRecenti.set(chiaveWorkspace(a), [...(proveRecenti.get(chiaveWorkspace(a)) ?? []), t.esecuzioneMs].slice(-PROVE_RICORDATE))
-          console.info(`[unione di prova] ${ramo}: attesa del turno ${Math.round(t.attesaMs / 1000)} s, prova ${Math.round(t.esecuzioneMs / 1000)} s${t.scaduta ? ` (scaduta mentre stava per ${stato.punto})` : ''}`) } }
+          console.info(`[unione di prova] ${segnoDiLog(chiaveWorkspace(a))}${ramo}: attesa del turno ${Math.round(t.attesaMs / 1000)} s, prova ${Math.round(t.esecuzioneMs / 1000)} s${t.scaduta ? ` (scaduta mentre stava per ${stato.punto})` : ''}`) } }
       )
       if (!r.scaduta && r.valore !== 'scaduta') return r.valore
       stato.scaduta = true
