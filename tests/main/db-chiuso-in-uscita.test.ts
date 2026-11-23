@@ -21,7 +21,7 @@ describe('db chiuso in uscita', () => {
     const src = readFileSync(join(__dirname, '../../src/main/ipc.ts'), 'utf8')
     expect(src).toContain("from './db-chiuso'")
     expect(src).toMatch(/leggiDbOVuoto\(db, \(\) => listSessions\(db, validateListOptions/)
-    expect(src).toMatch(/riassumiConsumi\(leggiDbOVuoto\(db/)
+    expect(src).toMatch(/const sessioni = leggiDbOVuoto\(db, \(\) => listSessions\(db\), \[\]\)\s+const c = riassumiConsumi\(sessioni/)
     expect(src).toMatch(/leggiDbOVuoto\(db, \(\) => rimuoviSessioni/)
   })
 })

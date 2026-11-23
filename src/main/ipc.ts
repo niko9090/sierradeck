@@ -553,7 +553,7 @@ export function primoIndice(): Promise<IndexOutcome> {
   return primaLettura ?? Promise.resolve({ indexed: 0, failed: 0, riusate: 0 })
 }
 
-export function registerSessionIpc(cartella?: string, arricchisciConsumi?: (c: Consumi) => Consumi): Db {
+export function registerSessionIpc(cartella?: string, arricchisciConsumi?: (c: Consumi, sessioni?: SessionSummary[]) => Consumi): Db {
   // La cartella arriva da chi ha già fatto la migrazione del nome: calcolarla
   // di nuovo qui vorrebbe dire poterla calcolare **diversa**.
   const dir = cartella ?? join(app.getPath('appData'), APP_DATA_DIR_NAME)
@@ -686,8 +686,9 @@ export function registerSessionIpc(cartella?: string, arricchisciConsumi?: (c: C
   ipcMain.handle('sessioni:consumi', () => {
     // Senza tetto: un consumo calcolato sulle prime cinquemila righe sarebbe un
     // numero che sembra un totale e non lo è.
-    const c = riassumiConsumi(leggiDbOVuoto(db, () => listSessions(db), []), Date.now())
-    return arricchisciConsumi === undefined ? c : arricchisciConsumi(c)
+    const sessioni = leggiDbOVuoto(db, () => listSessions(db), [])
+    const c = riassumiConsumi(sessioni, Date.now())
+    return arricchisciConsumi === undefined ? c : arricchisciConsumi(c, sessioni)
   })
 
   // `reindex` cattura gia' i fallimenti dell'indicizzazione, ma `webContents.send`

@@ -73,6 +73,8 @@ import { listSessions, rimuoviSessioni } from './db'
 import { creaGestioneChat, type GestioneChat } from './gestione-chat'
 import { statoPerAzione, nascondiArchiviate, AZIONI_CHAT, type AzioneChat, type AutopilotaPerChat } from '@shared/gestione-chat'
 import { riassumiConsumi, type Consumi } from '@shared/consumi'
+import { consumiPerChat } from '@shared/consumi-chat'
+import { apriMemoriaConsumi, type MemoriaConsumiSuDisco } from './consumi-memoria'
 import { creaLettoreCosti } from './costi-orchestratore'
 import { costoPerPeriodo, leggiPolso, limitiAggiornati, rigaDiStato, type Polso } from '@shared/polso-chat'
 import { etichettaContesto, limitiPerFreno, unisciPolso } from '@shared/limiti-piano'
@@ -526,6 +528,8 @@ function ricordaSegnale(corpo: unknown): void {
 const polsi = new Map<string, Polso>()
 /** I costi dell'orchestratore di ogni workspace, dai suoi `costi.jsonl` (solo lettura). */
 let costiOrchestratori: ReturnType<typeof creaLettoreCosti> | undefined
+/** La memoria dei consumi per chat su disco (k-con1): sopravvive a chiusure e aggiornamenti. */
+let memoriaConsumi: MemoriaConsumiSuDisco | undefined
 let salvaPolsiTimer: NodeJS.Timeout | undefined
 let filePolsi = ''
 function ricordaPolso(p: Polso): void {
@@ -552,7 +556,7 @@ function caricaPolsi(percorso: string): void {
   }
 }
 /** I consumi dell'indice piu' quello che sa solo il polso: limiti, spesa, chat aperte. */
-function arricchisciConsumi(c: Consumi): Consumi {
+function arricchisciConsumi(c: Consumi, sessioni?: SessionSummary[]): Consumi {
   const adesso = Date.now()
   const tutti = [...polsi.values()]
   const limiti = limitiAggiornati(tutti, adesso)
@@ -576,7 +580,11 @@ function arricchisciConsumi(c: Consumi): Consumi {
   const f = frenoPerAutopiloti(false, limitiPerFreno(limiti), adesso) // 0.84.2: freno spento (Nicholas, 22/10)
   const freno = { ...f, ...testoFreno(f) }
   const orchestratori = costiOrchestratori?.((workspaceStore?.leggi().workspace ?? []).map((w) => w.nome), adesso) ?? []
-  return { ...c, ...(limiti !== undefined ? { limiti } : {}), costo: costoPerPeriodo(tutti, adesso), chatAperte: chatConPolso, freno, ...(orchestratori.length > 0 ? { orchestratori } : {}) }
+  // k-con1: i consumi per chat, dalla memoria su disco (aggiornata con l'indice
+  // se lo abbiamo in mano) e con il «rimasto» dai limiti del piano già letti.
+  const memoria = memoriaConsumi === undefined ? undefined : (sessioni !== undefined ? memoriaConsumi.aggiorna(sessioni, adesso) : memoriaConsumi.corrente())
+  const perChat = memoria === undefined ? undefined : consumiPerChat(memoria, limiti, identitaPcGlobale?.leggi().nome ?? hostname(), adesso)
+  return { ...c, ...(limiti !== undefined ? { limiti } : {}), costo: costoPerPeriodo(tutti, adesso), chatAperte: chatConPolso, freno, ...(orchestratori.length > 0 ? { orchestratori } : {}), ...(perChat !== undefined ? { perChat } : {}) }
 }
 /**
  * La riga di stato di Claude Code per le chat di SierraDeck: un `curl` che
@@ -1648,6 +1656,7 @@ if (!app.requestSingleInstanceLock()) {
         .catch((err: unknown) => console.warn(`[runtime] ${String(err)}`))
       caricaPolsi(join(dati, 'polso-chat.json'))
       costiOrchestratori = creaLettoreCosti(join(dati, 'orchestratori'))
+      memoriaConsumi = apriMemoriaConsumi(dati)
       db = registerSessionIpc(dati, arricchisciConsumi)
       workspaceStore = apriWorkspaceStore(dati)
       // La lista dei workspace di questo PC (0.65.1), prima che nasca una finestra:
@@ -5713,7 +5722,7 @@ if (!app.requestSingleInstanceLock()) {
           const sync = await sincroniaGlobale?.stato().catch(() => undefined)
           return { drive: contoDrive.stato(), ...(sync !== undefined ? { sync } : {}) }
         },
-        consumi: async () => (db === undefined ? {} : arricchisciConsumi(riassumiConsumi(listSessions(db), Date.now()))),
+        consumi: async () => { if (db === undefined) return {}; const sessioni = listSessions(db); return arricchisciConsumi(riassumiConsumi(sessioni, Date.now()), sessioni) },
         // Il quaderno di una cartella: le schede che l'autopilota lascia
         // accanto al codice che descrivono.
         quaderno: (cwd: string) =>
