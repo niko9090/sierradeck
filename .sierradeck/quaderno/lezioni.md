@@ -99,6 +99,7 @@
 - nei test del server con più workspace, l'ordine di `processi[]` non segue i workspace: riconoscere ogni processo dal `ws=` nel suo `--mcp-config`. Le cartelle (cwd) devono esistere. _(2026-11-23)_
 - Il turno aperto da un messaggio di Nicholas contiene già «Il lavoro è fermo» nel riassunto: per contare le spinte vere nei test serve un riferimento preso dopo il messaggio. _(2026-11-23)_
 - `npx vitest related` va lanciato con `--run`, altrimenti resta in attesa. La suite dei file collegati a rapporto-lavori.ts dura oltre 2 minuti e finisce in background. _(2026-11-23)_
+- in questa copia i file di test sono CRLF, e gli heredoc di bash convertono `\0` in un NUL vero: scrivere gli escape da un file Node con `String.fromCharCode`. _(2026-11-23)_
 
 ## worktree
 
@@ -155,6 +156,7 @@
 - se un ramo da unire è già aperto in un'altra copia, non si può riprenderlo: si fa ff-only a main e si unisce il ramo dentro il proprio, poi si indica il nuovo commit. _(2026-11-22)_
 - In queste copie `git fetch` può fallire se il bundle in `aiuto\arrivi` non c'è più, e il tag della versione precedente può mancare: si trova il commit con `git log -S"x.y.z" -- package.json`. _(2026-11-23)_
 - i file sorgente sono CRLF: per risolvere i conflitti con uno script le regex su `\n` non trovano nulla; usare Edit sui blocchi. _(2026-11-23)_
+- il nostro wrapper git toglie gli spazi di testa di `status --porcelain`: " M f" diventa "M f", e staged/unstaged non si distinguono. Per le modifiche non in indice usare `diff --name-only -z`. _(2026-11-23)_
 
 ## autopilota
 
@@ -199,7 +201,6 @@
 
 ## criteri
 
-- I criteri del piano girano in bash (criterio.sh): niente backslash nei percorsi. Per l'app Android: `/e/Programs/Gradle/gradle-8.11.1/bin/gradle -p android testDebugUnitTest --rerun --offline`. _(2026-11-14)_
 - Mai criteri «versione === X» per un compito di versione: il cancello li rimisura e blocca ogni versione dopo. Usare «almeno X» (confronto numerico >=) o `gh release view vX`. _(2026-11-15)_
 - un criterio con versione fissa passa sul principale ma cade su ogni ramo che alza la versione: va escluso dalla prova prima/dopo (`fissaLaVersione`), non rimisurato. _(2026-11-15)_
 - Mai criterio `grep -q '"version": "X"' package.json`: fissaLaVersione ≤0.109.1 non lo riconosce e il cancello respinge ogni bump dopo (0.109.2). Usare `git rev-parse vX`. _(2026-11-17)_
@@ -225,6 +226,7 @@
 - i test della fila leggono il testo dello stato: allungare i motivi di scadenza taglia «(tentativo N)» e rompe unioni-in-fila-0-96-1 _(2026-11-23)_
 - il turno pesante del PC (`conTurni` in index.ts) già serializza le misure di tutti i workspace: il collo 3 del rapporto 23/11 non serviva cambiarlo. _(2026-11-23)_
 - la prova parte dopo qualche secondo dal `unisci`: per testare l'attesa del turno aspettare `turni.stato().inFila > 0`, non un tempo fisso. _(2026-11-23)_
+- i criteri girano nella cartella principale: ogni script che riscrive file tracciati la sporca. Il blocco si rigenera da solo, quindi il programma deve rimettere a posto ciò che sporca lui. _(2026-11-23)_
 
 ## ui
 
@@ -272,10 +274,6 @@
 - Gli hook di App.tsx vanno prima di `if (!pronto)`: un effetto dopo causa React #310. _(2026-11-22)_
 - Il tipo di `window.gestore` è in `src/renderer/env.d.ts`, a mano: una funzione nuova del preload va aggiunta anche lì, o il typecheck fallisce. _(2026-11-22)_
 
-## shell
-
-- In Git Bash `/tmp/...` passato a `node` diventa `E:\tmp\...` e non esiste: usare `mktemp -d` con `cygpath -w`. _(2026-11-14)_
-
 ## pubblicazione
 
 - `npm run pubblica-app` esige la voce `versione: 'X'` in `android/novita-app.txt` per il `versionName` corrente: va preparata insieme al bump Android, o l'app resta indietro. _(2026-11-16)_
@@ -293,7 +291,6 @@
 
 ## servizio
 
-- `dati += buffer` e `buffer.toString()` per pezzo spezzano i caratteri multibyte (U+FFFD): usare StringDecoder o setEncoding('utf8') su ogni lettura a pezzi. _(2026-11-14)_
 - `percentuale` per i lavori ospitati è inventata (10 + minuti): non mostrare una barra senza una stima vera. _(2026-11-16)_
 - il servizio autopiloti non conosce porta del client né gettoni del programma: per parlargli c'è `ponte-locale.json` nella cartella dati (porta+gettone), riscritto a ogni avvio del programma. _(2026-11-20)_
 - `lavoroDaPortareAvanti` deve contare anche le chat adottate (`specialistiVivi`), non solo i subagenti: una chat migrata in `lavoro` è lavoro in corso anche con piano vuoto. _(2026-11-22)_
