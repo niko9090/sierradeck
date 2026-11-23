@@ -41,6 +41,19 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.114.0',
+    righe: [
+      '**Pannello degli agenti rifatto:** a destra vedi solo gli agenti al lavoro, con ruolo, compito, file toccati, PC, durata e ultima azione. Ci sono anche i consumi.',
+      '**Tasto «Ferma»:** ferma un agente dopo una conferma, anche se lavora su un altro PC.',
+      '**Fila delle unioni:** il pannello mostra le unioni in attesa e come sono andate. Se un lavoro è finito, vedi cosa gli succede dopo.',
+      '**Unioni più veloci:** i lavori indipendenti si provano insieme, in un lotto solo.',
+      '**«Fermati» ferma davvero:** quando dici «fermati» all’autopilota, il lavoro si mette in pausa.',
+      '**Posti chat per ogni PC:** accanto a «N di M chat» compare il motivo del numero.',
+      '**Chat e riassunto:** lo scorrimento e il riassunto dell’autopilota funzionano meglio.',
+      '**Note dell’Aiutante:** si leggono di nuovo.',
+    ],
+  },
+  {
     versione: '0.113.0',
     righe: [
       '**Riassunto più chiaro:** il riassunto dell’autopilota ha due parti, «Passaggi» e «Da sapere», ricavate dal suo ultimo messaggio.',
