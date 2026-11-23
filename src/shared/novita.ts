@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.114.1',
+    righe: [
+      '**Agenti che aspettano un comando lungo:** se un agente sano aspetta un comando lento, il silenzio non lo ferma più. Resta valido il limite di 3 ore.',
+    ],
+  },
+  {
     versione: '0.114.0',
     righe: [
       '**Pannello degli agenti rifatto:** a destra vedi solo gli agenti al lavoro, con ruolo, compito, file toccati, PC, durata e ultima azione. Ci sono anche i consumi.',
