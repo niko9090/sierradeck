@@ -199,8 +199,8 @@ export function VistaAggiornamenti({ agg, vista, versione, scaricaAuto, note, az
           {agg.fase === 'attendo' && agg.subito !== true ? (
             <button className="tasto" onClick={azioni.aggiornaAdesso} title="Non aspetto la fine dei turni: salvo il lavoro delle chat sul loro ramo, le metto in pausa e installo adesso. Dopo il riavvio riprendono da sole.">Aggiorna adesso</button>
           ) : null}
-          {nuova === '' && agg.fase !== 'errore' ? (
-            <button className="tasto" onClick={azioni.cerca} disabled={occupato} autoFocus={primario === undefined}>⟳ Cerca aggiornamenti</button>
+          {agg.fase !== 'errore' ? (
+            <button className="tasto" onClick={azioni.cerca} disabled={occupato} autoFocus={primario === undefined} title={nuova !== '' ? 'Guardo se è uscita una versione più nuova di questa' : undefined}>⟳ Cerca aggiornamenti</button>
           ) : null}
           {agg.fase !== 'installo' ? (
             <button className="tasto" onClick={azioni.chiudi}>{pronto || agg.fase === 'disponibile' ? 'Più tardi' : 'Chiudi'}</button>

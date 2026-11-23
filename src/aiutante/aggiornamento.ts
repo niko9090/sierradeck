@@ -88,11 +88,39 @@ export function avviaAggiornamenti(d: {
   let installerScaricato: string | undefined
   let tentativiRete = 0
   let ritento: ReturnType<typeof setTimeout> | undefined
+  /** La versione già pronta, messa da parte mentre se ne scarica una più nuova. */
+  let primaPronta: { versione: string | undefined; prontoDa: number | undefined; installer: string | undefined } | undefined
+  const piuNuova = (a: string, b: string): boolean => {
+    const pa = a.split(/[.-]/).map((x) => Number.parseInt(x, 10) || 0)
+    const pb = b.split(/[.-]/).map((x) => Number.parseInt(x, 10) || 0)
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+      const dif = (pa[i] ?? 0) - (pb[i] ?? 0)
+      if (dif !== 0) return dif > 0
+    }
+    return false
+  }
+  /** Una ricerca che non porta niente di nuovo o va male: torna la versione pronta di prima. */
+  const tornaPronta = (): void => {
+    if (primaPronta === undefined) return
+    stato.fase = 'pronto'
+    if (primaPronta.versione !== undefined) stato.versione = primaPronta.versione
+    if (primaPronta.prontoDa !== undefined) stato.prontoDa = primaPronta.prontoDa
+    installerScaricato = primaPronta.installer
+    delete stato.progresso
+    primaPronta = undefined
+  }
   autoUpdater.on('update-available', (info) => {
     tentativiRete = 0
-    stato.versione = info.version
     stato.cercando = false
     delete stato.errore
+    if (stato.fase === 'pronto') {
+      // Già pronta: la stessa non cambia niente; una più nuova si scarica e prende il posto.
+      if (stato.versione !== undefined && !piuNuova(info.version, stato.versione)) { cambiato(); return }
+      primaPronta = { versione: stato.versione, prontoDa: stato.prontoDa, installer: installerScaricato }
+      stato.fase = 'niente'
+      delete stato.prontoDa
+    }
+    stato.versione = info.version
     if (stato.fase === 'niente' || stato.fase === 'disponibile') stato.fase = autoUpdater.autoDownload ? 'scarico' : 'disponibile'
     d.registro.info(`[aggiornamenti] c'è la ${info.version}${autoUpdater.autoDownload ? ': la scarico' : ' (aggiornamenti automatici spenti: non la scarico)'}`)
     cambiato()
@@ -108,6 +136,7 @@ export function avviaAggiornamenti(d: {
   })
   autoUpdater.on('update-downloaded', (info) => {
     stato.fase = 'pronto'
+    primaPronta = undefined
     stato.versione = info.version
     stato.prontoDa = adesso()
     installerScaricato = (info as { downloadedFile?: string }).downloadedFile
@@ -118,7 +147,10 @@ export function avviaAggiornamenti(d: {
   autoUpdater.on('error', (err) => {
     const m = (err instanceof Error ? err.message : String(err)).replace(/\s+/gu, ' ').slice(0, 300)
     stato.cercando = false
-    if (stato.fase === 'scarico') { stato.fase = 'niente'; delete stato.progresso }
+    if (stato.fase === 'scarico' || stato.fase === 'disponibile') {
+      if (primaPronta !== undefined) tornaPronta()
+      else if (stato.fase === 'scarico') { stato.fase = 'niente'; delete stato.progresso }
+    }
     if (eErroreDiRete(m)) {
       // Rete caduta o PC in sospensione: non è un guasto, nessun errore nella finestra né nello storico; si riprova.
       delete stato.errore
@@ -136,12 +168,13 @@ export function avviaAggiornamenti(d: {
     if (m !== ultimoErrore) { ultimoErrore = m; d.registro.errore(`[aggiornamenti] aggiornamento dell'Aiutante non riuscito: ${m}`) }
   })
   const cerca = (): void => {
-    // Mentre scarica, è pronto o installa non si ricomincia.
-    if (stato.fase === 'scarico' || stato.fase === 'pronto' || stato.fase === 'installo') return
+    // Mentre scarica o installa non si ricomincia; con una versione pronta si cerca in silenzio.
+    if (stato.fase === 'scarico' || stato.fase === 'installo' || installando) return
+    const silenzio = stato.fase === 'pronto'
     stato.ultimaRicerca = adesso()
-    stato.cercando = true
+    if (!silenzio) stato.cercando = true
     autoUpdater.autoDownload = d.automatici()
-    cambiato()
+    if (!silenzio) cambiato()
     void autoUpdater.checkForUpdates().catch(() => { stato.cercando = false })
   }
   const scarica = (): void => {
