@@ -44,6 +44,22 @@ describe('unioni di prova non partite nel rapporto dei lavori', () => {
   })
 })
 
+describe('contaLavori: versione di prima passata dallo stato', () => {
+  const avvio = riga('10:00:00', '━━━ sessione avviata · SierraDeck v0.117.2')
+  it('con la versione di prima: aggiornamento da X a Y', () => {
+    const c = contaLavori([avvio], undefined, '0.117.1')
+    expect(c.workspace['generale']?.fermate.motiviRiavvio).toEqual({ 'aggiornamento da 0.117.1 a 0.117.2': 1 })
+    expect(c.versioneAvviata).toBe('0.117.2')
+  })
+  it('senza lo stato: la precedente non è nota', () => {
+    const c = contaLavori([avvio])
+    expect(c.workspace['generale']?.fermate.motiviRiavvio).toEqual({ 'avvio con la versione 0.117.2 (la precedente non è nota)': 1 })
+  })
+  it('senza avvii nelle righe tiene la versione di prima', () => {
+    expect(contaLavori([], undefined, '0.117.1').versioneAvviata).toBe('0.117.1')
+  })
+})
+
 describe('haIntoppi', () => {
   const con = (parte: Partial<{ [K in keyof LavoriWorkspace]: Partial<LavoriWorkspace[K]> }>): LavoriWorkspace => {
     const v = lavoriVuoti()

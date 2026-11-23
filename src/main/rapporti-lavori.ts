@@ -27,6 +27,8 @@ export type StatoRapporto = {
   fino?: string
   /** Quando è partito l'ultimo rapporto riuscito. */
   il?: string
+  /** L'ultima versione avviata vista nei registri (per dire «aggiornamento da X a Y» anche se l'avvio di prima è già stato letto). */
+  versioneAvviata?: string
 }
 
 type FileGiorno = { da: string; giorno: string; rapporti: RapportoLavori[] }
@@ -144,15 +146,17 @@ export async function giroRapportoLavori(d: {
     if (stato.il !== undefined && adesso - Date.parse(stato.il) < INTERVALLO_RAPPORTO_MS) return { ok: true, messaggio: 'L’ultimo rapporto è troppo recente.' }
   }
   const dalGiorno = (stato.fino ?? new Date(adesso - 86_400_000).toISOString()).slice(0, 10)
-  const c = contaLavori(d.righe(dalGiorno), stato.fino)
+  const c = contaLavori(d.righe(dalGiorno), stato.fino, stato.versioneAvviata)
+  // L'ultima versione avviata si ricorda sempre (anche senza invio): il prossimo giro non vede più la riga dell'avvio di prima.
+  const versione = c.versioneAvviata !== undefined ? { versioneAvviata: c.versioneAvviata } : {}
   if (c.ultima === undefined || c.righe === 0 || Object.values(c.workspace).every(eVuoto)) {
     // Righe nuove ma nessuna che conta: si va avanti da lì, senza mandare niente.
-    if (c.ultima !== undefined) d.stato.scrivi({ ...stato, fino: c.ultima })
+    if (c.ultima !== undefined) d.stato.scrivi({ ...stato, fino: c.ultima, ...versione })
     return { ok: false, messaggio: 'Non c’è niente di nuovo da riferire.' }
   }
   if (!Object.values(c.workspace).some(haIntoppi)) {
     // Nessun intoppo: il rapporto non si manda (per gli errori ci sono i log); si va avanti da lì così non torna dopo.
-    d.stato.scrivi({ ...stato, fino: c.ultima })
+    d.stato.scrivi({ ...stato, fino: c.ultima, ...versione })
     return { ok: true, messaggio: 'Nessun intoppo da riferire: rapporto non mandato.' }
   }
   const rapporto: RapportoLavori = {
@@ -175,7 +179,7 @@ export async function giroRapportoLavori(d: {
   }
   if (d.attesa?.leggi() !== undefined) d.attesa.scrivi(undefined)
   if (d.fallimento?.leggi() !== undefined) { d.fallimento.scrivi(undefined); d.log('[rapporti] invio dei rapporti ripreso') }
-  d.stato.scrivi({ fino: c.ultima, il: new Date(adesso).toISOString() })
+  d.stato.scrivi({ fino: c.ultima, il: new Date(adesso).toISOString(), ...versione })
   d.log(`[rapporti] rapporto dei lavori: ${e.messaggio}`)
   return { ok: true, messaggio: e.messaggio }
 }

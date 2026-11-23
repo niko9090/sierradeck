@@ -132,7 +132,7 @@ function aggiungiMotivo(l: LavoriWorkspace, motivo: string): void {
  * workspace. Le righe che non conosce si saltano. Torna anche l'istante
  * dell'ultima riga letta (da ricordare per riprendere da lì).
  */
-export function contaLavori(righe: readonly string[], dopo?: string): { workspace: Record<string, LavoriWorkspace>; ultima?: string; righe: number } {
+export function contaLavori(righe: readonly string[], dopo?: string, versionePrima?: string): { workspace: Record<string, LavoriWorkspace>; ultima?: string; righe: number; versioneAvviata?: string } {
   const ws: Record<string, LavoriWorkspace> = {}
   const di = (nome: string): LavoriWorkspace => {
     const k = nome in ws || Object.keys(ws).length < MAX_WORKSPACE ? nome : 'altri'
@@ -140,7 +140,8 @@ export function contaLavori(righe: readonly string[], dopo?: string): { workspac
   }
   let ultima: string | undefined
   let lette = 0
-  let versioneAvvio: string | undefined
+  // `versionePrima`: l'ultima versione avviata vista nei giri passati (l'avvio di prima sta in righe già lette, fuori dalla finestra).
+  let versioneAvvio: string | undefined = versionePrima
   // D1: l'ultimo criterio finito non verde. Se poi arriva «rosso per tempo scaduto» (si rimisura), quel finito non è l'esito: si toglie.
   let pendente: { ws: string; nonMisurato: boolean; ms: number } | undefined
   for (const r of righe) {
@@ -248,7 +249,7 @@ export function contaLavori(righe: readonly string[], dopo?: string): { workspac
       }
     }
   }
-  return { workspace: ws, ...(ultima !== undefined ? { ultima } : {}), righe: lette }
+  return { workspace: ws, ...(ultima !== undefined ? { ultima } : {}), righe: lette, ...(versioneAvvio !== undefined ? { versioneAvviata: versioneAvvio } : {}) }
 }
 
 export function pesoRapporto(r: RapportoLavori): number {

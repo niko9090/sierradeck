@@ -45,6 +45,7 @@ export const NOVITA: Novita[] = [
     righe: [
       '**Rapporto dei lavori:** le unioni che non partono, per esempio per file non salvati nella cartella, non contano più come prove da 0 secondi. Si vedono a parte.',
       '**Rapporti dei lavori:** si mandano e si analizzano solo quando ci sono intoppi, non a ogni giro. Per gli errori restano i log.',
+      '**Rapporto dei lavori:** un aggiornamento fra due rapporti si chiama aggiornamento, non avvio.',
     ],
   },
   {
