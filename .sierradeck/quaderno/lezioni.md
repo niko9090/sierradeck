@@ -101,6 +101,8 @@
 - `tests/main/grafica-0-82-0.test.ts` controlla stringhe esatte in `WorkspacePanoramica.tsx`: il rifacimento del pannello agenti 0.115.1 lo ha rotto e va aggiornato nello stesso commit. _(2026-11-23)_
 - i test grafici che cercano stringhe di JSX in WorkspacePanoramica.tsx si rompono a ogni rifacimento del pannello: lanciare tests/main e tests/renderer interi prima di pubblicare _(2026-11-23)_
 - lo stato mostra gli eventi tagliati a circa 200 caratteri: le parole che contano (numero scadenze, «non è un caso») vanno all'inizio della frase _(2026-11-23)_
+- un'attesa nuova nel servizio delle unioni (es. raccolta raffica) rompe i test che fanno partire il primo ramo da solo: ogni attesa va resa passabile dal server nei test. _(2026-11-23)_
+- togliere un flag dai comandi dei criteri (es. --rerun di gradle) cambia i comandi attesi in criteri-prova.test.ts: aggiornarli insieme. _(2026-11-23)_
 
 ## worktree
 
@@ -171,8 +173,6 @@
 
 ## git
 
-- «Il progetto NON è un repository git» nello stato può voler dire .git/config rovinato (tutto zeri, 11/11): ogni git fallisce. Si ripara con un config minimo (origin+main), copia del rotto, poi fsck. _(2026-11-12)_
-- il programma può negare in blocco i comandi che scrivono dentro `.git/` (config incluso), anche con decisione già presa: serve il sì di Nicholas registrato. _(2026-11-12)_
 - 12/11: v0.101.1 uscita da clone (a2df43ce). Il .git del principale (config, refs/heads/main e refs/remotes/origin/main a zeri) è stato riparato il 12/11 col sì di Nicholas: config ricostruito, main da `logs/refs/heads/main`, `reset --mixed a2df43ce`, fsck pulito; le copie rotte sono in `.git/*.rovinato*`. Resta da togliere SierraDeck-rilascio-0101 (decide Nicholas). _(2026-11-12)_
 - Prima di una pubblicazione manuale controllare MERGE_HEAD e i file in stage nella cartella principale: il programma può avere un'unione a metà che blocca il rilascio per minuti. _(2026-11-14)_
 - Il `lezioni.md` modificato dal programma sporca la cartella, ma non ha fermato `pubblica-app`. _(2026-11-14)_
