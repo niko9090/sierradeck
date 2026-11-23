@@ -204,11 +204,36 @@ export function daRicordare(e: EsitoVerifica): boolean {
 export function dimenticaIRossi(memoria: MemoriaCriteri): number {
   let tolti = 0
   for (const [k, v] of [...memoria]) {
-    if (v.esito.passato) continue
+    // «Programma assente» non dipende dal codice: un'unione non lo cambia (scade per tempo o col PATH).
+    if (v.esito.passato || k.startsWith(PREFISSO_ASSENTE)) continue
     memoria.delete(k)
     tolti += 1
   }
   return tolti
+}
+
+/** Per quanto si ricorda che un programma manca su questo PC (23/11: centinaia di rossi, prove di 36 minuti). */
+export const SCADENZA_ASSENTE_MS = 30 * 60 * 1000
+
+const PREFISSO_ASSENTE = 'assente\0'
+
+/**
+ * Il criterio non si è potuto misurare perché **manca il programma** (gh, curl…):
+ * comando non trovato, non riconosciuto. Non vale per i programmi di `node_modules`
+ * (tsc, vitest, npx…): quelli li ripara `preparaCopia`, e vanno rimisurati.
+ */
+export function programmaAssente(e: EsitoVerifica): boolean {
+  if (e.misurato !== false || annullato(e.uscita) || /\[comando interrotto dopo \d+s\]/.test(e.uscita)) return false
+  if (/syntax error|unexpected EOF|Invalid or unexpected token/i.test(e.uscita)) return false
+  if (!/command not found|is not recognized|non è riconosciuto|ENOENT|: not found/i.test(e.uscita)) return false
+  if (/\b(tsc|vitest|vite|electron-vite|eslint|tsx|gradle|npx|npm|node)['"]?\s*(:\s*)?(command not found|not found|is not recognized|non è riconosciuto)/i.test(e.uscita)) return false
+  return problemaDiAmbiente(e) === 'il comando non è partito nella copia'
+}
+
+/** Chiave della memoria «programma assente»: cambia se cambia il PATH. */
+const chiaveAssente = (comando: string): string => {
+  const path = process.env.PATH ?? process.env.Path ?? ''
+  return `${PREFISSO_ASSENTE}${createHash('sha256').update(path).digest('hex').slice(0, 16)}\0${comando}`
 }
 
 export type Misura = {
@@ -255,6 +280,14 @@ export async function misuraCriteri(criteri: Criterio[], cwd: string, esegui: Es
   const conNome = (e: EsitoVerifica, c: Criterio): EsitoVerifica => ({ ...e, descrizione: c.descrizione })
   for (const c of criteri) {
     if (c.comando === undefined) continue
+    const assente = opz.memoria.get(chiaveAssente(c.comando))
+    if (assente !== undefined) {
+      if (opz.adesso() - assente.quando < SCADENZA_ASSENTE_MS) {
+        pronti.set(c.descrizione, { ...conNome(assente.esito, c), uscita: `non misurabile su questo PC (ricordato): ${assente.esito.uscita}`.slice(0, 2000) })
+        daCache.push(c.descrizione); continue
+      }
+      opz.memoria.delete(chiaveAssente(c.comando))
+    }
     const ricordato = opz.impronta !== undefined && !guardaFuori(c.comando) ? opz.memoria.get(chiaveCommit(opz.impronta, c.comando)) : undefined
     if (ricordato !== undefined) {
       pronti.set(c.descrizione, conNome(ricordato.esito, c)); daCache.push(c.descrizione); continue
@@ -274,6 +307,7 @@ export async function misuraCriteri(criteri: Criterio[], cwd: string, esegui: Es
     if (e === undefined) return undefined
     const quando = opz.adesso()
     ricorda(opz.memoria, chiaveUltimo(cwd, comando), { impronta: opz.impronta, quando, esito: e })
+    if (programmaAssente(e)) ricorda(opz.memoria, chiaveAssente(comando), { impronta: opz.impronta, quando, esito: e })
     if (opz.impronta !== undefined && !guardaFuori(comando) && daRicordare(e)) {
       ricorda(opz.memoria, chiaveCommit(opz.impronta, comando), { impronta: opz.impronta, quando, esito: e })
     }
