@@ -62,7 +62,15 @@ export function motivoBreve(testo: string): string {
     .slice(0, 80)
 }
 
-const ORA = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z) \[[^\]]+\] \[[^\]]+\] (.*)$/
+/** k-193e: il segno del workspace nelle righe `[unione di prova]` e `[criterio]`: `[ws: NOME] ` (senza `]` né a capo nel nome). */
+export function segnoWorkspace(workspace: string): string {
+  const nome = workspace.replace(/[\]\r\n]+/g, ' ').trim().slice(0, 80)
+  return nome === '' ? '' : `[ws: ${nome}] `
+}
+
+const SEGNO = /^(\[(?:unione di prova|criterio)\]) \[ws: ([^\]]+)\] /
+
+const ORA =/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z) \[[^\]]+\] \[[^\]]+\] (.*)$/
 
 function aggiungiMotivo(l: LavoriWorkspace, motivo: string): void {
   const m = motivoBreve(motivo)
@@ -90,27 +98,31 @@ export function contaLavori(righe: readonly string[], dopo?: string): { workspac
     const quando = m[1] as string
     if (dopo !== undefined && quando <= dopo) continue
     ultima = ultima === undefined || quando > ultima ? quando : ultima
-    const t = m[2] as string
+    let t = m[2] as string
+    // Il segno del workspace si toglie dalla riga (le righe vecchie non l'hanno: restano «generale»).
+    let wsRiga = WORKSPACE_GENERALE
+    const s = SEGNO.exec(t)
+    if (s !== null) { wsRiga = (s[2] as string).trim(); t = `${s[1]} ${t.slice(s[0].length)}` }
     let x: RegExpExecArray | null
     // Unione di prova: «[unione di prova] RAMO: attesa del turno N s, prova N s (scaduta mentre stava per X)»
     if ((x = /^\[unione di prova\] [^:]+: attesa del turno (\d+) s, prova (\d+) s(?: \(scaduta mentre stava per ([^)]*)\))?/.exec(t)) !== null) {
-      const u = di(WORKSPACE_GENERALE).unioni
+      const u = di(wsRiga).unioni
       const att = Number(x[1]) * 1000
       const prova = Number(x[2]) * 1000
       u.prove += 1; u.attesaMs += att; u.provaMs += prova
       u.attesaMaxMs = Math.max(u.attesaMaxMs, att); u.provaMaxMs = Math.max(u.provaMaxMs, prova)
-      if (x[3] !== undefined) { u.scadute += 1; aggiungiMotivo(di(WORKSPACE_GENERALE), `scaduta: ${x[3]}`) }
+      if (x[3] !== undefined) { u.scadute += 1; aggiungiMotivo(di(wsRiga), `scaduta: ${x[3]}`) }
       lette += 1
     } else if ((x = /^\[criterio\] finito con (-?\d+) in (\d+) s/.exec(t)) !== null) {
-      const c = di(WORKSPACE_GENERALE).criteri
+      const c = di(wsRiga).criteri
       const ms = Number(x[2]) * 1000
       c.finiti += 1; c.durataMs += ms; c.durataMaxMs = Math.max(c.durataMaxMs, ms)
       if (Number(x[1]) === 0) c.riusciti += 1; else c.rossi += 1
       lette += 1
     } else if (/^\[criterio\] .*rosso per tempo scaduto/.test(t)) {
-      di(WORKSPACE_GENERALE).criteri.scaduti += 1; lette += 1
+      di(wsRiga).criteri.scaduti += 1; lette += 1
     } else if (/^\[criterio\] aspetta il suo turno/.test(t)) {
-      di(WORKSPACE_GENERALE).criteri.inAttesa += 1; lette += 1
+      di(wsRiga).criteri.inAttesa += 1; lette += 1
     } else if ((x = /^\[orchestratore\] (.+?) — .*unione in fila, (\d+)ª/.exec(t)) !== null) {
       di(x[1] as string).unioni.inFila += 1; lette += 1
     } else if ((x = /^\[orchestratore\] (.+?) — .*criterio rosso senza correzione/.exec(t)) !== null) {

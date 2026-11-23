@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { ePesante } from './criteri-veloci'
 import type { GuardiaPc } from './guardia-pc'
+import { conWorkspaceDiLog, segnoDiLog, workspaceDiLog } from './contesto-log'
 import { RIGA_ANNULLATO_PRIMA, type Esecutore } from './verifiche'
 
 /**
@@ -301,11 +302,14 @@ export const TURNI_PC: TurniCriteri = creaTurni()
 export function conTurni(esegui: Esecutore, turni: TurniCriteri = TURNI_PC, guardia?: GuardiaPc): Esecutore {
   return async (comando, cwd, timeoutMs, segnale) => {
     const annullatoPrima = { codice: 1, uscita: RIGA_ANNULLATO_PRIMA }
+    // k-193e: il workspace si prende qui, a chi chiede: il turno può partire dal contesto di un altro.
+    const ws = workspaceDiLog()
     // Si rilegge ogni volta: il segnale scatta mentre si aspetta.
     const scattato = (): boolean => segnale?.aborted === true
     const lancia = (): ReturnType<Esecutore> => {
       if (scattato()) return Promise.resolve(annullatoPrima)
-      return segnale !== undefined ? esegui(comando, cwd, timeoutMs, segnale) : timeoutMs !== undefined ? esegui(comando, cwd, timeoutMs) : esegui(comando, cwd)
+      const parti = (): ReturnType<Esecutore> => segnale !== undefined ? esegui(comando, cwd, timeoutMs, segnale) : timeoutMs !== undefined ? esegui(comando, cwd, timeoutMs) : esegui(comando, cwd)
+      return ws !== undefined ? conWorkspaceDiLog(ws, parti) : parti()
     }
     if (scattato()) return annullatoPrima
     if (!ePesante(comando, cwd)) return lancia()
@@ -313,7 +317,7 @@ export function conTurni(esegui: Esecutore, turni: TurniCriteri = TURNI_PC, guar
     if (scattato()) return annullatoPrima
     const s = turni.stato()
     const davanti = s.inFila + (s.inCorso !== undefined ? 1 : 0)
-    if (davanti > 0) console.info(`[criterio] aspetta il suo turno dietro ${davanti} comandi lunghi: ${comando.slice(0, 120)}`)
+    if (davanti > 0) console.info(`[criterio] ${segnoDiLog(ws)}aspetta il suo turno dietro ${davanti} comandi lunghi: ${comando.slice(0, 120)}`)
     return turni.pesante(cwd, lancia)
   }
 }

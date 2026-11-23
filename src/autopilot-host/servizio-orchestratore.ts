@@ -29,6 +29,7 @@ import {
 import { aperteSulloStesso, risoltaDalloStato } from './domande-doppie'
 import { dimenticaIRossi, improntaCodiceAsincrona, misuraCriteri, type MemoriaCriteri } from './criteri-veloci'
 import { criteriPerLaProva } from './criteri-prova'
+import { conWorkspaceDiLog } from './contesto-log'
 import { fallitiDavvero, nonMisurati, type Esecutore } from './verifiche'
 import type { Memoria } from './memoria'
 import type { TipoAvviso } from './telegram'
@@ -2109,7 +2110,7 @@ ${NOTA_SENZA_GIT}`,
         const firmaSporca = sporca.sporca ? `${impronta ?? ''}|${sporca.file.join('\n')}` : undefined
         if (firmaSporca !== undefined && scambio.rossoSporco === firmaSporca) throw new RiprovaUnione('sporca', ROSSO_SPORCO, sporca.file, true)
         scambio.fase = 'criterio'
-        const m = await misuraCriteri([{ descrizione: compito!.criterio, comando, soddisfatto: false }], a.cwd, x.esegui, { memoria: memoriaCriteri, adesso: Date.now, tutti: true, ...(impronta !== undefined ? { impronta } : {}) })
+        const m = await conWorkspaceDiLog(chiaveWorkspace(a), () => misuraCriteri([{ descrizione: compito!.criterio, comando, soddisfatto: false }], a.cwd, x.esegui, { memoria: memoriaCriteri, adesso: Date.now, tutti: true, ...(impronta !== undefined ? { impronta } : {}) }))
         const falliti = fallitiDavvero(m.esiti)
         const ignoti = nonMisurati(m.esiti)
         fallito = falliti.length > 0
