@@ -53,7 +53,9 @@ describe('la Panoramica: niente detto due volte', () => {
   it('PC: lo stato non si ripete sotto la situazione; «Adesso» vuoto non si mostra; un «?» per le due viste', () => {
     expect(leggi('src/renderer/components/ChatAutopilota.tsx')).toContain('<RigaDalVivo autopilota={autopilota} senzaStato={soloConversazione} />')
     const p = leggi('src/renderer/components/WorkspacePanoramica.tsx')
-    expect(p).toContain('adesso.length === 0 && (autopilota === undefined || righeAp.length === 0) ? null')
+    // Dal rifacimento del pannello agenti (k-188b) «Adesso» sta solo nel ramo senza autopilota/remoto: lì vuoto non si mostra.
+    expect(p).toContain('autopilota !== undefined || remoto !== undefined ? null : (')
+    expect(p).toContain('adesso.length === 0 ? null : (')
     expect(p).toContain('<Aiuto di="le due viste del workspace">')
     expect(p).not.toContain('<Aiuto di="Tutte le chat affiancate">')
   })
