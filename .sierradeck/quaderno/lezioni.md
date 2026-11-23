@@ -311,7 +311,6 @@
 
 ## shell
 
-- Nei comandi Bash i backtick dentro i commenti di un `node -e` vengono eseguiti dalla shell e mangiano il testo: usare Edit per i file con backtick. _(2026-11-12)_
 - In Git Bash `/tmp/...` passato a `node` diventa `E:\tmp\...` e non esiste: usare `mktemp -d` con `cygpath -w`. _(2026-11-14)_
 
 ## pubblicazione
@@ -779,6 +778,7 @@
 - Una versione tocca package.json, package-lock.json (2 punti), novita.ts e una nota nel quaderno. Android si alza solo se android/ cambia oltre a novita-app.txt, che è solo testo. _(2026-11-19)_
 - Il commit di versione tocca `package.json`, `package-lock.json` (due righe) e `src/shared/novita.ts`. `novita.test.ts` ammette al massimo 8 righe per voce. _(2026-11-23)_
 - `package-lock.json` ha la versione due volte (riga 3 e riga 9 sotto `packages[""]`): vanno alzate entrambe. _(2026-11-23)_
+- Con `git fetch` rotto (bundle in arrivi sparito) la base del bump è l'ultimo `Versione x.y.z` in main locale: far verificare all'autopilota che la nuova non sia già uscita da un altro PC. _(2026-11-23)_
 
 ## aggiornamento
 
