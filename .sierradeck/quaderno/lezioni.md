@@ -92,6 +92,9 @@
 - la guardia apre da sola un turno («silenzio» per una chat muta): nei test sulla spinta va chiuso con un result finto dopo ogni giro, o il turno resta «in volo» e la spinta tace. _(2026-11-23)_
 - con `dorme` finto istantaneo, un finto PC che non finisce mai manda `segui` in un giro infinito di microtask: vitest si blocca e non scatta il timeout. Ogni PC finto deve finire. _(2026-11-23)_
 - una task_notification riapre inTurno nel flusso: negli eventi di prova va chiusa con un result, o gli eventi raccolti all'autopilota non partono _(2026-11-23)_
+- la suite `tests/main` + `tests/shared` dura circa 340 s; gli errori non gestiti, se ci sono, sono intermittenti e non appaiono a ogni giro _(2026-11-23)_
+- `pty-host-client.test.ts` avvia processi figli veri: primo sospetto per eventi tardivi dopo la fine del test _(2026-11-23)_
+- `vitest related` sui file toccati prende anche i test fuori da tests/autopilot-host e tests/shared (qui tests/main): lanciarlo prima di dire «verde». _(2026-11-23)_
 
 ## worktree
 
@@ -268,7 +271,6 @@
 
 ## unioni
 
-- Il quaderno riscrive righe esistenti («(×2)», riordino): il controllo «solo righe aggiunte» sul numstat non basta. Dentro .sierradeck/quaderno/ si salva sempre. _(2026-11-10)_
 - la prova di unione salva con un commit solo `.sierradeck/quaderno/` (anche riscritto); le altre note di `.sierradeck/` restano «solo aggiunte» (numstat): un test deve coprire entrambi i rami. _(2026-11-11)_
 - Fino alla 0.99.1 installata una nota del quaderno con righe cambiate o tolte ferma tutta la fila: la sblocca solo un commit di `.sierradeck/quaderno` fatto da una chat aperta nella cartella principale (dalla 0.99.2 la salva il programma). _(2026-11-11)_
 - Dalla 0.100.0 un file non salvato nella cartella principale ferma un’unione solo se il ramo lo tocca; in quel caso dopo 5 minuti è il programma a chiedere a Nicholas «Salvali e unisci», non l’autopilota. _(2026-11-11)_
@@ -291,8 +293,6 @@
 
 ## salute
 
-- «Quanto lavora SierraDeck»: il tono dipende solo dai consumi di questo PC; i dati degli altri PC arrivano dal battito sul Drive e, se vecchio (PC_SPENTO_DOPO_MS), non vanno mostrati come attuali. _(2026-11-10)_
-- Le voci create da `risorse` di un altro PC (consumi, `gpu:`) vanno filtrate col battito recente in `componiSalute`; ogni nuova voce per PC ha lo stesso rischio di dato vecchio. _(2026-11-10)_
 - «non so se è acceso» valeva anche con battito fresco; ora «acceso secondo il Drive, ma non si raggiunge». Le righe unite del controllo (controllo-pc.ts `generica`) vanno aggiornate con ogni nuova dic… _(2026-11-15)_
 - Le soglie spento/acceso vanno prese da `statoPc`; con `PC_SPENTO_DOPO_MS` i confronti `<` e `<=` si mischiavano e davano risultati diversi al limite. _(2026-11-19)_
 - L'elenco PC di Salute si toglie nel renderer (`saluteSenzaPc`), non in `salute.ts`: le stesse voci servono a telefono e pagina servita. _(2026-11-19)_
@@ -303,7 +303,6 @@
 
 ## aggiornamenti
 
-- il 504 di GitHub passa solo se l'errore ha statusCode o inizia con il codice seguito da Headers; l'HttpError con descrizione o frase vuota non è coperto dai test _(2026-11-10)_
 - `creaAggiornamenti` prende parametri posizionali in coda: un nuovo aggancio (come `annunciaAgliAltri`) va aggiunto per ultimo, senza toccare l'ordine. _(2026-11-19)_
 
 ## guardia
@@ -475,6 +474,7 @@
 - s.tentativi si azzera a ogni risposta, anche con errore: il limite di un riprovo non vale per gli errori del result, e ogni risveglio lancia un turno nuovo. _(2026-11-10)_
 - su un `result` con `is_error` il turno non riprova da solo con rete assente: `pronto()` ora è falso durante `riprova` e `fermo`, altrimenti `suEffetti` rilancia il turno a raffica. _(2026-11-10)_
 - «sveglia futura» e «lavoro fermo» sono cose diverse: la sveglia vale solo per chi aspetta un orario, non spegne spinta né rilancio. Solo pausa vera, turno in corso o unione in corso li zittiscono. _(2026-11-23)_
+- Uno specialista «fermato» ha 3 origini: `fermaChiesta` (precedenza), `fermatiDaNicholas` (stop manuale) e appeso/morto. Solo l'ultima si rilancia da sola. _(2026-11-23)_
 
 ## modelli
 
