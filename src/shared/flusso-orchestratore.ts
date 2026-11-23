@@ -182,7 +182,9 @@ export function applicaRiga(prima: StatoFlusso, riga: string, quando: string): {
     let gia = false
     const x = cambia(id, (y) => {
       if (terminale(y.stato)) { gia = true; return riepilogo !== undefined && y.riepilogo === undefined ? { ...y, riepilogo } : y }
-      const { prompt: _prompt, ...senza } = y
+      // k-178k: chi esce «fermato» TIENE il prompt (serve a rilanciarlo); gli altri lo perdono.
+      const { prompt: _prompt, ...senzaPrompt } = y
+      const senza = esito === 'fermato' ? y : senzaPrompt
       return { ...senza, stato: esito, fine: quando, ...(riepilogo !== undefined ? { riepilogo } : {}) }
     })
     if (x === undefined || gia) return

@@ -18,6 +18,9 @@ import { rigaRapporto } from '@shared/rapporti-chat'
 /** Il tetto di rilanci per lo stesso specialista: oltre, lo si tratta come finito e decide l'autopilota. */
 export const MEZZE_FINI_MAX = 3
 
+/** k-178k: il tetto di rilanci automatici per uno specialista fermato (appeso o morto) a metà sullo stesso compito. */
+export const FERMATI_RILANCI_MAX = 3
+
 const ULTIME_RIGHE = 4
 
 /** I verbi d'azione di chi sta per fare qualcosa: «lancio», «eseguo», «controllo»… */
