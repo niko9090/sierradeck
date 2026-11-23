@@ -107,7 +107,6 @@
 
 ## android
 
-- `testDebugUnitTest --rerun` da zero costa circa 6 minuti con la compilazione: tenerne conto nei timeout del cancello. _(2026-11-14)_
 - Se il cancello taglia l'errore Gradle, il blocco «What went wrong» completo sta in C:\Users\nikof\.gradle\daemon\8.11.1\daemon-*.out.log: cercarlo lì prima di provare a riprodurre. _(2026-11-14)_
 - Su Windows due gradle sulla stessa android/app/build si pestano (output.bin aperto, lookups.tab): fallisce quello che arriva dopo. Il fallimento non lascia <failure> né hs_err. _(2026-11-14)_
 - Nella cartella android non c'è gradlew: i test partono con `gradle testDebugUnitTest --offline` (Gradle 8.11.1 in PATH, JAVA_HOME su JDK 21); il primo giro dura circa 4 minuti. _(2026-11-16)_
@@ -424,6 +423,7 @@
 - il commit di un compito k-xx non ha il codice nel messaggio: per trovarlo in main si cerca per contenuto (es. `git log --grep=orchestratore`), non per «k-f1» _(2026-11-16)_
 - errori-arrivati.md usa fine riga CRLF: Edit ancorato all'ultima riga funziona, ma controllare che le righe nuove non restino miste. _(2026-11-20)_
 - Il quaderno sul «mai fermo» (0.84–0.85) descrive le chat vecchie: dalla 0.89 gli specialisti sono sotto-agenti dell'orchestratore, la difesa sta in `servizio-orchestratore.ts` e `lavoro-fermo.ts`. _(2026-11-22)_
+- i titoli di errori-arrivati.md hanno la forma «(lotto <nome>)»: con nomi che iniziano già per «lotto-» il titolo ripete la parola, ed è voluto per far trovare il nome intero. _(2026-11-23)_
 
 ## controllo-pc
 
