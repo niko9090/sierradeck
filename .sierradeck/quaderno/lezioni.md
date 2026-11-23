@@ -107,11 +107,6 @@
 
 ## android
 
-- Nel worktree manca android/gradlew.bat: si usa /e/Programs/Gradle/gradle-8.11.1/bin/gradle -p android ... --offline (ci vogliono 2-4 minuti). _(2026-11-14)_
-- Il popup di DropdownMenu non compare nelle foto Roborazzi: si fotografano le DropdownMenuItem in linea. I colori spenti del Material (38%) fanno 2,3-3:1: usare i coloriVoceMenu e coloriTasto* in Tema… _(2026-11-14)_
-- In android/ non c'è gradlew: i test si lanciano con `gradle -p android testDebugUnitTest --rerun` (Gradle 8.11.1 di sistema in E:\Programs\Gradle). _(2026-11-14)_
-- Le foto Robolectric non hanno il riconoscimento vocale: per fotografare una barra in tutti gli stati serve un composable senza stato, come RigaConversazione. _(2026-11-14)_
-- un ramo che "non compila sopra main" può essere solo un'esecuzione sporca: rifare `git merge main` e il comando gradle in una copia pulita prima di cercare errori. _(2026-11-14)_
 - i colori dei tasti si prendono da Tema.kt (coloriTastoPieno/Testo/Bordo, sopra()): è lì che stanno i colori da spenti con contrasto 4.5:1. _(2026-11-14)_
 - Il cancello fonde i criteri `cd android && gradle …` in `testDebugUnitTest assembleDebug --no-daemon`; `gradle -p android …` resta separato. Le foto Roborazzi sono in modalità record, non confronto. _(2026-11-14)_
 - Le note dell'app stanno in `android/novita-app.txt` (una voce per versione), e `pubblica-app` si ferma se manca la voce della versione nuova. _(2026-11-14)_
@@ -541,6 +536,9 @@
 - `npm run pubblica` supera i 10 minuti di timeout dello strumento (installer da 114 MB): passa in sottofondo e lo specialista non può aspettarlo con sleep o cicli, che l'hook blocca. _(2026-11-23)_
 - Alla ripresa di un rilascio interrotto: se tag e bozza ci sono e la bozza è vuota, riparti da `npm run pubblica`. Android invariato = niente `pubblica-app`. _(2026-11-23)_
 - In questa copia `git fetch` non funziona: il remoto è un bundle sparito. Per controllare le versioni uscite serve `gh` sul PC di rilascio. _(2026-11-23)_
+- `npm run pubblica` può creare due bozze con lo stesso tag (i file si dividono): riunirli nella bozza con le note via `gh api .../releases/assets/<id>` e `gh release upload`, cancellare l'altra, poi p… _(2026-11-23)_
+- `gh release download <tag>` non vede le bozze: per scaricare gli asset serve `gh api -H "Accept: application/octet-stream" repos/.../releases/assets/<id>`. _(2026-11-23)_
+- Con `npm run pubblica | tail` l'output resta vuoto fino alla fine: il progresso si segue con `gh api repos/niko9090/sierradeck/releases` sugli asset. _(2026-11-23)_
 
 ## build
 
@@ -914,6 +912,7 @@
 - ogni avvio scrive due «sessione avviata» ([app] e [servizio]): chi conta gli avvii deve filtrare per fonte, altrimenti 1 avvio = 2 riavvii. _(2026-11-23)_
 - Il parser dei registri deve guardare chi scrive la riga (`app` o `servizio`): le righe dette da entrambi, come «sessione avviata», si contano una volta sola. _(2026-11-23)_
 - I campi nuovi del rapporto vanno letti con `num()` in `leggiRapportoLavori`: i PC con versioni vecchie non li mandano e il riassunto darebbe NaN. _(2026-11-23)_
+- i rapporti dei PC 0.116.x non hanno i campi nuovi (spinteSospese, nonMisurati): ogni campo nuovo aggiunto a LavoriWorkspace va letto con num(), mai sommato diretto. _(2026-11-23)_
 
 ## pc-glos
 
@@ -934,3 +933,7 @@
 ## lavoro-fermo
 
 - `fermiVisti.spinte` si azzera a ogni cambio di firma, quindi vale già come conteggio delle spinte senza effetto. I test che si aspettavano spinte senza fine andavano adattati. _(2026-11-23)_
+
+## da-fare
+
+- Rimandati dopo la 0.117.1: il riassunto dei rapporti scrive «1 compiti» (plurale fisso); npm run pubblica crea a volte due bozze con lo stesso tag e i file divisi (va reso atomico). _(2026-11-23)_
