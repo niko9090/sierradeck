@@ -21,7 +21,7 @@ import type { LavoroAffidato } from './aiuto-rete'
 
 /** Le cause riconosciute. `compito` = colpa del lavoro stesso (prove rosse…): il PC che aiuta non c'entra. */
 export type CausaFallimento =
-  | 'accesso' | 'limite' | 'modello' | 'turni' | 'permesso' | 'git' | 'npm' | 'strumenti' | 'risorsa' | 'api' | 'pc' | 'progetto' | 'fermato' | 'compito' | 'sconosciuta'
+  | 'accesso' | 'limite' | 'modello' | 'turni' | 'permesso' | 'git' | 'npm' | 'strumenti' | 'risorsa' | 'api' | 'rifiuto' | 'pc' | 'progetto' | 'fermato' | 'compito' | 'sconosciuta'
 
 const FRASI: Record<CausaFallimento, string> = {
   accesso: 'su quel PC Claude Code non ha l’accesso fatto (o è scaduto): là va aperto un terminale, scritto «claude» e rifatto l’accesso',
@@ -34,6 +34,7 @@ const FRASI: Record<CausaFallimento, string> = {
   strumenti: 'su quel PC manca un programma che serve (Claude Code, git o Node.js)',
   risorsa: 'su quel PC manca una risorsa indispensabile al lavoro (cartella, percorso di rete, programma o variabile)',
   api: 'il servizio di Claude non ha risposto (sovraccarico o guasto passeggero)',
+  rifiuto: 'i filtri di sicurezza di Claude hanno bloccato la richiesta dello specialista (va riformulato il compito, non è colpa del PC)',
   pc: 'quel PC non risponde più o ha perso il lavoro',
   progetto: 'il progetto di qui non si può spedire (niente commit sul ramo principale, o ramo staccato)',
   fermato: 'il lavoro è stato fermato',
@@ -50,7 +51,7 @@ export function fraseCausa(c: CausaFallimento): string {
 }
 
 /** Le cause per cui il PC che aiuta non c'entra: non lo mettono in pausa (ma lo stesso compito non ci torna subito). */
-const NON_DEL_PC: ReadonlySet<CausaFallimento> = new Set(['compito', 'turni', 'api', 'fermato', 'progetto'])
+const NON_DEL_PC: ReadonlySet<CausaFallimento> = new Set(['compito', 'turni', 'api', 'rifiuto', 'fermato', 'progetto'])
 
 export function colpaDelPc(c: CausaFallimento): boolean {
   return !NON_DEL_PC.has(c)
@@ -86,6 +87,8 @@ export function causaDalTesto(testo: string, tipo?: string): CausaFallimento {
   if (eLimiteDelPiano(t) || /credit balance is too low|usage limit|quota (?:exceeded|esaurita)/iu.test(t)) return 'limite'
   if (/model.{0,60}(?:not (?:available|found|supported)|non disponibile)|not_found_error.{0,40}model|invalid model|model.{0,30}is not available/iu.test(t)) return 'modello'
   if (tipo === 'error_max_turns' || /max(?:imum)?[ _-]turns/iu.test(t)) return 'turni'
+  // 23/11: un rifiuto dei filtri di sicurezza arriva come «API Error: … safeguards flagged this message»: non è un guasto del servizio.
+  if (/safeguards? (?:has |have )?flagged|flagged this message|violate(?:s|d)? our usage polic|usage policy.{0,80}(?:violat|flagged|blocked)|can sometimes flag legitimate/iu.test(t)) return 'rifiuto'
   if (/overloaded|\b529\b|\b5\d\d\b.*api|api error|internal server error|econnreset|etimedout|enotfound|network error|socket hang up/iu.test(t)) return 'api'
   if (/is not recognized as an internal or external command|non è riconosciuto come comando|command not found|spawn \S+ enoent|\benoent\b.*(?:claude|git|node|npm)|(?:claude|git|node|npm)(?:\.exe)?.*\benoent\b/iu.test(t)) return 'strumenti'
   if (/\bnpm (?:ci|err!?|error)\b|npm ci uscito/iu.test(t)) return 'npm'
