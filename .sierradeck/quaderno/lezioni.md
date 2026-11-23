@@ -97,6 +97,7 @@
 - giroInvioErrori + salvaErroriArrivati + raggruppa si provano insieme con file veri in una cartella temporanea: i nomi dei file arrivo sono l'ora UTC _(2026-11-23)_
 - per far ritirare insieme due PC dello stesso lavoro: PC muto >30 min e secondo PC, entrambi «finito» al medesimo `ora` finto; un `await` nella chiamata «ritira» rende lo scontro certo. _(2026-11-23)_
 - i test in `tests/main` verificano il cablaggio leggendo i sorgenti con `readFileSync`: cambiare i nomi dei canali o delle rotte li rompe _(2026-11-23)_
+- Gli id dei lavori affidati devono essere `r` + 12 cifre esadecimali (`idLavoroValido`): altrimenti il file `aiuti-affidati.json` li scarta in silenzio. _(2026-11-23)_
 
 ## worktree
 
@@ -139,8 +140,6 @@
 
 ## release
 
-- Dalla 0.100.0 pubblica lo specialista «rilascio», che lavora nella cartella principale senza Edit/Write: versione e novità le prepara prima uno sviluppatore, nel suo ramo. _(2026-11-11)_
-- L’installatore locale si chiama `dist/SierraDeck Setup X.exe` (con gli spazi), l’asset su GitHub `SierraDeck-Setup-X.exe`: per confrontare lo sha512 con `latest.yml` scaricare l’asset o usare il nome con gli spazi. _(2026-11-11)_
 - `.git/config` può ritrovarsi tutto zeri (11/11, 18:03): ogni git fallisce con «bad config line 1». Prima di una release lanciare `git status` e, se fallisce, non provare a indovinare il config. _(2026-11-12)_
 - `node scripts/allega-apk.mjs --solo-verifica` compila l'APK firmato e verifica la firma senza git né gh: utile per preparare la release con git rotto. _(2026-11-12)_
 - Se `.git` del principale è rovinato (anche `refs/heads/main` a zeri), lo sha vero sta in `.git/logs/refs/heads/main` e `ORIG_HEAD`; clonare e sovrapporre l'albero funziona, con `/XD` solo sui percors… _(2026-11-12)_
@@ -177,9 +176,6 @@
 
 ## git
 
-- Note del quaderno non salvate in main = fila unioni ferma, e nessuno specialista può salvarle (isolati nella copia; general-purpose rifiutato). Serve la correzione del programma (k-133). _(2026-11-11)_
-- Note del quaderno non salvate in main: anche il tipo «claude» è rifiutato (nessuno senza copia propria). Solo una chat di Nicholas aperta in main o un SierraDeck installato con k-133 le salva. _(2026-11-11)_
-- `main` locale può essere più avanti di `origin/main` con le unioni non pubblicate: guardare `git log origin/main..main` prima di partire da `origin/main`. _(2026-11-11)_
 - «Il progetto NON è un repository git» nello stato può voler dire .git/config rovinato (tutto zeri, 11/11): ogni git fallisce. Si ripara con un config minimo (origin+main), copia del rotto, poi fsck. _(2026-11-12)_
 - il programma può negare in blocco i comandi che scrivono dentro `.git/` (config incluso), anche con decisione già presa: serve il sì di Nicholas registrato. _(2026-11-12)_
 - 12/11: v0.101.1 uscita da clone (a2df43ce). Il .git del principale (config, refs/heads/main e refs/remotes/origin/main a zeri) è stato riparato il 12/11 col sì di Nicholas: config ricostruito, main da `logs/refs/heads/main`, `reset --mixed a2df43ce`, fsck pulito; le copie rotte sono in `.git/*.rovinato*`. Resta da togliere SierraDeck-rilascio-0101 (decide Nicholas). _(2026-11-12)_
@@ -331,6 +327,8 @@
 - `pubblica` allega da solo json e Aiutante e lascia la release in bozza: alla fine servono `gh release edit --draft=false --latest` e il controllo dei 7 file. _(2026-11-19)_
 - Se `pubblica` dice «mancano installer, blockmap e latest.yml», sono già in dist/ ma con spazi: caricarli con `gh release upload`, rinominati a trattini (SierraDeck-Setup-X.exe). _(2026-11-20)_
 - Con la release creata prima da `gh release create`, serve poi `gh release edit --draft=false --latest`: `pubblica` non la segna Latest da sola. _(2026-11-20)_
+- Se lancio `npm run pubblica` oltre i 10 minuti, passa in sottofondo da solo: i file arrivano uno alla volta e la bozza va pubblicata solo quando il comando è finito. Prima si contano i 7 file. _(2026-11-23)_
+- I comandi con `sleep` sono bloccati dal programma. Per aspettare, uso controlli brevi di `gh release view`, senza pause lunghe. _(2026-11-23)_
 
 ## servizio
 
@@ -902,6 +900,8 @@
 
 - unioni, durata e stato dopo il lavoro passano da `VistaAttesa` (`dati-pannello-agenti.ts`); gli esiti recenti stanno solo in memoria e si perdono al riavvio _(2026-11-22)_
 - I dati `inUnione`, `esitiUnioni` e `dopoLavoro` di `VistaAttesa` hanno per chiave il workspace del servizio: per filtrare per autopilota si confrontano i riferimenti normalizzati. _(2026-11-22)_
+- La spinta del pannello è la versione di `cambiSpecialisti`: ogni nuova strada di cambio nel servizio deve chiamare `segna()`, altrimenti resta solo il giro ogni 4 s. _(2026-11-23)_
+- La fila delle unioni (`filaUnioni`) è solo in memoria: dopo un riavvio lo stato «dopo il lavoro» va ricavato dal piano su disco, altrimenti lo specialista sparisce. _(2026-11-23)_
 
 ## battito
 
