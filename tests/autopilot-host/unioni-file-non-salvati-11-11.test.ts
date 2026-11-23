@@ -68,6 +68,8 @@ type Porte = {
   uniti: Set<string>
   /** Ogni comando git chiesto, in ordine. */
   comandi: string[][]
+  /** Quanti commit dei file detti da Nicholas falliscono ancora (23/11). */
+  commitFallisce?: number
 }
 
 function gitDiProva(porte: Porte): { git: Git; asinc: GitAsincrono } {
@@ -96,6 +98,7 @@ function gitDiProva(porte: Porte): { git: Git; asinc: GitAsincrono } {
     if (args.includes('commit') && args.includes('--no-edit')) { if (inProva !== undefined) porte.uniti.add(inProva); inProva = undefined; return { codice: 0, uscita: '' } }
     // Il commit dei file detti da Nicholas: quei file non sono più «non salvati».
     if (args.includes('commit') && args.includes('--')) {
+      if ((porte.commitFallisce ?? 0) > 0) { porte.commitFallisce = porte.commitFallisce! - 1; return { codice: 1, uscita: 'errore' } }
       const file = args.slice(args.indexOf('--') + 1)
       porte.sporchi = porte.sporchi.filter((f) => !file.includes(f))
       return { codice: 0, uscita: '' }
@@ -106,7 +109,7 @@ function gitDiProva(porte: Porte): { git: Git; asinc: GitAsincrono } {
   return { git, asinc: (args, cwd) => Promise.resolve(git(args, cwd)) }
 }
 
-type Opzioni = { esegui?: Esecutore; chiediSalvaDopoMs?: number; sporcaInFondoDopoMs?: number; criterioK1?: string }
+type Opzioni = { esegui?: Esecutore; chiediSalvaDopoMs?: number; sporcaInFondoDopoMs?: number; criterioK1?: string; richiediDopoMs?: number; avvisa?: (tipo: string, testo?: string) => void }
 
 async function prepara(porte: Porte, o: Opzioni = {}): Promise<void> {
   const orologio = orologioDa('2026-11-11T08:00:00.000Z')
@@ -123,7 +126,7 @@ async function prepara(porte: Porte, o: Opzioni = {}): Promise<void> {
     versione: '0.99.3',
     esegui: o.esegui ?? (() => Promise.resolve({ codice: 0, uscita: 'ok' })),
     avviaLavoro: () => Promise.resolve(),
-    avvisa: () => Promise.resolve(),
+    avvisa: (tipo, _a, testo) => { o.avvisa?.(tipo, testo); return Promise.resolve() },
     domande,
     ultimoDetto: () => undefined,
     scadenzaDomandaMs: 5000,
@@ -137,7 +140,8 @@ async function prepara(porte: Porte, o: Opzioni = {}): Promise<void> {
     unioneDaSola: false,
     unioneRiprovaMs: 10,
     chiediSalvaDopoMs: o.chiediSalvaDopoMs ?? 60,
-    sporcaInFondoDopoMs: o.sporcaInFondoDopoMs ?? 60_000
+    sporcaInFondoDopoMs: o.sporcaInFondoDopoMs ?? 60_000,
+    ...(o.richiediDopoMs !== undefined ? { richiediDopoMs: o.richiediDopoMs } : {})
   })
   server = s
   await new Promise<void>((ris) => s.listen(0, '127.0.0.1', () => { porta = (s.address() as { port: number }).port; ris() }))
@@ -360,6 +364,82 @@ describe('file non salvati nella cartella principale: la fila non resta ferma (1
     expect(porte.comandi.filter((c) => c.includes('merge') && c.includes('--no-commit'))).toHaveLength(1)
     maiVietati(porte)
   })
+})
+
+describe('la fila non resta ferma in silenzio (23/11)', () => {
+  it('il sì di Nicholas ma il commit fallisce: il salvataggio si riprova da solo e l’unione passa', async () => {
+    zitto()
+    const porte = porteNuove({ sporchi: ['pannello.js'], tocca: { [R1]: ['pannello.js'], [R2]: ['c.js'] }, commitFallisce: 1 })
+    await prepara(porte)
+    await strumento('unisci', { compito: 'k-1' })
+    await attendi(() => domandeSalva().length === 1, { cosa: 'la domanda del programma' })
+    expect(await rispondi(domandeSalva()[0]!.id, SCELTA_SALVA)).toBe(200)
+    await attendi(() => unitoK('k-1'), { cosa: 'k-1 unito dopo il secondo tentativo di salvataggio', timeout: 40_000 })
+    expect(salvataggi(porte).filter((c) => verbo(c) === 'commit')).toHaveLength(2)
+    expect(porte.sporchi).toEqual([])
+    maiVietati(porte)
+  }, 60_000)
+
+  it('il sì ma il commit non riesce mai: dopo tre tentativi la domanda a Nicholas riparte da capo', async () => {
+    zitto()
+    const porte = porteNuove({ sporchi: ['pannello.js'], tocca: { [R1]: ['pannello.js'], [R2]: ['c.js'] }, commitFallisce: 1000 })
+    await prepara(porte)
+    await strumento('unisci', { compito: 'k-1' })
+    await attendi(() => domandeSalva().length === 1, { cosa: 'la domanda del programma' })
+    const primo = domandeSalva()[0]!.id
+    expect(await rispondi(primo, SCELTA_SALVA)).toBe(200)
+    await attendi(() => domandeSalva().length === 1 && domandeSalva()[0]!.id !== primo, { cosa: 'la domanda rifatta', timeout: 40_000 })
+    expect(unitoK('k-1')).toBe(false)
+  }, 60_000)
+
+  it('«Aspetta» non chiude per sempre: dopo un po’ il programma richiede a Nicholas', async () => {
+    zitto()
+    const porte = porteNuove({ sporchi: ['pannello.js'], tocca: { [R1]: ['pannello.js'], [R2]: ['c.js'] } })
+    await prepara(porte, { richiediDopoMs: 100 })
+    await strumento('unisci', { compito: 'k-1' })
+    await attendi(() => domandeSalva().length === 1, { cosa: 'la domanda del programma' })
+    const primo = domandeSalva()[0]!.id
+    expect(await rispondi(primo, SCELTA_ASPETTA)).toBe(200)
+    await attendi(() => domandeSalva().length === 1 && domandeSalva()[0]!.id !== primo, { cosa: 'la domanda richiesta', timeout: 40_000 })
+    expect(salvataggi(porte)).toEqual([])
+  })
+
+  it('troppi file per chiedere: Nicholas viene avvisato (non solo il registro) e, dopo un po’, la cosa si ridice', async () => {
+    zitto()
+    const tanti = Array.from({ length: FILE_DA_CHIEDERE_MAX + 5 }, (_, i) => `f${i}.js`)
+    const porte = porteNuove({ sporchi: tanti, tocca: { [R1]: tanti, [R2]: ['c.js'] } })
+    const avvisi: string[] = []
+    await prepara(porte, { richiediDopoMs: 100, avvisa: (tipo, testo) => { if (tipo === 'avviso') avvisi.push(testo ?? '') } })
+    await strumento('unisci', { compito: 'k-1' })
+    await attendi(() => avvisi.length >= 2, { cosa: 'l’avviso a Nicholas, ripetuto', timeout: 40_000 })
+    expect(avvisi[0]).toContain('troppi')
+    expect(domandeSalva()).toEqual([])
+    expect(salvataggi(porte)).toEqual([])
+  })
+})
+
+describe('la misura riscrive file tracciati nella principale (23/11)', () => {
+  it('rimette com’erano solo i file diventati modificati durante la misura, mai quelli di Nicholas', async () => {
+    const { fotoModificheAsincrono, ripristinaGeneratiAsincrono } = await import('../../src/autopilot-host/worktree')
+    const stato = { uscita: 'suo.js\0' }
+    const comandi: string[][] = []
+    const git: GitAsincrono = (args) => {
+      comandi.push(args)
+      if (args[0] === 'diff') return Promise.resolve({ codice: 0, uscita: stato.uscita })
+      return Promise.resolve({ codice: 0, uscita: '' })
+    }
+    const prima = await fotoModificheAsincrono(git, { cwd: radice })
+    expect([...prima!]).toEqual(['suo.js'])
+    // La misura riscrive lo schema e la distinta (e il file di Nicholas resta com'è).
+    stato.uscita = 'suo.js\0schema/quadro.json\0distinta.csv\0'
+    expect(await ripristinaGeneratiAsincrono(git, { cwd: radice, prima })).toEqual(['schema/quadro.json', 'distinta.csv'])
+    expect(comandi.at(-1)).toEqual(['checkout', '--', 'schema/quadro.json', 'distinta.csv'])
+    // Senza foto di prima non si tocca niente.
+    comandi.length = 0
+    expect(await ripristinaGeneratiAsincrono(git, { cwd: radice, prima: undefined })).toEqual([])
+    expect(comandi).toEqual([])
+  })
+
 })
 
 describe('la domanda del programma sui file non salvati (11/11)', () => {

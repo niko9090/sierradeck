@@ -58,7 +58,7 @@ import { chatAlLavoroSulPc, daChiudereDaSole, RICHIUDI_DOPO_MS } from './posti'
 import { leggiStatoProgramma, STATO_PROGRAMMA_VALIDO_MS, type StatoProgramma } from './stato-programma'
 import { chatNote, rigaRiepilogo as rigaAutopulizia, type EsitoAutopulizia } from './autopulizia'
 import {
-  comeAsincrono, iniziaProvaAsincrono, chiudiProvaAsincrono, ripulisciProvaAsincrono, MOTIVO_CARTELLA_SPORCA, salvaLavoroAsincrono, togliWorktreeAsincrono,
+  comeAsincrono, fotoModificheAsincrono, ripristinaGeneratiAsincrono, iniziaProvaAsincrono, chiudiProvaAsincrono, ripulisciProvaAsincrono, MOTIVO_CARTELLA_SPORCA, salvaLavoroAsincrono, togliWorktreeAsincrono,
   type Git, type GitAsincrono
 } from './worktree'
 import { prendiDalRemotoAsincrono, riallineaAsincrono, type EsitoRiallineo } from './worktree'
@@ -176,6 +176,7 @@ export type Dipendenze = {
   /** 11/11, per i test: i tempi dei file non salvati nella principale (vedi `ContestoUnico`). */
   chiediSalvaDopoMs?: number
   sporcaInFondoDopoMs?: number
+  richiediDopoMs?: number
   /** 31/10: gli autopiloti archiviati come doppioni. Assente: `servizio/doppioni-archiviati.json` accanto agli autopiloti. */
   doppioni?: ArchivioDoppioni
   /** k-48: la lista d'attesa degli specialisti. Assente: `servizio/attesa-specialisti.json` accanto agli autopiloti. */
@@ -854,7 +855,14 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       const partita = new Promise<void>((ris) => { via = ris })
       const girata = turni.pesante(a.cwd, async () => {
         via()
-        return (await conWorkspaceDiLog(chiaveWorkspace(a), () => misuraCriteri(criteri, a.cwd, deps.esegui, { memoria: memoriaCriteri, adesso: orologio, tutti: true, segnale, ...(impronta !== undefined ? { impronta } : {}) }))).esiti
+        // 23/11: i file che la misura rigenera (uno schema, una distinta) non restano come «non salvati di Nicholas»: si rimettono com'erano.
+        const prima = await fotoModificheAsincrono(gitA(git), { cwd: a.cwd })
+        try {
+          return (await conWorkspaceDiLog(chiaveWorkspace(a), () => misuraCriteri(criteri, a.cwd, deps.esegui, { memoria: memoriaCriteri, adesso: orologio, tutti: true, segnale, ...(impronta !== undefined ? { impronta } : {}) }))).esiti
+        } finally {
+          const rimessi = await ripristinaGeneratiAsincrono(gitA(git), { cwd: a.cwd, prima })
+          if (rimessi.length > 0) console.info(`[orchestratore] ${chiaveWorkspace(a)} — la misura ha riscritto ${rimessi.length} file della cartella principale: rimessi com’erano (${rimessi.slice(0, 5).join(', ')})`)
+        }
       })
       girata.catch(() => {})
       await inFila(() => partita)
@@ -1821,6 +1829,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     ...(deps.unioneTentativiMax !== undefined ? { unioneTentativiMax: deps.unioneTentativiMax } : {}),
     ...(deps.chiediSalvaDopoMs !== undefined ? { chiediSalvaDopoMs: deps.chiediSalvaDopoMs } : {}),
     ...(deps.sporcaInFondoDopoMs !== undefined ? { sporcaInFondoDopoMs: deps.sporcaInFondoDopoMs } : {}),
+    ...(deps.richiediDopoMs !== undefined ? { richiediDopoMs: deps.richiediDopoMs } : {}),
     doppioni: deps.doppioni ?? apriDoppioni(join(deps.archivio.cartella, 'servizio', 'doppioni-archiviati.json')),
     attesa: deps.attesa ?? apriAttesa(join(deps.archivio.cartella, 'servizio', 'attesa-specialisti.json')),
     aiuti: apriAiuti(join(deps.archivio.cartella, 'servizio', 'aiuti-affidati.json')),

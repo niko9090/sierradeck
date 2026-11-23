@@ -758,6 +758,31 @@ function* salvaFilePassi(p: { cwd: string; file: string[]; messaggio: string }):
   return (yield* chiedi([...(yield* firma(radice)), 'commit', '-m', p.messaggio, '--no-verify', '--', ...file], radice)).codice === 0
 }
 
+/**
+ * **I file che la misura rigenera** (23/11). I criteri girano nella cartella principale, con l'unione di
+ * prova dentro; uno script (uno schema, una distinta) può riscrivere file tracciati. Restavano modificati
+ * e non salvati: ogni unione dopo si fermava per «modifiche non salvate» sugli stessi file, senza fine.
+ * `fotoModificheAsincrono` dice quali file tracciati sono già modificati (rispetto all'indice) prima della
+ * misura; `ripristinaGeneratiAsincrono` rimette com'è nell'indice solo quelli diventati modificati dopo,
+ * mai gli altri (sono di Nicholas).
+ */
+export async function fotoModificheAsincrono(git: GitAsincrono, p: { cwd: string }): Promise<Set<string> | undefined> {
+  // `diff` senza altro = file tracciati diversi dall'indice (il nostro `git` toglie gli spazi di testa di `status`, che li distinguerebbe).
+  const r = await git(['diff', '--name-only', '--no-renames', '-z'], p.cwd).catch(() => undefined)
+  return r === undefined || r.codice !== 0 ? undefined : new Set(r.uscita.split('\0').map((f) => f.trim()).filter((f) => f !== '' && !/^(warning|hint|error|fatal):/i.test(f)))
+}
+
+/** Torna i file rimessi a posto. Senza foto di prima non tocca niente. */
+export async function ripristinaGeneratiAsincrono(git: GitAsincrono, p: { cwd: string; prima: Set<string> | undefined }): Promise<string[]> {
+  if (p.prima === undefined) return []
+  const dopo = await fotoModificheAsincrono(git, { cwd: p.cwd })
+  if (dopo === undefined) return []
+  const nuovi = [...dopo].filter((f) => !p.prima!.has(f) && f !== '' && !f.startsWith('-') && !f.split(/[\\/]/).includes('..') && !/^([a-zA-Z]:|[\\/])/.test(f))
+  if (nuovi.length === 0) return []
+  const r = await git(['checkout', '--', ...nuovi], p.cwd).catch(() => undefined)
+  return r !== undefined && r.codice === 0 ? nuovi : []
+}
+
 /** Conferma l'unione di prova con il suo commit (`tieni`), o la annulla. */
 export function chiudiProvaAsincrono(git: GitAsincrono, p: { cwd: string; tieni: boolean }): Promise<boolean> {
   return aspettando(git, chiudiProvaPassi(p))
