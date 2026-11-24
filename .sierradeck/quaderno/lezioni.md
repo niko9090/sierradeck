@@ -4,10 +4,6 @@
 
 ## test
 
-- `src/aiutante/aggiornamento.ts` ora importa `electron` (`powerMonitor`): i test che lo caricano devono mockare `electron` con `powerMonitor`. _(2026-11-16)_
-- `avviaAggiornamenti` programma un primo controllo a 15 s: nei test con timer finti far passare prima quel tempo, poi contare i `checkForUpdates`. _(2026-11-16)_
-- `creaServer` apre da solo `aiuti-affidati.json` in `archivio.cartella/servizio`: per provare gli affidati basta scrivere quel file prima. _(2026-11-16)_
-- `StatoScheda` usa 'lavora', `ChatGovernata` usa 'lavoro': nei test di panoramica il typecheck rifiuta la forma sbagliata, mentre vitest la lascia passare. _(2026-11-16)_
 - A parità di posti `scegliAltroPc` ordina per `pcId`: nei test con più PC liberi si sceglie quello che viene prima alfabeticamente, non quello scritto per primo. _(2026-11-16)_
 - i lavori ospitati passano solo dal lavoratore Aiuta la rete: per testarli senza server estrarre la logica in una funzione pura (vista-ospitati.ts) _(2026-11-16)_
 - prima di creare un file di test controllare che il nome non esista già: Write sovrascrive in silenzio (tests/shared/stato-vero-autopilota.test.ts c'era già) _(2026-11-16)_
@@ -312,6 +308,7 @@
 - se la release è in bozza con pochi file, controlla con Get-CimInstance se `npm run pubblica` è ancora vivo: il caricamento dell'installer da 114 MB e dell'Aiutante richiede circa 3 minuti. _(2026-11-23)_
 - latest.yml si verifica con `openssl dgst -sha512 -binary <exe> | base64 -w0`: deve coincidere con lo sha512 scritto nel file. _(2026-11-23)_
 - Dopo aver ricostruito l'installer dell'Aiutante, confrontare sha512 (base64) e size dell'exe scaricato dalla release con `aiutante.yml` allegato: è il controllo che l'updater fa. _(2026-11-23)_
+- pubblica-app non controlla che la cartella sia pulita: se c'è un'unione in corso nell'indice, va guardato a mano che android/ non sia toccato. _(2026-11-24)_
 
 ## servizio
 
@@ -527,6 +524,8 @@
 - In questa copia git fetch fallisce: l'origin è un .bundle sparito. Prima di scegliere la patch non si possono vedere i tag remoti, solo quelli locali (qui nessuno). _(2026-11-23)_
 - Il fetch dal bundle in `arrivi\` può fallire se il file non c'è più: i tag locali sono vuoti, quindi la versione libera va riverificata sul PC principale. _(2026-11-23)_
 - In `novita-app.txt` le righe di `righe: [` stanno una per riga, come nelle voci già presenti. _(2026-11-24)_
+- `git fetch` nelle copie degli specialisti può fallire (origin è un bundle in `arrivi` sparito): non c'è modo di vedere tag nuovi di altri PC, va controllato nella cartella principale. _(2026-11-24)_
+- Nelle righe di `novita.ts` mai la parola «versione:»: `note-novita.mjs` la usa per trovare la fine della voce. _(2026-11-24)_
 
 ## aiuto-rete
 
@@ -931,3 +930,7 @@
 ## lotti
 
 - unisciALotti divide già a metà ogni lotto fallito senza `ritenta`: un motivo grezzo di git è solo un problema di testo, non di ripiego mancante _(2026-11-24)_
+
+## verifica
+
+- I digest sha256 degli asset si leggono con `gh release view <tag> --json assets --jq '.assets[].digest'` e si confrontano con `sha256sum` su `app-release.apk`. _(2026-11-24)_
