@@ -96,6 +96,7 @@
 - la suite autopilot-host+shared dura circa 11 minuti, oltre il timeout di 10 del Bash: lanciarla e leggere l'output con un until su "Test Files". _(2026-11-24)_
 - Con il PC carico i test git veri del cancello unioni superano i 20 s: per i nuovi usare `vi.setConfig({ testTimeout })`; un fallimento per tempo scaduto non è del codice. _(2026-11-24)_
 - `gradle testDebugUnitTest --offline` in worktree dura circa 7 minuti. Lancialo una volta sola, in primo piano, dopo aver controllato gli import. _(2026-11-24)_
+- ogni test git vero del cancello unioni nuovo va scritto con `vi.setConfig({ testTimeout: 120_000 })`: il limite di base di 20 s non regge con il PC carico e fa respingere rami buoni. _(2026-11-24)_
 
 ## worktree
 
@@ -566,7 +567,6 @@
 
 ## aiutante
 
-- la versione dell'Aiutante sta in src/aiutante/versione.json e va alzata insieme alla voce in novita-aiutante.txt; novita.ts e package.json sono del programma completo. _(2026-11-16)_
 - L'Aiutante è una registrazione `pc-<id>` a parte, con `aiutante:true` e lo stesso `host` di SierraDeck: per legare i due si usa `host`, non il pcId. _(2026-11-19)_
 - Per sapere se un PC è acceso solo grazie all'Aiutante usa `vistoDelPc` (stato-pc.ts); se serve una nuova vista sul battito, passa da lì invece di rifare l'abbinamento per host. _(2026-11-19)_
 - SierraDeck Aiutante crea la sincronia dentro `colleghiRete` dopo `aiuto`: per dargli `chiediCredenziali` serve un cambio d'ordine, non l'ho fatto. _(2026-11-20)_
