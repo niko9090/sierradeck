@@ -97,6 +97,7 @@
 - Con il PC carico i test git veri del cancello unioni superano i 20 s: per i nuovi usare `vi.setConfig({ testTimeout })`; un fallimento per tempo scaduto non è del codice. _(2026-11-24)_
 - `gradle testDebugUnitTest --offline` in worktree dura circa 7 minuti. Lancialo una volta sola, in primo piano, dopo aver controllato gli import. _(2026-11-24)_
 - ogni test git vero del cancello unioni nuovo va scritto con `vi.setConfig({ testTimeout: 120_000 })`: il limite di base di 20 s non regge con il PC carico e fa respingere rami buoni. _(2026-11-24)_
+- la suite autopilot-host+shared in primo piano dura circa 11 minuti (371 file, 3658 test): serve timeout 900000. _(2026-11-24)_
 
 ## worktree
 
@@ -171,6 +172,7 @@
 - `status --porcelain` mette tra virgolette i nomi non ASCII (`\303\250`): decodificarli (`percorsoGit`) prima di usarli come percorsi. `recupero/` va in `.git/info/exclude`, non nel .gitignore del pro… _(2026-11-24)_
 - un `git merge` ucciso a metà lascia `.git/index.lock`: poi `merge --abort` fallisce sempre e la prova resta aperta per sempre, senza file da elencare. _(2026-11-24)_
 - in questa copia `git fetch` fallisce: origin è un bundle in aiuto\arrivi che non esiste più; origin/main locale è vecchio, non prova che il portatile non abbia pubblicato. _(2026-11-24)_
+- con MERGE_HEAD aperto `git status` elenca come modificati tutti i file in indice: non sono lavoro di Nicholas, e un criterio misurato lì è rosso per nulla. _(2026-11-24)_
 
 ## autopilota
 
@@ -574,14 +576,6 @@
 - `novita-aiutante.txt` ha una riga di testo per versione tra apici singoli: un apice dentro il testo si scrive `\'`. I test di pubblicazione e aggiornamento dell'Aiutante lo leggono. _(2026-11-20)_
 - i divieti degli specialisti stanno in VIETATI_AIUTO (src/shared/aiuto-rete.ts), codice condiviso con l'Aiutante: toccarlo vuol dire alzare anche la sua versione _(2026-11-23)_
 - Divieti degli specialisti dell'Aiutante: VIETATI_AIUTO in src/shared/aiuto-rete.ts, letto da autopilot-host/aiuto-lavoratore.ts. Toccarli = alzare l'Aiutante. _(2026-11-23)_
-
-## blocco
-
-- Il «criterio rosso» di un progetto esterno arriva agli errori arrivati di SierraDeck perché il servizio usa `console.error`: per design (12/11), ma è una decisione da riguardare. _(2026-11-16)_
-
-## editor
-
-- con Edit, un `old_string` che finisce con uno spazio può perderlo nella sostituzione: rileggere la riga se il typecheck dà errori JSX. _(2026-11-16)_
 
 ## menu
 
