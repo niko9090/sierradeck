@@ -1,6 +1,7 @@
 package it.ferrariconsulenze.sierradeck.schermate.radice
 
 import it.ferrariconsulenze.sierradeck.nucleo.MenuApp
+import it.ferrariconsulenze.sierradeck.rete.Api
 
 /**
  * **Tre voci** (app nuova, 11/11): Lavoro · File · Altro. Nicholas: «da capo,
@@ -68,7 +69,14 @@ enum class SezioneAltro(
 
 /** Una pagina aperta sopra una voce: il dettaglio che «indietro» chiude per primo. */
 sealed interface Dettaglio {
-    data class Chat(val id: String) : Dettaglio
+    /**
+     * [sulPonte]: l'id del PC quando la chat sta su un PC non accoppiato al telefono, raggiunto dal
+     * ponte del PC in uso (k-tpc2); letta e scritta con `/api/storia` e `/api/scrivi` del ponte.
+     */
+    data class Chat(val id: String, val sulPonte: String? = null) : Dettaglio {
+        /** L'`Api` per questa chat: quella del PC in uso, o la stessa girata al PC del ponte. */
+        fun api(inUso: Api): Api = sulPonte?.let { inUso.suPc(it) } ?: inUso
+    }
     data class Autopilota(val id: String) : Dettaglio
     data class Domanda(val id: String) : Dettaglio
     data class Cartella(val progetto: String, val percorso: String = "") : Dettaglio
@@ -136,6 +144,13 @@ object Navigazione {
         is Dettaglio.Sezione -> VoceBarra.ALTRO
     }
 
+    /**
+     * Un tocco su una chat della vista «Tutti i PC»: se il PC è fra gli [accoppiati] la chat è
+     * una chat normale (si passa a quel PC); altrimenti sta su un PC del ponte.
+     */
+    fun chatDi(pc: String, chat: String, accoppiati: Collection<String>): Dettaglio.Chat =
+        if (pc in accoppiati) Dettaglio.Chat(chat) else Dettaglio.Chat(chat, sulPonte = pc)
+
     /** Dove porta «indietro»; `null` = si esce dall'app. */
     fun indietro(p: Posto): Posto? = when {
         p.pila.isNotEmpty() -> p.copy(pile = p.pile + (p.voce to p.pila.dropLast(1)))
@@ -169,7 +184,7 @@ object Navigazione {
     fun salva(p: Posto): ArrayList<String> {
         val righe = arrayListOf("voce|${p.voce.id}")
         for ((v, pila) in p.pile) for (d in pila) righe += "${v.id}|" + when (d) {
-            is Dettaglio.Chat -> "chat|${d.id}"
+            is Dettaglio.Chat -> if (d.sulPonte != null) "chatponte|${d.sulPonte}|${d.id}" else "chat|${d.id}"
             is Dettaglio.Autopilota -> "autopilota|${d.id}"
             is Dettaglio.Domanda -> "domanda|${d.id}"
             is Dettaglio.Cartella -> "cartella|${d.progetto}|${d.percorso}"
@@ -188,6 +203,7 @@ object Navigazione {
             val v = VoceBarra.entries.firstOrNull { it.id == pezzi[0] } ?: continue
             val d: Dettaglio = when (pezzi.getOrNull(1)) {
                 "chat" -> Dettaglio.Chat(pezzi.drop(2).joinToString("|"))
+                "chatponte" -> Dettaglio.Chat(pezzi.drop(3).joinToString("|"), sulPonte = pezzi.getOrElse(2) { "" })
                 "autopilota" -> Dettaglio.Autopilota(pezzi.drop(2).joinToString("|"))
                 "domanda" -> Dettaglio.Domanda(pezzi.drop(2).joinToString("|"))
                 "cartella" -> Dettaglio.Cartella(pezzi.getOrElse(2) { "" }, pezzi.drop(3).joinToString("|"))

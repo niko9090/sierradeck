@@ -211,7 +211,11 @@ private fun Collegata(vm: RadiceViewModel, pc: PcNoto, onEsci: () -> Unit) {
         // consumeWindowInsets: la tastiera (imePadding delle caselle) non deve contare due volte la barra in basso.
         Box(Modifier.padding(spazi).consumeWindowInsets(spazi).fillMaxSize()) {
             when (posto.voce) {
-                VoceBarra.LAVORO -> GuscioLavoro(pc, elenco, api, posto.dettaglio, copia, collegamento, onApri = vm::apri, onApriChatDi = { suPc, chat -> if (suPc != pc.id) vm.scegli(suPc); vm.apri(Dettaglio.Chat(chat)) }, onIndietro = { vm.indietro() }, onVersione = { vm.apri(Dettaglio.Sezione(SezioneAltro.AGGIORNAMENTI)) })
+                VoceBarra.LAVORO -> GuscioLavoro(pc, elenco, api, posto.dettaglio, copia, collegamento, onApri = vm::apri, onApriChatDi = { suPc, chat ->
+                    val d = Navigazione.chatDi(suPc, chat, elenco.map { it.id })
+                    if (d.sulPonte == null && suPc != pc.id) vm.scegli(suPc)
+                    vm.apri(d)
+                }, onIndietro = { vm.indietro() }, onVersione = { vm.apri(Dettaglio.Sezione(SezioneAltro.AGGIORNAMENTI)) })
                 VoceBarra.FILE -> SchermataFile(pc.id, RegoleSchermate.schedeWorkspace(copia.stato?.autopiloti.orEmpty())) { SezioneFile(api) }
                 VoceBarra.ALTRO -> SchermataAltro(
                     api = api, chat = copia.stato?.chat.orEmpty(),
@@ -315,8 +319,11 @@ private fun iconaDi(v: VoceBarra): ImageVector = when (v) {
 private fun GuscioLavoro(pc: PcNoto, elenco: List<PcNoto>, api: Api, dettaglio: Dettaglio?, copia: Deposito.Copia, collegamento: Collegamento, onApri: (Dettaglio) -> Unit, onApriChatDi: (String, String) -> Unit, onIndietro: () -> Unit, onVersione: () -> Unit) {
     when (dettaglio) {
         is Dettaglio.Chat -> {
-            val fonte = remember(api, dettaglio.id) { fonteStoria(api, dettaglio.id) }
-            SchermataDettaglioChat(pc.id, copia.stato?.chat?.firstOrNull { it.id == dettaglio.id }, dettaglio.id, fonte, api, onIndietro, nomePc = pc.nome.takeIf { elenco.size > 1 })
+            // Una chat di un PC raggiunto dal ponte: tutto passa da `api.suPc(id)` (storia e scrivi sono rotte del ponte).
+            val apiChat = remember(api, dettaglio) { dettaglio.api(api) }
+            val fonte = remember(apiChat, dettaglio.id) { fonteStoria(apiChat, dettaglio.id) }
+            val chatNota = if (dettaglio.sulPonte == null) copia.stato?.chat?.firstOrNull { it.id == dettaglio.id } else null
+            SchermataDettaglioChat(dettaglio.sulPonte ?: pc.id, chatNota, dettaglio.id, fonte, apiChat, onIndietro, nomePc = if (dettaglio.sulPonte != null) dettaglio.sulPonte else pc.nome.takeIf { elenco.size > 1 })
         }
         is Dettaglio.Autopilota -> {
             val a = copia.stato?.autopiloti?.firstOrNull { it.id == dettaglio.id }

@@ -121,7 +121,7 @@ fun CorpoTuttiIPc(gruppi: List<GruppoPc>, onApriChat: (pc: String, chat: String)
             }
             items(g.chat, key = { "c-" + g.id + "-" + it.id }) { c ->
                 Row(
-                    Modifier.fillMaxWidth().heightIn(min = 48.dp).tocco(enabled = !c.protetta && !g.dalPonte) { onApriChat(g.id, c.id) }.padding(horizontal = 16.dp),
+                    Modifier.fillMaxWidth().heightIn(min = 48.dp).tocco(enabled = !c.protetta) { onApriChat(g.id, c.id) }.padding(horizontal = 16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     LedChat(if (g.ultimaCopia) null else c.tono)
