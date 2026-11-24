@@ -2,6 +2,10 @@ package it.ferrariconsulenze.sierradeck
 
 import it.ferrariconsulenze.sierradeck.dati.Deposito
 import it.ferrariconsulenze.sierradeck.nucleo.Chat
+import it.ferrariconsulenze.sierradeck.nucleo.ElencoPc
+import it.ferrariconsulenze.sierradeck.nucleo.PcRemoto
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.rete.ProvaTelefono
 import it.ferrariconsulenze.sierradeck.nucleo.Stato
 import it.ferrariconsulenze.sierradeck.nucleo.StatoGruppoPc
 import it.ferrariconsulenze.sierradeck.nucleo.TonoChat
@@ -61,6 +65,45 @@ class TuttiIPcTest {
         assertEquals("T #2", g.chat.first { it.id == "2" }.titolo)
         assertEquals("Chat", g.chat.first { it.id == "1" }.titolo)
         assertTrue(g.chat.first { it.id == "1" }.protetta)
+    }
+
+    @Test fun ipcDelPonteNonAccoppiatiCompaionoConLeLoroChatAncheDaUnaVersioneVecchia() {
+        // k-tpc1: il telefono è accoppiato a due PC; un terzo lo vede solo il PC in uso, dal ponte.
+        val rubrica = listOf(
+            PcNoto(id = "a", nome = "Uno", chiave = "k", impronta = ProvaTelefono.improntaDaId("id-a")),
+            PcNoto(id = "b", nome = "Due", chiave = "k", impronta = ProvaTelefono.improntaDaId("id-b"))
+        )
+        // `/api/pc` di un PC 0.117: senza stato, frase, aggiornando, versione.
+        val elenco = Api.json.decodeFromString(
+            ElencoPc.serializer(),
+            """{"io":"id-a","pc":[{"pcId":"id-a","nome":"Uno","vivo":true},{"pcId":"id-b","nome":"Due","vivo":true},
+               {"pcId":"id-c","nome":"Tre","vivo":true},{"pcId":"id-d","nome":"Quattro","vivo":false}]}"""
+        )
+        val altri = TuttiIPc.dalPonte(rubrica, elenco)
+        assertEquals(listOf("id-c", "id-d"), altri.map { it.id })
+        assertEquals(listOf("id-c"), TuttiIPc.daLeggere(altri, elenco).map { it.id })
+        // `/api/stato` di un PC vecchio: solo le chat, nessun campo nuovo.
+        val vecchio = Api.json.decodeFromString(Stato.serializer(), """{"chat":[{"id":"9","titolo":"Da Tre","ultimaRiga":"x"}],"campoDiDomani":1}""")
+        val copie = mapOf(
+            "a" to viva(Chat(id = "1", titolo = "Una")),
+            "b" to viva(Chat(id = "2", titolo = "Due")),
+            "id-c" to Deposito.Copia(vecchio, 1_000, vecchia = false),
+            "id-d" to Deposito.Copia(null, 0, vecchia = true, motivo = "spento")
+        )
+        val r = TuttiIPc.tutti(rubrica + altri, copie, corrente = "a", ora = ora)
+        assertEquals(listOf("a", "b", "id-c", "id-d"), r.map { it.id })
+        assertEquals(listOf(1, 1, 1, 0), r.map { it.chat.size })
+        assertEquals("Da Tre", r.first { it.id == "id-c" }.chat.single().titolo)
+        assertEquals(StatoGruppoPc.RAGGIUNGIBILE, r.first { it.id == "id-c" }.stato)
+    }
+
+    @Test fun senzaElencoDelPonteNienteDiPiu() {
+        assertTrue(TuttiIPc.dalPonte(listOf(pc("a", "Uno")), null).isEmpty())
+    }
+
+    @Test fun unPcInRubricaSenzaImprontaNonSiRipeteDalPonte() {
+        val elenco = ElencoPc(io = "id-a", pc = listOf(PcRemoto(pcId = "id-b", nome = "Due", vivo = true)))
+        assertTrue(TuttiIPc.dalPonte(listOf(pc("a", "Uno"), pc("b", "due")), elenco).isEmpty())
     }
 
     @Test fun tuttiITuttiIPcCompaionoEQuelloInUsoPerPrimo() {

@@ -18,6 +18,8 @@ describe('il giro che va bene', () => {
     m.scaricato = true
     p = passoInstallaLa('LAPTOP', '0.38.2', { versione: '0.38.2', stato: { fase: 'scarico', versione: '0.46.0', percento: 41.6 } }, m, T0 + 6000)
     expect(p.messaggio).toContain('42%')
+    // k-agg1: la percentuale è anche un campo, per la barra del telefono.
+    expect(p.percento).toBe(42)
     p = passoInstallaLa('LAPTOP', '0.38.2', { versione: '0.38.2', stato: { fase: 'pronto', versione: '0.46.0' } }, m, T0 + 8000)
     expect(p).toMatchObject({ fase: 'attendo', chiedi: 'installa' })
     m.installato = true
