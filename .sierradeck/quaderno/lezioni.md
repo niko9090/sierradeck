@@ -142,7 +142,6 @@
 
 ## git
 
-- Prima del push `git rev-list --left-right --count main...origin/main` conferma che il remoto non è più avanti. _(2026-11-16)_
 - il ramo worktree-agent-r8b9c35b5a04b parte da 881cd23f, indietro rispetto a main: il fast-forward da HEAD fallisce, serve cherry-pick. _(2026-11-17)_
 - il controllo dei comandi scambia `git -C <copia> cherry-pick` per un cherry-pick nella cartella principale; il rifiuto arriva sull'intera riga, anche se contiene altri comandi. _(2026-11-17)_
 - Dalla cartella principale `worktree add` in Temp e `cherry-pick` nella copia passano se sono chiamate separate; il blocco scatta solo sulla cancellazione (`rmdir`, `worktree remove`) fuori dalle cart… _(2026-11-17)_
@@ -162,6 +161,7 @@
 - `git stash drop` vuole `stash@{n}`, non la sha: dopo il drop controllare la sha stampata e rimettere con `stash store` se è di un altro. Cercare lo stash per messaggio intero, mai `endsWith`. _(2026-11-24)_
 - `status --porcelain` mette tra virgolette i nomi non ASCII (`\303\250`): decodificarli (`percorsoGit`) prima di usarli come percorsi. `recupero/` va in `.git/info/exclude`, non nel .gitignore del pro… _(2026-11-24)_
 - un `git merge` ucciso a metà lascia `.git/index.lock`: poi `merge --abort` fallisce sempre e la prova resta aperta per sempre, senza file da elencare. _(2026-11-24)_
+- in questa copia `git fetch` fallisce: origin è un bundle in aiuto\arrivi che non esiste più; origin/main locale è vecchio, non prova che il portatile non abbia pubblicato. _(2026-11-24)_
 
 ## autopilota
 
