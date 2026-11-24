@@ -88,7 +88,9 @@ fun SchermataDettaglioChat(
     api: Api?,
     onIndietro: () -> Unit,
     iniziali: RigheChat = RigheChat(),
-    scelteIniziali: Scelte? = null
+    scelteIniziali: Scelte? = null,
+    /** Il nome del PC, mostrato solo quando i PC collegati sono più d'uno. */
+    nomePc: String? = null
 ) {
     var righe by remember(id) { mutableStateOf(iniziali) }
     var scelte by remember(id) { mutableStateOf(scelteIniziali) }
@@ -142,10 +144,11 @@ fun SchermataDettaglioChat(
         marcatore = righe.ultima
     }
     Column(Modifier.fillMaxSize()) {
+        // Intestazione bassa (k-and5): una riga sola, titolo e PC/stato sotto in piccolo.
         Row(Modifier.fillMaxWidth().background(Banco.chassis), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onIndietro) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Indietro") }
             Column(Modifier.weight(1f)) {
-                Text(titolo, style = MaterialTheme.typography.titleMedium, color = Banco.testo, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(titolo, style = MaterialTheme.typography.titleSmall, color = Banco.testo, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val sotto = when {
                     aggiornando != null -> AggiornamentoRemoto.TESTO
                     giu -> "Il computer non risponde: riprovo da solo."
@@ -153,7 +156,8 @@ fun SchermataDettaglioChat(
                     chat?.governata == true -> "La guida l’autopilota"
                     else -> nota
                 }
-                sotto?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = if (giu || aggiornando != null || chat?.chiede == true) Banco.ambra else Banco.testoQuieto) }
+                val riga = listOfNotNull(nomePc, sotto).joinToString(" · ")
+                if (riga.isNotEmpty()) Text(riga, style = MaterialTheme.typography.labelSmall, color = if (giu || aggiornando != null || chat?.chiede == true) Banco.ambra else Banco.testoQuieto, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             TastoAzioniChat(api, id, titolo, onEsito = { nota = it }, onChiusa = onIndietro)
         }
@@ -171,7 +175,7 @@ fun SchermataDettaglioChat(
             }
         } }
         scelte?.let { s ->
-            Column(Modifier.fillMaxWidth().background(Banco.chassis).padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(Modifier.fillMaxWidth().background(Banco.chassis).padding(horizontal = 12.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 for (o in s.opzioni.filter { !it.libera }) TastoScelta(SceltaLavoro(o.numero.toString(), o.testo, consigliata = false), largo = true) {
                     // Con il PC in aggiornamento la scelta resta lì: si preme al ritorno.
                     if (aggiornando != null) return@TastoScelta

@@ -167,7 +167,7 @@ fun CasellaScrivi(casella: String, segnaposto: String, onManda: (String) -> Bool
     var locale by rememberSaveable(casella) { mutableStateOf("") }
     val testo = bozze?.value?.get(casella) ?: locale
     fun cambia(t: String) { if (coda != null) coda.bozza(casella, t) else locale = t }
-    Row(modifier.fillMaxWidth().background(Banco.chassis).padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.Bottom) {
+    Row(modifier.fillMaxWidth().background(Banco.chassis).padding(horizontal = 8.dp, vertical = 3.dp), verticalAlignment = Alignment.Bottom) {
         // Il microfono solo dove c'è la dettatura: la sua riga di ripiego schiaccerebbe la casella.
         val contesto = androidx.compose.ui.platform.LocalContext.current
         val dettatura = remember { android.speech.SpeechRecognizer.isRecognitionAvailable(contesto) }
