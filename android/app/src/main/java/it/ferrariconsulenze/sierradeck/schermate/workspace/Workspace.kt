@@ -122,6 +122,8 @@ fun SchermataWorkspace(
     var attesa by remember(id) { mutableStateOf<VistaAttesa?>(null) }
     val risposte = remember(id) { mutableStateMapOf<String, String>() }
     var nonLeggo by remember(id) { mutableStateOf(false) }
+    // All'apertura la percentuale si legge per prima, senza aspettare la chat.
+    LaunchedEffect(id) { fonte.avanzamento()?.let { avanzamento = it } }
     LaunchedEffect(id, battito) {
         val lette = fonte.chat()
         if (lette != null) { battute = lette; nonLeggo = false } else nonLeggo = true
@@ -134,7 +136,7 @@ fun SchermataWorkspace(
     val richieste = ComponiWorkspace.richieste(avanzamento?.coda)
 
     CorpoWorkspace(
-        pc = pc, id = id, testa = testa.copy(perche = testa.perche ?: avanzamento?.calo?.let { it.percheParole ?: it.perche }),
+        pc = pc, id = id, testa = ComponiWorkspace.conAvanzamento(testa, avanzamento).let { s -> s.copy(perche = s.perche ?: avanzamento?.calo?.let { it.percheParole ?: it.perche }) },
         righe = righe, caricata = battute != null, nonLeggo = nonLeggo, chi = chi, richieste = richieste, chats = chats,
         risposte = risposte,
         onRispondi = { idDomanda, testo ->
@@ -252,8 +254,8 @@ private fun Intestazione(t: TestaWorkspace, chats: List<ChatDelWorkspace>, onApr
             }
         }
         Row(Modifier.padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.weight(1f)) { t.percento?.let { BarraAvanzamento(it, colore) } }
-            t.percento?.let { Text(" $it%", style = MaterialTheme.typography.labelMedium, color = Banco.testo) }
+            Text(ComponiWorkspace.testoAvanzamento(t.percento), style = MaterialTheme.typography.labelMedium, color = Banco.testo)
+            Box(Modifier.weight(1f).padding(horizontal = 8.dp)) { BarraAvanzamento(t.percento ?: 0, colore) }
             RegoleSchermate.mancaCirca(t.mancaMin)?.let { Text(" · $it", style = MaterialTheme.typography.labelMedium, color = Banco.testoQuieto) }
             if (t.percento != null) Aiuto(
                 "La percentuale è quanto del lavoro chiesto è già fatto e unito." + (t.perche?.let { "\n\nUltimo cambio: $it" } ?: ""),
