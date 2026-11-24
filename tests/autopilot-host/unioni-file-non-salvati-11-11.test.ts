@@ -369,10 +369,13 @@ describe('file non salvati nella cartella principale: la fila non resta ferma (1
     const testo = await statoTesto()
     expect(testo).toContain('non lo conto rosso')
     expect(testo).toContain('altro.js')
-    // Nessuna domanda a Nicholas per questo caso, e nessuna rimisura finché niente cambia.
+    // k-err271: dopo i minuti d'attesa la domanda «li salvo?» parte anche qui (prima no: restava ferma per sempre),
+    // una volta sola, e nessuna rimisura finché niente cambia.
+    await attendi(() => domandeSalva().length === 1, { cosa: 'la domanda del programma sul criterio rosso' })
+    expect(domandeSalva()[0]!.testo).toContain('altro.js')
     await pausa(150)
+    expect(domandeSalva()).toHaveLength(1)
     expect(chiamate).toBe(1)
-    expect(domande.aperte()).toEqual([])
     expect(porte.comandi.filter((c) => c.includes('merge') && c.includes('--no-commit'))).toHaveLength(1)
     // Il file viene salvato (da Nicholas): il programma rimisura da solo, e adesso passa.
     passa = true
@@ -380,8 +383,24 @@ describe('file non salvati nella cartella principale: la fila non resta ferma (1
     await attendi(() => unitoK('k-1'), { cosa: 'k-1 rimisurato e unito' })
     expect(compitoK('k-1')?.criterioVerde).toBe(true)
     expect(chiamate).toBe(2)
+    expect(domandeSalva()).toEqual([])
     // L'unione non si rifà: il ramo era già dentro.
     expect(porte.comandi.filter((c) => c.includes('merge') && c.includes('--no-commit'))).toHaveLength(1)
+    maiVietati(porte)
+  })
+
+  it('criterio rosso con file non salvati: il sì di Nicholas salva quei file con un commit e il criterio si rimisura (k-err271)', async () => {
+    zitto()
+    const porte = porteNuove({ sporchi: ['altro.js'] })
+    let chiamate = 0
+    await prepara(porte, { criterioK1: 'le prove: `npx vitest run tests/x.test.ts`', esegui: () => { chiamate += 1; return Promise.resolve(porte.sporchi.length === 0 ? { codice: 0, uscita: 'ok' } : { codice: 1, uscita: '1 test fallito' }) } })
+    await strumento('unisci', { compito: 'k-1' })
+    await attendi(() => domandeSalva().length === 1, { cosa: 'la domanda del programma sul criterio rosso' })
+    expect(await rispondi(domandeSalva()[0]!.id, SCELTA_SALVA)).toBe(200)
+    await attendi(() => unitoK('k-1'), { cosa: 'k-1 rimisurato e unito dopo il sì' })
+    expect(salvataggi(porte)[0]).toEqual(['add', '--', 'altro.js'])
+    expect(compitoK('k-1')?.criterioVerde).toBe(true)
+    expect(chiamate).toBe(2)
     maiVietati(porte)
   })
 })
