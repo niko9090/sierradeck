@@ -398,6 +398,9 @@ function componiPagina(): string {
   /* 0.83.0 (c-509, Nicholas: «troppe info che occupano tutto lo schermo»): una
      riga riassuntiva; chiusa, sotto ci sono solo la conversazione e la casella. */
   .riassunto-ap { display: flex; width: 100%; min-height: 48px; align-items: center; gap: 8px; text-align: left; margin: 6px 0; }
+  .riga-avanzamento { display: flex; align-items: center; gap: 10px; margin: 4px 0; font-size: 0.8125rem; }
+  .riga-avanzamento span { white-space: nowrap; }
+  .riga-avanzamento .barra { flex: 1; height: 3px; margin-top: 0; }
   .riassunto-ap span { flex: 1; }
   .riassunto-ap b { color: var(--accento); font-weight: 600; white-space: nowrap; }
   .riassunto-ap--domande span { color: var(--ambra); }
@@ -2338,6 +2341,7 @@ function pannello(s) {
       <button class="indietro" onclick="chiudiAp()" aria-label="Torna all’elenco">‹</button>
       <div class="testata-dentro__nome"><span class="led \${led(apAperto)}"></span>\${esc(apAperto.nome)}\${apPc ? ' <span class="sotto">· gira su ' + esc(apPcNome) + '</span>' : ''}</div>
     </div>
+    \${rigaAvanzamentoAp(apAperto, apAvanzamento)}
     <button class="riassunto-ap\${apDettaglio && (apDettaglio.domandeScheda || []).length ? ' riassunto-ap--domande' : ''}" aria-expanded="\${apRiassunto}" onclick="giraRiassuntoAp()"><span>\${esc(riassuntoApTesto(apAperto, apDettaglio))}</span><b>\${apRiassunto ? 'Chiudi ▴' : 'Dettagli ▾'}</b></button>
     <div class="piastrella \${apRiassunto ? 'riassunto-aperto' : 'riassunto-chiuso'}">
       <div class="solo-riassunto">
@@ -3386,13 +3390,20 @@ function riassuntoApTesto(ap, d) {
   const parole = { lavoro: 'al lavoro', intervista: 'si prepara', attesa: 'aspetta te', pronto: 'pronto', sospeso: 'fermo', fallito: 'guasto', finito: 'finito' }
   pezzi.push(ap.vista ? ap.vista.stato.parola : (parole[ap.stato] || ap.stato))
   if (ap.criteri) pezzi.push('criteri ' + ap.fatti + '/' + ap.criteri)
-  // 11/11: la percentuale vera del workspace, dal PC.
-  else if (ap.avanzamento && typeof ap.avanzamento.percento === 'number') pezzi.push(ap.avanzamento.percento + '%')
+  // La percentuale sta nella riga fissa sotto il titolo (rigaAvanzamentoAp), non qui.
   const chat = d && d.chats ? d.chats.length : 0
   if (chat > 0) pezzi.push(chat + ' chat')
   const giri = (d && d.cicli) || 0
   pezzi.push(giri === 1 ? '1 giro' : giri + ' giri')
   return pezzi.join(' · ')
+}
+/** La riga fissa «Avanzamento 80%» con la barra sottile; «—» se il dato manca. Non dipende dai criteri. */
+function rigaAvanzamentoAp(ap, av) {
+  let pc = percentoAvanzamento(av)
+  if (pc === undefined && ap && ap.avanzamento && typeof ap.avanzamento.percento === 'number') pc = ap.avanzamento.percento
+  const ok = typeof pc === 'number' && isFinite(pc)
+  const n = ok ? Math.max(0, Math.min(100, Math.round(pc))) : 0
+  return '<div class="riga-avanzamento"><span>Avanzamento ' + (ok ? n + '%' : '—') + '</span><div class="barra barra--sottile"><i style="width:' + n + '%"></i></div></div>'
 }
 window.giraRiassuntoAp = () => { apRiassunto = !apRiassunto; pannello(ultimoStato) }
 
