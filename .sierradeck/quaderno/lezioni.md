@@ -142,6 +142,7 @@
 - LeggibilitaTest vieta `.clickable` fuori da Componenti.kt: per un tasto che apre e chiude una sezione basta un TextButton alto 48dp. _(2026-11-24)_
 - Nel merge di CasellaScrivi (PezziLavoro.kt) la Column di k-and6 con l'avviso «Non inviato» avvolge la Row. Il modifier del chiamante va sulla Column, non sulla Row interna. _(2026-11-24)_
 - Prima di creare un file in nucleo/ cerca il nome: VistaLavoro.kt esisteva già (modello di Lavoro) e Write l'ha sovrascritto in silenzio; recuperato con git checkout. _(2026-11-24)_
+- `gradle --offline testDebugUnitTest assembleDebug` dura circa 8 minuti in primo piano: timeout di almeno 10 minuti. _(2026-11-24)_
 
 ## release
 
@@ -464,8 +465,6 @@
 
 ## rilascio
 
-- `npm run pubblica` rifiuta le copie di lavoro: `controlla-pacchetto` blocca se `node_modules` è una junction, quindi serve la cartella principale col ramo giusto. _(2026-11-15)_
-- Nella copia di un ramo `pubblica` chiede anche le credenziali Drive: bastano `SD_GOOGLE_CLIENT_ID` e `SD_GOOGLE_CLIENT_SECRET`, lette da `google-oauth.json` della cartella principale. _(2026-11-15)_
 - le note di versione stanno in src/shared/novita.ts (non in un changelog); il tag v0.109.0 punta a un commit qualsiasi, non al bump _(2026-11-16)_
 - nelle copie di lavoro «origin» può puntare a un bundle sparito: git fetch fallisce e l'esistenza del tag va controllata dalla cartella principale _(2026-11-17)_
 - il ruolo di rilascio non fa merge nemmeno su richiesta dell'autopilota: le unioni fuori dal cancello vanno assegnate a chi può cambiare la storia di git. _(2026-11-17)_
@@ -527,6 +526,7 @@
 - Con `npm run pubblica | tail` l'output resta vuoto fino alla fine: il progresso si segue con `gh api repos/niko9090/sierradeck/releases` sugli asset. _(2026-11-23)_
 - In questa copia git fetch fallisce: l'origin è un .bundle sparito. Prima di scegliere la patch non si possono vedere i tag remoti, solo quelli locali (qui nessuno). _(2026-11-23)_
 - Il fetch dal bundle in `arrivi\` può fallire se il file non c'è più: i tag locali sono vuoti, quindi la versione libera va riverificata sul PC principale. _(2026-11-23)_
+- In `novita-app.txt` le righe di `righe: [` stanno una per riga, come nelle voci già presenti. _(2026-11-24)_
 
 ## aiuto-rete
 
