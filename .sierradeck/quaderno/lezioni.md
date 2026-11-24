@@ -90,6 +90,7 @@
 - un 1 fallito su 5227 senza nome nell'esito: rilanciare con --reporter=dot e grep su FAIL; il fallimento può dipendere dallo stato di main al momento dell'unione. _(2026-11-24)_
 - un'unione respinta per prove rotte può non riprodursi dopo `git merge main` nel ramo: rilanciare la suite prima di cercare un bug, e chiedere i nomi dei file falliti. _(2026-11-24)_
 - Gradle in sottofondo è vietato dal hook: `gradle testDebugUnitTest --offline` si lancia con lo strumento PowerShell in primo piano (timeout 900000, qui 3m42s). _(2026-11-24)_
+- Un test che asserisce «nessuna domanda a Nicholas» può fissare un difetto: controlla che non contraddica le note del quaderno prima di fidarti. _(2026-11-24)_
 
 ## worktree
 
@@ -131,7 +132,6 @@
 
 ## release
 
-- 16/11: main è già alla 0.108.0 (tag v0.108.0, pubblicata da altrove): la prossima release va oltre, 0.109.0 se dentro ci sono funzioni (riassegnazione fra PC, Passaggi di mano), non 0.107.4. _(2026-11-16)_
 - nelle note di novita.ts la parola «commit» fa fallire tests/shared/novita.test.ts (linguaggio da utente, niente gergo) _(2026-11-17)_
 - `noteDi()` di scripts/note-novita.mjs restituisce un array di righe, non una stringa: per `--notes-file` va unito con "- " e "\n" prima di `writeFileSync`. _(2026-11-20)_
 - Nella cartella principale `npm run pubblica` dura oltre 10 minuti (finisce in sottofondo): niente seconda copia, basta controllare gli allegati con `gh release view` finché ci sono tutti e sette. _(2026-11-20)_
@@ -142,10 +142,6 @@
 
 ## git
 
-- in questa copia `git fetch` può fallire se il remoto è un bundle sparito; `merge --ff-only main` basta _(2026-11-16)_
-- in questa copia `git fetch` può fallire se il bundle di arrivo è già stato cancellato: `git merge --ff-only main` basta, main è già locale. _(2026-11-16)_
-- il ramo worktree-agent-r45a1013a982d non era nella copia di destinazione: per unire basta il commit d611b967 se l'oggetto è presente. _(2026-11-16)_
-- `core.longpaths=true` risolve «Filename too long» ma non `$GIT_DIR too big`: sotto Temp profonde nella prova tenere nomi corti (`p`, `a`). _(2026-11-16)_
 - Prima del push `git rev-list --left-right --count main...origin/main` conferma che il remoto non è più avanti. _(2026-11-16)_
 - il ramo worktree-agent-r8b9c35b5a04b parte da 881cd23f, indietro rispetto a main: il fast-forward da HEAD fallisce, serve cherry-pick. _(2026-11-17)_
 - il controllo dei comandi scambia `git -C <copia> cherry-pick` per un cherry-pick nella cartella principale; il rifiuto arriva sull'intera riga, anche se contiene altri comandi. _(2026-11-17)_
@@ -237,6 +233,7 @@
 - la scadenza adattiva della prova ha un minimo fisso: con prove veloci in memoria una prova con molti criteri o un gradle a freddo scade; ora il minimo cresce con i criteri _(2026-11-23)_
 - dentro la misura di una prova ogni attesa che non è la prova va passata a `inFila` (ora `attesaDellaProva` in turni-criteri.ts), altrimenti consuma la scadenza _(2026-11-23)_
 - un conflitto vero in un merge a polpo lascia i file in conflitto; il caso senza file si prova solo con un git finto sul comando merge _(2026-11-24)_
+- La domanda «li salvo?» sta nel ramo sporca non-`misura` di servizio-orchestratore.ts: ogni nuovo percorso `RiprovaUnione('sporca')` deve passare da lì o resta muto. _(2026-11-24)_
 
 ## ui
 
@@ -410,6 +407,8 @@
 - creando prima la bozza con `gh release create --draft --verify-tag`, `npm run pubblica` l'ha riusata: nessuna seconda bozza. _(2026-11-23)_
 - `npm run pubblica` dura più di 10 minuti (suite, build, Aiutante): passa in sottofondo da solo; il fatto che finisca si vede da `gh release view` più che dal suo output, vuoto fino alla fine. _(2026-11-23)_
 - Lo script stampa a fine corsa che la release è ancora in bozza: `--draft=false --latest` va fatto a mano dopo aver visto i 7 file `uploaded`. _(2026-11-23)_
+- `npm run pubblica` supera i 10 minuti di timeout (build + caricamento di 114 MB): il tool lo sposta in background e il blocco sulle attese lunghe impedisce di aspettarlo. _(2026-11-24)_
+- `gh release create --draft` crea la bozza con URL «untagged-…» anche se il tag esiste sul remoto: normale, il tag si associa alla pubblicazione. _(2026-11-24)_
 
 ## quaderno
 
@@ -893,6 +892,7 @@
 - giroRapportoLavori è condiviso da programma e Aiutante: una modifica lì vale per entrambi _(2026-11-23)_
 - riavvio normale = motivo che comincia con «avvio con la versione» o «aggiornamento da»; le stringhe vengono da contaLavori e vanno tenute allineate _(2026-11-23)_
 - contaLavori vede solo le righe dopo `fino`: ogni informazione che attraversa due giri (come la versione avviata) va ricordata nello stato del giro, anche quando il rapporto non parte. _(2026-11-23)_
+- 24/11 PC in Glos (0.118.0): 25-31 rallentamenti del servizio per mezz'ora (max 26 s) mentre BG4 riprovava le unioni ferme. Dopo la 0.118.1 ricontrollare: se restano, è un difetto da cercare. _(2026-11-24)_
 
 ## pc-glos
 
