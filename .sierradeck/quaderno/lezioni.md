@@ -301,7 +301,6 @@
 
 ## registro
 
-- `Registro` ha solo info ed errore: l'«avviso» è una riga info con prefisso [avviso]; solo `errore` entra nello storico degli errori arrivati. _(2026-11-16)_
 - «riparte con --resume» non basta: investimento è stato spento il 21/11 13:25 senza ripresa nei log, probabilmente perché nessuna sveglia era rimasta fissata. _(2026-11-22)_
 
 ## pc-remoto
@@ -315,7 +314,6 @@
 
 ## rete
 
-- il registro eventi-aiuto.json lo scrive il PC che affida: sull'Aiutante resta vuoto finché qualcuno non registra lì i passaggi. _(2026-11-16)_
 - I file in .sierradeck/errori-arrivati/ non viaggiano con la copia mandata a un altro PC: nel prompt di un compito sul quaderno errori scrivere il contenuto del lotto, non solo il percorso. _(2026-11-16)_
 - i compiti che citano percorsi assoluti della cartella principale non funzionano sui PC della rete: lì esiste solo la copia di lavoro, senza i rami degli altri worktree. _(2026-11-17)_
 - Un'unione fuori dal cancello affidata a uno specialista finisce su un PC della rete anche se scrivi «solo questo PC»: lì la cartella principale non c'è. _(2026-11-17)_
@@ -384,6 +382,7 @@
 - Uno specialista «fermato» ha 3 origini: `fermaChiesta` (precedenza), `fermatiDaNicholas` (stop manuale) e appeso/morto. Solo l'ultima si rilancia da sola. _(2026-11-23)_
 - il cane scatta a mutoMs dall'ultima riga: con un Bash in volo si riarma per il resto della soglia larga (tetto specialistaMaxMs); serve `ultimaRiga` da adesso(), non dal timer. _(2026-11-23)_
 - Lo specialista lanciato come «k-agg1: aggiornare altri PC e percentuale» (24/11) lavora in realtà per k-agg254 (r-254): se l'unione lo collega a k-agg1, unirlo con unisci su k-agg254. _(2026-11-24)_
+- «spinte sospese» (k-199d) è solo silenzio delle spinte: la domanda «li salvo?» vive nel ciclo delle unioni e non dipende da `fermiVisti`. _(2026-11-24)_
 
 ## pubblica
 
@@ -421,6 +420,7 @@
 - errori-arrivati.md usa a-capo CRLF: una voce aggiunta con Edit può mescolare a-capo diversi. _(2026-11-24)_
 - nella storia git `.sierradeck/quaderno/*.md` è LF anche se la copia di lavoro è CRLF: un `git add` da CRLF riscrive tutto il file e rischia conflitti sulle note del programma. _(2026-11-24)_
 - il messaggio «unione ferma per file non salvati» (lavoroFermo) copre sia l'unione di prova sia il criterio rosso: confrontare il caso con caf5c856 prima di scrivere «corretto» _(2026-11-24)_
+- errori-arrivati.md non ha a capo finale: per aggiungere una voce con Edit si ancora l'ultima frase del file. _(2026-11-24)_
 
 ## preferenze
 
