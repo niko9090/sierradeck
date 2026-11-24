@@ -918,6 +918,20 @@ function statiGitAperti(dir: string): string[] {
   return STATI_GIT_A_META.filter(([nome]) => existsSync(join(dir, nome))).map(([, parole]) => parole)
 }
 
+/**
+ * 24/11 (k-err285): gli stati a metà di git nella cartella (unione, cherry-pick, revert, rebase), senza `index.lock`
+ * (un blocco di un secondo non è uno stato). Con uno di questi `git status` elenca come «modificati» tutti i file messi
+ * in indice a metà: non sono lavoro di Nicholas e un criterio misurato lì è rosso per nulla.
+ */
+export async function statiGitAMetaAsincrono(git: GitAsincrono, p: { cwd: string }): Promise<string[]> {
+  return aspettando(git, (function* (): Passi<string[]> {
+    const radice = yield* radicePassi(p.cwd)
+    if (radice === undefined) return []
+    const dir = yield* cartellaGitPassi(radice)
+    return dir === undefined ? [] : statiGitAperti(dir).filter((s) => !s.includes('index.lock'))
+  })())
+}
+
 /** C'è un processo git vivo? Nel dubbio (il controllo non risponde) sì: meglio non toccare. */
 function processoGitVivo(): boolean {
   try {
