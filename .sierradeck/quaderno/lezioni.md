@@ -4,8 +4,6 @@
 
 ## test
 
-- Il servizio lancia i criteri con TEMP/TMP su una sottocartella: percorsi >260 caratteri, `git rev-list` risponde «Filename too long» e l'Aiutante registra 0 commit. Prova a mano: TEMP su una sottocar… _(2026-11-16)_
-- I criteri del servizio girano con TEMP/TMP su una sottocartella sierradeck-criterio-…: i percorsi dei test possono superare 260 caratteri. I git dell'Aiutante usano -c core.longpaths=true (16/11) _(2026-11-16)_
 - tests/autopilot-host/servizio-orchestratore.test.ts («PreToolUse dell'unico», git -C … merge) fallisce se il test gira in una copia di lavoro: usa process.cwd() come principale _(2026-11-17)_
 - `criticitaDi` ha bisogno di `adesso` per escludere i PC spenti; senza, un PC spento torna tra le criticità «non risponde». _(2026-11-19)_
 - `vistaAutopilota` vuole `ora` e un autopilota con `dialogo`/`decisioni`: una fixture minima fa cadere `statoAutopilotaDalVivo` per un motivo diverso da `chats`. _(2026-11-19)_
@@ -525,6 +523,8 @@
 - Nelle righe di `novita.ts` mai la parola «versione:»: `note-novita.mjs` la usa per trovare la fine della voce. _(2026-11-24)_
 - `npm run pubblica` supera i 10 minuti (build + upload di installer e Aiutante da 100 MB): va in sottofondo da solo. Segui `gh release view --json assets` senza sleep; i 7 file arrivano a fine comando. _(2026-11-24)_
 - `gh release view --json` non ha il campo `isLatest`: per controllare Latest usa `gh release list --limit 1`. _(2026-11-24)_
+- Con fetch rotto (bundle sparito) e nessun tag locale, la versione libera non si verifica dalla copia: dichiararlo nel riepilogo e lasciare il controllo al rilascio. _(2026-11-24)_
+- Un bump patch tocca anche android/novita-app.txt, perché `pubblica-app` si ferma se manca la voce, e il `versionCode` si alza di 1 (qui 164→165). _(2026-11-24)_
 
 ## aiuto-rete
 
