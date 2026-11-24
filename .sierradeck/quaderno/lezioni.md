@@ -4,7 +4,6 @@
 
 ## test
 
-- vitest tests/main tests/shared nel worktree dura qualche minuto (470 file): lanciarlo una volta sola, l'output è enorme, leggere solo la riga «Test Files» con grep -a. _(2026-11-15)_
 - `git fetch` può fallire sul bundle del PC richiedente: se il ramo è già pari a `main`, basta `git merge --ff-only main`. _(2026-11-16)_
 - `src/aiutante/aggiornamento.ts` ora importa `electron` (`powerMonitor`): i test che lo caricano devono mockare `electron` con `powerMonitor`. _(2026-11-16)_
 - `avviaAggiornamenti` programma un primo controllo a 15 s: nei test con timer finti far passare prima quel tempo, poi contare i `checkForUpdates`. _(2026-11-16)_
@@ -105,6 +104,8 @@
 - nel finto git di unioni-file-non-salvati-11-11 `statoRotto` simula `git status` che fallisce: cartella sporca senza file. _(2026-11-23)_
 - I test renderer con `renderToStaticMarkup` non eseguono gli effect: per provare un pannello che legge da `window.gestore`, separare la vista pura che riceve i dati. _(2026-11-23)_
 - I test Android con orari vanno costruiti con Calendar e fuso UTC fisso: un timestamp scritto a mano può non corrispondere al giorno atteso. _(2026-11-24)_
+- Per provare lo stato aperto di un componente con renderToStaticMarkup basta uno stub di `globalThis.localStorage`; gli effect non girano. _(2026-11-24)_
+- le cancellazioni ricorsive in src devono passare da `cancellaSicura` (`tests/shared/cancellazioni-solo-dalla-guardia.test.ts`): un `rmSync` diretto fa fallire la suite. _(2026-11-24)_
 
 ## worktree
 
@@ -139,10 +140,6 @@
 
 ## release
 
-- la versione sta in package.json e due volte in package-lock.json (radice e "packages.\"\""); le novità in src/shared/novita.ts, voce in cima. _(2026-11-15)_
-- prima del bump: `git fetch origin --tags` e `git tag -l vX.Y.Z`; il package-lock ha la versione in due punti, radice e packages."". _(2026-11-15)_
-- Se `npm run pubblica` rifiuta nella copia di lavoro per la junction di node_modules, basta un clone pulito del tag + `npm ci`: funziona senza toccare la cartella principale. _(2026-11-15)_
-- Le credenziali Google per `pubblica` si passano con SD_GOOGLE_CLIENT_ID/SECRET letti con node da google-oauth.json (campi clientId, clientSecret), senza stamparle. _(2026-11-15)_
 - 16/11: main è già alla 0.108.0 (tag v0.108.0, pubblicata da altrove): la prossima release va oltre, 0.109.0 se dentro ci sono funzioni (riassegnazione fra PC, Passaggi di mano), non 0.107.4. _(2026-11-16)_
 - nelle note di novita.ts la parola «commit» fa fallire tests/shared/novita.test.ts (linguaggio da utente, niente gergo) _(2026-11-17)_
 - `noteDi()` di scripts/note-novita.mjs restituisce un array di righe, non una stringa: per `--notes-file` va unito con "- " e "\n" prima di `writeFileSync`. _(2026-11-20)_
@@ -173,6 +170,7 @@
 - i file sorgente sono CRLF: per risolvere i conflitti con uno script le regex su `\n` non trovano nulla; usare Edit sui blocchi. _(2026-11-23)_
 - il nostro wrapper git toglie gli spazi di testa di `status --porcelain`: " M f" diventa "M f", e staged/unstaged non si distinguono. Per le modifiche non in indice usare `diff --name-only -z`. _(2026-11-23)_
 - se il ramo di lavoro coincide con main e non si può cambiare ramo, basta unirci dentro il ramo da riallineare: il risultato è lo stesso del merge di main nel ramo. _(2026-11-24)_
+- un'unione con file nell'indice li porta nel commit di `commit --no-edit`: l'indice sporco deve fermare l'unione, mentre i file solo modificati si possono mettere al sicuro con stash a percorso. _(2026-11-24)_
 
 ## autopilota
 
@@ -260,6 +258,7 @@
 - `FlussoChat` è condiviso da chat locale e remota: chi lo usa deve passare `fondo` dall'hook `useSegueFondo`, altrimenti niente `onScroll` né tasto. _(2026-11-22)_
 - Nelle viste con autopilota il pannello agenti sta in `CorpoPanoramica` e in una colonna di `App.tsx`: se ne cambi una, controlla anche l'altra. _(2026-11-23)_
 - `PannelloAgenti` legge dalla sorgente (`useSorgente`): per un altro PC basta il provider `sorgenteRemota`, e "Ferma" resta solo locale. _(2026-11-23)_
+- Non c'è un hook condiviso per le sezioni apri/chiudi: ognuna salva da sé in localStorage con chiave `sierradeck.*`, in try/catch. _(2026-11-24)_
 
 ## salute
 
@@ -545,6 +544,7 @@
 - «ramo vecchio riprovato» non viene dal ramo salvato nel compito: `ramoDelCompito` mette il nuovo come principale e unisce prima gli «altri», cioè i vecchi. _(2026-11-23)_
 - `ramiFalliti` in `servizio-orchestratore.ts` è solo in memoria: dopo un riavvio il ramo vecchio fallito torna candidato e può riconflittare. _(2026-11-23)_
 - 23/11 anche dopo k-178r l'unione automatica di k-178k ha riprovato il ramo vecchio (r136…) invece del nuovo (r9be…): con unisci e il ramo esplicito è entrata subito. _(2026-11-23)_
+- il segno `sierradeck-prova.json` in `.git` ora porta anche il recupero (nome stash, cartella): va letto prima di toglierlo, altrimenti si perde il riferimento ai file messi al sicuro. _(2026-11-24)_
 
 ## pubblica-app
 
@@ -560,7 +560,6 @@
 
 ## aiuto
 
-- creaSpedizioniere ha ora `avviso` oltre a `errore`: solo ProgettoNonSpedibile e i fallimenti dichiarati dal PC restano errori. _(2026-11-14)_
 - `eventi-aiuto.json` non era scritto da nessuno: `registraEventoAiuto` ora si chiama solo per `riassegnato` e `arreso`; mancano ancora `affidato`, `risorsa-mancante` e `rifiutato`. _(2026-11-16)_
 - nel registro `daPc` non ha un significato unico: negli eventi di riassegnazione è il PC che ha fallito, nei nuovi è «questo PC»; lo spedizioniere non conosce il nome di chi affida. _(2026-11-16)_
 - la scadenza delle 3 ore non va a orologio da muro: un portatile che dorme la fa scattare al risveglio. Ora conta il tempo da sveglio (src/shared/aiuto-scadenza.ts). _(2026-11-17)_
@@ -925,3 +924,7 @@
 
 - Claude Code dà solo i limiti di 5 ore e settimana: per la giornata non c'è un dato vero, il campo "rimasto.giornata" resta noto:false e porta solo la prossima mezzanotte _(2026-11-23)_
 - «Oggi» non ha un limite di Claude: resta «non noto» in alto; il consumo di oggi è solo per chat, dalla memoria di k-con1. _(2026-11-23)_
+
+## revisione
+
+- un ramo può restare in .git/refs/heads senza la sua copia: per rivederlo serve git show, non bastano Read e Grep _(2026-11-24)_
