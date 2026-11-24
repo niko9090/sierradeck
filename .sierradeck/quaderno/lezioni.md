@@ -95,6 +95,7 @@
 - per simulare un riavvio del servizio basta chiudere `creaServer` e riaccenderlo sulla stessa cartella, poi `riprendiLavori({servizioAppenaPartito:true})`; vedi specialisti-riavvio-24-11.test.ts _(2026-11-24)_
 - la suite autopilot-host+shared dura circa 11 minuti, oltre il timeout di 10 del Bash: lanciarla e leggere l'output con un until su "Test Files". _(2026-11-24)_
 - Con il PC carico i test git veri del cancello unioni superano i 20 s: per i nuovi usare `vi.setConfig({ testTimeout })`; un fallimento per tempo scaduto non è del codice. _(2026-11-24)_
+- `gradle testDebugUnitTest --offline` in worktree dura circa 7 minuti. Lancialo una volta sola, in primo piano, dopo aver controllato gli import. _(2026-11-24)_
 
 ## worktree
 
@@ -135,6 +136,7 @@
 - Le chat dei PC del ponte non hanno copia nel Deposito: titolo e nome PC nel dettaglio sono poveri finché non si legge il loro stato dal ponte. _(2026-11-24)_
 - La percentuale del workspace veniva letta ma mai usata: Radice.kt passa avanzamento=null a ComponiWorkspace.testa, quindi va fusa in Workspace.kt (conAvanzamento). _(2026-11-24)_
 - Un bump patch dell'app tocca build.gradle.kts (versionCode+1, versionName) e la voce in android/novita-app.txt; il gradle completo dura circa 5 minuti. _(2026-11-24)_
+- `/api/pc` porta già le chat aperte di ogni PC (`PcRemoto.chat`, dal battito): è l'unica fonte per un PC spento. Una copia fresca vuota non va rimpiazzata col battito. _(2026-11-24)_
 
 ## release
 
@@ -564,8 +566,6 @@
 
 ## aiutante
 
-- la finestra dell'Aiutante è HTML+TS senza React: la logica va in moduli puri sotto src/aiutante/, testabili senza DOM; lo stato passa da statoCompleto() in index.ts. _(2026-11-16)_
-- a ogni avvio il primo controllo di Claude non ha uno stato precedente, quindi un accesso mancante diventa errore a ogni aggiornamento: uno stato che si risolve a mano è un avviso. _(2026-11-16)_
 - la versione dell'Aiutante sta in src/aiutante/versione.json e va alzata insieme alla voce in novita-aiutante.txt; novita.ts e package.json sono del programma completo. _(2026-11-16)_
 - L'Aiutante è una registrazione `pc-<id>` a parte, con `aiutante:true` e lo stesso `host` di SierraDeck: per legare i due si usa `host`, non il pcId. _(2026-11-19)_
 - Per sapere se un PC è acceso solo grazie all'Aiutante usa `vistoDelPc` (stato-pc.ts); se serve una nuova vista sul battito, passa da lì invece di rifare l'abbinamento per host. _(2026-11-19)_
