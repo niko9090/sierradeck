@@ -76,6 +76,7 @@ import it.ferrariconsulenze.sierradeck.schermate.comune.InviiInCoda
 import it.ferrariconsulenze.sierradeck.schermate.comune.TastoScelta
 import it.ferrariconsulenze.sierradeck.schermate.comune.coloreRuolo
 import it.ferrariconsulenze.sierradeck.schermate.comune.coloreTono
+import it.ferrariconsulenze.sierradeck.schermate.comune.avvisaNonInviato
 import it.ferrariconsulenze.sierradeck.schermate.comune.mettiInCoda
 import it.ferrariconsulenze.sierradeck.schermate.tema.Banco
 import kotlinx.coroutines.launch
@@ -127,6 +128,7 @@ fun SchermataWorkspace(
         fonte.avanzamento()?.let { avanzamento = it }
         fonte.attesa()?.let { attesa = it }
     }
+    val contestoAvviso = androidx.compose.ui.platform.LocalContext.current
     val righe = ComponiWorkspace.chat(battute.orEmpty(), ora())
     val chi = ComponiWorkspace.chiLavora(testa.nome, attesa, avanzamento?.orchestratore)
     val richieste = ComponiWorkspace.richieste(avanzamento?.coda)
@@ -138,6 +140,7 @@ fun SchermataWorkspace(
         onRispondi = { idDomanda, testo ->
             val corpo = buildJsonObject { put("domanda", idDomanda); put("risposta", testo) }.toString()
             if (mettiInCoda(pc, "/api/rispondi", corpo, "domanda:$idDomanda", testo)) risposte[idDomanda] = testo
+            else avvisaNonInviato(contestoAvviso, "domanda:$idDomanda")
         },
         fonte = fonte, onApriChat = onApriChat, onIndietro = onIndietro
     )

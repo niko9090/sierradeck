@@ -59,6 +59,9 @@ import androidx.compose.material3.Switch
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import it.ferrariconsulenze.sierradeck.schermate.comune.TitoloConAiuto
 import it.ferrariconsulenze.sierradeck.nucleo.ChatConsumo
 import it.ferrariconsulenze.sierradeck.nucleo.Consumi
 import it.ferrariconsulenze.sierradeck.nucleo.Davanti
@@ -90,58 +93,55 @@ fun SezioneConsumi(api: Api) {
             Davanti.pausa(30_000)
         }
     }
-        // ─── Consumi ───
-        Sezione("Consumi (token)", aiuto = "↑ token mandati a Claude, ↓ token ricevuti, ⟳ letti dalla cache (costano molto meno); «chat» è quante conversazioni hanno lavorato nel periodo.")
-        val c = consumi
-        if (c == null) Text("Carico…", color = Banco.testoQuieto)
-        else {
-            QuotaRiga("Oggi", c.oggi)
-            QuotaRiga("7 giorni", c.settimana)
-            QuotaRiga("Totale", c.totale)
+    val c = consumi
+    if (c == null) { Text("Carico…", color = Banco.testoQuieto, modifier = Modifier.padding(16.dp)); return }
+    val voci = ConsumiVistaPura.vociInAlto(c.perChat)
+    val chat = ConsumiVistaPura.chatOrdinate(c.perChat)
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+        items(voci) { v -> VoceGrande(v); Spacer(Modifier.height(8.dp)) }
+        item {
             Spacer(Modifier.height(8.dp))
-            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text("LIMITI DEL PIANO", color = Banco.testoQuieto, fontSize = 12.sp, letterSpacing = 1.sp)
-                Aiuto(
-                    "La finestra di 5 ore: al 100% le chat si fermano fino all’azzeramento. La settimana: il tetto settimanale su tutti i modelli. " +
-                        "I numeri sono gli stessi di /usage in Claude Code e arrivano dalla riga di stato di Claude Code dopo la prima risposta di una chat aperta dal computer (solo con abbonamento Pro o Max). " +
-                        "Fra tutte le chat aperte dal computer vale la lettura più recente; si aggiornano a ogni risposta, e qui ogni mezzo minuto. Una lettura di più di 20 minuti è segnata vecchia: il valore vero può essere più alto.",
-                    di = "Limiti del piano"
-                )
-            }
-            val l = c.limiti
-            FinestraRiga("Finestra di 5 ore", l?.cinqueOre)
-            FinestraRiga("Settimana", l?.settimana)
-            Text(
-                if (l == null) "Non ancora letti."
-                else "Letti " + quandoLetti(l.letti, System.currentTimeMillis()) + ".",
-                color = Banco.testoQuieto, fontSize = 12.sp
-            )
-            // Il contesto di ogni chat aperta, con la frase del computer
-            // (0.37): uguale alla console e alla pagina.
-            if (c.chatAperte.isNotEmpty()) {
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    Text("CONTESTO DELLE CHAT APERTE", color = Banco.testoQuieto, fontSize = 12.sp, letterSpacing = 1.sp)
-                    Aiuto("Il contesto è la memoria di lavoro della chat: si conta come Claude Code, solo con i token in ingresso. Al 90% conviene farle riassumere dove è arrivata, prima che lo compatti da sola.", di = "Contesto")
-                }
-                for (ch in c.chatAperte) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(rigaContesto(ch), color = Banco.testo, fontSize = 12.sp)
-                }
-            }
-            c.freno?.let { fr ->
-                Spacer(Modifier.height(8.dp))
-                Text("FRENO DEGLI AUTOPILOTI", color = Banco.testoQuieto, fontSize = 12.sp, letterSpacing = 1.sp)
-                Text("${fr.titolo}: ${fr.spiegazione.ifEmpty { fr.motivo }}", color = Banco.testoQuieto, fontSize = 12.sp)
-            }
-            c.costo?.let { k ->
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    "Spesa stimata: oggi ${"%.2f".format(k.oggi)} $, 7 giorni ${"%.2f".format(k.settimana)} $.",
-                    color = Banco.testoQuieto, fontSize = 12.sp
-                )
-            }
+            TitoloConAiuto("Per chat", "L’uso di oggi e della settimana, in token (ingresso + uscita), dalla chat che ha consumato di più. Lo conta il computer.")
+            Spacer(Modifier.height(4.dp))
+            if (chat.isEmpty()) Text("Nessun consumo da mostrare.", color = Banco.testoQuieto)
         }
+        items(chat, key = { it.chiave }) { RigaChat(it) }
+    }
+}
+
+/** Una voce in alto: l'etichetta, il numero grande, la riga sotto e il «?» col motivo. */
+@Composable
+internal fun VoceGrande(v: VoceInAlto) {
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Banco.chassisAlto)) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text(v.etichetta, color = Banco.testoQuieto, fontSize = 14.sp)
+                if (v.aiuto != null) Aiuto(v.aiuto, di = v.etichetta)
+            }
+            Text(
+                v.grande,
+                color = if (v.noto) Banco.testo else Banco.testoQuieto,
+                fontSize = if (v.noto) 40.sp else 28.sp,
+                fontWeight = FontWeight.Bold
+            )
+            if (v.sotto.isNotBlank()) Text(v.sotto, color = Banco.testoQuieto, fontSize = 13.sp)
+        }
+    }
+}
+
+/** Una chat nell'elenco: nome, dove sta, e l'uso di oggi e della settimana. */
+@Composable
+internal fun RigaChat(c: UsoChat) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        Text(c.chat, color = Banco.testo, fontSize = 15.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        val dove = ConsumiVistaPura.doveStaChat(c)
+        if (dove.isNotBlank()) Text(dove, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        Text(
+            "Oggi ${ConsumiVistaPura.token(c.oggi)} · settimana ${ConsumiVistaPura.token(c.settimana)}",
+            color = Banco.testo, fontSize = 14.sp, fontWeight = FontWeight.Bold
+        )
+        HorizontalDivider(color = Banco.incisione, modifier = Modifier.padding(top = 8.dp))
+    }
 }
 
 /** Una finestra dei limiti del piano: nome, percentuale, azzeramento, e la barra colorata. */

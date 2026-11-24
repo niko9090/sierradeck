@@ -29,7 +29,9 @@ data class Consumi(
     /** Le chat aperte sul computer con il loro contesto, gia' detto in parole (dalla 0.37). */
     val chatAperte: List<ChatConsumo> = emptyList(),
     /** Cosa farebbe adesso il freno degli autopiloti con questi limiti (dalla 0.37). */
-    val freno: FrenoConsumi? = null
+    val freno: FrenoConsumi? = null,
+    /** k-con1: consumi per chat e quanto resta (5 ore, settimana, giornata non nota). */
+    val perChat: ConsumiPerChat? = null
 )
 
 /**
