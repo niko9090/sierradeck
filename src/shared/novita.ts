@@ -41,6 +41,17 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.118.3',
+    righe: [
+      '**Avanzamento:** la percentuale è sempre visibile in alto: sul PC (anche per un autopilota che gira su un altro PC), sulla pagina del telefono e nell\'app. **App Android 3.5.3.** Si scarica a parte.',
+      '**Specialisti:** quelli fermati da un riavvio del programma ripartono da soli.',
+      '**Chat adottate:** quelle ferme da più di un giorno escono dall\'elenco degli agenti al lavoro e diventano una riga corta. Le chat bloccate di compiti già finiti si chiudono.',
+      '**Unioni:** un\'unione git lasciata a metà dal programma viene riconosciuta e annullata da sola. Per quelle che non sono sue arriva un avviso chiaro, e le prove non si misurano su una cartella in quello stato (prima risultavano «138 file non salvati»).',
+      '**App Android 3.5.3:** nell\'app si vedono le chat degli altri PC.',
+      '**Prove:** una prova delle unioni con git vero non scade più quando il PC è carico.',
+    ],
+  },
+  {
     versione: '0.118.2',
     righe: [
       '**Unioni ferme:** se l\'unione di un ramo si ferma perché le prove non passano e ci sono file non salvati, dopo 5 minuti ti arriva comunque la domanda «li salvo?». Se i file sono troppi, parte un avviso.',
