@@ -4,9 +4,6 @@
 
 ## test
 
-- `StatoScheda` usa 'lavora', `ChatGovernata` usa 'lavoro': nei test del Piano usare `as const` sulla forma giusta o il typecheck rifiuta. _(2026-11-16)_
-- aiuto-riassegna.test.ts confronta l'elenco esatto degli eventi del registro: ogni nuovo tipo di evento richiede di filtrare il finto `registra` o aggiornare le asserzioni. _(2026-11-16)_
-- coda-aiutante.test.ts («parte appena si libera un posto») può fallire a vuoto con il PC carico: rilanciarlo da solo prima di indagare. _(2026-11-16)_
 - `vi.waitFor` ha 1 s di default: nei test che aspettano la preparazione con git, col PC carico serve un `timeout` esplicito largo (qui 60 s) e un limite largo anche per il test. _(2026-11-16)_
 - Il test che falliva a vuoto in `coda-aiutante.test.ts` era «con un posto libero il lavoro parte subito», non «parte appena si libera un posto»: non fidarsi del nome nel quaderno, rilanciare e leggere. _(2026-11-16)_
 - `aggiornamento-aiutante.test.ts` legge `versione.json` e `novita-aiutante.txt` dal disco: se non sono allineati (file non committato) la prova fallisce solo nella cartella dove stanno. _(2026-11-16)_
@@ -136,6 +133,8 @@
 - Nel merge di CasellaScrivi (PezziLavoro.kt) la Column di k-and6 con l'avviso «Non inviato» avvolge la Row. Il modifier del chiamante va sulla Column, non sulla Row interna. _(2026-11-24)_
 - Prima di creare un file in nucleo/ cerca il nome: VistaLavoro.kt esisteva già (modello di Lavoro) e Write l'ha sovrascritto in silenzio; recuperato con git checkout. _(2026-11-24)_
 - `gradle --offline testDebugUnitTest assembleDebug` dura circa 8 minuti in primo piano: timeout di almeno 10 minuti. _(2026-11-24)_
+- «Chat a tutto schermo»: la chat col workspace è Dettaglio.Autopilota, non Dettaglio.Chat; la decisione sta in Posto.tuttoSchermo (Navigazione.kt), da estendere se nasce un altro dettaglio-conversazio… _(2026-11-24)_
+- gradle testDebugUnitTest --offline in worktree: 3m36s, non 9 minuti. _(2026-11-24)_
 
 ## release
 
@@ -397,6 +396,7 @@
 - «sveglia futura» e «lavoro fermo» sono cose diverse: la sveglia vale solo per chi aspetta un orario, non spegne spinta né rilancio. Solo pausa vera, turno in corso o unione in corso li zittiscono. _(2026-11-23)_
 - Uno specialista «fermato» ha 3 origini: `fermaChiesta` (precedenza), `fermatiDaNicholas` (stop manuale) e appeso/morto. Solo l'ultima si rilancia da sola. _(2026-11-23)_
 - il cane scatta a mutoMs dall'ultima riga: con un Bash in volo si riarma per il resto della soglia larga (tetto specialistaMaxMs); serve `ultimaRiga` da adesso(), non dal timer. _(2026-11-23)_
+- Lo specialista lanciato come «k-agg1: aggiornare altri PC e percentuale» (24/11) lavora in realtà per k-agg254 (r-254): se l'unione lo collega a k-agg1, unirlo con unisci su k-agg254. _(2026-11-24)_
 
 ## pubblica
 
