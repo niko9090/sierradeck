@@ -35,7 +35,7 @@ import { conScadenza, PROVA_MAX_MS, PROVE_RICORDATE, scadenzaAdattiva } from './
 import { improntaCodiceAsincrona, misuraCriteri, type MemoriaCriteri } from './criteri-veloci'
 import { motivoProveRotte, peggioratiDelRamo, preparaCopia, radiceDellaCopia } from './ambiente-copia'
 import { criteriPerLaProva, senzaSolaVersione, soloVersione } from './criteri-prova'
-import { TURNI_PC, TurnoScaduto, turniSenzaFila, type TurniCriteri } from './turni-criteri'
+import { attesaDellaProva, TURNI_PC, TurnoScaduto, turniSenzaFila, type TurniCriteri } from './turni-criteri'
 import { giudicaPesanteAspettando, idAgente, rendiTurnoDopoComando, type GuardiaPc } from './guardia-pc'
 import { giudicaRuolo, giudicaStrumento, rispostaPreTool } from './divieti'
 import { creaConsensi, DURATA_CONSENSO_MS } from './consenso-cancellazione'
@@ -858,7 +858,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         // 23/11: i file che la misura rigenera (uno schema, una distinta) non restano come «non salvati di Nicholas»: si rimettono com'erano.
         const prima = await fotoModificheAsincrono(gitA(git), { cwd: a.cwd })
         try {
-          return (await conWorkspaceDiLog(chiaveWorkspace(a), () => misuraCriteri(criteri, a.cwd, deps.esegui, { memoria: memoriaCriteri, adesso: orologio, tutti: true, segnale, ...(impronta !== undefined ? { impronta } : {}) }))).esiti
+          return (await conWorkspaceDiLog(chiaveWorkspace(a), () => attesaDellaProva.run(inFila, () => misuraCriteri(criteri, a.cwd, deps.esegui, { memoria: memoriaCriteri, adesso: orologio, tutti: true, segnale, ...(impronta !== undefined ? { impronta } : {}) })))).esiti
         } finally {
           const rimessi = await ripristinaGeneratiAsincrono(gitA(git), { cwd: a.cwd, prima })
           if (rimessi.length > 0) console.info(`[orchestratore] ${chiaveWorkspace(a)} — la misura ha riscritto ${rimessi.length} file della cartella principale: rimessi com’erano (${rimessi.slice(0, 5).join(', ')})`)
@@ -941,7 +941,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         (segnale, iniziata, inFila) => corpo(segnale, iniziata, inFila).catch((err: unknown) => { if (err instanceof TurnoScaduto) return 'scaduta' as const; throw err }),
         // 11/11: la durata massima della prova la decide Nicholas (di serie `PROVA_MAX_MS`).
         // k-191e: adattiva (4 × la mediana delle ultime prove del workspace, almeno 5 minuti), con più tempo a ogni scadenza.
-        scadenzaAdattiva(proveRecenti.get(chiaveWorkspace(a)) ?? [], deps.provaMaxMs ?? (deps.limiti !== undefined ? deps.limiti.leggi().provaMaxMin * 60_000 : PROVA_MAX_MS), tempo.piuTempo ?? 1),
+        scadenzaAdattiva(proveRecenti.get(chiaveWorkspace(a)) ?? [], deps.provaMaxMs ?? (deps.limiti !== undefined ? deps.limiti.leggi().provaMaxMin * 60_000 : PROVA_MAX_MS), tempo.piuTempo ?? 1, criteri.length),
         { scrivi: (t) => {
           // 23/11: una prova che non è partita non è una prova: riga a parte (il rapporto la conta come «non partita», non nelle medie).
           if (!t.scaduta && stato.nonPartita !== undefined) { console.info(`[unione di prova] ${segnoDiLog(chiaveWorkspace(a))}${ramo}: non partita (${stato.nonPartita})`); return }
