@@ -357,3 +357,8 @@ Corretto nella versione 0.118.0. Difetto vero, solo in parte: la riga non dice �
 
 ## «unione di prova scaduta mentre stava per misurare i criteri» (2 su 4, prova 330 s, secondo tentativo 16 s)
 Corretto nella 0.118.0. Il motivo: la scadenza adattiva ha un minimo fisso di 5 minuti (le prove veloci di prima abbassano la mediana) e non guardava quanti criteri c’erano; in più dentro la misura contava anche l’attesa della guardia del PC (fino a 2 minuti per ogni comando pesante). La riga «aspetta il suo turno dietro 1 comandi lunghi» era falsa: la misura ha già il turno e il pesante non aspetta nessuno. Il secondo tentativo è breve perché i criteri già verdi sullo stesso codice sono in memoria e gradle ha la sua cache. Ora il minimo cresce di 10 s per criterio (sempre sotto il tetto), l’attesa della guardia ferma la scadenza, la riga falsa non si scrive più. I criteri si misurano comunque tutti (src/autopilot-host/tempi-unione.ts, turni-criteri.ts, server.ts).
+
+# Errori arrivati (lotto lotto-20261124063910)
+
+## Gruppo 1: «[orchestratore] BG4 — specialista oltre il tempo massimo (3 ore)» (fisso_scrivania_glos, versione 0.117.3, 1 volta, 2026-11-24T06:32:29Z)
+Non corretto: non è un difetto. È la guardia k-178k (`fermaAppesi` in src/autopilot-host/orchestratore.ts, `SPECIALISTA_MAX_MS` = 3 ore) che ha fatto il suo lavoro: uno specialista di BG4 era in sottofondo da oltre 3 ore, appeso o troppo lungo, e il programma lo ha fermato davvero. Il caso è atteso e registrato come errore apposta, perché si veda. Nessuna release.
