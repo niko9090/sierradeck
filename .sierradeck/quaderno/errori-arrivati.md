@@ -362,3 +362,8 @@ Corretto nella 0.118.0. Il motivo: la scadenza adattiva ha un minimo fisso di 5 
 
 ## Gruppo 1: «[orchestratore] BG4 — specialista oltre il tempo massimo (3 ore)» (fisso_scrivania_glos, versione 0.117.3, 1 volta, 2026-11-24T06:32:29Z)
 Non corretto: non è un difetto. È la guardia k-178k (`fermaAppesi` in src/autopilot-host/orchestratore.ts, `SPECIALISTA_MAX_MS` = 3 ore) che ha fatto il suo lavoro: uno specialista di BG4 era in sottofondo da oltre 3 ore, appeso o troppo lungo, e il programma lo ha fermato davvero. Il caso è atteso e registrato come errore apposta, perché si veda. Nessuna release.
+
+# Errori arrivati (lotto 20261124080848)
+
+## Gruppo 1: «[autopilota] avvio del servizio fallito: Error: spawn UNKNOWN» (errno -4094, syscall spawn; fisso_scrivania_glos, versione 0.118.0, 1 volta, 2026-11-24T08:00:33Z, in `avviaServizioAutopilota` src/main/index.ts:1208, chiamata da `verifica` in src/main/autopilot-client.ts:663)
+Non corretto, non è un difetto. È un errore passeggero di Windows nel lanciare l'eseguibile, tipico mentre il programma si aggiorna o quando un antivirus tiene il file. L'errore è già preso e scritto nel registro; `creaClientAutopilota` riprova da solo dopo un minuto (`MINUTO_FRA_AVVII_MS`) e il pannello mostra «Riavvia». Una sola occorrenza, non si è ripetuta. Se dovesse ripetersi su più PC o più volte, allora si valuta un secondo tentativo immediato. Nessun codice cambiato, nessuna release.
