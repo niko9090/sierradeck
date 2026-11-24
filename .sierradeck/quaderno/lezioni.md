@@ -106,6 +106,7 @@
 - I test Android con orari vanno costruiti con Calendar e fuso UTC fisso: un timestamp scritto a mano può non corrispondere al giorno atteso. _(2026-11-24)_
 - Per provare lo stato aperto di un componente con renderToStaticMarkup basta uno stub di `globalThis.localStorage`; gli effect non girano. _(2026-11-24)_
 - le cancellazioni ricorsive in src devono passare da `cancellaSicura` (`tests/shared/cancellazioni-solo-dalla-guardia.test.ts`): un `rmSync` diretto fa fallire la suite. _(2026-11-24)_
+- un 1 fallito su 5227 senza nome nell'esito: rilanciare con --reporter=dot e grep su FAIL; il fallimento può dipendere dallo stato di main al momento dell'unione. _(2026-11-24)_
 
 ## worktree
 
@@ -174,6 +175,9 @@
 - il nostro wrapper git toglie gli spazi di testa di `status --porcelain`: " M f" diventa "M f", e staged/unstaged non si distinguono. Per le modifiche non in indice usare `diff --name-only -z`. _(2026-11-23)_
 - se il ramo di lavoro coincide con main e non si può cambiare ramo, basta unirci dentro il ramo da riallineare: il risultato è lo stesso del merge di main nel ramo. _(2026-11-24)_
 - un'unione con file nell'indice li porta nel commit di `commit --no-edit`: l'indice sporco deve fermare l'unione, mentre i file solo modificati si possono mettere al sicuro con stash a percorso. _(2026-11-24)_
+- `merge --abort` si rifiuta se un file toccato dall'unione è stato salvato a prova aperta: copiare, `checkout HEAD`, abort, rimettere. Prima restava un'unione aperta senza segno. _(2026-11-24)_
+- `git stash drop` vuole `stash@{n}`, non la sha: dopo il drop controllare la sha stampata e rimettere con `stash store` se è di un altro. Cercare lo stash per messaggio intero, mai `endsWith`. _(2026-11-24)_
+- `status --porcelain` mette tra virgolette i nomi non ASCII (`\303\250`): decodificarli (`percorsoGit`) prima di usarli come percorsi. `recupero/` va in `.git/info/exclude`, non nel .gitignore del pro… _(2026-11-24)_
 
 ## autopilota
 
@@ -262,7 +266,6 @@
 
 ## salute
 
-- «non so se è acceso» valeva anche con battito fresco; ora «acceso secondo il Drive, ma non si raggiunge». Le righe unite del controllo (controllo-pc.ts `generica`) vanno aggiornate con ogni nuova dic… _(2026-11-15)_
 - Le soglie spento/acceso vanno prese da `statoPc`; con `PC_SPENTO_DOPO_MS` i confronti `<` e `<=` si mischiavano e davano risultati diversi al limite. _(2026-11-19)_
 - L'elenco PC di Salute si toglie nel renderer (`saluteSenzaPc`), non in `salute.ts`: le stesse voci servono a telefono e pagina servita. _(2026-11-19)_
 
@@ -329,7 +332,6 @@
 
 ## rete
 
-- Se un PC è raggiunto da tutti ma non raggiunge nessuno (anche la posta fa `fetch failed`), la causa è la sua rete in uscita o Tailscale, non gli indirizzi pubblicati. _(2026-11-15)_
 - il registro eventi-aiuto.json lo scrive il PC che affida: sull'Aiutante resta vuoto finché qualcuno non registra lì i passaggi. _(2026-11-16)_
 - I file in .sierradeck/errori-arrivati/ non viaggiano con la copia mandata a un altro PC: nel prompt di un compito sul quaderno errori scrivere il contenuto del lotto, non solo il percorso. _(2026-11-16)_
 - i compiti che citano percorsi assoluti della cartella principale non funzionano sui PC della rete: lì esiste solo la copia di lavoro, senza i rami degli altri worktree. _(2026-11-17)_
@@ -380,7 +382,6 @@
 
 ## cancello
 
-- Il cancello che unisce gira col SierraDeck INSTALLATO: una correzione al cancello unita in main non vale finché Nicholas non installa la versione che la contiene. _(2026-11-15)_
 - Una correzione al cancello (criteri-prova.ts) vale solo dalla versione installata: unita in main non sblocca subito i rami respinti dal cancello che gira; serve un'unione fuori dal cancello. _(2026-11-17)_
 - Il criterio di un compito già unito (es. k-v1 di r-141) non si può correggere con piano_scrivi: richiesta fatta. Un criterio di versione sbagliato resta nel cancello fino alla nuova installazione. _(2026-11-17)_
 
@@ -461,7 +462,6 @@
 
 ## rilascio
 
-- `gh release create --draft` senza tag crea un URL "untagged-…": il tag va creato e mandato sul remoto prima della pubblicazione vera. _(2026-11-15)_
 - prima di taggare controllare che package.json in main dica la versione da pubblicare: il compito di pubblicazione può partire prima che l'unione del bump sia avvenuta. _(2026-11-15)_
 - Prima di un compito di rilascio controllare che il bump di versione sia già in main: qui la bozza v0.107.4 esisteva su GitHub ma package.json era fermo a 0.107.3. _(2026-11-15)_
 - Prima di pubblicare controllare non solo package.json nella cartella ma anche `git show HEAD:package.json`: la versione può essere solo nell'indice di un'unione a metà (MERGE_HEAD). _(2026-11-15)_
