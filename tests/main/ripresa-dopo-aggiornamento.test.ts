@@ -252,7 +252,7 @@ describe('ripresa dopo l’aggiornamento — l’autopilota e i suoi specialisti
     expect(r).toBeDefined()
     expect(r?.interrotti).toBe(1)
     expect(r?.testo).toContain('a risulta in corso ma nessuno specialista ci lavora più')
-    expect(r?.testo).toContain('Rilancia adesso gli specialisti interrotti')
+    expect(r?.testo).toContain('li rimette in strada il programma')
     expect(r?.firma).toContain('a:orfano')
   })
 

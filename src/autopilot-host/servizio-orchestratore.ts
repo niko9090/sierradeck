@@ -88,6 +88,7 @@ import { rigaUltimaAzione } from '@shared/specialisti'
 import { eErroreDiRete } from '@shared/errori-rete'
 import { motivoInItaliano, stessaRigaDiPrima } from './turno-non-riuscito'
 import type { ArchivioAttesa } from './attesa-store'
+import { MOTIVO_RIAVVIO, apertiVuoti, type ArchivioAperti, type StatoAperti } from './specialisti-aperti'
 import { creaCambi, type Cambi } from '@shared/spinta-specialisti'
 import { attesaDopoScadenza, UNIONE_MAX_MS } from './tempi-unione'
 import { fraseScadenzeRipetute, motivoScadenzaFila, piuTempoPerTentativo, rigaUnioneAttiva, scegliProssima, sogliaScadenze } from './unioni-che-scadono'
@@ -240,6 +241,8 @@ export type ContestoUnico = {
   spostaNelRecupero?: (cartella: string, motivo: string) => { ok: true; dove?: string } | { ok: false; perche: string }
   /** k-48: dove sta su disco la lista d'attesa degli specialisti. Assente: solo in memoria. */
   attesa?: ArchivioAttesa
+  /** k-280a: dove stanno su disco gli specialisti al lavoro e i rilanci fatti, per riprenderli dopo un riavvio. Assente: solo in memoria. */
+  specialistiAperti?: ArchivioAperti
   /** 0.103.0: i lavori affidati ad altri PC (Aiuta la rete). Assente: solo in memoria. */
   aiuti?: { leggi: () => LavoroAffidato[]; scrivi: (l: LavoroAffidato[]) => void }
   /** 0.103.0: i lavori di altri PC al lavoro qui: occupano posti come gli specialisti. */
@@ -770,7 +773,28 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
   /** k-174a: quante volte uno specialista è finito «a metà» (workspace|compito): oltre `MEZZE_FINI_MAX` lo si tratta come finito. */
   const mezzeFini = new Map<string, number>()
   /** k-178k: quante volte uno specialista fermato (appeso o morto) a metà è stato rilanciato (workspace|compito). */
-  const rilanciFermati = new Map<string, number>()
+  /** k-280a: i rilanci già fatti si ricordano su disco: il limite vale anche fra un riavvio e l'altro. */
+  let apertiMem: StatoAperti = apertiVuoti()
+  const archivioAperti: ArchivioAperti = x.specialistiAperti ?? { leggi: () => apertiMem, scrivi: (s) => { apertiMem = s } }
+  const apertiAllAvvio = archivioAperti.leggi()
+  const rilanciFermati = new Map<string, number>(Object.entries(apertiAllAvvio.rilanci))
+  /** k-280a: gli specialisti che il servizio di prima lasciava al lavoro: finché non sono ripresi restano su disco. */
+  const interrotti = new Map<string, Specialista[]>(Object.entries(apertiAllAvvio.specialisti))
+  const comeSalvato = (s: Specialista): Specialista => {
+    const { attivita: _a, file: _f, token: _t, comando: _c, riepilogo: _r, ...resto } = s
+    return resto
+  }
+  const salvaAperti = (ws: string, stato: StatoFlusso): void => {
+    const vivi = stato.specialisti.filter((s) => s.stato === 'avviato' || s.stato === 'lavoro').map(comeSalvato)
+    const lista = [...(interrotti.get(ws) ?? []), ...vivi.filter((s) => !(interrotti.get(ws) ?? []).some((i) => i.id === s.id))]
+    const prima = archivioAperti.leggi()
+    const specialisti = { ...prima.specialisti }
+    if (lista.length > 0) specialisti[ws] = lista
+    else delete specialisti[ws]
+    const dopo: StatoAperti = { specialisti, rilanci: Object.fromEntries(rilanciFermati) }
+    if (JSON.stringify(dopo) === JSON.stringify(prima)) return
+    try { archivioAperti.scrivi(dopo) } catch (err) { console.error(`[orchestratore] ${ws} — specialisti al lavoro non salvati:`, err) }
+  }
   /** k-178k: cosa ha salvato uno specialista fermato: «RAPPORTO: finita» nel riepilogo, e i commit sul suo ramo. */
   const lavoroDelFermato = (ws: string, s: Specialista): { finito: boolean; commit: number } => {
     const finito = s.riepilogo !== undefined && rigaRapporto(s.riepilogo)?.tipo === 'finita'
@@ -1212,6 +1236,7 @@ ${NOTA_SENZA_GIT}`,
   const suFlusso = (ws: string, effetti: EffettoFlusso[], stato: StatoFlusso): void => {
     const firma = stato.specialisti.map((s) => `${s.id}|${s.stato}|${s.attivita ?? ''}|${s.file?.length ?? 0}|${s.token ?? 0}`).join('\n')
     if (firmeSpecialisti.get(ws) !== firma) { firmeSpecialisti.set(ws, firma); cambiSpecialisti.segna() }
+    salvaAperti(ws, stato)
     // Spinta a evento: chi guarda gli specialisti lo sa subito, senza aspettare il giro di rilettura.
     if (effetti.some((e) => e.tipo === 'specialista-partito' || e.tipo === 'specialista-finito' || e.tipo === 'specialista-rifiutato')) cambiSpecialisti.segna()
     for (const e of effetti) {
@@ -1293,6 +1318,7 @@ ${NOTA_SENZA_GIT}`,
           const cosa = lavoro.commit > 0 ? `ha ${lavoro.commit} commit sul ramo ${ramo}` : 'senza lavoro salvato'
           if (n < FERMATI_RILANCI_MAX) {
             rilanciFermati.set(chiave, n + 1)
+            salvaAperti(ws, stato)
             if (k !== undefined && k.stato !== 'unito') {
               cambiaCompito(ws, k.id, (c) => ({ ...(lavoro.commit === 0 ? senzaRamo(c) : c), stato: 'da-fare', esito: `${s.ruolo} si è fermato senza finire (${cosa}): va rilanciato${lavoro.commit > 0 ? ' sullo stesso ramo' : ''}` }))
             }
@@ -1304,7 +1330,7 @@ ${NOTA_SENZA_GIT}`,
               x.annota(dopo, `${s.ruolo} si è fermato senza finire (${cosa})`, avanzamento(s.id, `${chiSpecialista(s.ruolo)} si è fermato senza finire: ${cosaDel(s.descrizione)}. Lo rilancio.`))
               x.salva(dopo)
             }
-            evento(ws, { tipo: 'fermo', quando: x.adesso(), chat: s.id, testo: `${s.compito ?? chiSpecialista(s.ruolo)} si è fermato senza finire (appeso o morto col processo; ${cosa}). Il compito è tornato «da fare» e il suo prompt è salvato in fila. Rilancialo adesso${ramo !== undefined && lavoro.commit > 0 ? ` sul suo ramo ${ramo}, senza rifare quello che c’è già` : ''} (rilancio ${n + 1} di ${FERMATI_RILANCI_MAX}).` })
+            evento(ws, { tipo: 'fermo', quando: x.adesso(), chat: s.id, testo: `${s.compito ?? chiSpecialista(s.ruolo)} si è fermato senza finire (${s.attivita === MOTIVO_RIAVVIO ? MOTIVO_RIAVVIO : 'appeso o morto col processo'}; ${cosa}). Il compito è tornato «da fare» e il suo prompt è salvato in fila. Rilancialo adesso${ramo !== undefined && lavoro.commit > 0 ? ` sul suo ramo ${ramo}, senza rifare quello che c’è già` : ''} (rilancio ${n + 1} di ${FERMATI_RILANCI_MAX}).` })
             ricalcola(ws, `${s.compito ?? s.ruolo} fermato a metà`)
             continue
           }
@@ -3207,8 +3233,55 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
    */
   /** Le unioni già riprese da questo avvio (`ws|compito`): una sola ripresa per avvio, mai due. */
   const unioniRiprese = new Set<string>()
+  /**
+   * k-280a: gli specialisti che il servizio di prima lasciava «al lavoro» sono morti col processo. Si segnano
+   * «fermati» (motivo: riavvio del programma) e passano dal percorso del fermato: il lavoro finito va
+   * all'unione, quello a metà si rimette in fila sullo stesso compito e ramo, entro il limite dei rilanci.
+   * Quello che non si può rilanciare (compito chiuso, unito, in unione, preso da un'altra chat) esce dal
+   * «al lavoro» con una riga che lo dice. Una volta sola per specialista: poi esce anche dal disco.
+   */
+  const riprendiSpecialisti = (): number => {
+    let n = 0
+    for (const [ws, lista] of [...interrotti]) {
+      const u = unicoDi(ws)
+      for (const s of lista) {
+        try {
+          const quando = x.adesso()
+          const fermato: Specialista = { ...s, stato: 'fermato', fine: quando, attivita: MOTIVO_RIAVVIO }
+          const k = s.compito !== undefined ? x.orchestratori.piano(ws).compiti.find((c) => c.id === s.compito) : undefined
+          const nonSiRilancia =
+            u === undefined || u.archiviato === true ? 'l’autopilota non c’è più'
+            : s.unito === true || k?.stato === 'unito' ? `${s.compito ?? 'il compito'} è già unito`
+            : k?.chiuso !== undefined || (k !== undefined && richiesteChiuse(ws).has(k.richiesta)) ? `${s.compito ?? 'il compito'} è chiuso`
+            : k?.stato === 'in-revisione' ? `${s.compito ?? 'il compito'} ha già finito: va all’unione`
+            : k?.chat !== undefined && k.chat !== s.id ? `${s.compito ?? 'il compito'} è già in mano a un'altra chat`
+            : undefined
+          if (nonSiRilancia !== undefined) {
+            console.info(`[orchestratore] ${ws} — ${s.ruolo} ${s.id} interrotto dal riavvio, non rilanciato: ${nonSiRilancia}`)
+            if (u !== undefined) {
+              const dopo = { ...u }
+              x.annota(dopo, `${s.ruolo} interrotto dal riavvio, non rilanciato: ${nonSiRilancia}`, avanzamento(s.id, `${chiSpecialista(s.ruolo)} è stato fermato dal riavvio del programma (${cosaDel(s.descrizione)}): non lo rilancio, ${nonSiRilancia}.`))
+              x.salva(dopo)
+            }
+            continue
+          }
+          // Commit sul ramo = lavoro da misurare: l'unione prova il criterio e, se non regge, il compito torna da fare.
+          const lavoro = RUOLI_SOLA_LETTURA.has(s.ruolo) ? { finito: false, commit: 0 } : lavoroDelFermato(ws, fermato)
+          const specialista: Specialista = lavoro.commit > 0 ? { ...fermato, stato: 'finito' } : fermato
+          suFlusso(ws, [{ tipo: 'specialista-finito', specialista }], orchestratore.stato(ws))
+          n += 1
+        } catch (err) {
+          console.error(`[orchestratore] ${ws} — specialista ${s.id} non ripreso dopo il riavvio:`, err)
+        }
+      }
+      interrotti.delete(ws)
+      salvaAperti(ws, orchestratore.stato(ws))
+    }
+    return n
+  }
   const riprendiUnioniEFila = (opzioni: { soloCerte?: boolean } = {}): number => {
     let n = 0
+    try { riprendiSpecialisti() } catch (err) { console.error('[orchestratore] specialisti interrotti dal riavvio non ripresi:', err) }
     try { rivediFila() } catch (err) { console.error('[attesa] giro della lista d’attesa dopo il riavvio non riuscito:', err) }
     if (x.unioneDaSola === false) return 0
     for (const a of unici()) {

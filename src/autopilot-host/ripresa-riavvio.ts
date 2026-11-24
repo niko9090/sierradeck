@@ -81,7 +81,7 @@ export function ripresaDopoRiavvio(p: {
   }
   if (fermo !== undefined) {
     righe.push('Quello che aspetta di muoversi:', ...fermo.righe)
-    righe.push('Rilancia adesso gli specialisti interrotti (stesso compito, stesso ramo) e porta avanti il resto, nello stesso turno.')
+    righe.push('Gli specialisti interrotti li rimette in strada il programma, stesso compito e stesso ramo, una volta sola ciascuno: ti manda un avviso per ognuno (o lo manda all’unione se il ramo ha già il lavoro). Non rilanciarli a mano prima di quell’avviso (rischi un doppione); porta avanti il resto, nello stesso turno.')
   }
   if (p.inUnione !== undefined && p.inUnione.size > 0) {
     righe.push(`Le unioni di ${[...p.inUnione].join(', ')} le ho rimesse in marcia io: non rifarle. Se non trovano il ramo te lo dico subito e allora lo unisci tu, dando il ramo (git worktree list). Un compito che viene dopo parte appena sono unite, e ti avviso io.`)

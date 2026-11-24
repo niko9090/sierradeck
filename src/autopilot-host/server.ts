@@ -72,6 +72,7 @@ import { campiVecchiDa } from './migra-orchestratore'
 import { creaServizioUnico, type EsitoAvvioUnico, type EsitoProvaPrincipale, type ServizioUnico } from './servizio-orchestratore'
 import { apriDoppioni, type ArchivioDoppioni } from './doppioni-store'
 import { apriAttesa, type ArchivioAttesa } from './attesa-store'
+import { apriAperti } from './specialisti-aperti'
 import { apriRecuperoPasso } from '../main/riassetto/recupero'
 import { leggiRichiestaDoppioni } from '@shared/autopiloti-doppioni'
 
@@ -1845,6 +1846,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     ...(deps.richiediDopoMs !== undefined ? { richiediDopoMs: deps.richiediDopoMs } : {}),
     doppioni: deps.doppioni ?? apriDoppioni(join(deps.archivio.cartella, 'servizio', 'doppioni-archiviati.json')),
     attesa: deps.attesa ?? apriAttesa(join(deps.archivio.cartella, 'servizio', 'attesa-specialisti.json')),
+    specialistiAperti: apriAperti(join(deps.archivio.cartella, 'servizio', 'specialisti-aperti.json')),
     aiuti: apriAiuti(join(deps.archivio.cartella, 'servizio', 'aiuti-affidati.json')),
     aiutiQui: () => lavoratoreAiuto?.inCorso() ?? 0,
     ospitati: () => lavoratoreAiuto?.ospitati() ?? [],
