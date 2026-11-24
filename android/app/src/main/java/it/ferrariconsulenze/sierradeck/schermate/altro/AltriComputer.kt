@@ -84,6 +84,7 @@ fun AltriComputer(api: Api) {
     // La posta per un PC: gli altri computer, la cassetta di quello aperto.
     var pcVisti by remember { mutableStateOf<List<PcRemoto>?>(null) }
     var pcDisponibile by remember { mutableStateOf(true) }
+    var ultima by remember { mutableStateOf<String?>(null) }
     var pcAperto by remember { mutableStateOf<String?>(null) }
     var postaVoci by remember { mutableStateOf<List<VocePosta>>(emptyList()) }
     var postaCwd by remember { mutableStateOf("") }
@@ -100,6 +101,9 @@ fun AltriComputer(api: Api) {
     LaunchedEffect(Unit) {
         while (isActive) {
             try { val e = api.pc(); pcVisti = e.pc; pcDisponibile = e.disponibile } catch (_: Exception) { if (pcVisti == null) pcVisti = emptyList() }
+            // L'ultima versione che il PC collegato ha trovato (disponibile, scaricata o in installazione):
+            // un altro PC più vecchio di quella si può aggiornare da qui.
+            try { api.aggiornamento().takeIf { it.fase in listOf("disponibile", "scarico", "pronto", "attendo", "installo") }?.versione?.let { ultima = it } } catch (_: Exception) { }
             Davanti.pausa(15_000)
         }
     }
@@ -153,7 +157,7 @@ fun AltriComputer(api: Api) {
                             }) { Text(if (aperto) "Chiudi" else "Azioni") }
                         }
                         // Indietro con la versione (app 2.56.2): cosa manca là, e «Installa là».
-                        if (p.vivo) BandaPcIndietro(api, p.pcId, p.mostra, p.versione)
+                        if (p.vivo) BandaPcIndietro(api, p.pcId, p.mostra, p.versione, ultima)
                         // Le chat aperte su quel PC, con chi aspetta: il battito le
                         // porta da sempre e il telefono ne mostrava solo il numero.
                         // Da qui si vede chi si e' fermato anche su un computer con

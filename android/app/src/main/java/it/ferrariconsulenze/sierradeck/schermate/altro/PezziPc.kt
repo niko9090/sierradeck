@@ -63,6 +63,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import it.ferrariconsulenze.sierradeck.dati.Collegamento
+import it.ferrariconsulenze.sierradeck.nucleo.AvanzamentoLa
+import it.ferrariconsulenze.sierradeck.nucleo.VistaInstallaLa
 import it.ferrariconsulenze.sierradeck.nucleo.AzioniTelefono
 import it.ferrariconsulenze.sierradeck.nucleo.Chat
 import it.ferrariconsulenze.sierradeck.nucleo.ChiuseDaTe
@@ -131,43 +133,63 @@ fun LedChat(tono: TonoChat?) {
  */
 object PcIndietro {
     /** Il testo, o `null` se quel PC è aggiornato quanto serve. */
-    fun testo(nome: String, versione: String?, accoppiato: String?): String? {
+    fun testo(nome: String, versione: String?, accoppiato: String?, ultima: String? = null): String? {
         if (versione.isNullOrBlank()) return null
         // Il quaderno personale non conta: è solo del PC accoppiato e non passa dal ponte,
         // quindi su un altro PC non manca niente di quello che il telefono userebbe là.
         // Manca là solo ciò che il PC collegato ha già (PC 0.82.0, «Apri cartella»): a versioni uguali non manca niente.
         val mancano = FunzionePc.entries.filter { FunzioniPc.disponibile(it, versione) == false && FunzioniPc.disponibile(it, accoppiato) != false && it.minima != FunzionePc.INSTALLA_LA.minima && it != FunzionePc.QUADERNO_PERSONALE && it != FunzionePc.PANNELLO_DRIVE && it != FunzionePc.GESTIONE_CHAT && it != FunzionePc.CARTELLA }
         val indietroDalCollegato = accoppiato != null && Aggiornamenti.piuNuova(versione, accoppiato)
-        if (mancano.isEmpty() && !indietroDalCollegato) return null
+        // k-agg1: anche se il PC collegato è fermo alla stessa versione, uno più vecchio dell'ultima uscita si aggiorna da qui.
+        val indietroDallUltima = !ultima.isNullOrBlank() && Aggiornamenti.piuNuova(versione, ultima)
+        if (mancano.isEmpty() && !indietroDalCollegato && !indietroDallUltima) return null
         val cosa = if (mancano.isEmpty()) "" else " Là non ci sono ancora: " + mancano.joinToString("; ") { it.nome.replaceFirstChar { c -> c.lowercase() } } + "."
-        return "$nome ha la versione $versione" + (accoppiato?.let { ", il PC a cui è collegato il telefono la $it" } ?: "") + ".$cosa Aggiornalo con «Installa là»: si installa quando le sue chat finiscono il turno, e niente si perde."
+        val fine = if (indietroDallUltima && !indietroDalCollegato) " L'ultima è la $ultima." else ""
+        return "$nome ha la versione $versione" + (accoppiato?.let { ", il PC a cui è collegato il telefono la $it" } ?: "") + ".$fine$cosa Aggiornalo con «Installa là»: si installa quando le sue chat finiscono il turno, e niente si perde."
     }
 }
 
 @Composable
-fun BandaPcIndietro(apiAccoppiato: Api, pcId: String, nome: String, versione: String?) {
-    val testo = PcIndietro.testo(nome, versione, PcCorrente.versione) ?: return
+fun BandaPcIndietro(apiAccoppiato: Api, pcId: String, nome: String, versione: String?, ultima: String? = null) {
     val scope = rememberCoroutineScope()
     var nota by remember(pcId) { mutableStateOf<String?>(null) }
-    var segui by remember(pcId) { mutableStateOf(false) }
+    var avanzamento by remember(pcId) { mutableStateOf<AvanzamentoLa?>(null) }
+    var segui by remember(pcId) { mutableStateOf(true) }
+    // Si guarda subito (anche rientrando in questa schermata con un aggiornamento già in corso) e si
+    // continua finché quel PC è al lavoro: prima si guardava solo dopo il tasto e la percentuale non si vedeva.
     androidx.compose.runtime.LaunchedEffect(pcId, segui) {
         while (segui) {
-            nota = try { apiAccoppiato.installaLaStato().avanzamenti.firstOrNull { it.pcId == pcId }?.messaggio ?: nota } catch (_: Exception) { nota }
+            try {
+                val a = VistaInstallaLa.di(apiAccoppiato.installaLaStato(), pcId)
+                if (a != null) { avanzamento = a; nota = a.messaggio }
+                if (!VistaInstallaLa.inCorso(a)) segui = false
+            } catch (_: Exception) { }
             Davanti.pausa(3000)
         }
     }
+    val inCorso = VistaInstallaLa.inCorso(avanzamento)
+    val testo = PcIndietro.testo(nome, versione, PcCorrente.versione, ultima)
+    // Finito bene il PC non è più indietro e la fascia sparirebbe con l'esito: si resta finché c'è da dire.
+    if (testo == null && avanzamento == null) return
     Column(Modifier.fillMaxWidth().background(Banco.ambra.copy(alpha = 0.14f)).padding(horizontal = 12.dp, vertical = 6.dp)) {
-        Text(testo, color = Banco.testo, fontSize = 12.sp)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = {
+        if (testo != null) Text(testo, color = Banco.testo, fontSize = 12.sp)
+        if (testo != null || inCorso) Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(enabled = !inCorso, onClick = {
                 scope.launch {
                     nota = try { apiAccoppiato.installaLa(pcId); segui = true; "Chiesto: busso a $nome…" } catch (e: Api.Errore) {
                         if (FunzioniPc.mancaSulPc(e)) FunzioniPc.testoMancante(FunzionePc.INSTALLA_LA, PcCorrente.nome) + " Intanto si aggiorna dalla Salute del PC." else Nota.spiega(e, "chiedere l’aggiornamento di $nome")
                     } catch (e: Exception) { "Non sono riuscito a chiederlo: ${e.message ?: "il computer non risponde"}" }
                 }
-            }) { Text("Installa là") }
-            nota?.let { Text(it, color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.weight(1f)) }
+            }) { Text(if (inCorso) "In corso…" else "Installa là") }
         }
+        VistaInstallaLa.percento(avanzamento)?.let { p ->
+            Text("$p%", color = Banco.ambra, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            androidx.compose.material3.LinearProgressIndicator(
+                progress = { p / 100f }, color = Banco.ambra, trackColor = Banco.incisione,
+                modifier = Modifier.fillMaxWidth().height(6.dp)
+            )
+        }
+        nota?.let { Text(it, color = Banco.testoQuieto, fontSize = 12.sp) }
     }
 }
 

@@ -422,10 +422,13 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
         json.decodeFromString(corpoTesto("/api/chat/sposta", oggetto { put("chat", chat); put("workspace", workspace) }))
 
     // ─── «Installa là» dal telefono (PC 0.56.2): sempre al PC accoppiato ───
+    // Il PC da aggiornare è `pc` nel corpo; la richiesta va sempre al PC accoppiato, anche se questa
+    // `Api` è puntata su un altro PC dal ponte (il ponte non porta gli aggiornamenti: il 403 muto).
     suspend fun installaLa(pc: String): Fatto =
-        json.decodeFromString(corpoTesto("/api/installa-la", oggetto { put("pc", pc) }))
+        json.decodeFromString((if (ponte != null) accoppiato() else this).corpoTesto("/api/installa-la", oggetto { put("pc", pc) }))
 
-    suspend fun installaLaStato(): StatoInstallaLa = json.decodeFromString(corpoTesto("/api/installa-la/stato", null))
+    suspend fun installaLaStato(): StatoInstallaLa =
+        json.decodeFromString((if (ponte != null) accoppiato() else this).corpoTesto("/api/installa-la/stato", null))
 
     /** Il Quaderno personale (PC 0.57.0): solo il PC accoppiato, mai attraverso il ponte. */
     suspend fun quadernoPersonale(): StatoQuadernoPersonale =

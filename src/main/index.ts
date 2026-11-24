@@ -3021,6 +3021,7 @@ if (!app.requestSingleInstanceLock()) {
             const prossimo: AvanzamentoInstallaLa = {
               pcId, nome, fase: p.fase, da, messaggio: partenza.avviso !== undefined && p.finito !== true ? `${partenza.avviso} ${p.messaggio}` : p.messaggio, iniziato, aggiornato: new Date().toISOString(),
               ...(p.a !== undefined ? { a: p.a } : ultimo.a !== undefined ? { a: ultimo.a } : {}),
+              ...(p.percento !== undefined ? { percento: p.percento } : {}),
               ...(p.cosaFare !== undefined ? { cosaFare: p.cosaFare } : {}),
               ...(p.pagina !== undefined ? { pagina: p.pagina } : {})
             }

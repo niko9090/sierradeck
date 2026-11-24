@@ -49,6 +49,8 @@ export type AvanzamentoInstallaLa = {
   a?: string
   /** Cosa sta succedendo, per esteso: la riga sotto la voce di quel PC. */
   messaggio: string
+  /** Lo scaricamento su quel PC, da 0 a 100: il telefono ci disegna la barra (prima c'era solo nella frase). */
+  percento?: number
   /** Cosa fare, quando e' andata male. */
   cosaFare?: string
   /** La pagina della release, per l'installer a mano. */
@@ -83,6 +85,8 @@ export type Passo = {
   a?: string
   cosaFare?: string
   pagina?: string
+  /** Solo mentre scarica. */
+  percento?: number
 }
 
 /** Quanto si aspetta un PC che non torna dopo «Installa»: l'installer ci mette un minuto o due, la quiete puo' durare di piu' ma il PC risponde. */
@@ -171,7 +175,7 @@ export function passoInstallaLa(nome: string, da: string, o: Osservazione, m: Me
         ? { fase: 'scarico', ...(s.versione !== undefined ? { a: s.versione } : {}), messaggio: `${nome} comincia a scaricare la ${s.versione ?? 'nuova versione'}…` }
         : { fase: 'scarico', chiedi: 'scarica', ...(s.versione !== undefined ? { a: s.versione } : {}), messaggio: `${nome} ha trovato la ${s.versione ?? 'nuova versione'}: chiedo di scaricarla.` }
     case 'scarico':
-      return { fase: 'scarico', ...(s.versione !== undefined ? { a: s.versione } : {}), messaggio: `${nome} scarica la ${s.versione ?? 'nuova versione'}${s.percento !== undefined ? `: ${Math.round(s.percento)}%` : '…'}` }
+      return { fase: 'scarico', ...(s.versione !== undefined ? { a: s.versione } : {}), ...(typeof s.percento === 'number' && Number.isFinite(s.percento) ? { percento: Math.max(0, Math.min(100, Math.round(s.percento))) } : {}), messaggio: `${nome} scarica la ${s.versione ?? 'nuova versione'}${s.percento !== undefined ? `: ${Math.round(s.percento)}%` : '…'}` }
     case 'cerco':
       return { fase: 'cerco', messaggio: `${nome} cerca la versione nuova…` }
     case 'errore':

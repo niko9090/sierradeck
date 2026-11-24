@@ -52,7 +52,31 @@ sealed class EsitoBozza {
 }
 
 @Serializable
-data class AvanzamentoLa(val pcId: String = "", val nome: String = "", val fase: String = "", val messaggio: String = "")
+data class AvanzamentoLa(
+    val pcId: String = "",
+    val nome: String = "",
+    val fase: String = "",
+    val messaggio: String = "",
+    /** Lo scaricamento da 0 a 100 (PC dalla 0.118.1); con un PC più vecchio manca e si legge dalla frase. */
+    val percento: Int? = null
+)
+
+/** Cosa si vede di un «Installa là» in corso: la riga, la barra, e se il tasto resta fermo. */
+object VistaInstallaLa {
+    private val NELLA_FRASE = Regex("(\\d{1,3})\\s?%")
+
+    /** La percentuale dello scaricamento: il campo, o (PC vecchi) quella scritta nella frase. Solo mentre scarica. */
+    fun percento(a: AvanzamentoLa?): Int? {
+        if (a == null || a.fase != "scarico") return null
+        a.percento?.let { return it.coerceIn(0, 100) }
+        return NELLA_FRASE.find(a.messaggio)?.groupValues?.get(1)?.toIntOrNull()?.coerceIn(0, 100)
+    }
+
+    /** In corso = il tasto non si ripropone (stesse fasi di `inCorso` del PC). */
+    fun inCorso(a: AvanzamentoLa?): Boolean = a != null && a.fase != "fatto" && a.fase != "fallito" && a.fase != "errore"
+
+    fun di(stato: StatoInstallaLa?, pcId: String): AvanzamentoLa? = stato?.avanzamenti?.firstOrNull { it.pcId == pcId }
+}
 
 @Serializable
 data class StatoInstallaLa(val avanzamenti: List<AvanzamentoLa> = emptyList())
