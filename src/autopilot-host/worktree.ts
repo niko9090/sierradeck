@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmdirSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type { FattiPubblicazione } from '@shared/harness'
 import { cancellaSicura } from '@shared/cancella-sicura'
@@ -578,7 +578,7 @@ function* senzaNovitaPassi(p: { cwd: string; ramo: string; base: string }): Pass
   return albero.codice === 0 && /^[0-9a-f]{7,64}$/i.test(primo) && primo === albero.uscita.trim()
 }
 
-export type EsitoProva = { ok: true } | { ok: false; motivo: string; file?: string[] }
+export type EsitoProva = { ok: true } | { ok: false; motivo: string; file?: string[]; dettaglio?: string }
 
 /**
  * **L'unione di prova** (0.84.4): il ramo unito nella cartella di lavoro
@@ -588,7 +588,7 @@ export type EsitoProva = { ok: true } | { ok: false; motivo: string; file?: stri
  * `MOTIVO_CARTELLA_SPORCA` con i loro nomi); gli altri restano come sono.
  * Dopo la misura `chiudiProva` la conferma o la annulla.
  */
-export function iniziaProvaAsincrono(git: GitAsincrono, p: { cwd: string; ramo: string; base: string; altri?: string[]; alRecupero?: AlRecupero }): Promise<EsitoProva> {
+export function iniziaProvaAsincrono(git: GitAsincrono, p: { cwd: string; ramo: string; base: string; altri?: string[]; alRecupero?: AlRecupero; registro?: (riga: string) => void; processiGit?: () => boolean; adesso?: number }): Promise<EsitoProva> {
   return aspettando(git, iniziaProvaPassi(p))
 }
 
@@ -868,18 +868,80 @@ function* ripulisciProvaPassi(cwd: string, alRecupero?: AlRecupero): Passi<'nien
   return chiusa ? 'ripulita' : 'niente'
 }
 
-/** `altri` (k-178g): un lotto di rami indipendenti uniti insieme (merge a polpo); un conflitto lo annulla tutto. */
-function* iniziaProvaPassi(p: { cwd: string; ramo: string; base: string; altri?: string[]; alRecupero?: AlRecupero }): Passi<EsitoProva> {
+/** Da quanto un `index.lock` è «vecchio»: un git vivo lo tiene per secondi, non per minuti. */
+export const LOCK_VECCHIO_MS = 10 * 60_000
+
+/** Gli stati a metà che git lascia in `.git` e che tengono ferma la cartella anche se `status` non elenca file. */
+const STATI_GIT_A_META: ReadonlyArray<readonly [string, string]> = [
+  ['MERGE_HEAD', 'un’unione aperta (MERGE_HEAD)'],
+  ['CHERRY_PICK_HEAD', 'un cherry-pick a metà (CHERRY_PICK_HEAD)'],
+  ['REVERT_HEAD', 'un revert a metà (REVERT_HEAD)'],
+  ['rebase-merge', 'un rebase a metà (cartella rebase-merge)'],
+  ['rebase-apply', 'un rebase o un «git am» a metà (cartella rebase-apply)'],
+  ['index.lock', 'un file di blocco di git (index.lock)'],
+]
+
+function statiGitAperti(dir: string): string[] {
+  return STATI_GIT_A_META.filter(([nome]) => existsSync(join(dir, nome))).map(([, parole]) => parole)
+}
+
+/** C'è un processo git vivo? Nel dubbio (il controllo non risponde) sì: meglio non toccare. */
+function processoGitVivo(): boolean {
+  try {
+    const r = process.platform === 'win32'
+      ? spawnSync('tasklist', ['/FI', 'IMAGENAME eq git.exe', '/NH'], { encoding: 'utf8', windowsHide: true, timeout: 15_000 })
+      : spawnSync('pgrep', ['-x', 'git'], { encoding: 'utf8', timeout: 15_000 })
+    if (r.error !== undefined || r.status === null) return true
+    return process.platform === 'win32' ? /git\.exe/i.test(r.stdout ?? '') : r.status === 0
+  } catch { return true }
+}
+
+/**
+ * **Il blocco vecchio di git** (24/11): un `git merge` o `merge --abort` fermato a metà (tempo scaduto,
+ * riavvio, aggiornamento) lascia `.git/index.lock`; da lì `merge --abort` e `reset --merge` falliscono sempre,
+ * l'unione di prova resta aperta e ogni unione dopo è «ferma» per sempre senza nessun file da elencare.
+ * Si toglie quel solo file (mai altro), e solo se è vecchio e nessun git è vivo. Torna la riga per il registro.
+ */
+function togliBloccoVecchio(dir: string, p: { adesso: number; processiGit?: () => boolean }): string | undefined {
+  const blocco = join(dir, 'index.lock')
+  let eta: number
+  try { eta = p.adesso - statSync(blocco).mtimeMs } catch { return undefined }
+  if (eta < LOCK_VECCHIO_MS) return undefined
+  if ((p.processiGit ?? processoGitVivo)()) return undefined
+  try { unlinkSync(blocco) } catch { return undefined }
+  return `tolto il file di blocco di git (index.lock) fermo da ${Math.round(eta / 60_000)} minuti, senza nessun processo git vivo`
+}
+
+/**
+ * `altri` (k-178g): un lotto di rami indipendenti uniti insieme (merge a polpo); un conflitto lo annulla tutto.
+ * `dettaglio`: cosa ha trovato il programma quando la cartella è ferma ma `status` non elenca file (24/11, k-err264).
+ */
+function* iniziaProvaPassi(p: { cwd: string; ramo: string; base: string; altri?: string[]; alRecupero?: AlRecupero; registro?: (riga: string) => void; processiGit?: () => boolean; adesso?: number }): Passi<EsitoProva> {
   const rami = [p.ramo, ...(p.altri ?? [])]
   const radice = yield* radicePassi(p.cwd)
   if (radice === undefined) return { ok: false, motivo: 'non è un repository git' }
   const qui = yield* ramoPassi(radice)
   if (qui !== p.base) return { ok: false, motivo: `la cartella di lavoro è sul ramo «${qui ?? '?'}», non su «${p.base}»` }
-  // Una prova di prima, rimasta a metà: la ripulisce il programma, se è sua.
-  yield* ripulisciProvaPassi(radice, p.alRecupero)
+  const dillaNelRegistro = (riga: string): void => { if (p.registro !== undefined) p.registro(riga); else console.warn(`[autopilota] ${riga}`) }
   const dir = yield* cartellaGitPassi(radice)
+  const avevaSegno = dir !== undefined && existsSync(join(dir, MARCATORE_PROVA))
+  // Un blocco vecchio (git fermato a metà) impedirebbe di annullare la prova di prima: prima si toglie quello.
+  if (dir !== undefined) {
+    const fatto = togliBloccoVecchio(dir, { adesso: p.adesso ?? Date.now(), ...(p.processiGit !== undefined ? { processiGit: p.processiGit } : {}) })
+    if (fatto !== undefined) dillaNelRegistro(`${fatto}.`)
+  }
+  // Una prova di prima, rimasta a metà: la ripulisce il programma, se è sua.
+  const ripulita = yield* ripulisciProvaPassi(radice, p.alRecupero)
+  if (ripulita === 'ripulita') dillaNelRegistro('annullata un’unione di prova rimasta a metà (era del programma): la cartella è tornata com’era.')
   // Un'unione aperta che non è del programma (di Nicholas): non si tocca, nemmeno con `merge --abort`.
-  if (dir !== undefined && existsSync(join(dir, 'MERGE_HEAD'))) return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA }
+  // Ma si dice cosa c'è: `status` non elenca file, e senza il nome dello stato nessuno sa dove guardare.
+  if (dir !== undefined) {
+    const aperti = statiGitAperti(dir)
+    if (aperti.length > 0) {
+      const sua = avevaSegno && aperti.includes(STATI_GIT_A_META[0]![1])
+      return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA, dettaglio: `git ha lasciato a metà ${aperti.join(', ')}${sua ? ': era una prova del programma ma non si è potuta annullare' : ': non è del programma, non lo tocco'}` }
+    }
+  }
   let sporca = yield* chiedi(['status', '--porcelain', '--untracked-files=no'], radice)
   // Le note del programma (`.sierradeck/`: quaderno, consegne) si salvano con un
   // commit e si va avanti (0.88.5): il 30/10 l'unione di k-1 è rimasta
@@ -900,7 +962,8 @@ function* iniziaProvaPassi(p: { cwd: string; ramo: string; base: string; altri?:
       sporca = yield* chiedi(['status', '--porcelain', '--untracked-files=no'], radice)
     }
   }
-  if (sporca.codice !== 0) return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA }
+  // Un errore di git non è una cartella sporca: si riprova (come per la cartella sporca) ma si dice il vero motivo.
+  if (sporca.codice !== 0) return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA, dettaglio: `non è una cartella sporca: git status non ha risposto (${ultimaRiga(sporca.uscita) || 'nessuna risposta'})` }
   // **I file a metà fermano l'unione solo se il ramo li tocca** (11/11). Prima bastava un
   // file modificato qualunque, e la fila delle unioni restava ferma per ore senza che nessuno
   // potesse sbloccarla. Git unisce senza toccare i file locali che l'unione non riguarda

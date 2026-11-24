@@ -45,7 +45,7 @@ describe('la prova rimasta a metà', () => {
     const ramo = ramoConLavoro()
     esegui(['merge', '--no-ff', '--no-commit', ramo], progetto)
     expect(await ripulisciProvaAsincrono(ga, { cwd: progetto })).toBe('niente')
-    expect(await iniziaProvaAsincrono(ga, { cwd: progetto, ramo, base: 'main' })).toEqual({ ok: false, motivo: MOTIVO_CARTELLA_SPORCA })
+    expect(await iniziaProvaAsincrono(ga, { cwd: progetto, ramo, base: 'main' })).toMatchObject({ ok: false, motivo: MOTIVO_CARTELLA_SPORCA, dettaglio: expect.stringContaining('MERGE_HEAD') })
     expect(readFileSync(join(progetto, 'b.txt'), 'utf8')).toBe('dalla chat\n')
     expect(existsSync(join(progetto, '.git', 'MERGE_HEAD'))).toBe(true)
   })

@@ -46,6 +46,7 @@ export const NOVITA: Novita[] = [
       '**App Android 3.5.1:** in «Tutti i PC» vedi le chat di ogni PC, anche di quelli raggiunti passando da un altro PC, e adesso si possono aprire, leggere e ci si può scrivere.',
       '**Aggiornare un altro PC dal telefono:** il tasto funziona sempre, perché il comando passa dal PC collegato. Mentre l\'aggiornamento è in corso si vede una barra con la percentuale.',
       '**App Android 3.5.1:** la chat con l\'autopilota prende tutto lo schermo. Si scarica a parte.',
+      '**Unioni:** non restano più ferme per un\'unione di prova lasciata a metà: se è del programma la annulla da sola, e se non lo è l\'avviso dice che cosa ha trovato.',
     ],
   },
   {
