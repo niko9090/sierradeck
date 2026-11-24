@@ -81,6 +81,31 @@ object TuttiIPc {
         }.distinctBy { it.pcId }.map { PcNoto(id = it.pcId, nome = it.mostra, chiave = "", host = it.host) }
     }
 
+    /** Il PC dell'elenco del ponte che corrisponde a questo della rubrica: per id, per impronta o per nome. */
+    fun remotoDi(p: PcNoto, elenco: ElencoPc?): PcRemoto? {
+        val tutti = elenco?.pc ?: return null
+        tutti.firstOrNull { it.pcId == p.id }?.let { return it }
+        if (p.impronta.isNotBlank()) tutti.firstOrNull { ProvaTelefono.improntaDaId(it.pcId) == p.impronta }?.let { return it }
+        val nome = p.nome.trim().lowercase()
+        return if (nome.isEmpty()) null else tutti.firstOrNull { it.mostra.trim().lowercase() == nome }
+    }
+
+    /**
+     * Un PC che tace non deve mostrarsi senza chat: il suo battito sul Drive
+     * (`/api/pc`) porta l'elenco delle chat aperte l'ultima volta che ha battuto.
+     * Se la copia non ha chat (mai letta, o vecchia e vuota) si usano quelle,
+     * segnate come vecchie. Una copia fresca resta com'è: vuota vuol dire vuota.
+     */
+    fun conBattito(copia: Deposito.Copia?, remoto: PcRemoto?): Deposito.Copia? {
+        if (remoto == null || remoto.chat.isEmpty()) return copia
+        if (copia != null && !copia.vecchia) return copia
+        if (copia?.stato?.chat?.isNotEmpty() == true) return copia
+        val chat = remoto.chat.map { c ->
+            Chat(id = c.sessione ?: (c.titolo + "|" + c.cwd), titolo = c.titolo, cwd = c.cwd, sessione = c.sessione, aspetta = c.aspetta)
+        }
+        return Deposito.Copia((copia?.stato ?: Stato()).copy(chat = chat), copia?.quando ?: 0L, vecchia = true, motivo = copia?.motivo ?: "dal battito")
+    }
+
     /** Quelli del ponte da leggere adesso: solo i PC accesi (gli altri restano «non risponde»). */
     fun daLeggere(ponte: List<PcNoto>, elenco: ElencoPc?): List<PcNoto> {
         val vivi = elenco?.pc?.filter { it.vivo }?.map { it.pcId }?.toSet().orEmpty()
