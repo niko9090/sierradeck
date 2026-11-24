@@ -532,6 +532,9 @@ button.pan2-compito:focus-visible { border-color: var(--luce-incisione); backgro
 .coda-ws__badge { border-radius: 10px; }
 .punto-ap__barra { height: 6px; border-radius: 3px; background: var(--chassis-acceso); }
 .punto-ap__barra > span { border-radius: 3px; }
+/* k-280c: barra dell'avanzamento in testa alla chat, più alta e con un filo per il contrasto */
+.coda-ws__riga .punto-ap__barra { height: 10px; border-radius: 5px; background: var(--chassis-premuto); box-shadow: inset 0 0 0 1px var(--testo-quieto); overflow: hidden; }
+.coda-ws__riga .punto-ap__barra > span { border-radius: 5px; }
 
 /* ─────────────── le chat degli specialisti ─────────────── */
 

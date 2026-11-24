@@ -10,6 +10,8 @@ import { FlussoChat } from './ChatAutopilota'
 import { useSegueFondo } from '../segue-fondo'
 import { RigaDalVivo } from './DalVivoAutopilota'
 import { ElencoMenuSpecialisti } from './MenuSpecialisti'
+import { TestaOrchestratore } from './TestaOrchestratore'
+import { FornisciSorgente, sorgenteRemota } from '../sorgente-autopilota'
 
 /**
  * **La chat dell'autopilota di un workspace che sta su un altro PC** (k-60,
@@ -151,6 +153,12 @@ export function ChatAutopilotaRemota({ pcId, pcNome, stato, rileggi }: { pcId: s
         <Aiuto di="autopilota su un altro PC">Questo è l’autopilota del workspace, che lavora su {pcNome}. La conversazione, le domande e lo stato arrivano da là ogni pochi secondi; quello che scrivi o rispondi va a lui. Se {pcNome} è spento o non risponde, qui resta l’ultima cosa vista e il messaggio non parte: riprova quando torna. Gli specialisti al lavoro sono nella colonna accanto.</Aiuto>
       </div>
       {stato.giu ? <RigaPcGiu pcNome={pcNome} /> : null}
+      {/* k-280c: la stessa testa di qui (percentuale e cosa succede), con i dati di quel PC. */}
+      {autopilota !== undefined ? (
+        <FornisciSorgente value={sorgenteRemota(pcId, pcNome)}>
+          <TestaOrchestratore workspace={chiaveWorkspace(autopilota)} />
+        </FornisciSorgente>
+      ) : null}
       {autopilota === undefined ? (
         <div className="chatap__flusso" ref={flusso}>
           <p className="chatap__pensa">

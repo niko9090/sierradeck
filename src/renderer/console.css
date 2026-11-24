@@ -5018,6 +5018,11 @@ label.gc-voce { cursor: pointer; }
 .coda-ws--compatta { padding: 2px 10px 4px; }
 .coda-ws__riga { display: flex; align-items: center; gap: 8px; }
 .coda-ws__riga .punto-ap__barra, .coda-ws__vuota { flex: 1 1 auto; margin: 0; }
+/* k-280c: la riga «Avanzamento N%» sempre leggibile, barra alta 10px con un filo che la stacca in ogni tema */
+.coda-ws__riga .punto-ap__barra { height: 10px; box-shadow: inset 0 0 0 1px var(--testo-quieto); }
+.coda-ws__etichetta { color: var(--testo-quieto); white-space: nowrap; }
+.coda-ws__valore { color: var(--testo); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.coda-ws__valore--quieto { color: var(--testo-quieto); font-weight: normal; }
 .coda-ws--compatta > .coda-ws__ora { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0; }
 .coda-ws__tendina { display: grid; gap: 2px; padding-top: 4px; max-height: 45vh; overflow-y: auto; }
 .coda-ws__ora--lavora { color: #57d38c; }
