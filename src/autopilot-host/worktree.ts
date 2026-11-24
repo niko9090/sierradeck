@@ -608,15 +608,69 @@ const CARTELLA_RECUPERO = '.sierradeck/recupero'
 const PREFISSO_STASH = 'sierradeck-recupero-'
 type Recupero = { nome: string; sha: string; file: string[]; cartella: string }
 
-function* trovaStashPassi(radice: string, nome: string): Passi<{ sha: string; rif: string } | undefined> {
+/**
+ * Lo stash nostro nella lista, che cambia mentre altri ne mettono o ne tolgono (la posizione non è un'identità):
+ * con la `sha` (quella che il segno ricorda) si cerca per quella; altrimenti per messaggio **intero**
+ * (`On ramo: nome`), mai «finisce con», che prenderebbe lo stash di un altro con un messaggio simile.
+ */
+function* trovaStashPassi(radice: string, nome: string, sha?: string): Passi<{ sha: string; rif: string } | undefined> {
   const l = yield* chiedi(['stash', 'list', '--format=%H %gs'], radice)
   if (l.codice !== 0) return undefined
   const righe = soloFile(l.uscita)
   for (let i = 0; i < righe.length; i++) {
     const r = righe[i]!
-    if (r.endsWith(nome)) return { sha: r.split(' ')[0]!, rif: `stash@{${i}}` }
+    const spazio = r.indexOf(' ')
+    const questa = r.slice(0, spazio)
+    const messaggio = r.slice(spazio + 1)
+    if (sha !== undefined && sha !== '' ? questa === sha : (messaggio === nome || messaggio.endsWith(`: ${nome}`))) return { sha: questa, rif: `stash@{${i}}` }
   }
   return undefined
+}
+
+/**
+ * Toglie dalla lista lo stash con quella `sha`. `git stash drop` vuole una posizione, e fra la ricerca e il
+ * `drop` un altro può averne messo uno: il `drop` dice la sha di quello che ha tolto, e se non è il nostro
+ * lo rimette (`stash store`).
+ */
+function* togliStashPassi(radice: string, sha: string): Passi<void> {
+  const s = yield* trovaStashPassi(radice, '', sha)
+  if (s === undefined) return
+  const d = yield* chiedi(['stash', 'drop', s.rif], radice)
+  const tolto = /\(([0-9a-f]{40,64})\)/i.exec(d.uscita)?.[1]
+  if (d.codice === 0 && tolto !== undefined && tolto.toLowerCase() !== sha.toLowerCase()) {
+    yield* chiedi(['stash', 'store', '-m', 'rimesso dal programma dopo un drop sbagliato', tolto], radice)
+  }
+}
+
+/** Un percorso come lo scrive git nelle liste: tra virgolette, con `\303\250` per i caratteri non ascii e `\"`, `\\`. */
+function percorsoGit(f: string): string {
+  const t = f.trim()
+  if (t.length < 2 || !t.startsWith('"') || !t.endsWith('"')) return t
+  const corpo = [...t.slice(1, -1)]
+  const byte: number[] = []
+  const semplici: Record<string, number> = { n: 10, t: 9, r: 13, a: 7, b: 8, f: 12, v: 11, '"': 34, '\\': 92 }
+  for (let i = 0; i < corpo.length; i++) {
+    const c = corpo[i]!
+    if (c !== '\\') { byte.push(...Buffer.from(c, 'utf8')); continue }
+    const o = corpo.slice(i + 1, i + 4).join('')
+    if (/^[0-7]{3}$/.test(o)) { byte.push(parseInt(o, 8)); i += 3; continue }
+    const x = corpo[++i] ?? ''
+    byte.push(...(semplici[x] !== undefined ? [semplici[x]!] : [...Buffer.from(x, 'utf8')]))
+  }
+  return Buffer.from(byte).toString('utf8')
+}
+
+/** `.sierradeck/recupero/` resta fuori dai `git status` della cartella principale: l'esclusione locale (`.git/info/exclude`), che non sporca niente. */
+function ignoraRecupero(dir: string | undefined): void {
+  if (dir === undefined) return
+  const riga = `${CARTELLA_RECUPERO}/`
+  try {
+    const file = join(dir, 'info', 'exclude')
+    const c = existsSync(file) ? readFileSync(file, 'utf8') : ''
+    if (c.split(/\r?\n/).some((r) => r.trim() === riga || r.trim() === `/${riga}`)) return
+    mkdirSync(dirname(file), { recursive: true })
+    writeFileSync(file, `${c}${c === '' || c.endsWith('\n') ? '' : '\n'}${riga}\n`)
+  } catch { /* senza, il recupero resta un file non tracciato: innocuo per le unioni (non contano i non tracciati) */ }
 }
 
 /** Toglie una cartella di recupero (solo sotto `.sierradeck/recupero/`, e solo dalla guardia delle cancellazioni). */
@@ -629,7 +683,7 @@ function leggiSegno(dir: string): { testa?: string; recupero?: Recupero } {
 }
 
 /** Copia con impronta + stash nominato dei soli `file`. `undefined` se non è andata (e allora non è stato toccato niente). */
-function* mettiAlSicuroPassi(radice: string, file: string[]): Passi<Recupero | undefined> {
+function* mettiAlSicuroPassi(radice: string, dir: string | undefined, file: string[]): Passi<Recupero | undefined> {
   const nome = `${PREFISSO_STASH}${Date.now().toString(36)}`
   const copie: Array<[string, Buffer]> = []
   const h = createHash('sha256')
@@ -640,13 +694,23 @@ function* mettiAlSicuroPassi(radice: string, file: string[]): Passi<Recupero | u
     try { const b = readFileSync(p); h.update(f); h.update(b); copie.push([f, b]) } catch { return undefined }
   }
   const cartella = `${CARTELLA_RECUPERO}/${nome.slice(PREFISSO_STASH.length)}-${h.digest('hex').slice(0, 10)}`
+  ignoraRecupero(dir)
   try {
     for (const [f, b] of copie) { const dest = join(radice, cartella, f); mkdirSync(dirname(dest), { recursive: true }); writeFileSync(dest, b) }
   } catch { togliRecupero(radice, cartella); return undefined }
+  // Il segno **prima** dello stash: se il processo muore fra lo stash e l'unione, la prova dopo sa cosa rimettere (senza sha, per nome).
+  const prima: Recupero = { nome, sha: '', file, cartella }
+  if (dir !== undefined) { try { writeFileSync(join(dir, MARCATORE_PROVA), JSON.stringify({ ramo: '', testa: '', il: new Date().toISOString(), recupero: prima })) } catch { /* senza segno si va avanti */ } }
   const s = yield* chiedi([...(yield* firma(radice)), '--literal-pathspecs', 'stash', 'push', '-m', nome, '--', ...file], radice)
   const trovato = s.codice === 0 ? yield* trovaStashPassi(radice, nome) : undefined
-  if (trovato === undefined) { togliRecupero(radice, cartella); return undefined }
-  return { nome, sha: trovato.sha, file, cartella }
+  if (trovato === undefined) {
+    // `push` fallito e niente stash: non è stato toccato niente, si toglie il segno e la copia. Se `push` ha risposto bene ma lo stash non si trova, segno e copia restano (il lavoro è lì).
+    if (s.codice !== 0 || /no local changes/i.test(s.uscita)) { if (dir !== undefined) togliMarcatore(dir); togliRecupero(radice, cartella) }
+    return undefined
+  }
+  const fatto: Recupero = { nome, sha: trovato.sha, file, cartella }
+  if (dir !== undefined) { try { writeFileSync(join(dir, MARCATORE_PROVA), JSON.stringify({ ramo: '', testa: '', il: new Date().toISOString(), recupero: fatto })) } catch { /* idem */ } }
+  return fatto
 }
 
 function dillo(e: EsitoRecupero, alRecupero: AlRecupero | undefined): void {
@@ -661,7 +725,7 @@ function dillo(e: EsitoRecupero, alRecupero: AlRecupero | undefined): void {
 function* rimettiRecuperoPassi(radice: string, dir: string, alRecupero?: AlRecupero): Passi<void> {
   const r = leggiSegno(dir).recupero
   if (r === undefined || existsSync(join(dir, 'MERGE_HEAD'))) return
-  const s = yield* trovaStashPassi(radice, r.nome)
+  const s = yield* trovaStashPassi(radice, r.nome, r.sha)
   if (s === undefined) return
   const base = { nome: r.nome, file: r.file, cartella: r.cartella }
   // Nel frattempo ha cambiato di nuovo quei file: non si sovrascrive niente, resta tutto al sicuro.
@@ -673,16 +737,59 @@ function* rimettiRecuperoPassi(radice: string, dir: string, alRecupero?: AlRecup
   const a = yield* chiedi(['stash', 'apply', s.sha], radice)
   const incrociati = yield* chiedi(['diff', '--name-only', '--diff-filter=U'], radice)
   if (a.codice === 0 && soloFile(incrociati.uscita).length === 0) {
-    const di = yield* trovaStashPassi(radice, r.nome)
-    if (di !== undefined) yield* chiedi(['stash', 'drop', di.rif], radice)
+    yield* togliStashPassi(radice, s.sha)
     togliRecupero(radice, r.cartella)
     dillo({ ...base, rimessi: true }, alRecupero)
+    return
+  }
+  // `apply` rifiutato senza conflitti (Nicholas ha salvato un attimo prima, o git non ha potuto): niente è stato toccato, e niente si tocca.
+  if (soloFile(incrociati.uscita).length === 0) {
+    dillo({ ...base, rimessi: false, perche: 'git non ha potuto rimetterli (i file sono cambiati un attimo prima): non ho toccato niente' }, alRecupero)
     return
   }
   // Conflitto: i file tornano com'è nel ramo (erano puliti un attimo fa, il loro contenuto è nello stash e nella cartella di recupero).
   yield* chiedi(['--literal-pathspecs', 'reset', '-q', '--', ...r.file], radice)
   yield* chiedi(['--literal-pathspecs', 'checkout', 'HEAD', '--', ...r.file], radice)
   dillo({ ...base, rimessi: false, perche: 'rimetterli darebbe conflitto con l’unione' }, alRecupero)
+}
+
+/**
+ * Annulla l'unione di prova. Se Nicholas, a prova aperta, ha salvato un file che l'unione tocca, `merge --abort`
+ * si rifiuta (non può rimettere il file senza buttare la sua versione) e l'unione resterebbe aperta per sempre.
+ * Allora: la sua versione si copia in `.sierradeck/recupero/durante-…`, il file torna a HEAD, si annulla, e la sua
+ * versione si rimette nel file (la copia si toglie solo se la rimessa è riuscita). Torna `true` se l'unione è chiusa.
+ */
+function* annullaUnionePassi(radice: string, dir: string): Passi<boolean> {
+  const aperta = (): boolean => existsSync(join(dir, 'MERGE_HEAD'))
+  const a = yield* chiedi(['merge', '--abort'], radice)
+  if (a.codice !== 0 && aperta()) yield* chiedi(['reset', '--merge'], radice)
+  if (!aperta()) return true
+  const suoi = yield* chiedi(['diff', '--name-only', '--no-renames'], radice)
+  const dellUnione = yield* chiedi(['diff', '--cached', '--name-only', '--no-renames'], radice)
+  if (suoi.codice !== 0 || dellUnione.codice !== 0) return false
+  const tocca = new Set(soloFile(dellUnione.uscita).map(percorsoGit))
+  const file = soloFile(suoi.uscita).map(percorsoGit).filter((f) => tocca.has(f) && f !== '' && !f.startsWith('-') && !f.split('/').includes('..'))
+  if (file.length === 0) return false
+  ignoraRecupero(dir)
+  const cartella = `${CARTELLA_RECUPERO}/durante-${Date.now().toString(36)}`
+  const copie: Array<[string, Buffer]> = []
+  try {
+    for (const f of file) {
+      const b = readFileSync(join(radice, f))
+      const dest = join(radice, cartella, f)
+      mkdirSync(dirname(dest), { recursive: true })
+      writeFileSync(dest, b)
+      copie.push([f, b])
+    }
+  } catch { return false }
+  yield* chiedi(['--literal-pathspecs', 'checkout', 'HEAD', '--', ...file], radice)
+  yield* chiedi(['merge', '--abort'], radice)
+  if (aperta()) return false
+  try {
+    for (const [f, b] of copie) writeFileSync(join(radice, f), b)
+    togliRecupero(radice, cartella)
+  } catch { /* la copia resta: è l'unica rimasta */ }
+  return true
 }
 
 /**
@@ -695,7 +802,7 @@ function vociPorcelain(porcelain: string): string[] {
 }
 
 function percorsiDellaVoce(voce: string): string[] {
-  return voce.replace(/^[ MTADRCU?!]{1,2} /, '').split(' -> ').map((x) => x.replace(/^"|"$/g, ''))
+  return voce.replace(/^[ MTADRCU?!]{1,2} /, '').split(' -> ').map(percorsoGit)
 }
 
 /** Le voci di `git status --porcelain` sono tutte file sotto `.sierradeck/` (e ce n'è almeno una). */
@@ -755,11 +862,9 @@ function* ripulisciProvaPassi(cwd: string, alRecupero?: AlRecupero): Passi<'nien
   let testa = ''
   try { testa = readFileSync(join(dir, 'MERGE_HEAD'), 'utf8').split(/\r?\n/)[0]?.trim() ?? '' } catch { /* illeggibile */ }
   if (segno.testa === undefined || segno.testa === '' || segno.testa !== testa) { togliMarcatore(dir); return 'niente' }
-  const a = yield* chiedi(['merge', '--abort'], radice)
-  if (a.codice !== 0) yield* chiedi(['reset', '--merge'], radice)
-  const chiusa = !existsSync(join(dir, 'MERGE_HEAD'))
-  if (chiusa) yield* rimettiRecuperoPassi(radice, dir, alRecupero)
-  togliMarcatore(dir)
+  const chiusa = yield* annullaUnionePassi(radice, dir)
+  if (chiusa) { yield* rimettiRecuperoPassi(radice, dir, alRecupero); togliMarcatore(dir) }
+  // Unione ancora aperta: il segno resta, la prova dopo riprova (i file messi al sicuro non si rimettono con un'unione aperta).
   return chiusa ? 'ripulita' : 'niente'
 }
 
@@ -815,14 +920,14 @@ function* iniziaProvaPassi(p: { cwd: string; ramo: string; base: string; altri?:
     }
     // Nel dubbio (git che non risponde) vale la regola di prima: non si unisce.
     if (inIndice.codice !== 0 || !diffOk) return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA, file: sporchi }
-    const uguale = (f: string): string => f.trim().replace(/^"|"$/g, '').replace(/\\/g, '/').toLowerCase()
+    const uguale = (f: string): string => percorsoGit(f).replace(/\\/g, '/').toLowerCase()
     const toccati = new Set(soloFile(fileDeiRami).map(uguale))
-    const fermano = [...new Set([...soloFile(inIndice.uscita).map((f) => f.trim().replace(/^"|"$/g, '')), ...sporchi.filter((f) => toccati.has(uguale(f)))])]
+    const fermano = [...new Set([...soloFile(inIndice.uscita).map(percorsoGit), ...sporchi.filter((f) => toccati.has(uguale(f)))])]
     if (fermano.length > 0) {
       // 24/11 (k-unf1): i file nell'indice restano di Nicholas e fermano l'unione come prima; quelli solo
       // modificati si mettono al sicuro, si unisce, e a prova chiusa tornano com'erano.
       if (soloFile(inIndice.uscita).length > 0) return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA, file: fermano }
-      recupero = yield* mettiAlSicuroPassi(radice, fermano)
+      recupero = yield* mettiAlSicuroPassi(radice, dir, fermano)
       if (recupero === undefined) return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA, file: fermano }
     }
   }
@@ -835,10 +940,9 @@ function* iniziaProvaPassi(p: { cwd: string; ramo: string; base: string; altri?:
   const r = yield* chiedi([...(yield* firma(radice)), 'merge', '--no-ff', '--no-commit', ...(sporchi.length > 0 ? ['--no-autostash'] : []), ...rami], radice)
   if (r.codice === 0) return { ok: true }
   const inConflitto = soloFile((yield* chiedi(['diff', '--name-only', '--diff-filter=U'], radice)).uscita)
-  yield* chiedi(['merge', '--abort'], radice)
+  const chiusa = dir === undefined ? ((yield* chiedi(['merge', '--abort'], radice)).codice === 0) : yield* annullaUnionePassi(radice, dir)
   if (dir !== undefined) {
-    yield* rimettiRecuperoPassi(radice, dir, p.alRecupero)
-    togliMarcatore(dir)
+    if (chiusa) { yield* rimettiRecuperoPassi(radice, dir, p.alRecupero); togliMarcatore(dir) }
   } else if (recupero !== undefined) {
     // Senza cartella git leggibile il segno non c'è: i file restano nello stash nominato.
     dillo({ nome: recupero.nome, file: recupero.file, cartella: recupero.cartella, rimessi: false, perche: 'unione di prova non riuscita' }, p.alRecupero)
@@ -909,8 +1013,8 @@ function* chiudiProvaPassi(p: { cwd: string; tieni: boolean; alRecupero?: AlRecu
       return true
     }
   }
-  yield* chiedi(['merge', '--abort'], radice)
-  if (dir !== undefined) { yield* rimettiRecuperoPassi(radice, dir, p.alRecupero); togliMarcatore(dir) }
+  if (dir === undefined) { yield* chiedi(['merge', '--abort'], radice); return false }
+  if (yield* annullaUnionePassi(radice, dir)) { yield* rimettiRecuperoPassi(radice, dir, p.alRecupero); togliMarcatore(dir) }
   return false
 }
 
