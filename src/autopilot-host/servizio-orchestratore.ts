@@ -1470,6 +1470,8 @@ ${NOTA_SENZA_GIT}`,
     rispostaIl?: number
     salvaTentativi?: number
     troppiIl?: number
+    /** 24/11: già avvisato Nicholas che l'unione è ferma senza nessun file da elencare. */
+    avvisatoSenzaFile?: boolean
     /** Il criterio già misurato rosso con questi file non salvati: non si rimisura finché non cambiano. */
     rossoSporco?: string
     /** 12/11: quante volte è tornato rosso coi file non salvati (con file che cambiano da soli, per esempio una build, era per sempre). */
@@ -1843,6 +1845,15 @@ ${NOTA_SENZA_GIT}`,
               }
             }
           }
+          // 24/11 (k-err1): la cartella è «sporca» ma git non ha dato nessun file (un'unione aperta a mano, o lo stato che non si legge):
+          // la domanda «li salvo?» non ha nomi da elencare e non partiva mai, e l'errore restava solo nel registro. Dopo lo stesso
+          // tempo si avvisa Nicholas, una volta sola, con il motivo vero e cosa guardare.
+          if (a !== undefined && ancora.file.length === 0 && lavoro.avvisatoSenzaFile !== true && adessoMs - lavoro.sporcaDal >= (x.chiediSalvaDopoMs ?? CHIEDI_SALVA_DOPO_MS)) {
+            lavoro.avvisatoSenzaFile = true
+            const testo = `${chi}: l’unione aspetta da qualche minuto perché ${ancora.perche}, ma git non indica nessun file da salvare: di solito è un’unione lasciata a metà o un’operazione git ancora aperta nella cartella principale. Controlla lì (\`git status\`): appena è a posto l’unione riparte da sola.`
+            evento(ws, { tipo: 'unione', quando: x.adesso(), ...dove, testo })
+            void x.avvisa('avviso', a, testo).catch(() => { /* resta nel registro */ })
+          }
         }
         // 11/11: dopo un po' la voce ferma va in fondo e le altre provano (lei riprova ogni volta che tocca a lei).
         if (adessoMs - lavoro.sporcaDal >= (x.sporcaInFondoDopoMs ?? SPORCA_IN_FONDO_DOPO_MS) && fila.length > 1) {
@@ -1860,6 +1871,7 @@ ${NOTA_SENZA_GIT}`,
       }
       // Non è più ferma per i file non salvati: la domanda, se c'era, non serve più.
       lavoro.sporcaDal = undefined
+      lavoro.avvisatoSenzaFile = undefined
       lavoro.fermaGiri = undefined
       ritiraDomandaSalva(lavoro, 'l’unione non è più ferma per quei file: non serve più')
       // Scaduta: chiusa, e di nuovo in fila (in coda alle altre). 11/11: mai fuori dalla fila

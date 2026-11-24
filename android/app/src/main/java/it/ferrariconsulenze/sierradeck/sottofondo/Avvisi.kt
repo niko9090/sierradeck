@@ -369,6 +369,17 @@ object Avvisi {
     }
 
     /**
+     * Le domande già annunciate (id) che lo stato non elenca più: qualcuno ha
+     * risposto (dal PC, da un altro telefono) e la loro notifica non serve a
+     * nessuno. Se lo stato non manda l'elenco delle domande non si sa: vuoto.
+     */
+    fun domandeSparite(stato: JSONObject, annunciate: Collection<String>): List<String> {
+        val a = stato.optJSONArray("domande") ?: return emptyList()
+        val presenti = (0 until a.length()).map { a.getJSONObject(it).optString("id") }.toSet()
+        return annunciate.filter { it !in presenti }
+    }
+
+    /**
      * Toglie dal ricordo cio' di cui lo stato non parla piu'.
      *
      * Si pota **solo** una famiglia di cui questo stato ha davvero l'elenco: un

@@ -1,6 +1,7 @@
 package it.ferrariconsulenze.sierradeck.dati
 
 import it.ferrariconsulenze.sierradeck.rete.Esito
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -58,17 +59,25 @@ class CodaInvii(
     val bozze: StateFlow<Map<String, String>> = _bozze.asStateFlow()
 
     init {
-        val letto = runCatching { json.decodeFromString(SuFile.serializer(), file.readText()) }.getOrNull() ?: SuFile()
-        _invii.value = letto.invii
-        _bozze.value = letto.bozze
+        val grezzo = runCatching { file.readText() }.getOrNull()
+        val letto = grezzo?.let { t -> runCatching { json.decodeFromString(SuFile.serializer(), t) }.getOrNull() }
+        if (grezzo != null && letto == null && grezzo.isNotBlank()) {
+            // File rovinato: non lo si sovrascrive al primo messaggio nuovo, se ne tiene una copia.
+            runCatching { File(file.parentFile, file.name + ".corrotto").writeText(grezzo) }
+        }
+        _invii.value = letto?.invii ?: emptyList()
+        _bozze.value = letto?.bozze ?: emptyMap()
     }
 
     private fun scrivi() {
-        val testo = json.encodeToString(SuFile.serializer(), SuFile(_invii.value, _bozze.value))
-        file.parentFile?.mkdirs()
-        val tmp = File(file.parentFile, file.name + ".tmp")
-        tmp.writeText(testo)
-        if (!tmp.renameTo(file)) { file.delete(); tmp.renameTo(file) }
+        // Disco pieno o file bloccato: il messaggio resta in memoria e parte lo stesso, non si perde l'app.
+        try {
+            val testo = json.encodeToString(SuFile.serializer(), SuFile(_invii.value, _bozze.value))
+            file.parentFile?.mkdirs()
+            val tmp = File(file.parentFile, file.name + ".tmp")
+            tmp.writeText(testo)
+            if (!tmp.renameTo(file)) { file.delete(); tmp.renameTo(file) }
+        } catch (_: java.io.IOException) { }
     }
 
     /** La bozza di una casella, tenuta a ogni lettera. */
@@ -121,9 +130,10 @@ class CodaInvii(
      */
     suspend fun svuota(pc: String? = null) = chiave.withLock {
         for (i in _invii.value.filter { (pc == null || it.pc == pc) && it.rifiutato == null }) {
-            when (val e = manda(i)) {
+            val esito = try { manda(i) } catch (x: CancellationException) { throw x } catch (x: Exception) { Esito.Rete(x.message ?: "errore imprevisto") }
+            when (val e = esito) {
                 is Esito.Riuscito -> cambia(i.id) { null }
-                is Esito.Rifiuto -> if (e.codice >= 500) { cambia(i.id) { it.copy(tentativi = it.tentativi + 1) }; return@withLock } else cambia(i.id) { it.copy(tentativi = it.tentativi + 1, rifiutato = e.motivo.ifBlank { "rifiutato" }) }
+                is Esito.Rifiuto -> if (riprovabile(e.codice)) { cambia(i.id) { it.copy(tentativi = it.tentativi + 1) }; return@withLock } else cambia(i.id) { it.copy(tentativi = it.tentativi + 1, rifiutato = e.motivo.ifBlank { "rifiutato" }) }
                 is Esito.MancaSulPc -> cambia(i.id) { it.copy(tentativi = it.tentativi + 1, rifiutato = e.motivo) }
                 is Esito.Rete -> { cambia(i.id) { it.copy(tentativi = it.tentativi + 1) }; return@withLock }
             }
@@ -136,6 +146,9 @@ class CodaInvii(
     }
 
     companion object {
+        /** Un no che cambia riprovando: PC occupato o in aggiornamento (5xx), troppo lento o sommerso (408, 425, 429). */
+        fun riprovabile(codice: Int): Boolean = codice >= 500 || codice == 408 || codice == 425 || codice == 429
+
         @Volatile private var una: CodaInvii? = null
         val pronta: CodaInvii? get() = una
 

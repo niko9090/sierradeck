@@ -102,11 +102,19 @@ object Ronda {
             Notifiche.scelte(contesto)
         )
         if (!davanti) for (a in avvisi) avvisa(contesto, a)
+        // Una domanda a cui si è risposto altrove non resta in tendina (con l'app davanti le notifiche non ci sono: si toglie lo stesso).
+        for (id in Avvisi.domandeSparite(stato, annunciate.keys)) annunciate.remove(id)?.let { Avvisatore.togli(contesto, it) }
         // Il PC ha dei file per questo telefono (PC 0.54.0): si ritirano adesso, in sottofondo.
         if (stato.optInt("consegne", 0) > 0) try { RicevitoreConsegne.subito(contesto) } catch (_: Exception) { }
         primoGiro = false
         salva(contesto)
     }
+
+    /** Le domande annunciate dal giro di prima: id della domanda → tag della notifica. */
+    private val annunciate = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    /** Ha risposto lui dalla notifica: quella riga («Hai risposto…») non va tolta dal giro. */
+    fun rispostaDallaNotifica(tag: String) { annunciate.values.removeAll { it == tag } }
 
     /** Quando ha suonato l'ultimo avviso (2.80.0). */
     @Volatile private var ultimoSuono: Long? = null
@@ -183,6 +191,7 @@ object Ronda {
         val (suona, nuovoUltimo) = Avvisi.decidiSuono(ultimoSuono, ora)
         ultimoSuono = nuovoUltimo
         riferisci(contesto, a)
+        if (a.domanda != null) annunciate[a.domanda] = "r:${a.id}"
         Avvisatore.mostra(contesto, AvvisoPc(n = 0, id = "r:${a.id}", tipo = tipo, titolo = a.titolo, testo = a.testo, bersaglio = bersaglio, suona = suona), suona)
     }
 }

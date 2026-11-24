@@ -48,6 +48,38 @@ class CodaInviiTest {
         assertEquals(1, n)
     }
 
+    @Test fun pcSommersoOTroppoLentoNonButtaIlMessaggio() = runBlocking {
+        for (codice in listOf(408, 425, 429, 503)) {
+            val c = CodaInvii(File(cartella(), "c.json"), { Esito.Rifiuto(codice, "occupato") })
+            c.metti("p", "/r", "{}", "a", "x")
+            c.svuota()
+            assertNull("codice $codice", c.invii.value.single().rifiutato)
+            assertEquals(1, c.invii.value.single().tentativi)
+        }
+        val c = CodaInvii(File(cartella(), "c.json"), { Esito.Rifiuto(404, "non c'è") })
+        c.metti("p", "/r", "{}", "a", "x")
+        c.svuota()
+        assertEquals("non c'è", c.invii.value.single().rifiutato)
+    }
+
+    @Test fun unErroreImprevistoNellInvioTieneIlMessaggioInCoda() = runBlocking {
+        val c = CodaInvii(File(cartella(), "c.json"), { throw IllegalStateException("boom") })
+        c.metti("p", "/r", "{}", "a", "uno")
+        c.svuota()
+        val v = c.invii.value.single()
+        assertNull(v.rifiutato)
+        assertEquals(1, v.tentativi)
+    }
+
+    @Test fun unFileRovinatoSiTieneDaParteInveceDiSovrascriverlo() {
+        val f = File(cartella(), "c.json")
+        f.writeText("{non è json")
+        val c = CodaInvii(f, { Esito.Riuscito("") })
+        assertTrue(c.invii.value.isEmpty())
+        c.metti("p", "/r", "{}", "a", "nuovo")
+        assertEquals("{non è json", File(f.parentFile, "c.json.corrotto").readText())
+    }
+
     @Test fun bozzaTenutaEToltaAlInvio() {
         val f = File(cartella(), "c.json")
         val c = CodaInvii(f, { Esito.Riuscito("") })

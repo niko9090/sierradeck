@@ -110,6 +110,24 @@ object RegoleAvvisi {
         return Gesto.Mostra(a.suona && (ultimoSuono == null || adesso - ultimoSuono >= SUONI_VICINI_MS))
     }
 
+    /**
+     * Un pacco arrivato dopo un'assenza (telefono in standby, rete persa) può
+     * contenere un avviso e, più avanti, la sua chiusura: mostrare il primo
+     * per toglierlo subito dopo è un suono a vuoto. Si tengono le chiusure e,
+     * per ogni id, solo l'ultimo avviso aperto, se nessuna chiusura è venuta dopo.
+     */
+    fun senzaSuperati(avvisi: List<AvvisoPc>): List<AvvisoPc> {
+        val ultimaChiusura = HashMap<String, Long>()
+        val ultimoAperto = HashMap<String, Long>()
+        for (a in avvisi) {
+            val mappa = if (a.chiuso != null) ultimaChiusura else ultimoAperto
+            mappa[a.id] = maxOf(mappa[a.id] ?: Long.MIN_VALUE, a.n)
+        }
+        return avvisi.filter { a ->
+            a.chiuso != null || (a.n >= (ultimoAperto[a.id] ?: a.n) && (ultimaChiusura[a.id] ?: Long.MIN_VALUE) < a.n)
+        }
+    }
+
     fun eProva(a: AvvisoPc): Boolean = a.id.startsWith("prova:")
 
     /**
@@ -140,6 +158,21 @@ object RegoleAvvisi {
         fallimenti == 5 -> 30_000L
         else -> 60_000L
     }
+
+    /** Senza nessuna rete il telefono non ha niente da provare: si dorme, e al ritorno della rete ci si sveglia da soli. */
+    const val ATTESA_SENZA_RETE_MS = 10 * 60_000L
+
+    /** L'attesa dopo un giro, più lunga se il telefono non ha rete (batteria): i valori speciali (≤ 0) restano. */
+    fun attesaConRete(attesa: Long, senzaRete: Boolean): Long =
+        if (senzaRete && attesa > 0) maxOf(attesa, ATTESA_SENZA_RETE_MS) else attesa
+
+    /**
+     * La rete è cambiata, o è tornata dopo essere sparita: il giro in corso è
+     * su una strada morta e si riparte subito. Prima, tornando la stessa rete
+     * (standby, galleria, ascensore) non si svegliava nessuno e si aspettava
+     * fino a un minuto.
+     */
+    fun reteCambiata(prima: Any?, nuova: Any, persa: Boolean): Boolean = persa || (prima != null && prima != nuova)
 
     /** Un computer di prima (404 su `/api/eventi`): il giro di sempre, ogni 2 minuti. */
     const val VECCHIO_PC_OGNI_MS = 2 * 60_000L

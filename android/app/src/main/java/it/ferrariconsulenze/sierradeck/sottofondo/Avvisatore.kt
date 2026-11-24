@@ -74,13 +74,18 @@ object Avvisatore {
     fun applica(c: Context, r: RispostaEventi) {
         creaCanali(c)
         val sopra = davanti(c)
-        for (a in r.avvisi.sortedBy { it.n }) {
+        for (a in RegoleAvvisi.senzaSuperati(r.avvisi.sortedBy { it.n })) {
             val ora = System.currentTimeMillis()
-            when (val g = RegoleAvvisi.gesto(a, sopra, ultimoSuono, ora)) {
-                is Gesto.Mostra -> { if (g.suona) ultimoSuono = ora; mostra(c, a, g.suona) }
-                is Gesto.Sostituisci -> riga(c, a.id, RegoleAvvisi.canale(a.tipo), g.titolo, g.testo, tocco(c, a), RISPOSTO_PER_MS * 6)
-                Gesto.Togli -> togli(c, a.id)
-                Gesto.Niente -> Unit
+            // Un avviso che non si riesce a disegnare non deve far perdere gli altri del pacco.
+            try {
+                when (val g = RegoleAvvisi.gesto(a, sopra, ultimoSuono, ora)) {
+                    is Gesto.Mostra -> { if (g.suona) ultimoSuono = ora; mostra(c, a, g.suona) }
+                    is Gesto.Sostituisci -> riga(c, a.id, RegoleAvvisi.canale(a.tipo), g.titolo, g.testo, tocco(c, a), RISPOSTO_PER_MS * 6)
+                    Gesto.Togli -> togli(c, a.id)
+                    Gesto.Niente -> Unit
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("SierraDeck", "avviso ${a.n} non mostrato: ${e.message}")
             }
         }
     }
