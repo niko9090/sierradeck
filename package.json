@@ -1,6 +1,6 @@
 {
   "name": "sierradeck",
-  "version": "0.118.1",
+  "version": "0.118.2",
   "private": true,
   "main": "./out/main/index.js",
   "allowScripts": {
