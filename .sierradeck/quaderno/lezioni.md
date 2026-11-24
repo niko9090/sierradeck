@@ -172,6 +172,7 @@
 - In queste copie `git fetch` può fallire se il bundle in `aiuto\arrivi` non c'è più, e il tag della versione precedente può mancare: si trova il commit con `git log -S"x.y.z" -- package.json`. _(2026-11-23)_
 - i file sorgente sono CRLF: per risolvere i conflitti con uno script le regex su `\n` non trovano nulla; usare Edit sui blocchi. _(2026-11-23)_
 - il nostro wrapper git toglie gli spazi di testa di `status --porcelain`: " M f" diventa "M f", e staged/unstaged non si distinguono. Per le modifiche non in indice usare `diff --name-only -z`. _(2026-11-23)_
+- se il ramo di lavoro coincide con main e non si può cambiare ramo, basta unirci dentro il ramo da riallineare: il risultato è lo stesso del merge di main nel ramo. _(2026-11-24)_
 
 ## autopilota
 
@@ -551,7 +552,6 @@
 
 ## log
 
-- consoleNelRegistro: console.warn va come info (fuori dallo storico errori), console.error come ERRORE; per casi attesi di rete usare warn. _(2026-11-14)_
 - Le righe [unione di prova] e [criterio] non portano il workspace: i rapporti le contano sotto «generale». Per attribuirle bisogna prima cambiare il formato delle righe in server.ts e verifiche.ts. _(2026-11-23)_
 - il workspace nelle righe di criteri/unioni passa da un contesto asincrono (`contesto-log.ts`): chi mette in coda va catturato prima, perché il turno può partire dal contesto di un altro. _(2026-11-23)_
 - Gli errori arrivati da un PC non contengono le righe delle unioni: «(scaduta)» e «unione in fila» stanno nel registro del servizio, che qui non arriva. Per misurarle servono i rapporti della 0.116.0. _(2026-11-23)_
