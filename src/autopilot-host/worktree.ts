@@ -678,8 +678,11 @@ function togliRecupero(radice: string, cartella: string): void {
   try { cancellaSicura(join(radice, cartella), { dentro: [join(radice, CARTELLA_RECUPERO)] }) } catch { /* resta, innocua */ }
 }
 
-function leggiSegno(dir: string): { testa?: string; recupero?: Recupero } {
-  try { return JSON.parse(readFileSync(join(dir, MARCATORE_PROVA), 'utf8')) as { testa?: string; recupero?: Recupero } } catch { return {} }
+/** Il segno della prova: `testa` il commit del primo ramo, `teste` quelli di tutti i rami uniti, `rami` i loro nomi, `il` quando. */
+type Segno = { testa?: string; teste?: string[]; rami?: string[]; il?: string; recupero?: Recupero }
+
+function leggiSegno(dir: string): Segno {
+  try { return JSON.parse(readFileSync(join(dir, MARCATORE_PROVA), 'utf8')) as Segno } catch { return {} }
 }
 
 /** Copia con impronta + stash nominato dei soli `file`. `undefined` se non è andata (e allora non è stato toccato niente). */
@@ -847,21 +850,51 @@ function togliMarcatore(dir: string): void {
  * ramo non tocchi nessun file a metà: quelli restano come sono). Un'unione
  * senza il segno, o con un altro commit, è di Nicholas: non si tocca.
  */
-export function ripulisciProvaAsincrono(git: GitAsincrono, p: { cwd: string; alRecupero?: AlRecupero }): Promise<'niente' | 'ripulita'> {
-  return aspettando(git, ripulisciProvaPassi(p.cwd, p.alRecupero))
+export function ripulisciProvaAsincrono(git: GitAsincrono, p: { cwd: string; alRecupero?: AlRecupero; adesso?: number }): Promise<'niente' | 'ripulita'> {
+  return aspettando(git, ripulisciProvaPassi(p.cwd, p.alRecupero, p))
 }
 
-function* ripulisciProvaPassi(cwd: string, alRecupero?: AlRecupero): Passi<'niente' | 'ripulita'> {
+/** Quanto un segno «fresco» senza unione ancora aperta può essere di un `git merge` ucciso ma non del tutto morto. */
+export const GRAZIA_SEGNO_MS = 2 * 60_000
+
+/**
+ * 24/11 (k-err281): l'unione aperta è del programma se ogni commit di `MERGE_HEAD` è uno di quelli che il segno ha
+ * registrato prima di unire, **oppure** un antenato del ramo registrato (lo specialista ha continuato a salvare mentre
+ * l'unione partiva: il ramo è andato avanti, l'unione no). Senza segno, o con commit di altri rami: è di Nicholas.
+ */
+function* unioneDelProgrammaPassi(radice: string, dir: string, segno: Segno): Passi<boolean> {
+  let righe: string[] = []
+  try { righe = readFileSync(join(dir, 'MERGE_HEAD'), 'utf8').split(/\r?\n/).map((r) => r.trim()).filter((r) => r !== '') } catch { return false }
+  if (righe.length === 0) return false
+  const note = new Set([...(segno.teste ?? []), ...(segno.testa !== undefined ? [segno.testa] : [])].filter((t) => t !== ''))
+  const rami = (segno.rami ?? []).filter((r) => r !== '' && !r.startsWith('-'))
+  for (const testa of righe) {
+    if (!/^[0-9a-f]{7,64}$/i.test(testa)) return false
+    if (note.has(testa)) continue
+    let antenato = false
+    for (const ramo of rami) {
+      if ((yield* chiedi(['merge-base', '--is-ancestor', testa, `${ramo}^{commit}`], radice)).codice === 0) { antenato = true; break }
+    }
+    if (!antenato) return false
+  }
+  return true
+}
+
+function* ripulisciProvaPassi(cwd: string, alRecupero?: AlRecupero, extra: { adesso?: number } = {}): Passi<'niente' | 'ripulita'> {
   const radice = yield* radicePassi(cwd)
   if (radice === undefined) return 'niente'
   const dir = yield* cartellaGitPassi(radice)
   if (dir === undefined || !existsSync(join(dir, MARCATORE_PROVA))) return 'niente'
-  // Senza unione aperta il segno è un resto: i file messi al sicuro, se ce ne sono, tornano al loro posto.
-  if (!existsSync(join(dir, 'MERGE_HEAD'))) { yield* rimettiRecuperoPassi(radice, dir, alRecupero); togliMarcatore(dir); return 'niente' }
+  if (!existsSync(join(dir, 'MERGE_HEAD'))) {
+    // Un segno appena scritto e `index.lock` ancora lì: un `git merge` ucciso per il tempo (o ancora vivo) può scrivere
+    // `MERGE_HEAD` dopo. Se si togliesse il segno adesso, quell'unione sarebbe poi presa per estranea e resterebbe ferma per sempre.
+    const il = Date.parse(leggiSegno(dir).il ?? '')
+    if (Number.isFinite(il) && (extra.adesso ?? Date.now()) - il < GRAZIA_SEGNO_MS && existsSync(join(dir, 'index.lock'))) return 'niente'
+    // Senza unione aperta il segno è un resto: i file messi al sicuro, se ce ne sono, tornano al loro posto.
+    yield* rimettiRecuperoPassi(radice, dir, alRecupero); togliMarcatore(dir); return 'niente'
+  }
   const segno = leggiSegno(dir)
-  let testa = ''
-  try { testa = readFileSync(join(dir, 'MERGE_HEAD'), 'utf8').split(/\r?\n/)[0]?.trim() ?? '' } catch { /* illeggibile */ }
-  if (segno.testa === undefined || segno.testa === '' || segno.testa !== testa) { togliMarcatore(dir); return 'niente' }
+  if (!(yield* unioneDelProgrammaPassi(radice, dir, segno))) { togliMarcatore(dir); return 'niente' }
   const chiusa = yield* annullaUnionePassi(radice, dir)
   if (chiusa) { yield* rimettiRecuperoPassi(radice, dir, alRecupero); togliMarcatore(dir) }
   // Unione ancora aperta: il segno resta, la prova dopo riprova (i file messi al sicuro non si rimettono con un'unione aperta).
@@ -938,8 +971,13 @@ function* iniziaProvaPassi(p: { cwd: string; ramo: string; base: string; altri?:
   if (dir !== undefined) {
     const aperti = statiGitAperti(dir)
     if (aperti.length > 0) {
-      const sua = avevaSegno && aperti.includes(STATI_GIT_A_META[0]![1])
-      return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA, dettaglio: `git ha lasciato a metà ${aperti.join(', ')}${sua ? ': era una prova del programma ma non si è potuta annullare' : ': non è del programma, non lo tocco'}` }
+      const unione = aperti.includes(STATI_GIT_A_META[0]![1])
+      const sua = avevaSegno && unione
+      const recente = avevaSegno && !unione && existsSync(join(dir, MARCATORE_PROVA))
+      const spiega = sua ? ': era una prova del programma ma non si è potuta annullare'
+        : recente ? ': è di una prova del programma appena interrotta, aspetto che git finisca e poi la sistemo da sola'
+        : ': non è del programma, non lo tocco (se l’hai aperta tu, chiudila con «git merge --abort» o con un commit; l’unione riparte da sola)'
+      return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA, dettaglio: `git ha lasciato a metà ${aperti.join(', ')}${spiega}` }
     }
   }
   let sporca = yield* chiedi(['status', '--porcelain', '--untracked-files=no'], radice)
@@ -996,8 +1034,13 @@ function* iniziaProvaPassi(p: { cwd: string; ramo: string; base: string; altri?:
   }
   // Il segno prima dell'unione: se il processo muore a metà, il prossimo la riconosce (e rimette i file messi al sicuro).
   if (dir !== undefined) {
-    const testa = yield* chiedi(['rev-parse', '--verify', '--quiet', `refs/heads/${p.ramo}`], radice)
-    try { writeFileSync(join(dir, MARCATORE_PROVA), JSON.stringify({ ramo: p.ramo, testa: testa.codice === 0 ? testa.uscita.trim() : '', il: new Date().toISOString(), ...(recupero !== undefined ? { recupero } : {}) })) } catch { /* senza segno la prova si fa lo stesso */ }
+    // I commit di tutti i rami (non solo del primo) e i loro nomi: così l'unione si riconosce anche se il ramo è andato avanti.
+    const teste: string[] = []
+    for (const r of rami) {
+      const t = yield* chiedi(['rev-parse', '--verify', '--quiet', `${r}^{commit}`], radice)
+      teste.push(t.codice === 0 ? (t.uscita.split(/\r?\n/)[0] ?? '').trim() : '')
+    }
+    try { writeFileSync(join(dir, MARCATORE_PROVA), JSON.stringify({ ramo: p.ramo, rami, testa: teste[0] ?? '', teste: teste.filter((t) => t !== ''), il: new Date().toISOString(), ...(recupero !== undefined ? { recupero } : {}) })) } catch { /* senza segno la prova si fa lo stesso */ }
   }
   // Con file a metà, mai lo stash automatico di git (`merge.autoStash` nella configurazione di chi usa il PC).
   const r = yield* chiedi([...(yield* firma(radice)), 'merge', '--no-ff', '--no-commit', ...(sporchi.length > 0 ? ['--no-autostash'] : []), ...rami], radice)
