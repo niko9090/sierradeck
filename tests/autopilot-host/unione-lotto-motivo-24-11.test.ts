@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { chiudiProvaAsincrono, comeAsincrono, creaWorktree, iniziaProvaAsincrono, salvaLavoro } from '../../src/autopilot-host/worktree'
@@ -13,6 +13,8 @@ import { esegui, git, repositoryDiPartenza } from './worktree-comune'
 const repo = repositoryDiPartenza()
 let progetto = ''
 beforeEach(() => { progetto = repo.copia() })
+// Molti comandi git veri: col PC carico servono più dei 20 s di base.
+vi.setConfig({ testTimeout: 120_000 })
 const reale = comeAsincrono(git)
 
 function ramoCon(chat: string, file: string, testo: string): string {
