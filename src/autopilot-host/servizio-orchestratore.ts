@@ -33,7 +33,7 @@ import { conWorkspaceDiLog } from './contesto-log'
 import { fallitiDavvero, nonMisurati, type Esecutore } from './verifiche'
 import type { Memoria } from './memoria'
 import type { TipoAvviso } from './telegram'
-import { comeAsincrono, fotoModificheAsincrono, ramoCorrente, ripristinaGeneratiAsincrono, ramoGiaChiusoAsincrono, ramoSenzaNovitaAsincrono, salvaFileAsincrono, salvaLavoroConFileAsincrono, type Git, type GitAsincrono } from './worktree'
+import { comeAsincrono, fotoModificheAsincrono, ripulisciProvaAsincrono, statiGitAMetaAsincrono, ramoCorrente, ripristinaGeneratiAsincrono, ramoGiaChiusoAsincrono, ramoSenzaNovitaAsincrono, salvaFileAsincrono, salvaLavoroConFileAsincrono, type Git, type GitAsincrono } from './worktree'
 import type { EsitoRiallineo } from './worktree'
 import { dopoTransitivi, formaLottoSenzaConflitti, unisciALotti, type VoceLotto } from './unioni-a-lotti'
 import { ramoBaseDi } from './fine-chat'
@@ -1824,8 +1824,14 @@ ${NOTA_SENZA_GIT}`,
           // rosso del lavoro. Si rimisura da soli quando quei file cambiano; lo si dice una volta.
           if (lavoro.dettoMisura !== true) {
             lavoro.dettoMisura = true
-            if (compito !== undefined) cambiaCompito(ws, compito.id, (k) => ({ ...k, esito: `ramo unito, criterio da rimisurare: rosso con file non salvati nella cartella principale${elencoFile(sporchi)}` }))
-            evento(ws, { tipo: 'unione', quando: x.adesso(), ...dove, testo: `${chi}: ramo unito, ma il criterio è rosso con file non salvati nella cartella principale${elencoFile(sporchi)}. Può dipendere da quelli: non lo conto rosso e lo rimisuro da sola appena cambiano. Non affidare correzioni e non chiederlo a Nicholas.` })
+            if (sporchi.length === 0) {
+              // k-err285: nessun file, ma uno stato git a metà: il criterio non è stato misurato.
+              if (compito !== undefined) cambiaCompito(ws, compito.id, (k) => ({ ...k, esito: `ramo unito, criterio da misurare: ${ancora.perche}` }))
+              evento(ws, { tipo: 'unione', quando: x.adesso(), ...dove, testo: `${chi}: ramo unito, ma ${ancora.perche}. Rimisuro da sola appena è chiusa. Non affidare correzioni e non chiederlo a Nicholas: se resta lì glielo dico io.` })
+            } else {
+              if (compito !== undefined) cambiaCompito(ws, compito.id, (k) => ({ ...k, esito: `ramo unito, criterio da rimisurare: rosso con file non salvati nella cartella principale${elencoFile(sporchi)}` }))
+              evento(ws, { tipo: 'unione', quando: x.adesso(), ...dove, testo: `${chi}: ramo unito, ma il criterio è rosso con file non salvati nella cartella principale${elencoFile(sporchi)}. Può dipendere da quelli: non lo conto rosso e lo rimisuro da sola appena cambiano. Non affidare correzioni e non chiederlo a Nicholas.` })
+            }
           }
         } else {
           // Il lavoro di Nicholas non si tocca: la fila aspetta, lo dice una volta sola, riprova da sola.
@@ -2179,6 +2185,21 @@ ${NOTA_SENZA_GIT}`,
     // 11/11: ma si misura lo stesso. Verde vale. Rosso non conta come rosso del lavoro e non si
     // segna «non misurato» aspettando che qualcuno rimisuri (nessuno lo faceva): l'unione resta
     // in fila e rimisura da sola quando quei file cambiano.
+    // 24/11 (k-err285): con un'unione (o altro) a metà nella principale `status` elenca come «non salvati» tutti i file messi in
+    // indice dall'unione (138 su BG4) e il criterio, misurato su file con le righe dell'unione, è rosso in pochi secondi. Prima si
+    // annulla l'unione se è del programma (come per la prova); se resta aperta non si misura: stesso percorso «ferma», senza file,
+    // con l'avviso che dice lo stato vero.
+    if (comando !== undefined && g !== undefined && !senzaGit) {
+      let aperti = await statiGitAMetaAsincrono(g, { cwd: a.cwd }).catch(() => [] as string[])
+      if (aperti.length > 0) {
+        await ripulisciProvaAsincrono(g, { cwd: a.cwd }).catch(() => 'niente')
+        aperti = await statiGitAMetaAsincrono(g, { cwd: a.cwd }).catch(() => [] as string[])
+      }
+      if (aperti.length > 0) {
+        if (ramo !== undefined) scambio.ramoUnito = ramo
+        throw new RiprovaUnione('sporca', `git ha lasciato a metà ${aperti.join(', ')} nella cartella principale: non misuro il criterio finché non è chiusa (non è del programma: se l’hai aperta tu, chiudila con «git merge --abort» o con un commit)`, [], true)
+      }
+    }
     const sporca = comando !== undefined && g !== undefined && !senzaGit
       ? principaleSporca((await g(['status', '--porcelain'], a.cwd).catch(() => undefined))?.uscita ?? '')
       : { sporca: false, file: [] as string[] }
