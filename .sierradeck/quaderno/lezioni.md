@@ -237,7 +237,6 @@
 
 ## ui
 
-- «Nessuno al lavoro» in PannelloSpecialisti riguarda i posti di questo PC (VistaAttesa), non la Panoramica: gli affidati non occupano posti qui. _(2026-11-16)_
 - «Usate da altri PC» era sparita dalla fascia con k-u0 senza essere ricollocata: ora sta in PannelloChat (sottofondo.elenco + remoto.pc → righeAltriPc). _(2026-11-19)_
 - Il Drive nel dettaglio sta dietro un tasto: ContenutoDrive appena montato apre la finestra d'attesa, quindi non va montato a ogni progetto scelto. _(2026-11-19)_
 - ferma/riparti/archivia dell'autopilota non hanno API nel renderer (solo crea, dialoga, avvioAlLogin): per metterli in pagina serve prima l'IPC. _(2026-11-19)_
@@ -274,7 +273,6 @@
 
 ## renderer
 
-- SORGENTE_LOCALE (sorgente-autopilota.tsx) è il punto unico da cui il renderer chiama coda/orchestratore/specialista: le guardie sul workspace vanno lì. _(2026-11-16)_
 - I dati IPC del renderer vanno validati: `setGruppi(g)` senza Array.isArray cadeva su `.length`. Uso `gruppiValidi` in shared/workspace-remoti.ts. _(2026-11-19)_
 - `chiaveWorkspace` riceve dati remoti incompleti: i tipi dicono `cwd: string` ma a runtime può mancare; controllare con `typeof`, non fidarsi del tipo. _(2026-11-20)_
 - Il formato Panoramica+agenti dipende da `workspaceElenco` (preferenza per nome), che la migrazione riempie una volta sola: i workspace nuovi restavano fuori. _(2026-11-22)_
@@ -283,9 +281,6 @@
 
 ## pubblicazione
 
-- `npm run pubblica-app` esige la voce `versione: 'X'` in `android/novita-app.txt` per il `versionName` corrente: va preparata insieme al bump Android, o l'app resta indietro. _(2026-11-16)_
-- `gh release create --draft --verify-tag` seguito da `npm run pubblica` con `GH_TOKEN` carica tutti e 7 i file senza 422; poi `--draft=false --latest` a mano. _(2026-11-16)_
-- `npm run pubblica-app` copia da solo app-android.json anche sulla release del PC (v0.109.1): non serve altro per le app vecchie. _(2026-11-16)_
 - L'hook rifiuta run_in_background per `npm run pubblica`: lanciarlo davanti; dopo 600 s passa da solo in sottofondo (non rilanciarlo) e un `until [ -s output ]` attende la fine. _(2026-11-19)_
 - `pubblica` allega da solo json e Aiutante e lascia la release in bozza: alla fine servono `gh release edit --draft=false --latest` e il controllo dei 7 file. _(2026-11-19)_
 - Se `pubblica` dice «mancano installer, blockmap e latest.yml», sono già in dist/ ma con spazi: caricarli con `gh release upload`, rinominati a trattini (SierraDeck-Setup-X.exe). _(2026-11-20)_
@@ -296,10 +291,11 @@
 - latest.yml si verifica con `openssl dgst -sha512 -binary <exe> | base64 -w0`: deve coincidere con lo sha512 scritto nel file. _(2026-11-23)_
 - Dopo aver ricostruito l'installer dell'Aiutante, confrontare sha512 (base64) e size dell'exe scaricato dalla release con `aiutante.yml` allegato: è il controllo che l'updater fa. _(2026-11-23)_
 - pubblica-app non controlla che la cartella sia pulita: se c'è un'unione in corso nell'indice, va guardato a mano che android/ non sia toccato. _(2026-11-24)_
+- `npm run pubblica` può creare due bozze con lo stesso tag (installer e latest.yml in una, il resto nell'altra). Controllare `gh api repos/.../releases`, unire in una e cancellare il doppione. _(2026-11-24)_
+- `allega-aiutante` esce con codice 0 anche quando segnala «mancano …» nella release: dopo `pubblica` controllare sempre i sette file a mano. _(2026-11-24)_
 
 ## servizio
 
-- `percentuale` per i lavori ospitati è inventata (10 + minuti): non mostrare una barra senza una stima vera. _(2026-11-16)_
 - il servizio autopiloti non conosce porta del client né gettoni del programma: per parlargli c'è `ponte-locale.json` nella cartella dati (porta+gettone), riscritto a ogni avvio del programma. _(2026-11-20)_
 - `lavoroDaPortareAvanti` deve contare anche le chat adottate (`specialistiVivi`), non solo i subagenti: una chat migrata in `lavoro` è lavoro in corso anche con piano vuoto. _(2026-11-22)_
 
@@ -424,6 +420,7 @@
 - «specialista oltre il tempo massimo (3 ore)» è la guardia k-178k che funziona, non un difetto: va annotato «non corretto», senza release. _(2026-11-24)_
 - errori-arrivati.md usa a-capo CRLF: una voce aggiunta con Edit può mescolare a-capo diversi. _(2026-11-24)_
 - nella storia git `.sierradeck/quaderno/*.md` è LF anche se la copia di lavoro è CRLF: un `git add` da CRLF riscrive tutto il file e rischia conflitti sulle note del programma. _(2026-11-24)_
+- il messaggio «unione ferma per file non salvati» (lavoroFermo) copre sia l'unione di prova sia il criterio rosso: confrontare il caso con caf5c856 prima di scrivere «corretto» _(2026-11-24)_
 
 ## preferenze
 
@@ -524,6 +521,7 @@
 - `gh release view --json` non ha il campo `isLatest`: per controllare Latest usa `gh release list --limit 1`. _(2026-11-24)_
 - Con fetch rotto (bundle sparito) e nessun tag locale, la versione libera non si verifica dalla copia: dichiararlo nel riepilogo e lasciare il controllo al rilascio. _(2026-11-24)_
 - Un bump patch tocca anche android/novita-app.txt, perché `pubblica-app` si ferma se manca la voce, e il `versionCode` si alza di 1 (qui 164→165). _(2026-11-24)_
+- 0.118.2: `npm run pubblica` ha creato due bozze con lo stesso tag. allega-aiutante esce con 0 anche se mancano file. Dopo pubblica controllare i 7 file e cancellare la bozza doppia. _(2026-11-24)_
 
 ## aiuto-rete
 
@@ -930,7 +928,12 @@
 ## lotti
 
 - unisciALotti divide già a metà ogni lotto fallito senza `ritenta`: un motivo grezzo di git è solo un problema di testo, non di ripiego mancante _(2026-11-24)_
+- il file del lotto può mancare nel worktree (cartella .sierradeck/errori-arrivati assente): i dati si prendono dal messaggio del compito _(2026-11-24)_
 
 ## verifica
 
 - I digest sha256 degli asset si leggono con `gh release view <tag> --json assets --jq '.assets[].digest'` e si confrontano con `sha256sum` su `app-release.apk`. _(2026-11-24)_
+
+## gh
+
+- fuori dalla cartella del repo `gh release upload` vuole `-R niko9090/sierradeck`. Con due bozze sullo stesso tag la risoluzione è ambigua, quindi cancellare prima il doppione. _(2026-11-24)_
