@@ -1850,7 +1850,7 @@ ${NOTA_SENZA_GIT}`,
           // tempo si avvisa Nicholas, una volta sola, con il motivo vero e cosa guardare.
           if (a !== undefined && ancora.file.length === 0 && lavoro.avvisatoSenzaFile !== true && adessoMs - lavoro.sporcaDal >= (x.chiediSalvaDopoMs ?? CHIEDI_SALVA_DOPO_MS)) {
             lavoro.avvisatoSenzaFile = true
-            const testo = `${chi}: l’unione aspetta da qualche minuto perché ${ancora.perche}, ma git non indica nessun file da salvare: di solito è un’unione lasciata a metà o un’operazione git ancora aperta nella cartella principale. Controlla lì (\`git status\`): appena è a posto l’unione riparte da sola.`
+            const testo = `${chi}: l’unione aspetta da qualche minuto perché ${ancora.perche}, ma git non indica nessun file da salvare: il motivo qui sopra dice cosa ho trovato (un’unione o un’operazione git lasciata a metà nella cartella principale, o git che non risponde). Controlla lì (\`git status\`): appena è a posto l’unione riparte da sola.`
             evento(ws, { tipo: 'unione', quando: x.adesso(), ...dove, testo })
             void x.avvisa('avviso', a, testo).catch(() => { /* resta nel registro */ })
           }

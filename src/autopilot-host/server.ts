@@ -892,11 +892,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       const eScaduta = (): boolean => stato.scaduta || segnale.aborted
       const PER_TEMPO = 'una misura è scaduta per tempo (PC carico), non è colpa del ramo'
       const unisci = async (): Promise<EsitoProvaPrincipale | undefined> => {
-        const inizio = await turni.unione(a.cwd, (segnale) => iniziaProvaAsincrono(gitFermabile(git, segnale), { cwd: a.cwd, ramo, base, alRecupero, ...(altri.length > 0 ? { altri } : {}) }), tempo)
+        const registro = (riga: string): void => console.info(`[unione di prova] ${segnoDiLog(chiaveWorkspace(a))}${ramo}: ${riga}`)
+        const inizio = await turni.unione(a.cwd, (segnale) => iniziaProvaAsincrono(gitFermabile(git, segnale), { cwd: a.cwd, ramo, base, alRecupero, registro, ...(altri.length > 0 ? { altri } : {}) }), tempo)
         if (inizio.ok) return undefined
         // Cartella con file di Nicholas a metà: non si tocca, l'unione aspetta il suo turno.
-        if (!stato.partita) stato.nonPartita = inizio.motivo === MOTIVO_CARTELLA_SPORCA ? 'cartella con file non salvati' : motivoBreve(inizio.motivo)
-        return { unito: false, motivo: `l’unione di prova non si è potuta fare (${inizio.motivo})`, ...(inizio.motivo === MOTIVO_CARTELLA_SPORCA ? { ritenta: 'sporca' as const } : {}), ...(inizio.file !== undefined ? { file: inizio.file } : {}) }
+        // 24/11 (k-err264): se git non elenca file, il motivo dice cosa ha trovato (quale stato git a metà, o l'errore di git).
+        if (!stato.partita) stato.nonPartita = inizio.motivo === MOTIVO_CARTELLA_SPORCA ? (inizio.dettaglio !== undefined ? `cartella ferma: ${inizio.dettaglio}` : 'cartella con file non salvati') : motivoBreve(inizio.motivo)
+        return { unito: false, motivo: `l’unione di prova non si è potuta fare (${inizio.motivo}${inizio.dettaglio !== undefined ? `: ${inizio.dettaglio}` : ''})`, ...(inizio.motivo === MOTIVO_CARTELLA_SPORCA ? { ritenta: 'sporca' as const } : {}), ...(inizio.file !== undefined ? { file: inizio.file } : {}) }
       }
       const fallita = await unisci()
       if (fallita !== undefined) return fallita
