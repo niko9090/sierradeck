@@ -86,6 +86,14 @@ data class Posto(
 ) {
     val pila: List<Dettaglio> get() = pile[voce].orEmpty()
     val dettaglio: Dettaglio? get() = pila.lastOrNull()
+
+    /**
+     * Una conversazione (una chat o la chat con l'autopilota di un workspace) prende tutto lo
+     * schermo: niente riga in alto né barra in basso. Prima valeva solo per `Dettaglio.Chat`,
+     * ma la chat che Nicholas apre di solito è quella del workspace (`Dettaglio.Autopilota`),
+     * che restava stretta fra le due barre.
+     */
+    val tuttoSchermo: Boolean get() = voce == VoceBarra.LAVORO && (dettaglio is Dettaglio.Chat || dettaglio is Dettaglio.Autopilota)
 }
 
 /** Chi chiede di aprire l'app in un posto: una notifica toccata, un'altra app che condivide. */
