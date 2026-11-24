@@ -98,7 +98,6 @@
 
 ## android
 
-- Nella cartella android non c'è gradlew: i test partono con `gradle testDebugUnitTest --offline` (Gradle 8.11.1 in PATH, JAVA_HOME su JDK 21); il primo giro dura circa 4 minuti. _(2026-11-16)_
 - Il blu degli stati sta in `ColoreStato.blu` (tema/Attivita.kt), non in `Banco`: i colori di stato vanno presi dalla tabella unica del PC. _(2026-11-16)_
 - `Tono` è ordinato per `ordinal` nelle schede workspace: un tono nuovo va messo nella posizione giusta dell'enum, non in fondo. _(2026-11-16)_
 - versionCode/versionName dell'app sono in android/app/build.gradle.kts e vanno alzati a parte rispetto a package.json _(2026-11-16)_
@@ -426,6 +425,7 @@
 - i titoli di errori-arrivati.md hanno la forma «(lotto <nome>)»: con nomi che iniziano già per «lotto-» il titolo ripete la parola, ed è voluto per far trovare il nome intero. _(2026-11-23)_
 - le voci di errori-arrivati.md vanno in coda; il file non finisce con a capo, quindi si aggiunge con Edit sull'ultima frase _(2026-11-23)_
 - «specialista oltre il tempo massimo (3 ore)» è la guardia k-178k che funziona, non un difetto: va annotato «non corretto», senza release. _(2026-11-24)_
+- errori-arrivati.md usa a-capo CRLF: una voce aggiunta con Edit può mescolare a-capo diversi. _(2026-11-24)_
 
 ## preferenze
 
