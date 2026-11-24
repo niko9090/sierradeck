@@ -36,6 +36,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.FilterChip
 import it.ferrariconsulenze.sierradeck.schermate.lavoro.TuttiIPcVista
+import it.ferrariconsulenze.sierradeck.schermate.lavoro.rememberPcDelPonte
+import it.ferrariconsulenze.sierradeck.nucleo.TuttiIPc
 import it.ferrariconsulenze.sierradeck.nucleo.MemoriaVistaPartenza
 import it.ferrariconsulenze.sierradeck.nucleo.VistaPartenza
 import androidx.compose.material3.DropdownMenuItem
@@ -332,14 +334,16 @@ private fun GuscioLavoro(pc: PcNoto, elenco: List<PcNoto>, api: Api, dettaglio: 
         else -> Column(Modifier.fillMaxSize()) {
             // Con più PC collegati: «Questo PC» (workspace e domande) o «Tutti i PC» (ognuno con le sue chat).
             // Si parte da «Tutti i PC»; la scelta «Questo PC» vive quanto il processo (anche aprendo un dettaglio).
-            val memoria = memoriaVistaPartenza.conPc(elenco.size)
+            val ponte = rememberPcDelPonte(elenco, pc.id)
+            val nPc = elenco.size + TuttiIPc.dalPonte(elenco, ponte).size
+            val memoria = memoriaVistaPartenza.conPc(nPc)
             LaunchedEffect(memoria) { memoriaVistaPartenza = memoria }
             val tutti = memoria.vista() == VistaPartenza.TUTTI_I_PC
-            if (elenco.size > 1) Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (nPc > 1) Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(selected = !tutti, onClick = { memoriaVistaPartenza = memoria.scegli(VistaPartenza.QUESTO_PC) }, label = { Text("Questo PC") })
                 FilterChip(selected = tutti, onClick = { memoriaVistaPartenza = memoria.scegli(VistaPartenza.TUTTI_I_PC) }, label = { Text("Tutti i PC") })
             }
-            if (tutti) TuttiIPcVista(elenco, pc.id, onApriChatDi)
+            if (tutti) TuttiIPcVista(elenco, pc.id, ponte, onApriChatDi)
             else SchermataLavoro(
                 pc = pc.id, stato = copia.stato, quando = copia.quando, vecchia = copia.vecchia,
                 leggiDomande = { try { api.domande().conversazioni } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null } },

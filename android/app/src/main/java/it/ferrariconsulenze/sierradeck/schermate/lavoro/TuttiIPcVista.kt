@@ -18,7 +18,21 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import it.ferrariconsulenze.sierradeck.nucleo.Davanti
+import it.ferrariconsulenze.sierradeck.nucleo.ElencoPc
+import it.ferrariconsulenze.sierradeck.rete.Api
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,12 +59,51 @@ import it.ferrariconsulenze.sierradeck.schermate.tema.Banco
  * Un tocco su una chat la apre ([onApriChat] riceve il PC e la chat).
  */
 @Composable
-fun TuttiIPcVista(elenco: List<PcNoto>, corrente: String?, onApriChat: (pc: String, chat: String) -> Unit) {
+fun TuttiIPcVista(elenco: List<PcNoto>, corrente: String?, ponte: ElencoPc?, onApriChat: (pc: String, chat: String) -> Unit) {
     val files = LocalContext.current.filesDir
     val copie = HashMap<String, Deposito.Copia>()
     for (p in elenco) key(p.id) { copie[p.id] = Deposito.di(p.id, p.chiave, files).stato.collectAsStateWithLifecycle().value }
-    val gruppi = TuttiIPc.tutti(elenco, copie, corrente, Parola.Companion::oraBreve)
+    // I PC che il telefono non ha accoppiato ma il suo PC raggiunge dal ponte (anche con SierraDeck di prima).
+    val altri = TuttiIPc.dalPonte(elenco, ponte)
+    val api = elenco.firstOrNull { it.id == corrente }?.let { Api(it.id, it.chiave) }
+    val lette = remember { mutableStateMapOf<String, Deposito.Copia>() }
+    val daLeggere = TuttiIPc.daLeggere(altri, ponte).map { it.id }
+    LaunchedEffect(api, daLeggere) {
+        if (api == null) return@LaunchedEffect
+        while (isActive) {
+            coroutineScope {
+                for (id in daLeggere) launch {
+                    val s = withTimeoutOrNull(8_000) { try { api.suPc(id).stato() } catch (e: CancellationException) { throw e } catch (_: Exception) { null } }
+                    val prima = lette[id]
+                    lette[id] = if (s != null) Deposito.Copia(s, System.currentTimeMillis(), vecchia = false)
+                        else Deposito.Copia(prima?.stato, prima?.quando ?: 0L, vecchia = true, motivo = "non risponde dal ponte")
+                }
+            }
+            Davanti.pausa(5_000)
+        }
+    }
+    for (p in altri) {
+        copie[p.id] = lette[p.id]
+            ?: if (p.id in daLeggere) Deposito.Copia(null, 0, vecchia = true) else Deposito.Copia(null, 0, vecchia = true, motivo = "spento")
+    }
+    val gruppi = TuttiIPc.tutti(elenco + altri, copie, corrente, Parola.Companion::oraBreve)
+        .map { if (it.id in altri.map { a -> a.id }) it.copy(dalPonte = true) else it }
     CorpoTuttiIPc(gruppi, onApriChat)
+}
+
+/** Il PC accoppiato che risponde elenca gli altri PC della rete (`/api/pc`), ogni 15 secondi mentre l'app è davanti. */
+@Composable
+fun rememberPcDelPonte(elenco: List<PcNoto>, corrente: String?): ElencoPc? {
+    var letto by remember { mutableStateOf<ElencoPc?>(null) }
+    val api = elenco.firstOrNull { it.id == corrente }?.let { Api(it.id, it.chiave) }
+    LaunchedEffect(api?.let { corrente }) {
+        if (api == null) return@LaunchedEffect
+        while (isActive) {
+            try { letto = api.pc() } catch (e: CancellationException) { throw e } catch (_: Exception) { }
+            Davanti.pausa(15_000)
+        }
+    }
+    return letto
 }
 
 /** Il disegno, da gruppi già pronti (lo usano anche le foto). */
@@ -68,7 +121,7 @@ fun CorpoTuttiIPc(gruppi: List<GruppoPc>, onApriChat: (pc: String, chat: String)
             }
             items(g.chat, key = { "c-" + g.id + "-" + it.id }) { c ->
                 Row(
-                    Modifier.fillMaxWidth().heightIn(min = 48.dp).tocco(enabled = !c.protetta) { onApriChat(g.id, c.id) }.padding(horizontal = 16.dp),
+                    Modifier.fillMaxWidth().heightIn(min = 48.dp).tocco(enabled = !c.protetta && !g.dalPonte) { onApriChat(g.id, c.id) }.padding(horizontal = 16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     LedChat(if (g.ultimaCopia) null else c.tono)
