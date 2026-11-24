@@ -103,6 +103,8 @@
 - Per provare Invio/Scaricatore basta un Trasporto o una lambda finta in memoria; usare un contatore di chiamate con check() per far fallire i cicli infiniti invece di bloccare gradle. _(2026-11-23)_
 - se in un confronto si serializza un oggetto per decidere se riscrivere, l'ordine delle chiavi conta: i rami che creano la stessa voce devono dare le chiavi nello stesso ordine _(2026-11-23)_
 - nel finto git di unioni-file-non-salvati-11-11 `statoRotto` simula `git status` che fallisce: cartella sporca senza file. _(2026-11-23)_
+- I test renderer con `renderToStaticMarkup` non eseguono gli effect: per provare un pannello che legge da `window.gestore`, separare la vista pura che riceve i dati. _(2026-11-23)_
+- I test Android con orari vanno costruiti con Calendar e fuso UTC fisso: un timestamp scritto a mano può non corrispondere al giorno atteso. _(2026-11-24)_
 
 ## worktree
 
@@ -129,6 +131,9 @@
 - I record di chiusura dei record di `/api/eventi` hanno un `n` nuovo e lo stesso `id` dell'apertura: in un pacco unico vanno filtrati (`RegoleAvvisi.senzaSuperati`) o l'avviso suona e sparisce. _(2026-11-23)_
 - I test Android usano JUnit4 (org.junit), non kotlin.test; i parametri nuovi di CorpoWorkspace vanno in fondo con default, perché FotoSchermateTest lo chiama in modo posizionale. _(2026-11-23)_
 - mettiInCoda (schermate/comune/PezziLavoro.kt) restituisce false in silenzio se coda o telefono non sono pronti: nessuna schermata dà riscontro all'utente. _(2026-11-23)_
+- Il PC passa perChat all'app con lo spread in conVistaConsumi: i campi nuovi di /api/consumi non richiedono modifiche lato PC. _(2026-11-24)_
+- mettiInCoda dava solo false e i chiamanti lo ignoravano: ogni nuovo punto di invio deve passare da MessaInCoda.tenta, che segna il motivo in ErroriInvio. _(2026-11-24)_
+- gradle --offline testDebugUnitTest nel worktree richiede 3-5 minuti: lanciarlo una volta sola dopo aver controllato gli import (un import mancante costa un giro intero). _(2026-11-24)_
 
 ## release
 
@@ -522,25 +527,13 @@
 - In questa copia git fetch fallisce: l'origin è un .bundle sparito. Prima di scegliere la patch non si possono vedere i tag remoti, solo quelli locali (qui nessuno). _(2026-11-23)_
 - Il fetch dal bundle in `arrivi\` può fallire se il file non c'è più: i tag locali sono vuoti, quindi la versione libera va riverificata sul PC principale. _(2026-11-23)_
 
-## build
-
-- Nel cancello «N actionable tasks: 1 executed» con N=28 è il comando solo `testDebugUnitTest --rerun` (con `assembleDebug` sono 45): il task caduto è un test, non assembleDebug. _(2026-11-14)_
-- Il cancello deve stampare nel riepilogo le righe FAILED e «Execution failed for task»: la sola coda «BUILD FAILED» non basta per capire quale test cade. _(2026-11-14)_
-- Rifiuto del cancello con «28 tasks: 1 executed» = solo testDebugUnitTest --rerun (con assembleDebug sono 45): cade un test a intermittenza, non la build. _(2026-11-14)_
-
 ## aiuto-rete
 
-- un PC con versione vecchia può mandare `causa` 'sconosciuta' con il testo giusto nel motivo: la causa dichiarata va usata solo se riconosciuta, altrimenti si rilegge il testo. _(2026-11-14)_
-- la pausa per accesso scaduto è calcolata dal file dei lavori affidati, quindi vale anche dopo un riavvio; se un PC viene riprovato dopo pochi minuti, controllare la causa salvata nel lavoro. _(2026-11-14)_
 - la cartella del progetto non è una risorsa da verificare: arriva col pacchetto, va esclusa (`escludi`) nel ricavare i percorsi dal prompt. _(2026-11-16)_
 - un percorso ricavato dal testo non fa fallire il lavoro (informativo, con alternativa); solo le risorse dichiarate esplicitamente sono indispensabili. _(2026-11-16)_
 - I compiti «Aiuta la rete» girano su un repo mirror: i worktree del PC di Nicholas (.claude/worktrees) non ci sono. Prima di agire controllare che i rami nominati esistano. _(2026-11-22)_
 - Compiti che devono leggere i dati veri del PC di Nicholas (registri, preferenze, .claude/worktrees) non vanno su un altro PC: là c'è solo un mirror. Scriverlo nel prompt e verificarlo. _(2026-11-22)_
 - «Aiuta la rete» manda via anche i compiti che nel prompt dicono «solo sul PC di Nicholas» (k-175c, 22/11, 2 volte): serve un modo per tenere un compito in locale. _(2026-11-22)_
-
-## gradle
-
-- Il «What went wrong» che il cancello taglia sta in C:\Users\nikof\.gradle\daemon\8.11.1\daemon-*.out.log. I log mostrano se due build erano sovrapposte (currentDir e orari). _(2026-11-14)_
 
 ## unione
 
@@ -931,3 +924,4 @@
 ## consumi
 
 - Claude Code dà solo i limiti di 5 ore e settimana: per la giornata non c'è un dato vero, il campo "rimasto.giornata" resta noto:false e porta solo la prossima mezzanotte _(2026-11-23)_
+- «Oggi» non ha un limite di Claude: resta «non noto» in alto; il consumo di oggi è solo per chat, dalla memoria di k-con1. _(2026-11-23)_
