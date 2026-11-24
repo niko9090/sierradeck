@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.118.1',
+    righe: [
+      '**App Android 3.5.1:** in «Tutti i PC» vedi le chat di ogni PC, anche di quelli raggiunti passando da un altro PC, e adesso si possono aprire, leggere e ci si può scrivere.',
+      '**Aggiornare un altro PC dal telefono:** il tasto funziona sempre, perché il comando passa dal PC collegato. Mentre l\'aggiornamento è in corso si vede una barra con la percentuale.',
+      '**App Android 3.5.1:** la chat con l\'autopilota prende tutto lo schermo. Si scarica a parte.',
+    ],
+  },
+  {
     versione: '0.118.0',
     righe: [
       '**Consumi:** in alto vedi quanto ti resta nelle 5 ore e in settimana, letto dai limiti di Claude. Sotto c\'è l\'elenco per chat, con il dettaglio chiuso dietro una riga (si ricorda se lo apri).',

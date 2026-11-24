@@ -3,6 +3,14 @@ per le note della pubblicazione e della notifica sul telefono).
 La più recente in cima. Ogni riga fra apici, come in src/shared/novita.ts.
 
   {
+    versione: '3.5.1',
+    righe: [
+      'In «Tutti i PC» vedi le chat di ogni PC, anche di quelli raggiunti passando da un altro PC, e ora si aprono: puoi leggerle e scriverci.',
+      'Il tasto per aggiornare un altro PC funziona sempre, perché il comando passa dal PC collegato. Mentre l’aggiornamento è in corso si vede una barra con la percentuale.',
+      'La chat con l’autopilota prende tutto lo schermo.',
+    ],
+  },
+  {
     versione: '3.5.0',
     righe: [
       'Nuova vista «Tutti i PC»: le chat di tutti i computer sono insieme, divise per PC. Se hai più PC collegati, «Lavoro» parte da lì.',
