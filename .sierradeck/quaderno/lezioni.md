@@ -4,10 +4,6 @@
 
 ## test
 
-- `vi.waitFor` ha 1 s di default: nei test che aspettano la preparazione con git, col PC carico serve un `timeout` esplicito largo (qui 60 s) e un limite largo anche per il test. _(2026-11-16)_
-- Il test che falliva a vuoto in `coda-aiutante.test.ts` era «con un posto libero il lavoro parte subito», non «parte appena si libera un posto»: non fidarsi del nome nel quaderno, rilanciare e leggere. _(2026-11-16)_
-- `aggiornamento-aiutante.test.ts` legge `versione.json` e `novita-aiutante.txt` dal disco: se non sono allineati (file non committato) la prova fallisce solo nella cartella dove stanno. _(2026-11-16)_
-- 16/11: tests/aiutante fallisce 113/114 solo nel principale di questo PC, verde su NB-PROBOOK con lo stesso commit: un compito per riprodurlo va fatto girare su questo PC, non affidato fuori. _(2026-11-16)_
 - `tests/aiutante` passa 114/114 in due corse sul PC principale a HEAD 9c3dc639; un 113/114 isolato fa pensare a una prova sensibile al carico, non a file locali diversi. _(2026-11-16)_
 - 16/11: tests/aiutante passa 114/114 lanciato a mano anche nel principale, ma 113/114 quando lo misura il servizio (≈2,8 s contro 6,4): una prova dipende dall'ambiente del processo (env, PATH). _(2026-11-16)_
 - Il servizio lancia i criteri con TEMP/TMP su una sottocartella: percorsi >260 caratteri, `git rev-list` risponde «Filename too long» e l'Aiutante registra 0 commit. Prova a mano: TEMP su una sottocar… _(2026-11-16)_
@@ -97,6 +93,7 @@
 - le cancellazioni ricorsive in src devono passare da `cancellaSicura` (`tests/shared/cancellazioni-solo-dalla-guardia.test.ts`): un `rmSync` diretto fa fallire la suite. _(2026-11-24)_
 - un 1 fallito su 5227 senza nome nell'esito: rilanciare con --reporter=dot e grep su FAIL; il fallimento può dipendere dallo stato di main al momento dell'unione. _(2026-11-24)_
 - un'unione respinta per prove rotte può non riprodursi dopo `git merge main` nel ramo: rilanciare la suite prima di cercare un bug, e chiedere i nomi dei file falliti. _(2026-11-24)_
+- Gradle in sottofondo è vietato dal hook: `gradle testDebugUnitTest --offline` si lancia con lo strumento PowerShell in primo piano (timeout 900000, qui 3m42s). _(2026-11-24)_
 
 ## worktree
 
@@ -135,6 +132,8 @@
 - `gradle --offline testDebugUnitTest assembleDebug` dura circa 8 minuti in primo piano: timeout di almeno 10 minuti. _(2026-11-24)_
 - «Chat a tutto schermo»: la chat col workspace è Dettaglio.Autopilota, non Dettaglio.Chat; la decisione sta in Posto.tuttoSchermo (Navigazione.kt), da estendere se nasce un altro dettaglio-conversazio… _(2026-11-24)_
 - gradle testDebugUnitTest --offline in worktree: 3m36s, non 9 minuti. _(2026-11-24)_
+- «Tutti i PC» leggeva solo la rubrica degli accoppiati: i PC visti da `/api/pc` e raggiunti dal ponte vanno aggiunti con `TuttiIPc.dalPonte`; le loro chat non si aprono (navigazione legata alla rubric… _(2026-11-24)_
+- Il ponte (`Ponte.ROTTE`) non porta gli aggiornamenti: i comandi verso un altro PC vanno sempre al PC accoppiato con `pc` nel corpo (`Api.accoppiato()`), mai da un'`Api` puntata col ponte. _(2026-11-24)_
 
 ## release
 
@@ -694,6 +693,7 @@
 - Il segno «più recente fra SierraDeck e Aiutante» richiede `host` uguale in tutti e due i battiti (`vistoConAiutante`): senza `host` l'abbinamento non scatta e il PC con solo Aiutante sembra «non risp… _(2026-11-20)_
 - l'abbinamento SierraDeck/Aiutante dipende solo dall'`host` dei due battiti: ora senza maiuscole né dominio. Se un PC resta «non risponde», controllare l'host nei due battiti sul Drive. _(2026-11-20)_
 - Il PC in Glos è piccolo (4 core, 8 GB) e risulta al 94% di carico: le misure delle unioni lì vanno in `turni.pesante`, che oggi `provaNelPrincipale` non usa. _(2026-11-23)_
+- L'avanzamento di «Installa là» aveva la percentuale solo nella frase: un dato da mostrare va esposto come campo; l'app ripiega sulla frase con i PC vecchi. _(2026-11-24)_
 
 ## posta
 
