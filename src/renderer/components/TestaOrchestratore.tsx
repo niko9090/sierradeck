@@ -31,6 +31,35 @@ const PAROLA_STATO: Record<string, string> = { avviato: 'parte', lavoro: 'al lav
 const AIUTO_UNICO = 'Un autopilota solo per il workspace: gli parli qui, mette ogni richiesta in coda (unendo quelle sulla stessa cosa, senza perdere punti), fa il piano, lancia gli specialisti (sviluppatore, verificatore, revisore, esploratore…) ognuno nella sua copia del progetto, unisce i loro rami e ti chiede solo quello che deve decidere tu. Ogni specialista al lavoro compare come una chat sulla destra, da guardare dal vivo (la guida l’autopilota); la riga sotto la percentuale dice chi è al lavoro adesso, o perché è tutto fermo. La percentuale la calcola il programma solo sul lavoro aperto: un compito da fare vale 0, in corso 20-60%, in revisione 80%, unito con il criterio verde 100%. Una domanda o un «sì» non la fanno scendere: l’autopilota risponde e la chiude; un messaggio nuovo conta solo quando diventa piano.'
 
 /**
+ * k-280c (Nicholas: «le percentuali in alto non sono visibili affatto»): la riga
+ * dell'avanzamento si legge sempre. «Avanzamento 80%» con la barra; «Avanzamento —»
+ * con il perché dietro un «?»; «leggo…» finché la vista non è arrivata.
+ */
+export function RigaAvanzamento({ percento, leggo = false }: { percento: number | undefined; leggo?: boolean }): React.JSX.Element {
+  return (
+    <div className="coda-ws__riga coda-ws__avanzamento">
+      <span className="coda-ws__etichetta">Avanzamento{' '}</span>
+      {leggo ? (
+        <span className="coda-ws__valore coda-ws__valore--quieto">leggo…</span>
+      ) : percento !== undefined ? (
+        <>
+          <b className="coda-ws__valore" title="Quanto è fatto del lavoro aperto adesso">{percento}%</b>
+          <div className="punto-ap__barra" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percento} aria-label="Avanzamento del workspace">
+            <span style={{ width: `${percento}%` }} />
+          </div>
+        </>
+      ) : (
+        <>
+          <b className="coda-ws__valore coda-ws__valore--quieto">—</b>
+          <span className="coda-ws__vuota" />
+          <Aiuto di="avanzamento">Arriva quando c’è un piano con dei compiti da fare.</Aiuto>
+        </>
+      )}
+    </div>
+  )
+}
+
+/**
  * 0.95.3 (Nicholas, 06/11): in vista solo la barra con la percentuale e la
  * riga di cosa succede adesso; il resto (numeri, specialisti, dal vivo,
  * impostazioni e quello che passa in `children`) nella tendina ▾.
@@ -47,8 +76,17 @@ export function TestaOrchestratore({ workspace, children }: { workspace: string;
   const [finitiAperti, setFinitiAperti] = useState(false)
   const [tendina, setTendina] = useState(false)
   const modelliCoordinare = modelliAutopilota(useModelli())
-  // Un servizio di prima, senza l'orchestratore: il resto si vede com'era.
-  if (v === undefined) return <>{children}</>
+  // k-280c: finché la vista non arriva la riga c'è lo stesso («leggo…»); il resto si vede com'era.
+  if (v === undefined) {
+    return (
+      <>
+        <div className="coda-ws coda-ws--compatta">
+          <RigaAvanzamento percento={undefined} leggo />
+        </div>
+        {children}
+      </>
+    )
+  }
   // 0.89.2: una frase su cosa succede adesso; i numeri solo del lavoro aperto.
   const ora = fraseStatoOrchestratore(v)
   const aperte = v.richieste?.aperte ?? 0
@@ -66,12 +104,7 @@ export function TestaOrchestratore({ workspace, children }: { workspace: string;
   return (
     <div className="coda-ws coda-ws--compatta" aria-label="Avanzamento del workspace">
       <div className="coda-ws__riga">
-        {v.percento !== undefined ? (
-          <div className="punto-ap__barra" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={v.percento} aria-label="Avanzamento del workspace">
-            <span style={{ width: `${v.percento}%` }} />
-          </div>
-        ) : <span className="coda-ws__vuota" />}
-        <b title="Quanto è fatto del lavoro aperto adesso">{v.percento !== undefined ? `${v.percento}%` : '—'}</b>
+        <RigaAvanzamento percento={v.percento} />
         <button className="tasto tasto--mini" aria-expanded={tendina} onClick={() => setTendina((x) => !x)} title="Richieste, specialisti, coda e impostazioni">{tendina ? '▴' : '▾'}</button>
       </div>
       <div className={`coda-ws__ora coda-ws__ora--${ora.tono}`} role="status" title={ora.testo}>{ora.tono === 'lavora' ? '● ' : ora.tono === 'riposo' ? '✓ ' : '⏸ '}{ora.testo}</div>

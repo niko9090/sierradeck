@@ -94,6 +94,21 @@ export function pezzoFinito(c: ChatGovernata, ramoChiuso: 'mancante' | 'unito' |
 }
 
 /**
+ * k-280b: le chat dell'autopilota rimaste `bloccata` quando il loro compito è già unito o chiuso:
+ * non c'è più niente da sbloccare, vanno a `finita` e le chiude il percorso di sempre
+ * (`daChiudereDaSole`). Torna gli id delle chat. Non tocca le adottate, le chat senza compito,
+ * quelle già concluse o nel recupero, né le Revisioni (seguono il ramo che rivedono).
+ */
+export function bloccateDaFinire(a: Autopilota, compiti: readonly { id: string; stato: string; chiuso?: string }[]): string[] {
+  const finiti = new Set(compiti.filter((k) => k.stato === 'unito' || k.chiuso !== undefined).map((k) => k.id))
+  const adottate = new Set((a.adottate ?? []).map((x) => x.sessionId))
+  return a.chats
+    .filter((c) => c.stato === 'bloccata' && c.fine === undefined && c.nelRecupero === undefined && c.ruolo !== 'revisione'
+      && c.compitoId !== undefined && finiti.has(c.compitoId) && (c.sessionId === undefined || !adottate.has(c.sessionId)))
+    .map((c) => c.id)
+}
+
+/**
  * Le chat da chiudere da sole: **mai una chat al lavoro**, mai una chat
  * adottata (non è nostra), mai chi aspetta una risposta di Nicholas.
  *

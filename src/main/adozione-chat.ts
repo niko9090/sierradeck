@@ -1,7 +1,7 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Autopilota } from '@shared/autopilota'
-import { daScrivereAdesso, sessioniProprie } from '@shared/adozione'
+import { daScrivereAdesso, segniDaMandare, sessioniProprie, type SegnoAdottata } from '@shared/adozione'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 import type { StatoMigrazione } from '@shared/migrazione-elenco'
 import { FILE_ADOZIONE, leggiStatoAdozione, pianoAdozione, sessioniDelWorkspace, type Adozione, type StatoAdozione } from '@shared/migrazione-adozione'
@@ -173,12 +173,12 @@ export type MigrazioneAdozione = ReturnType<typeof creaMigrazioneAdozione>
  * Mai aprire, riprendere, chiudere o spostare una chat.
  */
 export function avviaGiroAdozione(p: {
-  servizio: ServizioAdozione & { scritti: (id: string, ids: string[]) => Promise<void> }
+  servizio: ServizioAdozione & { scritti: (id: string, ids: string[]) => Promise<void>; segni?: (id: string, segni: SegnoAdottata[]) => Promise<void> }
   leggiArchivio: () => Archivio | undefined
   adozioneAttiva: () => boolean
   /** Le chat «solo mia» delle preferenze del PC: valgono anche se il file dell'autopilota non le ha. */
   soloMie?: () => readonly string[]
-  chat: () => readonly { id: string; sessione?: string; aspetta?: boolean; viva?: boolean }[]
+  chat: () => readonly { id: string; sessione?: string; aspetta?: boolean; viva?: boolean; chiedeSegnale?: boolean; sceltaAperta?: boolean; domanda?: string }[]
   scrivi: (chatId: string, testo: string) => void
   log: (riga: string) => void
   ogniMs?: number
@@ -200,6 +200,13 @@ export function avviaGiroAdozione(p: {
       }
     }
     const chat = p.chat()
+    // k-280b: cosa fanno le adottate (al lavoro, aspettano te, ferme), per le conte. Non si tocca nessuna chat.
+    if (p.servizio.segni !== undefined) {
+      for (const a of veri) {
+        const segni = segniDaMandare(a, chat, Date.now())
+        if (segni.length > 0) await p.servizio.segni(a.id, segni).catch(() => undefined)
+      }
+    }
     for (const a of veri) {
       const ora = daScrivereAdesso(a, chat).filter((x) => !mie.has(x.messaggio.sessionId))
       if (ora.length === 0) continue

@@ -1,4 +1,4 @@
-import type { Autopilota, ChatAdottata, MessaggioAdottata } from './autopilota'
+import type { Autopilota, ChatAdottata, MessaggioAdottata, StatoAdottata } from './autopilota'
 import { RUOLI, type Ruolo } from './ruoli-agenti'
 import { chatsDi } from './chats-di'
 
@@ -82,6 +82,95 @@ export function conChatAdottate(
   }
   if (nuove.length === 0) return { autopilota: a, nuove }
   return { autopilota: { ...a, adottate: [...gia, ...nuove] }, nuove }
+}
+
+/** k-280b: una chat adottata senza segni di vita da più di così è «vecchia ferma» e esce dalla vista di chi lavora. */
+export const ADOTTATA_VECCHIA_MS = 24 * 3_600_000
+
+export type GruppoAdottata = 'lavoro' | 'aspetta' | 'ferma' | 'vecchia'
+
+/**
+ * In quale gruppo sta una chat adottata (k-280b): «al lavoro», «aspetta te» (una domanda
+ * o un permesso), «ferma» da poco, o «vecchia» (ferma da più di 24 ore). Una chat che aspetta
+ * Nicholas resta tale: è lui che deve muoversi. Senza stato (chat adottate prima) vale l'ultimo
+ * segno, o il giorno dell'adozione. Le «solo mia» non hanno gruppo: non sono dell'autopilota.
+ */
+export function gruppoAdottata(x: ChatAdottata, adesso: number): GruppoAdottata | undefined {
+  if (x.soloMia === true) return undefined
+  if (x.stato === 'aspetta') return 'aspetta'
+  const segno = Date.parse(x.ultimoSegno ?? x.adottataIl)
+  const vecchia = !Number.isNaN(segno) && adesso - segno > ADOTTATA_VECCHIA_MS
+  if (vecchia) return 'vecchia'
+  return x.stato === 'lavoro' ? 'lavoro' : 'ferma'
+}
+
+export type ContaAdottate = { lavoro: number; aspettano: number; ferme: number; vecchie: number; soloMie: number }
+
+/** Le adottate divise nei gruppi, per lo stato e per le viste. */
+export function contaAdottate(adottate: readonly ChatAdottata[], adesso: number): ContaAdottate {
+  const c: ContaAdottate = { lavoro: 0, aspettano: 0, ferme: 0, vecchie: 0, soloMie: 0 }
+  for (const x of adottate) {
+    const g = gruppoAdottata(x, adesso)
+    if (g === undefined) c.soloMie++
+    else if (g === 'lavoro') c.lavoro++
+    else if (g === 'aspetta') c.aspettano++
+    else if (g === 'ferma') c.ferme++
+    else c.vecchie++
+  }
+  return c
+}
+
+/** I segni che il Gestore ha visto: per ogni sessione se lavora, aspetta Nicholas o è ferma. */
+export type SegnoAdottata = { sessionId: string; stato: StatoAdottata; quando: string }
+
+/**
+ * Registra i segni. Lo stato si aggiorna sempre; l'ultimo segno di vita solo se la chat
+ * lavora o aspetta (una chat ferma non dà segni: il suo ultimo resta quello di prima).
+ * Torna lo stesso oggetto se non cambia niente.
+ */
+export function conSegniAdottate(a: Autopilota, segni: readonly SegnoAdottata[]): Autopilota {
+  if (a.adottate === undefined || segni.length === 0) return a
+  const per = new Map(segni.map((s) => [s.sessionId, s]))
+  let cambiato = false
+  const adottate = a.adottate.map((x) => {
+    const s = per.get(x.sessionId)
+    if (s === undefined) return x
+    const vivo = s.stato !== 'ferma'
+    const nuovo: ChatAdottata = { ...x, stato: s.stato, ...(vivo ? { ultimoSegno: s.quando } : {}) }
+    if (nuovo.stato === x.stato && nuovo.ultimoSegno === x.ultimoSegno) return x
+    cambiato = true
+    return nuovo
+  })
+  return cambiato ? { ...a, adottate } : a
+}
+
+/** Ogni quanto si rinnova l'ultimo segno di una chat che continua a lavorare: non si scrive il file a ogni giro. */
+export const RINNOVO_SEGNO_MS = 5 * 60_000
+
+/**
+ * Cosa dire al servizio sulle adottate, guardando le chat aperte sul PC: viva e con una
+ * domanda o un permesso = «aspetta» Nicholas; viva e che scrive = «lavoro»; chiusa o ferma al
+ * prompt = «ferma». Solo i cambiamenti (o il rinnovo del segno di chi lavora). Mai le «solo mia».
+ */
+export function segniDaMandare(
+  a: Autopilota,
+  chat: readonly { sessione?: string; aspetta?: boolean; viva?: boolean; chiedeSegnale?: boolean; sceltaAperta?: boolean; domanda?: string }[],
+  adesso: number
+): SegnoAdottata[] {
+  const fuori: SegnoAdottata[] = []
+  for (const x of a.adottate ?? []) {
+    if (x.soloMia === true) continue
+    const c = chat.find((y) => y.sessione === x.sessionId)
+    const stato: StatoAdottata = c === undefined || c.viva === false
+      ? 'ferma'
+      : c.chiedeSegnale === true || c.sceltaAperta === true || (c.domanda !== undefined && c.domanda !== '')
+        ? 'aspetta'
+        : c.aspetta === true ? 'ferma' : 'lavoro'
+    const segno = x.ultimoSegno === undefined ? NaN : Date.parse(x.ultimoSegno)
+    const vecchioSegno = Number.isNaN(segno) || adesso - segno >= RINNOVO_SEGNO_MS
+    if (stato !== x.stato || (stato !== 'ferma' && vecchioSegno)) fuori.push({ sessionId: x.sessionId, stato, quando: new Date(adesso).toISOString() })
+  }
+  return fuori
 }
 
 /** Segna o toglie «solo mia». Segnata, i suoi messaggi in attesa si tolgono: non le scrive più. */

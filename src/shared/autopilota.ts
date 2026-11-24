@@ -481,7 +481,14 @@ export type ChatAdottata = {
   /** Nicholas l'ha segnata «solo mia»: l'autopilota non la tocca e non le scrive. */
   soloMia?: true
   adottataIl: string
+  /** k-280b: cosa fa adesso, dai segnali del Gestore (viva e al lavoro, ferma al prompt, ferma con una domanda o un permesso). */
+  stato?: StatoAdottata
+  /** k-280b: l'ultimo segno di vita visto (ISO): da lì si capisce se è ferma da tanto. */
+  ultimoSegno?: string
 }
+
+export type StatoAdottata = 'lavoro' | 'aspetta' | 'ferma'
+export const STATI_ADOTTATA: readonly StatoAdottata[] = ['lavoro', 'aspetta', 'ferma']
 
 /** Un messaggio dell'autopilota per una chat adottata: lo scrive il Gestore quando la chat è ferma. */
 export type MessaggioAdottata = { id: string; quando: string; sessionId: string; testo: string }
@@ -496,7 +503,9 @@ function leggiAdottate(raw: unknown[]): ChatAdottata[] {
       titolo: typeof r.titolo === 'string' ? r.titolo : '',
       ...(eRuolo(r.ruolo) ? { ruolo: r.ruolo } : {}),
       ...(r.soloMia === true ? { soloMia: true as const } : {}),
-      adottataIl: typeof r.adottataIl === 'string' ? r.adottataIl : ''
+      adottataIl: typeof r.adottataIl === 'string' ? r.adottataIl : '',
+      ...(typeof r.stato === 'string' && (STATI_ADOTTATA as readonly string[]).includes(r.stato) ? { stato: r.stato as StatoAdottata } : {}),
+      ...(typeof r.ultimoSegno === 'string' && !Number.isNaN(Date.parse(r.ultimoSegno)) ? { ultimoSegno: r.ultimoSegno } : {})
     }]
   })
 }

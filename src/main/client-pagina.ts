@@ -1861,6 +1861,8 @@ function gruppiChat(s) {
  */
 function statoChat(c) {
   if (c.chiede) return { tono: 'attesa', parola: 'aspetta che tu scelga' }
+  // k-280b: un'adottata ferma da più di 24 ore: non è al lavoro e non aspetta te.
+  if (c.vecchia) return { tono: 'ferma', parola: 'ferma da più di 24 ore', vecchia: true }
   if (c.aspetta && c.governata) return { tono: 'guidata', parola: 'ferma · ci pensa l’autopilota' }
   // 0.80.0: ha finito il turno = «ferma», come sul PC (chat-vista.ts) e nelle Domande,
   // dove sta fra le «Tutte». «Aspetta te» solo per una domanda o una scelta.
@@ -1873,10 +1875,11 @@ function statoChat(c) {
 /** Tutte le chat in una riga: prima chi aspetta te, e solo i casi che ci sono. */
 function riassuntoChat(chat) {
   if (!chat || chat.length === 0) return 'nessuna chat aperta sul computer'
-  var scelgono = 0, lavorano = 0, guidate = 0, ferme = 0, spente = 0
+  var scelgono = 0, lavorano = 0, guidate = 0, ferme = 0, spente = 0, vecchie = 0
   chat.forEach(function (c) {
     var st = statoChat(c)
-    if (st.parola === 'aspetta che tu scelga') scelgono++
+    if (st.vecchia) vecchie++
+    else if (st.parola === 'aspetta che tu scelga') scelgono++
     else if (st.tono === 'lavoro') lavorano++
     else if (st.tono === 'guidata') guidate++
     else if (st.tono === 'ferma') ferme++
@@ -1888,6 +1891,8 @@ function riassuntoChat(chat) {
   if (ferme) pezzi.push(ferme === 1 ? '1 ferma' : ferme + ' ferme')
   if (guidate) pezzi.push(guidate === 1 ? '1 con l’autopilota' : guidate + ' con gli autopiloti')
   if (spente) pezzi.push(spente === 1 ? '1 spenta' : spente + ' spente')
+  // k-280b: le vecchie ferme (24 ore e più) a parte, in una riga corta.
+  if (vecchie) pezzi.push(vecchie === 1 ? '1 chat vecchia ferma' : vecchie + ' chat vecchie ferme')
   return pezzi.join(' · ')
 }
 

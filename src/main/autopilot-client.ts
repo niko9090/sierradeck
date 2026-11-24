@@ -93,6 +93,8 @@ export type ClientAutopilota = {
   soloMia: (id: string, sessione: string, si: boolean) => Promise<void>
   /** I messaggi per le chat adottate scritti dal Gestore. */
   adottateScritti: (id: string, ids: string[]) => Promise<void>
+  /** k-280b: cosa fanno le chat adottate (al lavoro, aspettano, ferme), visto dal Gestore: stato e ultimo segno di vita. */
+  adottateSegni: (id: string, segni: { sessionId: string; stato: 'lavoro' | 'aspetta' | 'ferma'; quando: string }[]) => Promise<void>
   /** «Pulisci adesso» (0.85.2): l'autopulizia del servizio subito; torna la riga del riepilogo. */
   pulisci: () => Promise<string>
   /** L'autoriparazione (k-59): i workspace e le chat del servizio rimasti con l'assetto di prima. Torna le voci. */
@@ -434,6 +436,7 @@ export function creaClientAutopilota(p: {
     togliAdottate: async (id, sessioni) => { await chiama(`/autopiloti/${encodeURIComponent(id)}/adotta/togli`, 'POST', { sessioni }, attesaScrittura) },
     soloMia: async (id, sessione, si) => { await chiama(`/autopiloti/${encodeURIComponent(id)}/solo-mia`, 'POST', { sessione, si }, attesaScrittura) },
     adottateScritti: async (id, ids) => { await chiama(`/autopiloti/${encodeURIComponent(id)}/adottate/scritti`, 'POST', { ids }, attesaScrittura) },
+    adottateSegni: async (id, segni) => { await chiama(`/autopiloti/${encodeURIComponent(id)}/adottate/segni`, 'POST', { segni }, attesaScrittura) },
     ripara: async (id) => {
       const r = (await chiama('/autoriparazione', 'POST', { id }, 10 * 60_000)) as { voci?: VoceRiparazione[]; copiato?: boolean } | undefined
       return { voci: Array.isArray(r?.voci) ? r.voci : [], copiato: r?.copiato === true }
