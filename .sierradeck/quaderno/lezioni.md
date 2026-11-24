@@ -98,9 +98,6 @@
 
 ## android
 
-- Il blu degli stati sta in `ColoreStato.blu` (tema/Attivita.kt), non in `Banco`: i colori di stato vanno presi dalla tabella unica del PC. _(2026-11-16)_
-- `Tono` è ordinato per `ordinal` nelle schede workspace: un tono nuovo va messo nella posizione giusta dell'enum, non in fondo. _(2026-11-16)_
-- versionCode/versionName dell'app sono in android/app/build.gradle.kts e vanno alzati a parte rispetto a package.json _(2026-11-16)_
 - In `android/` manca il wrapper `gradlew`: la compilazione si lancia con `gradle` di sistema (`gradle :app:compileReleaseKotlin --no-daemon`). _(2026-11-19)_
 - `/api/pc` passa il battito grezzo (`...resto`): l'app legge `aggiornando` da lì senza toccare il PC. _(2026-11-19)_
 - `SuPc.corrente` e `FasciaLinea` non sono letti da nessuna schermata; la chat remota passa da `Api.ponte` in `SchermataDettaglioChat`. _(2026-11-19)_
@@ -168,6 +165,7 @@
 - `merge --abort` si rifiuta se un file toccato dall'unione è stato salvato a prova aperta: copiare, `checkout HEAD`, abort, rimettere. Prima restava un'unione aperta senza segno. _(2026-11-24)_
 - `git stash drop` vuole `stash@{n}`, non la sha: dopo il drop controllare la sha stampata e rimettere con `stash store` se è di un altro. Cercare lo stash per messaggio intero, mai `endsWith`. _(2026-11-24)_
 - `status --porcelain` mette tra virgolette i nomi non ASCII (`\303\250`): decodificarli (`percorsoGit`) prima di usarli come percorsi. `recupero/` va in `.git/info/exclude`, non nel .gitignore del pro… _(2026-11-24)_
+- un `git merge` ucciso a metà lascia `.git/index.lock`: poi `merge --abort` fallisce sempre e la prova resta aperta per sempre, senza file da elencare. _(2026-11-24)_
 
 ## autopilota
 
@@ -426,6 +424,7 @@
 - le voci di errori-arrivati.md vanno in coda; il file non finisce con a capo, quindi si aggiunge con Edit sull'ultima frase _(2026-11-23)_
 - «specialista oltre il tempo massimo (3 ore)» è la guardia k-178k che funziona, non un difetto: va annotato «non corretto», senza release. _(2026-11-24)_
 - errori-arrivati.md usa a-capo CRLF: una voce aggiunta con Edit può mescolare a-capo diversi. _(2026-11-24)_
+- nella storia git `.sierradeck/quaderno/*.md` è LF anche se la copia di lavoro è CRLF: un `git add` da CRLF riscrive tutto il file e rischia conflitti sulle note del programma. _(2026-11-24)_
 
 ## preferenze
 
@@ -450,6 +449,7 @@
 - il lotto non era leggibile dalla copia: per i «doppioni» da conteggio serve il file vero; il sospetto è l'invio ripetuto (timeout + Drive), non la scrittura del registro. _(2026-11-23)_
 - un fallimento di lavoro affidato si riporta come errore in un punto solo (il servizio); spedizioniere e Aiutante scrivono avviso o cronaca. _(2026-11-23)_
 - l'invio degli errori porta `volte` cumulativo con `quando` fisso: un invio rifatto non è identico al primo, quindi il dedup per voce identica non basta _(2026-11-23)_
+- «ferma senza (N file)» non vuol dire «sporca»: può essere uno stato git a metà o un errore di `git status` (codice 1 per tempo scaduto o abort), letto come sporca. _(2026-11-24)_
 
 ## permessi
 
