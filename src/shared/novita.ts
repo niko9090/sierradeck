@@ -41,6 +41,17 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.118.0',
+    righe: [
+      '**Consumi:** in alto vedi quanto ti resta nelle 5 ore e in settimana, letto dai limiti di Claude. Sotto c\'è l\'elenco per chat, con il dettaglio chiuso dietro una riga (si ricorda se lo apri).',
+      '**Consumi:** i numeri si salvano su disco e restano dopo una chiusura o un aggiornamento del programma.',
+      '**Unioni:** se nella cartella ci sono file non salvati che il ramo tocca, si mettono al sicuro, si unisce e poi si rimettono a posto. La fila non si ferma, e nessun file va perso.',
+      '**Unioni:** le prove lunghe non scadono più a metà, perché l\'attesa in fila non conta e la scadenza cresce con i controlli da fare. Se un\'unione resta ferma per la cartella sporca, dopo 5 minuti arriva l\'avviso.',
+      '**Unioni:** quando un lotto di rami non si unisce, il motivo è scritto in italiano chiaro e non con il testo di git.',
+      '**App Android 3.5.0:** vista Tutti i PC, chat più grande e consumi per chat. Si scarica a parte, è già pubblicata.',
+    ],
+  },
+  {
     versione: '0.117.3',
     righe: [
       '**Rapporto dei lavori:** le unioni che non partono, per esempio per file non salvati nella cartella, non contano più come prove da 0 secondi. Si vedono a parte.',
