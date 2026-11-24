@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { mkdtempSync, readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/server'
@@ -72,6 +72,10 @@ type Porte = {
   commitFallisce?: number
   /** 24/11: `git status` non risponde: la cartella risulta sporca ma senza nessun file da elencare. */
   statoRotto?: boolean
+  /** 24/11 (k-err285): la cartella `.git` finta (una cartella vera, per `MERGE_HEAD`). */
+  cartellaGit?: string
+  /** Dopo il commit dell'unione di prova compare un `MERGE_HEAD` estraneo (un'altra unione lasciata a metà). */
+  apriDopoUnione?: boolean
 }
 
 function gitDiProva(porte: Porte): { git: Git; asinc: GitAsincrono } {
@@ -83,6 +87,7 @@ function gitDiProva(porte: Porte): { git: Git; asinc: GitAsincrono } {
     if (a === 'diff --cached --name-only') return { codice: 0, uscita: '' }
     const toccati = /^diff --name-only (?:--no-renames )?main\.\.\.(.+)$/u.exec(a)
     if (toccati !== null) return { codice: 0, uscita: (porte.tocca[toccati[1]!] ?? []).join('\n') }
+    if (a === 'rev-parse --absolute-git-dir' && porte.cartellaGit !== undefined) return { codice: 0, uscita: porte.cartellaGit }
     if (a === 'rev-parse --is-inside-work-tree') return { codice: 0, uscita: 'true' }
     if (a === 'rev-parse --show-toplevel') return { codice: 0, uscita: radice.replace(/\\/gu, '/') }
     if (a === 'rev-parse --abbrev-ref HEAD') return { codice: 0, uscita: 'main' }
@@ -97,7 +102,7 @@ function gitDiProva(porte: Porte): { git: Git; asinc: GitAsincrono } {
     if (args[0] === 'merge-base') return { codice: porte.uniti.has((args[2] ?? '').replace('refs/heads/', '')) ? 0 : 1, uscita: '' }
     if (args.includes('merge') && args.includes('--no-commit')) { inProva = args.at(-1)!; return { codice: 0, uscita: '' } }
     // Il commit che conferma l'unione di prova.
-    if (args.includes('commit') && args.includes('--no-edit')) { if (inProva !== undefined) porte.uniti.add(inProva); inProva = undefined; return { codice: 0, uscita: '' } }
+    if (args.includes('commit') && args.includes('--no-edit')) { if (porte.cartellaGit !== undefined && porte.apriDopoUnione === true) writeFileSync(join(porte.cartellaGit, 'MERGE_HEAD'), `${'a'.repeat(40)}\n`); if (inProva !== undefined) porte.uniti.add(inProva); inProva = undefined; return { codice: 0, uscita: '' } }
     // Il commit dei file detti da Nicholas: quei file non sono più «non salvati».
     if (args.includes('commit') && args.includes('--')) {
       if ((porte.commitFallisce ?? 0) > 0) { porte.commitFallisce = porte.commitFallisce! - 1; return { codice: 1, uscita: 'errore' } }
@@ -454,6 +459,46 @@ describe('la fila non resta ferma in silenzio (23/11)', () => {
     expect(avvisi[0]).toContain('troppi')
     expect(domandeSalva()).toEqual([])
     expect(salvataggi(porte)).toEqual([])
+  })
+
+  it('criterio rosso con troppi file non salvati: l’avviso «troppi» parte anche su questo percorso (k-err285, ipotesi 2)', async () => {
+    zitto()
+    const tanti = Array.from({ length: FILE_DA_CHIEDERE_MAX + 5 }, (_, i) => `f${i}.js`)
+    const porte = porteNuove({ sporchi: tanti })
+    const avvisi: string[] = []
+    await prepara(porte, { criterioK1: 'le prove: `npx vitest run tests/x.test.ts`', esegui: () => Promise.resolve({ codice: 1, uscita: '1 test fallito' }), avvisa: (tipo, testo) => { if (tipo === 'avviso') avvisi.push(testo ?? '') } })
+    await strumento('unisci', { compito: 'k-1' })
+    await attendi(() => avvisi.length >= 1, { cosa: 'l’avviso «troppi file» sul criterio rosso', timeout: 40_000 })
+    expect(avvisi[0]).toContain('troppi')
+    expect(domandeSalva()).toEqual([])
+  })
+})
+
+describe('un’unione a metà nella principale non è «file non salvati» (k-err285)', () => {
+  it('con MERGE_HEAD (non del programma) e 138 file in indice: il criterio non si misura, nessuna domanda «li salvo?», avviso con lo stato vero, poi riparte da solo', async () => {
+    zitto()
+    const cartellaGit = mkdtempSync(join(tmpdir(), 'ap-git-finto-'))
+    const tanti = Array.from({ length: 138 }, (_, i) => `f${i}.js`)
+    // La prova di unione parte (git finto); dopo, nella principale resta a metà un'unione di un altro, vista al momento del criterio.
+    const porte = porteNuove({ sporchi: tanti, cartellaGit, apriDopoUnione: true })
+    const avvisi: string[] = []
+    let chiamate = 0
+    await prepara(porte, { criterioK1: 'le prove: `npx vitest run tests/x.test.ts`', esegui: () => { chiamate += 1; return Promise.resolve({ codice: 0, uscita: 'ok' }) }, avvisa: (tipo, testo) => { if (tipo === 'avviso') avvisi.push(testo ?? '') } })
+    porte.tocca[R1] = []
+    await strumento('unisci', { compito: 'k-1' })
+    await attendi(() => avvisi.length >= 1, { cosa: 'l’avviso con lo stato git a metà', timeout: 40_000 })
+    expect(avvisi[0]).toContain('MERGE_HEAD')
+    expect(avvisi[0]).not.toContain('138')
+    expect(chiamate).toBe(0)
+    expect(domandeSalva()).toEqual([])
+    expect(compitoK('k-1')?.esito).toContain('MERGE_HEAD')
+    expect(compitoK('k-1')?.criterioVerde).toBeUndefined()
+    // Nicholas chiude l'unione: il criterio si misura da solo e passa.
+    rmSync(join(cartellaGit, 'MERGE_HEAD'))
+    porte.sporchi = []
+    await attendi(() => unitoK('k-1'), { cosa: 'k-1 misurato e unito', timeout: 40_000 })
+    expect(chiamate).toBe(1)
+    expect(compitoK('k-1')?.criterioVerde).toBe(true)
   })
 })
 
