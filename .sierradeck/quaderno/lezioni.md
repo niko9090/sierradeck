@@ -249,6 +249,7 @@
 - un blocco «cartella sporca» senza «(N file)» nell'errore = git non ha dato file: la domanda «li salvo?» non può partire, serve un avviso a parte. _(2026-11-23)_
 - la scadenza adattiva della prova ha un minimo fisso: con prove veloci in memoria una prova con molti criteri o un gradle a freddo scade; ora il minimo cresce con i criteri _(2026-11-23)_
 - dentro la misura di una prova ogni attesa che non è la prova va passata a `inFila` (ora `attesaDellaProva` in turni-criteri.ts), altrimenti consuma la scadenza _(2026-11-23)_
+- un conflitto vero in un merge a polpo lascia i file in conflitto; il caso senza file si prova solo con un git finto sul comando merge _(2026-11-24)_
 
 ## ui
 
@@ -463,8 +464,6 @@
 
 ## rilascio
 
-- Prima di un compito di rilascio controllare che il bump di versione sia già in main: qui la bozza v0.107.4 esisteva su GitHub ma package.json era fermo a 0.107.3. _(2026-11-15)_
-- Prima di pubblicare controllare non solo package.json nella cartella ma anche `git show HEAD:package.json`: la versione può essere solo nell'indice di un'unione a metà (MERGE_HEAD). _(2026-11-15)_
 - `npm run pubblica` rifiuta le copie di lavoro: `controlla-pacchetto` blocca se `node_modules` è una junction, quindi serve la cartella principale col ramo giusto. _(2026-11-15)_
 - Nella copia di un ramo `pubblica` chiede anche le credenziali Drive: bastano `SD_GOOGLE_CLIENT_ID` e `SD_GOOGLE_CLIENT_SECRET`, lette da `google-oauth.json` della cartella principale. _(2026-11-15)_
 - le note di versione stanno in src/shared/novita.ts (non in un changelog); il tag v0.109.0 punta a un commit qualsiasi, non al bump _(2026-11-16)_
@@ -928,3 +927,7 @@
 ## revisione
 
 - un ramo può restare in .git/refs/heads senza la sua copia: per rivederlo serve git show, non bastano Read e Grep _(2026-11-24)_
+
+## lotti
+
+- unisciALotti divide già a metà ogni lotto fallito senza `ritenta`: un motivo grezzo di git è solo un problema di testo, non di ripiego mancante _(2026-11-24)_
