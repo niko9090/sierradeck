@@ -19,7 +19,7 @@ import { serveRipresaDopoAggiornamento } from './ripresa-riavvio'
 import { parolaRapporto, rapportoNuovo, type RapportoChat } from '@shared/rapporti-chat'
 import { righeLezioni } from '@shared/lezioni-chat'
 import { haDettoFatto, segnaleSuperato } from '@shared/segnali-flotta'
-import { conChatAdottate, conSoloMia, senzaMessaggiAdottate } from '@shared/adozione'
+import { conChatAdottate, conSegniAdottate, conSoloMia, senzaMessaggiAdottate, type SegnoAdottata } from '@shared/adozione'
 import { leggiSegnaleVero, type SegnaleVero } from '@shared/indicatore-autopilota'
 import { POSTI_MAX, postiDalPc, prossimiPosti, type MisuraPc, type PostiChat, type RegolazionePosti, type StatoPosti } from '@shared/posti-chat'
 import {
@@ -54,7 +54,7 @@ import type { RegistroDomande, ContestoDomanda } from './domande'
 import { decisioneDaRicordare, domandaRispostaInChat, rispostaScritta, scelteDaToccare } from './domande-in-chat'
 import type { TipoAvviso } from './telegram'
 import { avanzaFine, inizioFine } from './fine-chat'
-import { chatAlLavoroSulPc, daChiudereDaSole, RICHIUDI_DOPO_MS } from './posti'
+import { bloccateDaFinire, chatAlLavoroSulPc, daChiudereDaSole, RICHIUDI_DOPO_MS } from './posti'
 import { leggiStatoProgramma, STATO_PROGRAMMA_VALIDO_MS, type StatoProgramma } from './stato-programma'
 import { chatNote, rigaRiepilogo as rigaAutopulizia, type EsitoAutopulizia } from './autopulizia'
 import {
@@ -449,7 +449,26 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   // ── La fine delle chat adottate (P2) ──
   const chiuseDaSole = new Map<string, number>()
   /** Le chat adottate finite e ferme al prompt si chiudono da sole: mai una al lavoro, mai chi aspetta una risposta. */
+  /** k-280b: una chat `bloccata` con il compito già unito o chiuso è finita: poi la chiude il percorso di sempre. */
+  const finisciBloccateConCompitoChiuso = (): void => {
+    for (const u of unici()) {
+      if (u.workspace === undefined || !u.chats.some((c) => c.stato === 'bloccata')) continue
+      let compiti: { id: string; stato: string; chiuso?: string }[]
+      try { compiti = unico?.pianoCompiti(u.workspace).compiti ?? [] } catch { continue }
+      const ids = bloccateDaFinire(u, compiti)
+      if (ids.length === 0) continue
+      const a = deps.archivio.leggi(u.id)
+      if (a === undefined) continue
+      const fatte = bloccateDaFinire(a, compiti)
+      if (fatte.length === 0) continue
+      a.chats = a.chats.map((c) => (fatte.includes(c.id) ? { ...c, stato: 'finita' as const } : c))
+      for (const id of fatte) annota(a, `la chat ${id} era bloccata ma il suo compito è già unito o chiuso: la segno finita`, { chat: id, esito: 'finito' })
+      salva(a)
+      console.info(`[posti] ${u.id} — ${fatte.join(', ')}: bloccata con il compito chiuso, segnata finita`)
+    }
+  }
   const chiudiFiniteDaSole = (): void => {
+    finisciBloccateConCompitoChiuso()
     if (deps.chiudiChat === undefined || statoProgramma === undefined) return
     const ora = Date.parse(deps.adesso())
     if (Number.isNaN(ora) || ora - statoProgramma.letto > STATO_PROGRAMMA_VALIDO_MS) return
@@ -1521,7 +1540,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           return
         }
 
-        const suUno = /^\/autopiloti\/([^/]+)\/(dialogo|annuncio|nota|adotta|adotta\/togli|solo-mia|adottate\/scritti)$/.exec(percorso)
+        const suUno = /^\/autopiloti\/([^/]+)\/(dialogo|annuncio|nota|adotta|adotta\/togli|solo-mia|adottate\/scritti|adottate\/segni)$/.exec(percorso)
         if (metodo === 'POST' && suUno !== null) {
           const id = decodeURIComponent(suUno[1]!)
           const a = leggiUnico(id)
@@ -1609,8 +1628,25 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             rispondi(res, 200, deps.archivio.leggi(id))
             return
           }
+          if (cosa === 'adottate/segni') {
+            // k-280b: stato e ultimo segno di vita delle adottate, visti dal Gestore. Nessuna chat si tocca.
+            const segni: SegnoAdottata[] = Array.isArray(corpo.segni)
+              ? corpo.segni.flatMap((v: unknown) => {
+                const r = v as Record<string, unknown> | null
+                if (r === null || typeof r !== 'object' || typeof r.sessionId !== 'string') return []
+                const stato = r.stato === 'lavoro' || r.stato === 'aspetta' || r.stato === 'ferma' ? r.stato : undefined
+                const quando = typeof r.quando === 'string' && !Number.isNaN(Date.parse(r.quando)) ? r.quando : undefined
+                return stato !== undefined && quando !== undefined ? [{ sessionId: r.sessionId, stato, quando }] : []
+              })
+              : []
+            const dopo = conSegniAdottate(a, segni)
+            // Si scrive senza `salva`: un segno di vita non è un evento dell'autopilota (non sposta `ultimoEvento`).
+            if (dopo !== a) deps.archivio.scrivi(dopo)
+            rispondi(res, 200, { ok: true })
+            return
+          }
           const ids = testi(corpo.ids)
-          const scritti = (a.perAdottate ?? []).filter((m) => ids.includes(m.id))
+          const scritti =(a.perAdottate ?? []).filter((m) => ids.includes(m.id))
           if (scritti.length > 0) {
             const dopo = senzaMessaggiAdottate(a, ids)
             for (const m of scritti) annota(dopo, `messaggio scritto alla chat adottata «${(a.adottate ?? []).find((x) => x.sessionId === m.sessionId)?.titolo.slice(0, 60) ?? m.sessionId.slice(0, 8)}»: ${m.testo.slice(0, 160)}`)

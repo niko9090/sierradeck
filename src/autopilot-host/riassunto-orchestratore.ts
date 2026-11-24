@@ -5,6 +5,7 @@ import type { PercentoWs, Piano } from '@shared/piano-orchestratore'
 import { RUOLI } from '@shared/ruoli-agenti'
 import type { EventoOrchestratore } from './orchestratore'
 import { durata, type Specialista } from '@shared/flusso-orchestratore'
+import { ADOTTATA_VECCHIA_MS, contaAdottate } from '@shared/adozione'
 
 /**
  * **Lo stato in breve** per l'orchestratore unico (P3): nel prompt di ogni
@@ -130,12 +131,17 @@ function costruisci(d: DatiRiassunto, liv: Livello): Sezioni {
     if (!mostra) finitiNascosti++
     return mostra
   }).slice(-12)
-  const adottateFermeN = { n: 0 }
+  // k-280b: le adottate finite nascoste si dividono in ferme da poco e vecchie (da più di 24 ore).
+  const adottateFermeN = { ferme: 0, vecchie: 0 }
   const chatsViste = chats.filter((c) => {
     if (c.stato !== 'finita') return true
     const adottata = c.origine !== undefined
     const mostra = liv < 2 && !(c.compitoId !== undefined && compitiFiniti.has(c.compitoId)) && c.conclusa === undefined && recente(c.dal, adottata ? UN_ORA : TRENTA_MIN)
-    if (!mostra) { if (adottata) adottateFermeN.n++; else finitiNascosti++ }
+    if (!mostra) {
+      if (!adottata) finitiNascosti++
+      else if (recente(c.dal, ADOTTATA_VECCHIA_MS)) adottateFermeN.ferme++
+      else adottateFermeN.vecchie++
+    }
     return mostra
   })
   if (chatsViste.length === 0 && sub.length === 0) righe.push('- nessuno al lavoro')
@@ -155,8 +161,14 @@ function costruisci(d: DatiRiassunto, liv: Livello): Sezioni {
   // Le chat adottate: una riga sola. Le «solo mia» di Nicholas si nominano, corte, perché non vanno scritte.
   const adottate = d.unico?.adottate ?? []
   const soloMie = adottate.filter((x) => x.soloMia === true)
-  const guidabili = adottate.length - soloMie.length
-  if (adottateFermeN.n > 0 || guidabili > 0) righe.push(`${adottateFermeN.n + guidabili} chat adottate ferme (non le elenco: le trovi con lo strumento stato)`)
+  // k-280b: tre gruppi. Le vecchie ferme (24 ore e più) escono dalla frase di chi lavora: una riga corta a parte.
+  const conta = contaAdottate(adottate, d.adesso)
+  const pezzi: string[] = []
+  if (conta.lavoro > 0) pezzi.push(`${conta.lavoro} al lavoro`)
+  if (conta.aspettano > 0) pezzi.push(`${conta.aspettano} aspettano Nicholas`)
+  if (conta.ferme + adottateFermeN.ferme > 0) pezzi.push(`${conta.ferme + adottateFermeN.ferme} ferme da poco`)
+  if (pezzi.length > 0) righe.push(`Chat già avviate: ${pezzi.join(', ')} (non le elenco: le trovi con lo strumento stato)`)
+  if (conta.vecchie + adottateFermeN.vecchie > 0) righe.push(`${conta.vecchie + adottateFermeN.vecchie} chat vecchie ferme (da più di 24 ore: non contano, non le toccare)`)
   if (soloMie.length > 0) righe.push(`Chat solo di Nicholas (non scriverle): ${soloMie.slice(0, 8).map((x) => corto(x.titolo || x.sessionId.slice(0, 8), 30)).join('; ')}${soloMie.length > 8 ? ` e altre ${soloMie.length - 8}` : ''}`)
 
   righe = fisse

@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import {
-  adottateGuidabili, conChatAdottate, conMessaggiAdottate, conSoloMia, daScrivereAdesso, messaggiPerAdottate, righePromptAdottate,
-  ruoloDaContenuto, senzaMessaggiAdottate
+  adottateGuidabili, conChatAdottate, conMessaggiAdottate, conSegniAdottate, conSoloMia, contaAdottate, daScrivereAdesso, messaggiPerAdottate, righePromptAdottate,
+  ruoloDaContenuto, segniDaMandare, senzaMessaggiAdottate
 } from '@shared/adozione'
 import { dormienteVivo, leggiStatoAdozione, pianoAdozione } from '@shared/migrazione-adozione'
-import { nuovoAutopilota, parseAutopilota, type Autopilota } from '@shared/autopilota'
+import { nuovoAutopilota, parseAutopilota, type Autopilota, type ChatAdottata } from '@shared/autopilota'
 import type { Archivio } from '@shared/workspace'
 
 /** 0.78.0: le chat già avviate adottate dall'autopilota del loro workspace (Nicholas, 16/10). */
@@ -107,5 +107,51 @@ describe('pianoAdozione', () => {
     expect(dormienteVivo(mig.dormienti, s, 'Vuoto')).toEqual({ workspace: 'Vuoto', chat: 1 })
     expect(dormienteVivo(mig.dormienti, { ...s!, stato: 'annullata' }, 'S')).toEqual({ workspace: 'S', chat: 2 })
     expect(leggiStatoAdozione({ versione: 2 })).toBeUndefined()
+  })
+})
+
+describe('k-280b: stato e gruppi delle adottate', () => {
+  const ADESSO = Date.parse('2026-11-24T12:00:00.000Z')
+  const ore = (h: number): string => new Date(ADESSO - h * 3_600_000).toISOString()
+  const ad = (i: number, over: Partial<ChatAdottata> = {}): ChatAdottata => ({ sessionId: `s${i}`, titolo: `t${i}`, adottataIl: ore(300), ...over })
+
+  it('conta vive, in attesa, ferme da poco, vecchie e solo mia', () => {
+    const c = contaAdottate([
+      ad(1, { stato: 'lavoro', ultimoSegno: ore(0.5) }),
+      ad(2, { stato: 'aspetta', ultimoSegno: ore(40) }),
+      ad(3, { stato: 'ferma', ultimoSegno: ore(3) }),
+      ad(4, { stato: 'ferma', ultimoSegno: ore(24.1) }),
+      ad(5, { stato: 'lavoro', ultimoSegno: ore(100) }),
+      ad(6),
+      ad(7, { soloMia: true, stato: 'lavoro', ultimoSegno: ore(1) })
+    ], ADESSO)
+    expect(c).toEqual({ lavoro: 1, aspettano: 1, ferme: 1, vecchie: 3, soloMie: 1 })
+  })
+
+  it('i segni: lo stato si aggiorna, l ultimo segno solo se la chat vive; nulla di nuovo = stesso oggetto', () => {
+    const a = { adottate: [ad(1, { stato: 'lavoro', ultimoSegno: ore(1) })] } as Autopilota
+    const adesso = new Date(ADESSO).toISOString()
+    const ferma = conSegniAdottate(a, [{ sessionId: 's1', stato: 'ferma', quando: adesso }])
+    expect(ferma.adottate![0]).toMatchObject({ stato: 'ferma', ultimoSegno: ore(1) })
+    expect(conSegniAdottate(ferma, [{ sessionId: 's1', stato: 'ferma', quando: adesso }])).toBe(ferma)
+    const viva = conSegniAdottate(ferma, [{ sessionId: 's1', stato: 'lavoro', quando: adesso }])
+    expect(viva.adottate![0]).toMatchObject({ stato: 'lavoro', ultimoSegno: adesso })
+  })
+
+  it('segniDaMandare: lavora, aspetta una domanda, ferma o chiusa; il rinnovo non scrive a ogni giro', () => {
+    const a = { adottate: [ad(1), ad(2), ad(3), ad(4, { stato: 'lavoro', ultimoSegno: ore(0.01) }), ad(5, { soloMia: true })] } as Autopilota
+    const segni = segniDaMandare(a, [
+      { sessione: 's1' },
+      { sessione: 's2', chiedeSegnale: true },
+      { sessione: 's3', aspetta: true },
+      { sessione: 's4' },
+      { sessione: 's5' }
+    ], ADESSO)
+    expect(segni.map((x) => [x.sessionId, x.stato])).toEqual([['s1', 'lavoro'], ['s2', 'aspetta'], ['s3', 'ferma']])
+  })
+
+  it('parseAutopilota rilegge stato e ultimo segno', () => {
+    const letto = parseAutopilota({ ...JSON.parse(JSON.stringify({ ...ap(), adottate: [ad(1, { stato: 'aspetta', ultimoSegno: ore(2) })] })), versione: 1 })
+    expect(letto.autopilota?.adottate?.[0]).toMatchObject({ stato: 'aspetta', ultimoSegno: ore(2) })
   })
 })

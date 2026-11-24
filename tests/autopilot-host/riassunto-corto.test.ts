@@ -62,8 +62,9 @@ describe('stato corto', () => {
     expect(testo).toContain('SVEGLIE')
     expect(testo).toContain('UNIONI')
     expect(testo).toContain('TETTI')
-    expect(testo).toContain('100 chat adottate ferme')
-    expect(testo.match(/chat adottate ferme/g)).toHaveLength(1)
+    expect(testo).toContain('100 chat vecchie ferme')
+    expect(testo.match(/chat vecchie ferme/g)).toHaveLength(1)
+    expect(testo).not.toContain('Chat già avviate')
     expect(testo).toContain('stato accorciato')
   })
 

@@ -4,7 +4,7 @@ import { avvisoCarico, leggiPostiScelti, motivoCorto, origineCorta, rigaPosti, s
 import { attivitaDaSegnali } from '@shared/attivita-chat'
 import type { Segnale } from '@shared/segnali-chat'
 import { colonnePiano, numeraUguali, ordinaSchede, pianoAutopilota, riassuntoAlLavoro, riassuntoAutopilota, righeDalVivo, situazioneAutopilota, ultimaAzioneDalVivo, type StatoScheda } from '@shared/panoramica'
-import { ruoloDaContenuto } from '@shared/adozione'
+import { gruppoAdottata, ruoloDaContenuto } from '@shared/adozione'
 import { autopilotaDelWorkspace, ruoloDalTitolo } from '@shared/vista-elenco'
 import { RUOLI, RUOLI_ORDINE, type Ruolo } from '@shared/ruoli-agenti'
 import { domandaBreve } from '@shared/domande-conversazioni'
@@ -1326,8 +1326,11 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
           for (const ws of new Set(tutte.map((c) => c.workspace ?? ''))) {
             for (const [id, n] of nomiChatDistinti(tutte.filter((c) => (c.workspace ?? '') === ws).map((c) => ({ id: c.id, titolo: c.titolo })))) nomi.set(id, n)
           }
+          // k-280b: le adottate ferme da più di 24 ore (non «solo mia», non in attesa di te): la pagina le conta a parte.
+          const vecchie = new Set(autopiloti.flatMap((a) => (a.adottate ?? []).filter((x) => gruppoAdottata(x, Date.now()) === 'vecchia').map((x) => x.sessionId)))
           return tutte.map(({ coda, codaGrezza, ...resto }) => ({
           ...resto,
+          ...(resto.sessione !== undefined && vecchie.has(resto.sessione) && resto.chiedeSegnale !== true ? { vecchia: true as const } : {}),
           ...(nomi.get(resto.id) !== undefined && nomi.get(resto.id) !== resto.titolo ? { nome: nomi.get(resto.id) } : {}),
           // Se sullo schermo c'e' un elenco di scelte: e' il pallino della
           // scheda «Domande» del telefono, senza aprire la chat.

@@ -80,6 +80,7 @@ import { DOMANDA_PERMESSO_VALE_MS, concessoDa, type Concesso, type PermessiNicho
 import { leggiRichiestaConsenso, nicholasHaChiestoDiInstallare } from './richiesta-consenso'
 import { leggiTrascrizione, trovaTrascrizione } from './trascrizione-specialista'
 import { pianoVisto, type PianoVisto } from '@shared/registro-workspace'
+import { ADOTTATA_VECCHIA_MS } from '@shared/adozione'
 import { homedir } from 'node:os'
 import { attesaVuota, cambiaPrecedenzaWorkspace, cambiaPriorita, inFila, parcheggia, passo as passoAttesa, rifiutata as rifiutataDalTetto, rivedi as rivediPosti, togliVoce, type Mossa, type MossaAttesa, type StatoAttesa, type VistaAttesa } from '@shared/attesa-specialisti'
 import { nomeWorkspace } from '@shared/attesa-vista'
@@ -995,6 +996,11 @@ ${v.prompt}` : ''}` })
   const compitoDelPiano = (ws: string, compito: string | undefined): CompitoPiano | undefined => (compito === undefined ? undefined : x.orchestratori.piano(ws).compiti.find((c) => c.id === compito))
   const pesoDi = (ws: string, compito: string | undefined): PesoCompito => compitoDelPiano(ws, compito)?.peso ?? PESO_PREDEFINITO
   const titoloDi = (ws: string, compito: string | undefined, descrizione: string): string => titoloBreve(compitoDelPiano(ws, compito)?.titolo ?? descrizione)
+  /** k-280b: nessun segno di vita (hook, battiti, consegne) da più di 24 ore. */
+  const chatMutaDaUnGiorno = (a: Autopilota, c: ChatGovernata, ora: number): boolean => {
+    const ultimo = x.ultimoSegnale(a.id, c.id) ?? (c.dal !== undefined ? Date.parse(c.dal) : undefined)
+    return ultimo !== undefined && !Number.isNaN(ultimo) && ora - ultimo > ADOTTATA_VECCHIA_MS
+  }
   const vistaAttesa = (): VistaAttesa => {
     const adesso = oraMs()
     // 12/11: qui solo chi lavora su questo PC; gli affidati a un altro PC stanno nell'elenco di quel PC.
@@ -1005,8 +1011,9 @@ ${v.prompt}` : ''}` })
     // k-174c (Nicholas: «ci sono chat che stanno lavorando e non vedo a destra gli agenti attivi»): anche le chat
     // specialiste vive dell'autopilota (adottate o lanciate da lui) lavorano, e la testa della chat già le conta:
     // qui mancavano perché l'elenco guardava solo gli Agent del flusso. Niente stima né tasti: non sono Agent del flusso.
+    // k-280b: una chat «al lavoro» muta da più di 24 ore non è al lavoro: esce da questa vista (resta aperta, non si chiude).
     const chatVive = unici().flatMap((u) => specialistiVivi(u)
-      .filter((c) => c.stato === 'lavoro')
+      .filter((c) => c.stato === 'lavoro' && !chatMutaDaUnGiorno(u, c, adesso))
       .map((c) => ({ c, ws: wsDi(u), ap: u.id })))
     const stato = archivioAttesa.leggi()
     const fila = inFila(stato, adesso)

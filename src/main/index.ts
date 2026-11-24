@@ -251,6 +251,7 @@ import type { Db } from './db'
 import { rinominaInElenco } from '@shared/vista-elenco'
 import { creaMigrazione, type Migrazione } from './migrazione-elenco'
 import { adottabili, avviaGiroAdozione, creaMigrazioneAdozione, type MigrazioneAdozione } from './adozione-chat'
+import type { SegnoAdottata } from '@shared/adozione'
 import { dormienteVivo } from '@shared/migrazione-adozione'
 import { creaAutoriparazione } from './autoriparazione'
 import { riassuntoRiparazione } from '@shared/autoriparazione'
@@ -4596,7 +4597,8 @@ if (!app.requestSingleInstanceLock()) {
           elenca: () => clientAutopilota.elenca(),
           adotta: (id: string, chat: { sessionId: string; titolo: string }[], soloMie?: string[]) => clientAutopilota.adotta(id, chat, soloMie),
           togli: (id: string, sessioni: string[]) => clientAutopilota.togliAdottate(id, sessioni),
-          scritti: (id: string, ids: string[]) => clientAutopilota.adottateScritti(id, ids)
+          scritti: (id: string, ids: string[]) => clientAutopilota.adottateScritti(id, ids),
+          segni: (id: string, segni: SegnoAdottata[]) => clientAutopilota.adottateSegni(id, segni)
         }
         const adozione = creaMigrazioneAdozione({
           dati,
