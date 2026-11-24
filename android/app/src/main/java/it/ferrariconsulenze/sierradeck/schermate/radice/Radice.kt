@@ -188,7 +188,7 @@ private fun Collegata(vm: RadiceViewModel, pc: PcNoto, onEsci: () -> Unit) {
     var dialogoApp by remember { mutableStateOf(false) }
     // In una chat la conversazione prende tutto lo schermo: niente riga in alto né barra in basso
     // (il nome del PC e la parola del collegamento stanno nell'intestazione della chat).
-    val inChat = posto.voce == VoceBarra.LAVORO && posto.dettaglio is Dettaglio.Chat
+    val inChat = posto.tuttoSchermo
     Scaffold(
         containerColor = Banco.fondo,
         topBar = {
