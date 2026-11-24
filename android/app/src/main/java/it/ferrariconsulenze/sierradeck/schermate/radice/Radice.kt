@@ -34,6 +34,8 @@ import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Work
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.FilterChip
+import it.ferrariconsulenze.sierradeck.schermate.lavoro.TuttiIPcVista
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -182,25 +184,30 @@ private fun Collegata(vm: RadiceViewModel, pc: PcNoto, onEsci: () -> Unit) {
     }
 
     var dialogoApp by remember { mutableStateOf(false) }
+    // In una chat la conversazione prende tutto lo schermo: niente riga in alto né barra in basso
+    // (il nome del PC e la parola del collegamento stanno nell'intestazione della chat).
+    val inChat = posto.voce == VoceBarra.LAVORO && posto.dettaglio is Dettaglio.Chat
     Scaffold(
         containerColor = Banco.fondo,
         topBar = {
-            // Da Android 15 la finestra va sotto la barra di stato: la riga in alto la scavalca da sola.
-            Column(Modifier.background(Banco.chassis).windowInsetsPadding(WindowInsets.statusBars)) {
-                RigaInAlto(pc, Parola.di(contatto), elenco, onRiprova = vm::riprova, onScegli = vm::scegli, onAggiungi = { vm.scegli(null) })
-                Apertura.aggiornamento?.let { (nome, _) ->
-                    if (!PiuTardi.nascosta(contesto, nome)) BandaAppNuova(nome, onAggiorna = { dialogoApp = true }, onPiuTardi = { PiuTardi.rimanda(contesto, nome); Apertura.aggiornamento = null })
+            if (!inChat) {
+                // Da Android 15 la finestra va sotto la barra di stato: la riga in alto la scavalca da sola.
+                Column(Modifier.background(Banco.chassis).windowInsetsPadding(WindowInsets.statusBars)) {
+                    RigaInAlto(pc, Parola.di(contatto), elenco, onRiprova = vm::riprova, onScegli = vm::scegli, onAggiungi = { vm.scegli(null) })
+                    Apertura.aggiornamento?.let { (nome, _) ->
+                        if (!PiuTardi.nascosta(contesto, nome)) BandaAppNuova(nome, onAggiorna = { dialogoApp = true }, onPiuTardi = { PiuTardi.rimanda(contesto, nome); Apertura.aggiornamento = null })
+                    }
                 }
             }
         },
         bottomBar = {
-            BarraTre(posto.voce, domande = copia.stato?.domandeInAttesa ?: 0, onTocca = vm::tocca)
+            if (!inChat) BarraTre(posto.voce, domande = copia.stato?.domandeInAttesa ?: 0, onTocca = vm::tocca)
         }
     ) { spazi ->
         // consumeWindowInsets: la tastiera (imePadding delle caselle) non deve contare due volte la barra in basso.
         Box(Modifier.padding(spazi).consumeWindowInsets(spazi).fillMaxSize()) {
             when (posto.voce) {
-                VoceBarra.LAVORO -> GuscioLavoro(pc, api, posto.dettaglio, copia, collegamento, onApri = vm::apri, onIndietro = { vm.indietro() }, onVersione = { vm.apri(Dettaglio.Sezione(SezioneAltro.AGGIORNAMENTI)) })
+                VoceBarra.LAVORO -> GuscioLavoro(pc, elenco, api, posto.dettaglio, copia, collegamento, onApri = vm::apri, onApriChatDi = { suPc, chat -> if (suPc != pc.id) vm.scegli(suPc); vm.apri(Dettaglio.Chat(chat)) }, onIndietro = { vm.indietro() }, onVersione = { vm.apri(Dettaglio.Sezione(SezioneAltro.AGGIORNAMENTI)) })
                 VoceBarra.FILE -> SchermataFile(pc.id, RegoleSchermate.schedeWorkspace(copia.stato?.autopiloti.orEmpty())) { SezioneFile(api) }
                 VoceBarra.ALTRO -> SchermataAltro(
                     api = api, chat = copia.stato?.chat.orEmpty(),
@@ -301,11 +308,11 @@ private fun iconaDi(v: VoceBarra): ImageVector = when (v) {
  * pagina (Chat · Chi lavora); una chat apre ancora il dettaglio di prima.
  */
 @Composable
-private fun GuscioLavoro(pc: PcNoto, api: Api, dettaglio: Dettaglio?, copia: Deposito.Copia, collegamento: Collegamento, onApri: (Dettaglio) -> Unit, onIndietro: () -> Unit, onVersione: () -> Unit) {
+private fun GuscioLavoro(pc: PcNoto, elenco: List<PcNoto>, api: Api, dettaglio: Dettaglio?, copia: Deposito.Copia, collegamento: Collegamento, onApri: (Dettaglio) -> Unit, onApriChatDi: (String, String) -> Unit, onIndietro: () -> Unit, onVersione: () -> Unit) {
     when (dettaglio) {
         is Dettaglio.Chat -> {
             val fonte = remember(api, dettaglio.id) { fonteStoria(api, dettaglio.id) }
-            SchermataDettaglioChat(pc.id, copia.stato?.chat?.firstOrNull { it.id == dettaglio.id }, dettaglio.id, fonte, api, onIndietro)
+            SchermataDettaglioChat(pc.id, copia.stato?.chat?.firstOrNull { it.id == dettaglio.id }, dettaglio.id, fonte, api, onIndietro, nomePc = pc.nome.takeIf { elenco.size > 1 })
         }
         is Dettaglio.Autopilota -> {
             val a = copia.stato?.autopiloti?.firstOrNull { it.id == dettaglio.id }
@@ -320,13 +327,22 @@ private fun GuscioLavoro(pc: PcNoto, api: Api, dettaglio: Dettaglio?, copia: Dep
                 onApriChat = { onApri(Dettaglio.Chat(it)) }, onIndietro = onIndietro
             )
         }
-        else -> SchermataLavoro(
-            pc = pc.id, stato = copia.stato, quando = copia.quando, vecchia = copia.vecchia,
-            leggiDomande = { try { api.domande().conversazioni } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null } },
-            onApriWorkspace = { onApri(Dettaglio.Autopilota(it)) },
-            onVersione = onVersione,
-            evidenzia = (dettaglio as? Dettaglio.Domanda)?.id
-        )
+        else -> Column(Modifier.fillMaxSize()) {
+            // Con più PC collegati: «Questo PC» (workspace e domande) o «Tutti i PC» (ognuno con le sue chat).
+            var tutti by rememberSaveable { mutableStateOf(false) }
+            if (elenco.size > 1) Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = !tutti, onClick = { tutti = false }, label = { Text("Questo PC") })
+                FilterChip(selected = tutti, onClick = { tutti = true }, label = { Text("Tutti i PC") })
+            }
+            if (tutti && elenco.size > 1) TuttiIPcVista(elenco, pc.id, onApriChatDi)
+            else SchermataLavoro(
+                pc = pc.id, stato = copia.stato, quando = copia.quando, vecchia = copia.vecchia,
+                leggiDomande = { try { api.domande().conversazioni } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null } },
+                onApriWorkspace = { onApri(Dettaglio.Autopilota(it)) },
+                onVersione = onVersione,
+                evidenzia = (dettaglio as? Dettaglio.Domanda)?.id
+            )
+        }
     }
 }
 

@@ -234,10 +234,11 @@ fun RigaConversazione(stato: StatoGiro, disponibile: Boolean, nega: Boolean, onA
             onClick = applicaSpegni, modifier = Modifier.heightIn(min = 48.dp),
             colors = coloriTastoPieno().copy(containerColor = Banco.accento, contentColor = sopra(Banco.accento))
         ) { Text("🔊 A voce · ferma", fontSize = 14.sp) }
-        else OutlinedButton(onClick = onAccendi, modifier = Modifier.heightIn(min = 48.dp), colors = coloriTastoBordo()) { Text("🔇 A voce", color = Banco.testo, fontSize = 14.sp) }
+        // Spenta, la barra è sottile (k-and5): niente frase fissa, la spiegazione sta dietro il «?».
+        else OutlinedButton(onClick = onAccendi, modifier = Modifier.heightIn(min = 36.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 0.dp), colors = coloriTastoBordo()) { Text("🔇 A voce", color = Banco.testo, fontSize = 13.sp) }
         val riga = when {
             nega -> "Serve il permesso del microfono."
-            stato.fase == FaseGiro.SPENTO -> "Legge le risposte e ti ascolta."
+            stato.fase == FaseGiro.SPENTO -> ""
             else -> Giro.frase(stato)
         }
         Text(riga, color = if (nega || stato.fase == FaseGiro.ERRORE) Banco.ambra else Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.weight(1f).padding(horizontal = 8.dp))

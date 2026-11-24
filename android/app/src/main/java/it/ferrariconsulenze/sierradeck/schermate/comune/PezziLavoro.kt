@@ -177,7 +177,7 @@ fun CasellaScrivi(casella: String, segnaposto: String, onManda: (String) -> Bool
         Text(MessaInCoda.frase(nonInviato), style = MaterialTheme.typography.labelMedium, color = Banco.rosso, modifier = Modifier.weight(1f))
         TextButton(onClick = { val t = testo.trim(); if (t.isNotEmpty()) onManda(t) }) { Text("Riprova") }
     }
-    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.Bottom) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 3.dp), verticalAlignment = Alignment.Bottom) {
         // Il microfono solo dove c'è la dettatura: la sua riga di ripiego schiaccerebbe la casella.
         val contesto = androidx.compose.ui.platform.LocalContext.current
         val dettatura = remember { android.speech.SpeechRecognizer.isRecognitionAvailable(contesto) }
