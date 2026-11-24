@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.118.2',
+    righe: [
+      '**Unioni ferme:** se l\'unione di un ramo si ferma perché le prove non passano e ci sono file non salvati, dopo 5 minuti ti arriva comunque la domanda «li salvo?». Se i file sono troppi, parte un avviso.',
+    ],
+  },
+  {
     versione: '0.118.1',
     righe: [
       '**App Android 3.5.1:** in «Tutti i PC» vedi le chat di ogni PC, anche di quelli raggiunti passando da un altro PC, e adesso si possono aprire, leggere e ci si può scrivere.',
