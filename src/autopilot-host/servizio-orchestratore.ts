@@ -1802,6 +1802,10 @@ ${NOTA_SENZA_GIT}`,
             if (compito !== undefined) cambiaCompito(ws, compito.id, (k) => ({ ...k, esito: 'unione in fila: la cartella principale ha modifiche non salvate che non sono del programma' }))
             evento(ws, { tipo: 'unione', quando: x.adesso(), ...dove, testo: `${chi}: unione in attesa, file non salvati nella cartella principale${elencoFile(ancora.file)} (non del programma: non li tocco). Riprovo da sola ogni ${Math.max(1, Math.round(riprova / 1000))}s, nessun riavvio da fare. Non chiederlo tu a Nicholas: se restano lì glielo chiedo io.` })
           }
+        }
+        // 24/11 (k-err271): la domanda «li salvo?» vale anche per il criterio rosso coi file non salvati (`misura`): lì non partiva
+        // mai, e con gli stessi file la misura non si rifà, quindi l'unione restava ferma per sempre senza che Nicholas lo sapesse.
+        {
           const a = unicoDi(ws)
           const g = gitA()
           // 23/11: una risposta «no» non chiude per sempre, e un salvataggio andato male si riprova: prima la fila restava ferma in silenzio.
