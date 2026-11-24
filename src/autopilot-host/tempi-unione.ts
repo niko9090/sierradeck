@@ -13,6 +13,8 @@ export const UNIONE_MAX_MS = 60 * 60_000
 
 /** k-191e: la scadenza adattiva non scende mai sotto questo (una prova sana a volte ne vuole di più). */
 export const PROVA_MIN_ADATTIVA_MS = 5 * 60_000
+/** 24/11: quanto si aggiunge al minimo per ogni criterio da misurare nella prova. */
+export const QUOTA_PER_CRITERIO_MS = 10_000
 /** Quante prove recenti contano, e quante ne servono per fidarsi della mediana. */
 export const PROVE_RICORDATE = 10
 export const PROVE_MINIME_ADATTIVA = 3
@@ -26,13 +28,16 @@ export const FATTORE_ADATTIVO = 4
  * ricordate, o nessuna misura, vale il tetto. `piuTempo` (k-191a, ×1…×3 a ogni scadenza) allarga
  * anche questa: dopo una scadenza il tentativo dopo ha più tempo, fino al tetto.
  */
-export function scadenzaAdattiva(durateMs: readonly number[], tettoMs: number, piuTempo = 1): number {
+export function scadenzaAdattiva(durateMs: readonly number[], tettoMs: number, piuTempo = 1, criteri = 0): number {
   const buone = durateMs.filter((d) => Number.isFinite(d) && d >= 0).slice(-PROVE_RICORDATE)
   if (buone.length < PROVE_MINIME_ADATTIVA) return tettoMs
   const ordinate = [...buone].sort((a, b) => a - b)
   const meta = ordinate.length / 2
   const mediana = ordinate.length % 2 === 1 ? ordinate[Math.floor(meta)]! : (ordinate[meta - 1]! + ordinate[meta]!) / 2
-  const base = Math.max(PROVA_MIN_ADATTIVA_MS, FATTORE_ADATTIVO * mediana)
+  // 24/11: il minimo cresce con i criteri da misurare (~1 s l'uno solo per partire, di più i pesanti):
+  // prove veloci di prima non dicono quanto ne vuole una con 55 criteri e un gradle a freddo.
+  const minimo = PROVA_MIN_ADATTIVA_MS + Math.max(0, Math.floor(criteri)) * QUOTA_PER_CRITERIO_MS
+  const base = Math.max(minimo, FATTORE_ADATTIVO * mediana)
   return Math.min(tettoMs, Math.round(base * Math.max(1, piuTempo)))
 }
 
