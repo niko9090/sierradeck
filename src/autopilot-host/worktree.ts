@@ -949,7 +949,22 @@ function* iniziaProvaPassi(p: { cwd: string; ramo: string; base: string; altri?:
   }
   // Git ha rifiutato per non sovrascrivere un file locale: è ancora «cartella sporca», l'unione aspetta.
   if (inConflitto.length === 0 && sporchi.length > 0 && /overwritten|local changes|sovrascritt/i.test(r.uscita)) return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA, file: sporchi }
-  return { ok: false, motivo: inConflitto.length > 0 ? `conflitto su ${inConflitto.join(', ')}` : `unione di prova non riuscita: ${r.uscita.slice(0, 300)}` }
+  if (inConflitto.length > 0) return { ok: false, motivo: `conflitto su ${inConflitto.join(', ')}` }
+  // Lotto (merge a polpo) fallito senza file in conflitto: git si ferma e non lascia segni. Non si mostra il suo testo
+  // grezzo («Trying simple merge…»): una frase in italiano, e il lotto si divide e si prova un ramo alla volta.
+  if (rami.length > 1) return { ok: false, motivo: `unione di prova non riuscita: ${fraseLottoFallito(r.uscita)}` }
+  return { ok: false, motivo: `unione di prova non riuscita: ${r.uscita.slice(0, 300)}` }
+}
+
+/** I file che git nomina nella sua uscita (`Auto-merging f`, `CONFLICT (…): … in f`), senza doppioni. */
+function fileNominatiDaGit(uscita: string): string[] {
+  const nomi = uscita.split(/\r?\n/).map((riga) => /^Auto-merging (.+)$/.exec(riga.trim())?.[1] ?? /^CONFLICT \(.*\).* in (.+)$/.exec(riga.trim())?.[1])
+  return [...new Set(nomi.filter((n): n is string => n !== undefined && n.trim() !== '').map((n) => n.trim()))]
+}
+
+function fraseLottoFallito(uscita: string): string {
+  const file = fileNominatiDaGit(uscita).slice(0, 5)
+  return `i rami del lotto si scontrano fra loro: si provano uno alla volta${file.length > 0 ? ` (file: ${file.join(', ')})` : ''}`
 }
 
 /**
