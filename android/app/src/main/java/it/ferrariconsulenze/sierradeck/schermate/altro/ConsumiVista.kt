@@ -106,6 +106,61 @@ fun SezioneConsumi(api: Api) {
             if (chat.isEmpty()) Text("Nessun consumo da mostrare.", color = Banco.testoQuieto)
         }
         items(chat, key = { it.chiave }) { RigaChat(it) }
+        item { DettagliConsumi(c) }
+    }
+}
+
+/** «Dettagli»: chiusa di base, raccoglie i totali, i limiti, il contesto, il freno e la spesa. */
+@Composable
+internal fun DettagliConsumi(c: Consumi) {
+    var aperta by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 16.dp)) {
+        TextButton(onClick = { aperta = !aperta }, modifier = Modifier.height(48.dp)) {
+            Text(if (aperta) "Dettagli ▾" else "Dettagli ▸", color = Banco.testo)
+        }
+        if (!aperta) return@Column
+        Text("Token", color = Banco.testoQuieto, fontSize = 12.sp)
+        QuotaRiga("Oggi", c.oggi)
+        QuotaRiga("7 giorni", c.settimana)
+        QuotaRiga("Totale", c.totale)
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Text("Limiti del piano", color = Banco.testoQuieto, fontSize = 12.sp)
+            Aiuto(
+                "Finestra di 5 ore e tetto della settimana, come /usage in Claude Code. Valgono per la lettura più recente fra le chat aperte dal computer. Oltre 20 minuti è segnata vecchia.",
+                di = "Limiti del piano"
+            )
+        }
+        val l = c.limiti
+        FinestraRiga("Finestra di 5 ore", l?.cinqueOre)
+        FinestraRiga("Settimana", l?.settimana)
+        Text(
+            if (l == null) "Non ancora letti." else "Letti " + quandoLetti(l.letti, System.currentTimeMillis()) + ".",
+            color = Banco.testoQuieto, fontSize = 12.sp
+        )
+        if (c.chatAperte.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("Contesto delle chat aperte", color = Banco.testoQuieto, fontSize = 12.sp)
+                Aiuto("La memoria di lavoro della chat. Al 90% conviene farla riassumere prima che si compatti da sola.", di = "Contesto")
+            }
+            for (ch in c.chatAperte) {
+                Spacer(Modifier.height(4.dp))
+                Text(rigaContesto(ch), color = Banco.testo, fontSize = 12.sp)
+            }
+        }
+        c.freno?.let { fr ->
+            Spacer(Modifier.height(8.dp))
+            Text("Freno degli autopiloti", color = Banco.testoQuieto, fontSize = 12.sp)
+            Text("${fr.titolo}: ${fr.spiegazione.ifEmpty { fr.motivo }}", color = Banco.testoQuieto, fontSize = 12.sp)
+        }
+        c.costo?.let { k ->
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Spesa stimata: oggi ${"%.2f".format(k.oggi)} $, 7 giorni ${"%.2f".format(k.settimana)} $.",
+                color = Banco.testoQuieto, fontSize = 12.sp
+            )
+        }
     }
 }
 
