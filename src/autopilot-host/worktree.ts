@@ -1,7 +1,9 @@
 import { spawn, spawnSync } from 'node:child_process'
-import { existsSync, readdirSync, readFileSync, realpathSync, rmdirSync, unlinkSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmdirSync, unlinkSync, writeFileSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type { FattiPubblicazione } from '@shared/harness'
+import { cancellaSicura } from '@shared/cancella-sicura'
 import { collegamentoRimasto, togliCollegamenti } from './ambiente-copia'
 import { allineaHookEcc, type FuoriDaGit } from './hook-ecc'
 
@@ -586,8 +588,101 @@ export type EsitoProva = { ok: true } | { ok: false; motivo: string; file?: stri
  * `MOTIVO_CARTELLA_SPORCA` con i loro nomi); gli altri restano come sono.
  * Dopo la misura `chiudiProva` la conferma o la annulla.
  */
-export function iniziaProvaAsincrono(git: GitAsincrono, p: { cwd: string; ramo: string; base: string; altri?: string[] }): Promise<EsitoProva> {
+export function iniziaProvaAsincrono(git: GitAsincrono, p: { cwd: string; ramo: string; base: string; altri?: string[]; alRecupero?: AlRecupero }): Promise<EsitoProva> {
   return aspettando(git, iniziaProvaPassi(p))
+}
+
+/**
+ * **I file a metà che il ramo tocca** (24/11, k-unf1). Prima fermavano l'unione finché Nicholas non
+ * rispondeva: a BG4 undici unioni sono rimaste ferme per ore. Adesso il programma li mette al sicuro
+ * (copia con impronta in `.sierradeck/recupero/` e `git stash push` con nome `sierradeck-recupero-…`,
+ * solo quei file), unisce e misura, e a prova chiusa li rimette (`git stash apply`). Se rimetterli dà
+ * conflitto, o se nel frattempo li ha cambiati lui, restano nello stash e nella cartella di recupero
+ * (la cartella torna com'è nel ramo) e `alRecupero` lo dice. Mai reset --hard, clean, né checkout dei
+ * suoi file: l'unico `checkout` è sui file appena messi in conflitto dal programma, con il lavoro già al sicuro.
+ */
+export type EsitoRecupero = { nome: string; file: string[]; rimessi: boolean; cartella?: string; perche?: string }
+export type AlRecupero = (e: EsitoRecupero) => void
+
+const CARTELLA_RECUPERO = '.sierradeck/recupero'
+const PREFISSO_STASH = 'sierradeck-recupero-'
+type Recupero = { nome: string; sha: string; file: string[]; cartella: string }
+
+function* trovaStashPassi(radice: string, nome: string): Passi<{ sha: string; rif: string } | undefined> {
+  const l = yield* chiedi(['stash', 'list', '--format=%H %gs'], radice)
+  if (l.codice !== 0) return undefined
+  const righe = soloFile(l.uscita)
+  for (let i = 0; i < righe.length; i++) {
+    const r = righe[i]!
+    if (r.endsWith(nome)) return { sha: r.split(' ')[0]!, rif: `stash@{${i}}` }
+  }
+  return undefined
+}
+
+/** Toglie una cartella di recupero (solo sotto `.sierradeck/recupero/`, e solo dalla guardia delle cancellazioni). */
+function togliRecupero(radice: string, cartella: string): void {
+  try { cancellaSicura(join(radice, cartella), { dentro: [join(radice, CARTELLA_RECUPERO)] }) } catch { /* resta, innocua */ }
+}
+
+function leggiSegno(dir: string): { testa?: string; recupero?: Recupero } {
+  try { return JSON.parse(readFileSync(join(dir, MARCATORE_PROVA), 'utf8')) as { testa?: string; recupero?: Recupero } } catch { return {} }
+}
+
+/** Copia con impronta + stash nominato dei soli `file`. `undefined` se non è andata (e allora non è stato toccato niente). */
+function* mettiAlSicuroPassi(radice: string, file: string[]): Passi<Recupero | undefined> {
+  const nome = `${PREFISSO_STASH}${Date.now().toString(36)}`
+  const copie: Array<[string, Buffer]> = []
+  const h = createHash('sha256')
+  for (const f of file) {
+    if (f === '' || f.startsWith('-') || f.includes('\\') || f.split('/').includes('..') || /^([a-zA-Z]:|\/)/.test(f)) return undefined
+    const p = join(radice, f)
+    if (!existsSync(p)) continue
+    try { const b = readFileSync(p); h.update(f); h.update(b); copie.push([f, b]) } catch { return undefined }
+  }
+  const cartella = `${CARTELLA_RECUPERO}/${nome.slice(PREFISSO_STASH.length)}-${h.digest('hex').slice(0, 10)}`
+  try {
+    for (const [f, b] of copie) { const dest = join(radice, cartella, f); mkdirSync(dirname(dest), { recursive: true }); writeFileSync(dest, b) }
+  } catch { togliRecupero(radice, cartella); return undefined }
+  const s = yield* chiedi([...(yield* firma(radice)), '--literal-pathspecs', 'stash', 'push', '-m', nome, '--', ...file], radice)
+  const trovato = s.codice === 0 ? yield* trovaStashPassi(radice, nome) : undefined
+  if (trovato === undefined) { togliRecupero(radice, cartella); return undefined }
+  return { nome, sha: trovato.sha, file, cartella }
+}
+
+function dillo(e: EsitoRecupero, alRecupero: AlRecupero | undefined): void {
+  if (alRecupero !== undefined) alRecupero(e)
+  else if (!e.rimessi) console.warn(`[autopilota] file non salvati non rimessi (${e.perche ?? '?'}): restano nello stash ${e.nome} e in ${e.cartella ?? '?'}`)
+}
+
+/**
+ * Rimette i file messi al sicuro da `mettiAlSicuroPassi`, se il segno ne ha. Da chiamare a unione chiusa
+ * (commit o annullata) e **prima** di togliere il segno. Mai con un'unione aperta.
+ */
+function* rimettiRecuperoPassi(radice: string, dir: string, alRecupero?: AlRecupero): Passi<void> {
+  const r = leggiSegno(dir).recupero
+  if (r === undefined || existsSync(join(dir, 'MERGE_HEAD'))) return
+  const s = yield* trovaStashPassi(radice, r.nome)
+  if (s === undefined) return
+  const base = { nome: r.nome, file: r.file, cartella: r.cartella }
+  // Nel frattempo ha cambiato di nuovo quei file: non si sovrascrive niente, resta tutto al sicuro.
+  const ora = yield* chiedi(['--literal-pathspecs', 'status', '--porcelain', '--untracked-files=no', '--', ...r.file], radice)
+  if (ora.codice !== 0 || vociPorcelain(ora.uscita).length > 0) {
+    dillo({ ...base, rimessi: false, perche: 'quei file sono cambiati di nuovo mentre l’unione era in prova' }, alRecupero)
+    return
+  }
+  const a = yield* chiedi(['stash', 'apply', s.sha], radice)
+  const incrociati = yield* chiedi(['diff', '--name-only', '--diff-filter=U'], radice)
+  if (a.codice === 0 && soloFile(incrociati.uscita).length === 0) {
+    const di = yield* trovaStashPassi(radice, r.nome)
+    if (di !== undefined) yield* chiedi(['stash', 'drop', di.rif], radice)
+    togliRecupero(radice, r.cartella)
+    dillo({ ...base, rimessi: true }, alRecupero)
+    return
+  }
+  // Conflitto: i file tornano com'è nel ramo (erano puliti un attimo fa, il loro contenuto è nello stash e nella cartella di recupero).
+  yield* chiedi(['--literal-pathspecs', 'reset', '-q', '--', ...r.file], radice)
+  yield* chiedi(['--literal-pathspecs', 'checkout', 'HEAD', '--', ...r.file], radice)
+  dillo({ ...base, rimessi: false, perche: 'rimetterli darebbe conflitto con l’unione' }, alRecupero)
 }
 
 /**
@@ -645,36 +740,38 @@ function togliMarcatore(dir: string): void {
  * ramo non tocchi nessun file a metà: quelli restano come sono). Un'unione
  * senza il segno, o con un altro commit, è di Nicholas: non si tocca.
  */
-export function ripulisciProvaAsincrono(git: GitAsincrono, p: { cwd: string }): Promise<'niente' | 'ripulita'> {
-  return aspettando(git, ripulisciProvaPassi(p.cwd))
+export function ripulisciProvaAsincrono(git: GitAsincrono, p: { cwd: string; alRecupero?: AlRecupero }): Promise<'niente' | 'ripulita'> {
+  return aspettando(git, ripulisciProvaPassi(p.cwd, p.alRecupero))
 }
 
-function* ripulisciProvaPassi(cwd: string): Passi<'niente' | 'ripulita'> {
+function* ripulisciProvaPassi(cwd: string, alRecupero?: AlRecupero): Passi<'niente' | 'ripulita'> {
   const radice = yield* radicePassi(cwd)
   if (radice === undefined) return 'niente'
   const dir = yield* cartellaGitPassi(radice)
   if (dir === undefined || !existsSync(join(dir, MARCATORE_PROVA))) return 'niente'
-  if (!existsSync(join(dir, 'MERGE_HEAD'))) { togliMarcatore(dir); return 'niente' }
-  let segno: { testa?: string } = {}
-  try { segno = JSON.parse(readFileSync(join(dir, MARCATORE_PROVA), 'utf8')) as { testa?: string } } catch { /* segno rotto: non è riconosciuto */ }
+  // Senza unione aperta il segno è un resto: i file messi al sicuro, se ce ne sono, tornano al loro posto.
+  if (!existsSync(join(dir, 'MERGE_HEAD'))) { yield* rimettiRecuperoPassi(radice, dir, alRecupero); togliMarcatore(dir); return 'niente' }
+  const segno = leggiSegno(dir)
   let testa = ''
   try { testa = readFileSync(join(dir, 'MERGE_HEAD'), 'utf8').split(/\r?\n/)[0]?.trim() ?? '' } catch { /* illeggibile */ }
   if (segno.testa === undefined || segno.testa === '' || segno.testa !== testa) { togliMarcatore(dir); return 'niente' }
   const a = yield* chiedi(['merge', '--abort'], radice)
   if (a.codice !== 0) yield* chiedi(['reset', '--merge'], radice)
+  const chiusa = !existsSync(join(dir, 'MERGE_HEAD'))
+  if (chiusa) yield* rimettiRecuperoPassi(radice, dir, alRecupero)
   togliMarcatore(dir)
-  return existsSync(join(dir, 'MERGE_HEAD')) ? 'niente' : 'ripulita'
+  return chiusa ? 'ripulita' : 'niente'
 }
 
 /** `altri` (k-178g): un lotto di rami indipendenti uniti insieme (merge a polpo); un conflitto lo annulla tutto. */
-function* iniziaProvaPassi(p: { cwd: string; ramo: string; base: string; altri?: string[] }): Passi<EsitoProva> {
+function* iniziaProvaPassi(p: { cwd: string; ramo: string; base: string; altri?: string[]; alRecupero?: AlRecupero }): Passi<EsitoProva> {
   const rami = [p.ramo, ...(p.altri ?? [])]
   const radice = yield* radicePassi(p.cwd)
   if (radice === undefined) return { ok: false, motivo: 'non è un repository git' }
   const qui = yield* ramoPassi(radice)
   if (qui !== p.base) return { ok: false, motivo: `la cartella di lavoro è sul ramo «${qui ?? '?'}», non su «${p.base}»` }
   // Una prova di prima, rimasta a metà: la ripulisce il programma, se è sua.
-  yield* ripulisciProvaPassi(radice)
+  yield* ripulisciProvaPassi(radice, p.alRecupero)
   const dir = yield* cartellaGitPassi(radice)
   // Un'unione aperta che non è del programma (di Nicholas): non si tocca, nemmeno con `merge --abort`.
   if (dir !== undefined && existsSync(join(dir, 'MERGE_HEAD'))) return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA }
@@ -705,6 +802,7 @@ function* iniziaProvaPassi(p: { cwd: string; ramo: string; base: string; altri?:
   // (se dovesse sovrascriverne uno rifiuta da solo), e `merge --abort` li lascia come sono.
   // Mai stash, mai reset dei file di Nicholas. Con qualcosa già nell'indice non si prova nemmeno.
   const sporchi = [...new Set(vociPorcelain(sporca.uscita).flatMap(percorsiDellaVoce))]
+  let recupero: Recupero | undefined
   if (sporchi.length > 0) {
     const inIndice = yield* chiedi(['diff', '--cached', '--name-only'], radice)
     const delRamo = yield* chiedi(['diff', '--name-only', '--no-renames', `${p.base}...${p.ramo}`], radice)
@@ -720,19 +818,31 @@ function* iniziaProvaPassi(p: { cwd: string; ramo: string; base: string; altri?:
     const uguale = (f: string): string => f.trim().replace(/^"|"$/g, '').replace(/\\/g, '/').toLowerCase()
     const toccati = new Set(soloFile(fileDeiRami).map(uguale))
     const fermano = [...new Set([...soloFile(inIndice.uscita).map((f) => f.trim().replace(/^"|"$/g, '')), ...sporchi.filter((f) => toccati.has(uguale(f)))])]
-    if (fermano.length > 0) return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA, file: fermano }
+    if (fermano.length > 0) {
+      // 24/11 (k-unf1): i file nell'indice restano di Nicholas e fermano l'unione come prima; quelli solo
+      // modificati si mettono al sicuro, si unisce, e a prova chiusa tornano com'erano.
+      if (soloFile(inIndice.uscita).length > 0) return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA, file: fermano }
+      recupero = yield* mettiAlSicuroPassi(radice, fermano)
+      if (recupero === undefined) return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA, file: fermano }
+    }
   }
-  // Il segno prima dell'unione: se il processo muore a metà, il prossimo la riconosce.
+  // Il segno prima dell'unione: se il processo muore a metà, il prossimo la riconosce (e rimette i file messi al sicuro).
   if (dir !== undefined) {
     const testa = yield* chiedi(['rev-parse', '--verify', '--quiet', `refs/heads/${p.ramo}`], radice)
-    try { writeFileSync(join(dir, MARCATORE_PROVA), JSON.stringify({ ramo: p.ramo, testa: testa.codice === 0 ? testa.uscita.trim() : '', il: new Date().toISOString() })) } catch { /* senza segno la prova si fa lo stesso */ }
+    try { writeFileSync(join(dir, MARCATORE_PROVA), JSON.stringify({ ramo: p.ramo, testa: testa.codice === 0 ? testa.uscita.trim() : '', il: new Date().toISOString(), ...(recupero !== undefined ? { recupero } : {}) })) } catch { /* senza segno la prova si fa lo stesso */ }
   }
   // Con file a metà, mai lo stash automatico di git (`merge.autoStash` nella configurazione di chi usa il PC).
   const r = yield* chiedi([...(yield* firma(radice)), 'merge', '--no-ff', '--no-commit', ...(sporchi.length > 0 ? ['--no-autostash'] : []), ...rami], radice)
   if (r.codice === 0) return { ok: true }
   const inConflitto = soloFile((yield* chiedi(['diff', '--name-only', '--diff-filter=U'], radice)).uscita)
   yield* chiedi(['merge', '--abort'], radice)
-  if (dir !== undefined) togliMarcatore(dir)
+  if (dir !== undefined) {
+    yield* rimettiRecuperoPassi(radice, dir, p.alRecupero)
+    togliMarcatore(dir)
+  } else if (recupero !== undefined) {
+    // Senza cartella git leggibile il segno non c'è: i file restano nello stash nominato.
+    dillo({ nome: recupero.nome, file: recupero.file, cartella: recupero.cartella, rimessi: false, perche: 'unione di prova non riuscita' }, p.alRecupero)
+  }
   // Git ha rifiutato per non sovrascrivere un file locale: è ancora «cartella sporca», l'unione aspetta.
   if (inConflitto.length === 0 && sporchi.length > 0 && /overwritten|local changes|sovrascritt/i.test(r.uscita)) return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA, file: sporchi }
   return { ok: false, motivo: inConflitto.length > 0 ? `conflitto su ${inConflitto.join(', ')}` : `unione di prova non riuscita: ${r.uscita.slice(0, 300)}` }
@@ -784,20 +894,23 @@ export async function ripristinaGeneratiAsincrono(git: GitAsincrono, p: { cwd: s
 }
 
 /** Conferma l'unione di prova con il suo commit (`tieni`), o la annulla. */
-export function chiudiProvaAsincrono(git: GitAsincrono, p: { cwd: string; tieni: boolean }): Promise<boolean> {
+export function chiudiProvaAsincrono(git: GitAsincrono, p: { cwd: string; tieni: boolean; alRecupero?: AlRecupero }): Promise<boolean> {
   return aspettando(git, chiudiProvaPassi(p))
 }
 
-function* chiudiProvaPassi(p: { cwd: string; tieni: boolean }): Passi<boolean> {
+function* chiudiProvaPassi(p: { cwd: string; tieni: boolean; alRecupero?: AlRecupero }): Passi<boolean> {
   const radice = yield* radicePassi(p.cwd)
   if (radice === undefined) return false
   const dir = yield* cartellaGitPassi(radice)
   if (p.tieni) {
     const c = yield* chiedi([...(yield* firma(radice)), 'commit', '--no-edit', '--no-verify'], radice)
-    if (c.codice === 0) { if (dir !== undefined) togliMarcatore(dir); return true }
+    if (c.codice === 0) {
+      if (dir !== undefined) { yield* rimettiRecuperoPassi(radice, dir, p.alRecupero); togliMarcatore(dir) }
+      return true
+    }
   }
   yield* chiedi(['merge', '--abort'], radice)
-  if (dir !== undefined) togliMarcatore(dir)
+  if (dir !== undefined) { yield* rimettiRecuperoPassi(radice, dir, p.alRecupero); togliMarcatore(dir) }
   return false
 }
 
