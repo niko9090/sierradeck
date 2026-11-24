@@ -4,9 +4,6 @@
 
 ## test
 
-- A parità di posti `scegliAltroPc` ordina per `pcId`: nei test con più PC liberi si sceglie quello che viene prima alfabeticamente, non quello scritto per primo. _(2026-11-16)_
-- i lavori ospitati passano solo dal lavoratore Aiuta la rete: per testarli senza server estrarre la logica in una funzione pura (vista-ospitati.ts) _(2026-11-16)_
-- prima di creare un file di test controllare che il nome non esista già: Write sovrascrive in silenzio (tests/shared/stato-vero-autopilota.test.ts c'era già) _(2026-11-16)_
 - `StatoScheda` usa 'lavora', `ChatGovernata` usa 'lavoro': nei test del Piano usare `as const` sulla forma giusta o il typecheck rifiuta. _(2026-11-16)_
 - aiuto-riassegna.test.ts confronta l'elenco esatto degli eventi del registro: ogni nuovo tipo di evento richiede di filtrare il finto `registra` o aggiornare le asserzioni. _(2026-11-16)_
 - coda-aiutante.test.ts («parte appena si libera un posto») può fallire a vuoto con il PC carico: rilanciarlo da solo prima di indagare. _(2026-11-16)_
@@ -431,6 +428,7 @@
 - Il quaderno sul «mai fermo» (0.84–0.85) descrive le chat vecchie: dalla 0.89 gli specialisti sono sotto-agenti dell'orchestratore, la difesa sta in `servizio-orchestratore.ts` e `lavoro-fermo.ts`. _(2026-11-22)_
 - i titoli di errori-arrivati.md hanno la forma «(lotto <nome>)»: con nomi che iniziano già per «lotto-» il titolo ripete la parola, ed è voluto per far trovare il nome intero. _(2026-11-23)_
 - le voci di errori-arrivati.md vanno in coda; il file non finisce con a capo, quindi si aggiunge con Edit sull'ultima frase _(2026-11-23)_
+- «specialista oltre il tempo massimo (3 ore)» è la guardia k-178k che funziona, non un difetto: va annotato «non corretto», senza release. _(2026-11-24)_
 
 ## preferenze
 
@@ -526,6 +524,8 @@
 - In `novita-app.txt` le righe di `righe: [` stanno una per riga, come nelle voci già presenti. _(2026-11-24)_
 - `git fetch` nelle copie degli specialisti può fallire (origin è un bundle in `arrivi` sparito): non c'è modo di vedere tag nuovi di altri PC, va controllato nella cartella principale. _(2026-11-24)_
 - Nelle righe di `novita.ts` mai la parola «versione:»: `note-novita.mjs` la usa per trovare la fine della voce. _(2026-11-24)_
+- `npm run pubblica` supera i 10 minuti (build + upload di installer e Aiutante da 100 MB): va in sottofondo da solo. Segui `gh release view --json assets` senza sleep; i 7 file arrivano a fine comando. _(2026-11-24)_
+- `gh release view --json` non ha il campo `isLatest`: per controllare Latest usa `gh release list --limit 1`. _(2026-11-24)_
 
 ## aiuto-rete
 
