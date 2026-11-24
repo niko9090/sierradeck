@@ -4,7 +4,6 @@
 
 ## test
 
-- `git fetch` può fallire sul bundle del PC richiedente: se il ramo è già pari a `main`, basta `git merge --ff-only main`. _(2026-11-16)_
 - `src/aiutante/aggiornamento.ts` ora importa `electron` (`powerMonitor`): i test che lo caricano devono mockare `electron` con `powerMonitor`. _(2026-11-16)_
 - `avviaAggiornamenti` programma un primo controllo a 15 s: nei test con timer finti far passare prima quel tempo, poi contare i `checkForUpdates`. _(2026-11-16)_
 - `creaServer` apre da solo `aiuti-affidati.json` in `archivio.cartella/servizio`: per provare gli affidati basta scrivere quel file prima. _(2026-11-16)_
@@ -107,6 +106,7 @@
 - Per provare lo stato aperto di un componente con renderToStaticMarkup basta uno stub di `globalThis.localStorage`; gli effect non girano. _(2026-11-24)_
 - le cancellazioni ricorsive in src devono passare da `cancellaSicura` (`tests/shared/cancellazioni-solo-dalla-guardia.test.ts`): un `rmSync` diretto fa fallire la suite. _(2026-11-24)_
 - un 1 fallito su 5227 senza nome nell'esito: rilanciare con --reporter=dot e grep su FAIL; il fallimento può dipendere dallo stato di main al momento dell'unione. _(2026-11-24)_
+- un'unione respinta per prove rotte può non riprodursi dopo `git merge main` nel ramo: rilanciare la suite prima di cercare un bug, e chiedere i nomi dei file falliti. _(2026-11-24)_
 
 ## worktree
 
