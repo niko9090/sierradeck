@@ -8,6 +8,7 @@ import { andamentoOggi, formattaToken, quotaCache } from '@shared/consumi'
 import { oraDi } from '@shared/polso-chat'
 import type { StatoAccesso } from '../../main/accesso'
 import { Aiuto } from './Aiuto'
+import { ConsumiPerChatVista } from './ConsumiPerChat'
 
 const COLORE_CONSUMI: Record<Colore, string> = { verde: 'var(--verde)', ambra: 'var(--ambra)', rosso: 'var(--rosso)', blu: 'var(--blu)', quieto: 'var(--testo-quieto)' }
 
@@ -105,7 +106,10 @@ export function PannelloConsumi({ onChiudi, incorporato = false }: { onChiudi?: 
 
       {errore !== undefined ? <div className="avviso">⚠ {errore}</div> : null}
 
-      <div className="serigrafia" style={{ marginBottom: 6 }}>Limiti del piano</div>
+      {/* k-con2: in alto quanto resta (letto da Claude), sotto le chat dalla più alta. */}
+      <ConsumiPerChatVista dati={consumi?.perChat} adesso={adesso} />
+
+      <div className="serigrafia" style={{ margin: '14px 0 6px' }}>Limiti del piano, nel dettaglio</div>
       <div className="limiti">
         {finestra('Finestra di 5 ore', 'Anthropic conta l’uso in una finestra mobile di cinque ore: al 100% le chat si fermano fino all’ora di azzeramento, poi si riparte da zero.', limiti?.cinqueOre)}
         {finestra('Settimana', 'Il tetto settimanale su tutti i modelli: si azzera nel giorno e all’ora indicati. Chi lo tocca resta fermo fino ad allora, qualunque sia la finestra di cinque ore.', limiti?.settimana)}

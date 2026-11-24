@@ -5363,3 +5363,19 @@ body.divisore-in-mano { cursor: col-resize; user-select: none; }
 .rete-tono--errore { color: var(--rosso); }
 .rete-tono--lavoro { color: var(--accento, #4aa3ff); }
 .rete-tono--quieto { color: var(--testo-quieto); }
+
+/* Consumi (k-con2): in alto i tre numeri grandi, sotto l'elenco per chat. */
+.consumi-alto__riga { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.consumi-alto__riquadro { flex: 1 1 180px; min-width: 0; padding: 10px 12px; border-radius: var(--raggio); background: var(--chassis-premuto); }
+.consumi-alto__numero { font-size: 34px; font-weight: 700; line-height: 1.15; font-variant-numeric: tabular-nums; margin: 2px 0; }
+.consumi-alto__numero--spento { font-size: 22px; font-weight: 600; color: var(--testo-quieto); }
+.consumi-alto__numero--ambra { color: var(--ambra); }
+.consumi-alto__numero--rosso { color: var(--rosso, #c0392b); }
+.consumi-alto__titolo { margin-bottom: 6px; }
+.consumi-chat { font-variant-numeric: tabular-nums; margin-bottom: 14px; }
+.consumi-chat__riga { display: grid; grid-template-columns: minmax(0, 1fr) 90px 90px; gap: 12px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--ombra-corta); }
+.consumi-chat__riga--testa { font-size: 12px; color: var(--testo-quieto); }
+.consumi-chat__riga--totale { font-weight: 700; border-bottom: none; }
+.consumi-chat__chat { display: flex; flex-direction: column; min-width: 0; }
+.consumi-chat__nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.consumi-chat__num { text-align: right; }
