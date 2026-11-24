@@ -47,7 +47,8 @@ describe('oltre i rifacimenti: ramo senza novità e unione di prova (0.84.4)', (
 
   // 11/11: prima «niente unione di prova con file a metà»: bastava un file modificato qualunque
   // e la fila delle unioni restava ferma per ore. Adesso la ferma solo un file che il ramo tocca.
-  it('un file a metà che il ramo tocca ferma l’unione di prova, e si dice quale; il file resta com’è', async () => {
+  // 24/11 (k-unf1): se il ramo lo tocca il file si mette al sicuro, l'unione parte, e annullata torna com'era.
+  it('un file a metà che il ramo tocca non ferma l’unione di prova: si mette al sicuro e, a prova annullata, torna com’era', async () => {
     const wt = creaWorktree(git, { cwd: progetto, autopilota: 'ap1', chat: 'c-1', base: 'main' })
     if (!wt.ok) throw new Error('worktree non creato')
     writeFileSync(join(wt.cartella, 'a.txt'), 'uno\ndalla chat\n')
@@ -55,11 +56,15 @@ describe('oltre i rifacimenti: ramo senza novità e unione di prova (0.84.4)', (
     salvaLavoro(git, wt.cartella, 'pezzo')
     writeFileSync(join(progetto, 'a.txt'), 'a metà\n')
     const prima = esegui(['rev-parse', 'HEAD'], progetto)
-    expect(await iniziaProvaAsincrono(ga, { cwd: progetto, ramo: wt.ramo, base: 'main' })).toEqual({ ok: false, motivo: MOTIVO_CARTELLA_SPORCA, file: ['a.txt'] })
+    expect(await iniziaProvaAsincrono(ga, { cwd: progetto, ramo: wt.ramo, base: 'main' })).toEqual({ ok: true })
+    expect(readFileSync(join(progetto, 'a.txt'), 'utf8')).toBe('uno\ndalla chat\n')
+    expect(existsSync(join(progetto, 'b.txt'))).toBe(true)
+    expect(await chiudiProvaAsincrono(ga, { cwd: progetto, tieni: false })).toBe(false)
     expect(readFileSync(join(progetto, 'a.txt'), 'utf8')).toBe('a metà\n')
     expect(existsSync(join(progetto, 'b.txt'))).toBe(false)
     expect(existsSync(join(progetto, '.git', 'MERGE_HEAD'))).toBe(false)
     expect(esegui(['rev-parse', 'HEAD'], progetto)).toBe(prima)
+    expect(git(['stash', 'list'], progetto).uscita).toBe('')
   })
 
   it('un file a metà che il ramo non tocca non ferma l’unione, e resta identico: dopo l’unione annullata e dopo quella confermata', async () => {
@@ -148,7 +153,7 @@ describe('le note del programma non fermano l’unione (0.88.5)', () => {
   })
 
   // 11/11: prima «un file del codice a metà ferma ancora l'unione», qualunque file fosse.
-  it('un file del codice a metà ferma l’unione solo se il ramo lo tocca', async () => {
+  it('un file del codice a metà: se il ramo lo tocca si mette al sicuro, l’unione parte e il file torna com’era', async () => {
     const tracciato = esegui(['ls-files'], progetto).split(/\r?\n/)[0] as string
     const wt = creaWorktree(git, { cwd: progetto, autopilota: 'ap1', chat: 'c-1', base: 'main' })
     if (!wt.ok) throw new Error('worktree non creato')
@@ -159,10 +164,12 @@ describe('le note del programma non fermano l’unione (0.88.5)', () => {
     expect(await iniziaProvaAsincrono(ga, { cwd: progetto, ramo: wt.ramo, base: 'main' })).toEqual({ ok: true })
     expect(await chiudiProvaAsincrono(ga, { cwd: progetto, tieni: false })).toBe(false)
     expect(readFileSync(join(progetto, tracciato), 'utf8')).toBe('a metà\n')
-    // Adesso il ramo tocca proprio quel file: l'unione si ferma, e dice quale.
+    // Adesso il ramo tocca proprio quel file: si mette al sicuro, l'unione parte, e annullata il file torna com'era.
     writeFileSync(join(wt.cartella, tracciato), 'uno\ndue\n')
     salvaLavoro(git, wt.cartella, 'tocca il file')
-    expect(await iniziaProvaAsincrono(ga, { cwd: progetto, ramo: wt.ramo, base: 'main' })).toEqual({ ok: false, motivo: 'la cartella di lavoro ha modifiche non salvate', file: [tracciato] })
+    expect(await iniziaProvaAsincrono(ga, { cwd: progetto, ramo: wt.ramo, base: 'main' })).toEqual({ ok: true })
+    expect(readFileSync(join(progetto, tracciato), 'utf8')).toBe('uno\ndue\n')
+    expect(await chiudiProvaAsincrono(ga, { cwd: progetto, tieni: false })).toBe(false)
     expect(readFileSync(join(progetto, tracciato), 'utf8')).toBe('a metà\n')
   })
 })
@@ -248,7 +255,7 @@ describe('note del quaderno: solo aggiunte (10/11)', () => {
 
   // 11/11: prima «un file fuori da .sierradeck ferma ancora l'unione, insieme al quaderno cambiato».
   // Adesso il quaderno si salva comunque (solo lui), e il file del codice ferma solo se il ramo lo tocca.
-  it('un file fuori da `.sierradeck/` insieme al quaderno cambiato: il quaderno si salva, il file ferma l’unione solo se il ramo lo tocca, e si dice quale', async () => {
+  it('un file fuori da `.sierradeck/` insieme al quaderno cambiato: il quaderno si salva e il file, se il ramo lo tocca, si mette al sicuro e torna com’era', async () => {
     const ramo = conRamoPronto()
     const lezioni = join(progetto, '.sierradeck', 'quaderno', 'lezioni.md')
     writeFileSync(lezioni, '- una\n- DUE cambiata\n')
@@ -269,7 +276,8 @@ describe('note del quaderno: solo aggiunte (10/11)', () => {
     salvaLavoro(git, wt.cartella, 'tocca il file')
     const prima = esegui(['rev-parse', 'HEAD'], progetto)
     const r = await iniziaProvaAsincrono(ga, { cwd: progetto, ramo: wt.ramo, base: 'main' })
-    expect(r).toEqual({ ok: false, motivo: 'la cartella di lavoro ha modifiche non salvate', file: [tracciato] })
+    expect(r).toEqual({ ok: true })
+    expect(await chiudiProvaAsincrono(ga, { cwd: progetto, tieni: false })).toBe(false)
     expect(esegui(['rev-parse', 'HEAD'], progetto)).toBe(prima)
     expect(readFileSync(join(progetto, tracciato), 'utf8')).toBe('a metà\n')
   })

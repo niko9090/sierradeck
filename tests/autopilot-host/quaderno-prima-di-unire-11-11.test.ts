@@ -87,7 +87,7 @@ describe('k-136: il quaderno salvato prima di unire, anche riscritto (11/11)', (
     expect(git(['status', '--porcelain', '--untracked-files=no'], progetto).uscita).toMatch(/^M a\.txt$/)
   })
 
-  it('se invece il ramo tocca quel file del codice, l’unione si ferma e lo dice: il file di Nicholas non è toccato', async () => {
+  it('se invece il ramo tocca quel file del codice, si mette al sicuro e l’unione parte: annullata, il file di Nicholas torna com’era (k-unf1)', async () => {
     quadernoSalvato()
     const wt = creaWorktree(git, { cwd: progetto, autopilota: 'ap1', chat: 'c-137', base: 'main' })
     if (!wt.ok) throw new Error('worktree non creato')
@@ -97,7 +97,8 @@ describe('k-136: il quaderno salvato prima di unire, anche riscritto (11/11)', (
     writeFileSync(join(progetto, 'a.txt'), 'a metà di Nicholas\n')
 
     const r = await iniziaProvaAsincrono(ga, { cwd: progetto, ramo: wt.ramo, base: 'main' })
-    expect(r).toEqual({ ok: false, motivo: 'la cartella di lavoro ha modifiche non salvate', file: ['a.txt'] })
+    expect(r).toEqual({ ok: true })
+    expect(await chiudiProvaAsincrono(ga, { cwd: progetto, tieni: false })).toBe(false)
 
     expect(readFileSync(join(progetto, 'a.txt'), 'utf8')).toBe('a metà di Nicholas\n')
     expect(readFileSync(decisioni(progetto), 'utf8')).toBe('- scelta tre\n- scelta uno (×2)\n- scelta due\n- scelta quattro\n')

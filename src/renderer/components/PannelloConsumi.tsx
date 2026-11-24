@@ -12,6 +12,12 @@ import { ConsumiPerChatVista } from './ConsumiPerChat'
 
 const COLORE_CONSUMI: Record<Colore, string> = { verde: 'var(--verde)', ambra: 'var(--ambra)', rosso: 'var(--rosso)', blu: 'var(--blu)', quieto: 'var(--testo-quieto)' }
 
+/** Il «Dettaglio dei limiti» aperto o chiuso, ricordato fra un avvio e l'altro (chiuso di base). */
+export const CHIAVE_DETTAGLIO = 'sierradeck.consumiDettaglioAperto'
+function leggiDettaglioAperto(): boolean {
+  try { return localStorage.getItem(CHIAVE_DETTAGLIO) === '1' } catch { return false }
+}
+
 /**
  * Quanto si è consumato, con quale account, e a che punto sono i limiti.
  *
@@ -30,6 +36,11 @@ export function PannelloConsumi({ onChiudi, incorporato = false }: { onChiudi?: 
   const [accesso, setAccesso] = useState<StatoAccesso | undefined>(undefined)
   const [errore, setErrore] = useState<string | undefined>(undefined)
   const [adesso, setAdesso] = useState(Date.now())
+  const [dettaglioAperto, setDettaglioAperto] = useState<boolean>(leggiDettaglioAperto)
+  const cambiaDettaglio = (v: boolean): void => {
+    setDettaglioAperto(v)
+    try { localStorage.setItem(CHIAVE_DETTAGLIO, v ? '1' : '0') } catch { /* resta così fino al riavvio */ }
+  }
 
   useEffect(() => {
     const leggi = (): void => {
@@ -109,15 +120,28 @@ export function PannelloConsumi({ onChiudi, incorporato = false }: { onChiudi?: 
       {/* k-con2: in alto quanto resta (letto da Claude), sotto le chat dalla più alta. */}
       <ConsumiPerChatVista dati={consumi?.perChat} adesso={adesso} />
 
-      <div className="serigrafia" style={{ margin: '14px 0 6px' }}>Limiti del piano, nel dettaglio</div>
-      <div className="limiti">
-        {finestra('Finestra di 5 ore', 'Anthropic conta l’uso in una finestra mobile di cinque ore: al 100% le chat si fermano fino all’ora di azzeramento, poi si riparte da zero.', limiti?.cinqueOre)}
-        {finestra('Settimana', 'Il tetto settimanale su tutti i modelli: si azzera nel giorno e all’ora indicati. Chi lo tocca resta fermo fino ad allora, qualunque sia la finestra di cinque ore.', limiti?.settimana)}
-      </div>
-      <p className="misura con-aiuto" style={{ margin: '6px 0 14px' }}>
-        {limiti === undefined ? 'Non ancora letti.' : `Letti ${oraDi(limiti.letti, adesso)}${limiti.modello !== undefined ? ` da una chat con ${limiti.modello}` : ''}.`}
-        <Aiuto di="limiti del piano">{limiti === undefined ? 'Arrivano dalla riga di stato di Claude Code dopo la prima risposta di una chat aperta da SierraDeck, e solo con un abbonamento Pro o Max (con una chiave API a consumo non ci sono finestre). Se restano vuoti anche dopo una risposta, guarda il registro.' : 'Sono gli stessi numeri di «/usage» in Claude Code: fra tutte le chat vale la lettura più recente, e si aggiornano a ogni risposta. Oltre 20 minuti la lettura è segnata vecchia; dopo l’azzeramento si aspetta la lettura nuova invece di mostrare il valore di prima. Sopra l’80% compare un avviso in basso a destra, sopra il 95% uno rosso.'}</Aiuto>
-      </p>
+      {/* k-con5: il dettaglio ripete i numeri grandi: chiuso di base, si apre con un tocco e si ricorda. */}
+      <button
+        type="button"
+        className="account__link"
+        style={{ margin: '14px 0 6px', display: 'block' }}
+        aria-expanded={dettaglioAperto}
+        onClick={() => cambiaDettaglio(!dettaglioAperto)}
+      >
+        Dettaglio dei limiti {dettaglioAperto ? '▾' : '▸'}
+      </button>
+      {dettaglioAperto ? (
+        <>
+          <div className="limiti">
+            {finestra('Finestra di 5 ore', 'Anthropic conta l’uso in una finestra mobile di cinque ore: al 100% le chat si fermano fino all’ora di azzeramento, poi si riparte da zero.', limiti?.cinqueOre)}
+            {finestra('Settimana', 'Il tetto settimanale su tutti i modelli: si azzera nel giorno e all’ora indicati. Chi lo tocca resta fermo fino ad allora, qualunque sia la finestra di cinque ore.', limiti?.settimana)}
+          </div>
+          <p className="misura con-aiuto" style={{ margin: '6px 0 14px' }}>
+            {limiti === undefined ? 'Non ancora letti.' : `Letti ${oraDi(limiti.letti, adesso)}${limiti.modello !== undefined ? ` da una chat con ${limiti.modello}` : ''}.`}
+            <Aiuto di="limiti del piano">{limiti === undefined ? 'Arrivano dalla riga di stato di Claude Code dopo la prima risposta di una chat aperta da SierraDeck, e solo con un abbonamento Pro o Max (con una chiave API a consumo non ci sono finestre). Se restano vuoti anche dopo una risposta, guarda il registro.' : 'Sono gli stessi numeri di «/usage» in Claude Code: fra tutte le chat vale la lettura più recente, e si aggiornano a ogni risposta. Oltre 20 minuti la lettura è segnata vecchia; dopo l’azzeramento si aspetta la lettura nuova invece di mostrare il valore di prima. Sopra l’80% compare un avviso in basso a destra, sopra il 95% uno rosso.'}</Aiuto>
+          </p>
+        </>
+      ) : null}
 
       <div className="serigrafia con-aiuto" style={{ marginBottom: 6 }}>Spesa stimata da Claude Code<Aiuto di="spesa stimata">È il costo che Claude Code stessa calcola per ogni sessione con i prezzi di listino, sommato per giorno: con un abbonamento non è una fattura, ma dice quanto vale il lavoro fatto. Una chat lunga più giorni conta tutta nel giorno dell’ultima risposta. Si conosce solo per le chat aperte da SierraDeck da questa versione in poi.</Aiuto></div>
       <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', padding: '4px 0 6px' }}>
