@@ -91,6 +91,10 @@
 - un'unione respinta per prove rotte può non riprodursi dopo `git merge main` nel ramo: rilanciare la suite prima di cercare un bug, e chiedere i nomi dei file falliti. _(2026-11-24)_
 - Gradle in sottofondo è vietato dal hook: `gradle testDebugUnitTest --offline` si lancia con lo strumento PowerShell in primo piano (timeout 900000, qui 3m42s). _(2026-11-24)_
 - Un test che asserisce «nessuna domanda a Nicholas» può fissare un difetto: controlla che non contraddica le note del quaderno prima di fidarti. _(2026-11-24)_
+- `RigaDalVivo` legge `autopilota.decisioni`: nei test che montano `ChatAutopilotaRemota` il finto `Autopilota` deve avere `decisioni: []`, `ultimoEvento` e `cicli`. _(2026-11-24)_
+- per simulare un riavvio del servizio basta chiudere `creaServer` e riaccenderlo sulla stessa cartella, poi `riprendiLavori({servizioAppenaPartito:true})`; vedi specialisti-riavvio-24-11.test.ts _(2026-11-24)_
+- la suite autopilot-host+shared dura circa 11 minuti, oltre il timeout di 10 del Bash: lanciarla e leggere l'output con un until su "Test Files". _(2026-11-24)_
+- Con il PC carico i test git veri del cancello unioni superano i 20 s: per i nuovi usare `vi.setConfig({ testTimeout })`; un fallimento per tempo scaduto non è del codice. _(2026-11-24)_
 
 ## worktree
 
@@ -238,6 +242,7 @@
 - dentro la misura di una prova ogni attesa che non è la prova va passata a `inFila` (ora `attesaDellaProva` in turni-criteri.ts), altrimenti consuma la scadenza _(2026-11-23)_
 - un conflitto vero in un merge a polpo lascia i file in conflitto; il caso senza file si prova solo con un git finto sul comando merge _(2026-11-24)_
 - La domanda «li salvo?» sta nel ramo sporca non-`misura` di servizio-orchestratore.ts: ogni nuovo percorso `RiprovaUnione('sporca')` deve passare da lì o resta muto. _(2026-11-24)_
+- Il segno `.git/sierradeck-prova.json` ora tiene i commit di tutti i rami: un'unione si riconosce dal contenuto, non da un confronto secco con MERGE_HEAD (il ramo può andare avanti). _(2026-11-24)_
 
 ## ui
 
@@ -252,6 +257,7 @@
 - Nelle viste con autopilota il pannello agenti sta in `CorpoPanoramica` e in una colonna di `App.tsx`: se ne cambi una, controlla anche l'altra. _(2026-11-23)_
 - `PannelloAgenti` legge dalla sorgente (`useSorgente`): per un altro PC basta il provider `sorgenteRemota`, e "Ferma" resta solo locale. _(2026-11-23)_
 - Non c'è un hook condiviso per le sezioni apri/chiudi: ognuna salva da sé in localStorage con chiave `sierradeck.*`, in try/catch. _(2026-11-24)_
+- Il filo attorno alla barra usa `--testo-quieto`: `--bordo` e `--filo` sono quasi neri come `--chassis-premuto`, e la barra sparirebbe. _(2026-11-24)_
 
 ## salute
 
@@ -315,6 +321,8 @@
 
 - La pagina del telefono è una stringa gigante: i testi condivisi vanno iniettati con `${JSON.stringify(...)}` e le funzioni si provano estraendole dallo script, come in tests/main/client-pagina-domand… _(2026-11-19)_
 - pannelliDelPosto (shared/navigazione-telefono) decide quali pannelli sono «aperti»: 'specialisti' ora è aperto su tutta la voce Workspace, quindi la lista si rilegge ogni 4 s lì. _(2026-11-19)_
+- In client-pagina.ts il CSS del testo usa rem: `client-pagina.test.ts` vieta `font-size` in px. _(2026-11-24)_
+- La percentuale dell'autopilota sta solo nella riga fissa `rigaAvanzamentoAp`: il riassunto `riassuntoApTesto` non la mostra più, nemmeno senza criteri. _(2026-11-24)_
 
 ## rete
 
@@ -387,6 +395,7 @@
 - il cane scatta a mutoMs dall'ultima riga: con un Bash in volo si riarma per il resto della soglia larga (tetto specialistaMaxMs); serve `ultimaRiga` da adesso(), non dal timer. _(2026-11-23)_
 - Lo specialista lanciato come «k-agg1: aggiornare altri PC e percentuale» (24/11) lavora in realtà per k-agg254 (r-254): se l'unione lo collega a k-agg1, unirlo con unisci su k-agg254. _(2026-11-24)_
 - «spinte sospese» (k-199d) è solo silenzio delle spinte: la domanda «li salvo?» vive nel ciclo delle unioni e non dipende da `fermiVisti`. _(2026-11-24)_
+- il flusso degli specialisti sta in memoria: ora i vivi e i rilanci stanno in servizio/specialisti-aperti.json. Il ramo è `worktree-agent-<agente>` anche se gli eventi non lo dicono. _(2026-11-24)_
 
 ## pubblica
 
@@ -518,7 +527,6 @@
 
 ## aiuto-rete
 
-- un percorso ricavato dal testo non fa fallire il lavoro (informativo, con alternativa); solo le risorse dichiarate esplicitamente sono indispensabili. _(2026-11-16)_
 - I compiti «Aiuta la rete» girano su un repo mirror: i worktree del PC di Nicholas (.claude/worktrees) non ci sono. Prima di agire controllare che i rami nominati esistano. _(2026-11-22)_
 - Compiti che devono leggere i dati veri del PC di Nicholas (registri, preferenze, .claude/worktrees) non vanno su un altro PC: là c'è solo un mirror. Scriverlo nel prompt e verificarlo. _(2026-11-22)_
 - «Aiuta la rete» manda via anche i compiti che nel prompt dicono «solo sul PC di Nicholas» (k-175c, 22/11, 2 volte): serve un modo per tenere un compito in locale. _(2026-11-22)_
@@ -532,10 +540,6 @@
 - 23/11 anche dopo k-178r l'unione automatica di k-178k ha riprovato il ramo vecchio (r136…) invece del nuovo (r9be…): con unisci e il ramo esplicito è entrata subito. _(2026-11-23)_
 - il segno `sierradeck-prova.json` in `.git` ora porta anche il recupero (nome stash, cartella): va letto prima di toglierlo, altrimenti si perde il riferimento ai file messi al sicuro. _(2026-11-24)_
 
-## pubblica-app
-
-- noteDi cerca `versione: '<v>'` e si ferma al prossimo `versione: `: mai quella parola con i due punti nel testo delle righe. _(2026-11-16)_
-
 ## log
 
 - Le righe [unione di prova] e [criterio] non portano il workspace: i rapporti le contano sotto «generale». Per attribuirle bisogna prima cambiare il formato delle righe in server.ts e verifiche.ts. _(2026-11-23)_
@@ -546,8 +550,6 @@
 
 ## aiuto
 
-- `eventi-aiuto.json` non era scritto da nessuno: `registraEventoAiuto` ora si chiama solo per `riassegnato` e `arreso`; mancano ancora `affidato`, `risorsa-mancante` e `rifiutato`. _(2026-11-16)_
-- nel registro `daPc` non ha un significato unico: negli eventi di riassegnazione è il PC che ha fallito, nei nuovi è «questo PC»; lo spedizioniere non conosce il nome di chi affida. _(2026-11-16)_
 - la scadenza delle 3 ore non va a orologio da muro: un portatile che dorme la fa scattare al risveglio. Ora conta il tempo da sveglio (src/shared/aiuto-scadenza.ts). _(2026-11-17)_
 - una scadenza dopo un sonno o con lo specialista muto va con causa 'pc': solo così il lavoro passa a un altro PC. 'compito' non si riassegna. _(2026-11-17)_
 - il PATH e le risorse si guardano solo DOPO che il progetto è arrivato sul PC ospite (`aiuto-risorse.ts`, `verificaRisorse`): la valutazione va spostata prima di affidare. _(2026-11-20)_
@@ -562,14 +564,6 @@
 
 ## aiutante
 
-- oggi un lavoro senza posto viene rifiutato (409) e non accodato; un fallimento resta `fallito` senza riassegnazione, e il PC «fuori» vive solo in memoria. _(2026-11-16)_
-- il lavoro remoto riceve solo prompt, strumenti e ramo; nessuna risorsa del PC di partenza passa, e la verifica dei requisiti (`regole.ts` 200-245) non copre le cartelle di rete. _(2026-11-16)_
-- Con `shell: true` un comando mancante non dà ENOENT ma codice 1: il ramo «non installato» di `versioneDi` non scatta mai per npm. _(2026-11-16)_
-- `aggiornamento.ts` classifica ogni errore come ERRORE: `eErroreDiRete` non è usato nell'Aiutante, quindi i passeggeri di rete arrivano agli errori arrivati. _(2026-11-16)_
-- con `shell:true` un comando mancante non dà ENOENT ma codice 1 con stderr «non riconosciuto/not recognized»: va letto lo stderr, non solo `err.code`. _(2026-11-16)_
-- `execFile` con timeout imposta `err.killed`: da distinguere da «non installato», altrimenti un PC occupato sembra senza npm. _(2026-11-16)_
-- un lavoro in ricezione conta già nei posti: per decidere se accodare in `avvia` si confronta inCorso > tetto, non liberi <= 0 _(2026-11-16)_
-- lo stato 'in-coda' non è terminale: `segui` dello spedizioniere lo tratta come un normale aggiornamento di attività, senza modifiche _(2026-11-16)_
 - la finestra dell'Aiutante è HTML+TS senza React: la logica va in moduli puri sotto src/aiutante/, testabili senza DOM; lo stato passa da statoCompleto() in index.ts. _(2026-11-16)_
 - a ogni avvio il primo controllo di Claude non ha uno stato precedente, quindi un accesso mancante diventa errore a ogni aggiornamento: uno stato che si risolve a mano è un avviso. _(2026-11-16)_
 - la versione dell'Aiutante sta in src/aiutante/versione.json e va alzata insieme alla voce in novita-aiutante.txt; novita.ts e package.json sono del programma completo. _(2026-11-16)_
@@ -753,6 +747,7 @@
 ## adozione
 
 - le chat adottate non escono mai dallo stato da sole: lo stato le stampa tutte, anche chiuse da mesi. _(2026-11-20)_
+- «adottata» ha due sensi: `a.adottate` (chat già avviate) e le chat governate con `origine` (da autopiloti di prima). Il «21 ferme» mescolava entrambi: contarli insieme. _(2026-11-24)_
 
 ## code mode
 
@@ -937,3 +932,11 @@
 ## remoto
 
 - ChatAutopilotaRemota non monta la testa con la percentuale: un autopilota su altro PC non la mostra mai. _(2026-11-24)_
+
+## server
+
+- `salva()` in server.ts imposta `ultimoEvento`: per segni di vita frequenti scrivere con `deps.archivio.scrivi`, o si sposta il «fermo da» dell'autopilota. _(2026-11-24)_
+
+## shell
+
+- in questa copia un heredoc in Bash con apostrofi può bloccarsi senza eseguire nulla: per i file usare Write ed Edit. _(2026-11-24)_
