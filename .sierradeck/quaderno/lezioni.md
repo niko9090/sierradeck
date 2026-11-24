@@ -129,6 +129,8 @@
 - Il ponte (`Ponte.ROTTE`) non porta gli aggiornamenti: i comandi verso un altro PC vanno sempre al PC accoppiato con `pc` nel corpo (`Api.accoppiato()`), mai da un'`Api` puntata col ponte. _(2026-11-24)_
 - Dettaglio.Chat ha `sulPonte`: l'Api della chat si prende con `dettaglio.api(apiInUso)`, mai direttamente. Salvataggio con tag `chatponte|pc|id`. _(2026-11-24)_
 - Le chat dei PC del ponte non hanno copia nel Deposito: titolo e nome PC nel dettaglio sono poveri finché non si legge il loro stato dal ponte. _(2026-11-24)_
+- La percentuale del workspace veniva letta ma mai usata: Radice.kt passa avanzamento=null a ComponiWorkspace.testa, quindi va fusa in Workspace.kt (conAvanzamento). _(2026-11-24)_
+- Un bump patch dell'app tocca build.gradle.kts (versionCode+1, versionName) e la voce in android/novita-app.txt; il gradle completo dura circa 5 minuti. _(2026-11-24)_
 
 ## release
 
@@ -177,6 +179,8 @@
 - Uno specialista fermato lascia la sua copia con modifiche non salvate, e nessun evento dice dove sono: il salvataggio automatico gira solo nell'unione. _(2026-11-22)_
 - la pausa di Nicholas sta in `impostazioni.pausa` e `lavoroDaPortareAvanti` risponde falso: con pausa l'inattività può spegnere il processo. Qualsiasi suo messaggio la toglie. _(2026-11-22)_
 - un sotto-agente in sottofondo non fa mai partire il cane da turno: va armato anche a turno chiuso, e le righe con parent_tool_use_id sono i suoi segni di vita _(2026-11-22)_
+- le chat adottate (`unico.adottate`) non hanno stato: né riprese, né chiuse, e la conta «ferme» le include tutte. Quando si tocca la conta, distinguere «al lavoro» da «ferme». _(2026-11-24)_
+- il flusso degli specialisti è solo in memoria (`orchestratore.ts:425`): dopo un riavvio spariscono dalla vista senza passare per `fermato`. _(2026-11-24)_
 
 ## controllo
 
@@ -314,7 +318,6 @@
 
 ## rete
 
-- I file in .sierradeck/errori-arrivati/ non viaggiano con la copia mandata a un altro PC: nel prompt di un compito sul quaderno errori scrivere il contenuto del lotto, non solo il percorso. _(2026-11-16)_
 - i compiti che citano percorsi assoluti della cartella principale non funzionano sui PC della rete: lì esiste solo la copia di lavoro, senza i rami degli altri worktree. _(2026-11-17)_
 - Un'unione fuori dal cancello affidata a uno specialista finisce su un PC della rete anche se scrivi «solo questo PC»: lì la cartella principale non c'è. _(2026-11-17)_
 - il compito k-g2 va lanciato sul PC di nikof (E:\Users\nikof\Documents\SierraDeck); sugli altri PC il primo controllo lo ferma. _(2026-11-17)_
@@ -375,6 +378,7 @@
 
 - i campi nuovi di CompitoPiano vanno letti anche in leggiCompitoPiano (piano-orchestratore.ts), altrimenti si perdono alla rilettura da disco _(2026-11-22)_
 - `promptDopo` sopravvive al rifiuto per dipendenze solo perché `senzaRamo(c)` fa lo spread del compito; va tolto esplicitamente alla partenza. _(2026-11-23)_
+- i compiti superati legano la richiesta a un altro compito che può non avere il suo lavoro (r-55 rimanda a r-39): controllare che il compito indicato tratti lo stesso argomento. _(2026-11-24)_
 
 ## orchestratore
 
@@ -407,11 +411,6 @@
 
 ## quaderno
 
-- in errori-arrivati.md il testo esatto va controllato prima di un Edit: «la porta 47640» non è «e porta 47640», e l'ancora sbagliata fa fallire l'Edit. _(2026-11-16)_
-- «prossima versione» è corretto finché package.json resta indietro: controllare la versione prima di scrivere il numero. _(2026-11-16)_
-- errori-arrivati.md usa a capo CRLF: una voce aggiunta con Edit entra con LF e il file resta con a capo misti. _(2026-11-16)_
-- errori-arrivati.md è CRLF e le voci si accodano nello stesso punto: due rami che le aggiungono insieme vanno in conflitto, si risolve tenendole tutte e due. _(2026-11-16)_
-- il commit di un compito k-xx non ha il codice nel messaggio: per trovarlo in main si cerca per contenuto (es. `git log --grep=orchestratore`), non per «k-f1» _(2026-11-16)_
 - errori-arrivati.md usa fine riga CRLF: Edit ancorato all'ultima riga funziona, ma controllare che le righe nuove non restino miste. _(2026-11-20)_
 - Il quaderno sul «mai fermo» (0.84–0.85) descrive le chat vecchie: dalla 0.89 gli specialisti sono sotto-agenti dell'orchestratore, la difesa sta in `servizio-orchestratore.ts` e `lavoro-fermo.ts`. _(2026-11-22)_
 - i titoli di errori-arrivati.md hanno la forma «(lotto <nome>)»: con nomi che iniziano già per «lotto-» il titolo ripete la parola, ed è voluto per far trovare il nome intero. _(2026-11-23)_
@@ -428,13 +427,8 @@
 
 ## ipc
 
-- negli handler IPC di sola lettura la validazione dell'argomento va dentro il catch/guard: un throw prima del .catch finisce nel log di Electron come errore. _(2026-11-16)_
 - Un canale nuovo va dichiarato in `src/preload/index.ts` e in `src/renderer/env.d.ts`, che è la fonte dei tipi di `window.gestore`: solo nel preload il typecheck fallisce. _(2026-11-20)_
 - Per i segreti: il canale fa entrare il valore e non lo restituisce, e la vista del renderer ricopia solo i campi senza valore, così un valore in più si ferma lì. _(2026-11-20)_
-
-## windows
-
-- Per risolvere conflitti in file CRLF, con Edit gli a capo si rischiano: meglio PowerShell con regex `\r?\n` e verifica del conteggio CRLF. _(2026-11-16)_
 
 ## errori
 
@@ -453,7 +447,6 @@
 
 ## rilascio
 
-- le note di versione stanno in src/shared/novita.ts (non in un changelog); il tag v0.109.0 punta a un commit qualsiasi, non al bump _(2026-11-16)_
 - nelle copie di lavoro «origin» può puntare a un bundle sparito: git fetch fallisce e l'esistenza del tag va controllata dalla cartella principale _(2026-11-17)_
 - il ruolo di rilascio non fa merge nemmeno su richiesta dell'autopilota: le unioni fuori dal cancello vanno assegnate a chi può cambiare la storia di git. _(2026-11-17)_
 - Lo specialista di rilascio non può fare cherry-pick o merge in main: il hook lo rifiuta. Un commit che il cancello respinge va unito dall'autopilota, non dal rilascio. _(2026-11-17)_
@@ -525,7 +518,6 @@
 
 ## aiuto-rete
 
-- la cartella del progetto non è una risorsa da verificare: arriva col pacchetto, va esclusa (`escludi`) nel ricavare i percorsi dal prompt. _(2026-11-16)_
 - un percorso ricavato dal testo non fa fallire il lavoro (informativo, con alternativa); solo le risorse dichiarate esplicitamente sono indispensabili. _(2026-11-16)_
 - I compiti «Aiuta la rete» girano su un repo mirror: i worktree del PC di Nicholas (.claude/worktrees) non ci sono. Prima di agire controllare che i rami nominati esistano. _(2026-11-22)_
 - Compiti che devono leggere i dati veri del PC di Nicholas (registri, preferenze, .claude/worktrees) non vanno su un altro PC: là c'è solo un mirror. Scriverlo nel prompt e verificarlo. _(2026-11-22)_
@@ -691,6 +683,7 @@
 - l'abbinamento SierraDeck/Aiutante dipende solo dall'`host` dei due battiti: ora senza maiuscole né dominio. Se un PC resta «non risponde», controllare l'host nei due battiti sul Drive. _(2026-11-20)_
 - Il PC in Glos è piccolo (4 core, 8 GB) e risulta al 94% di carico: le misure delle unioni lì vanno in `turni.pesante`, che oggi `provaNelPrincipale` non usa. _(2026-11-23)_
 - L'avanzamento di «Installa là» aveva la percentuale solo nella frase: un dato da mostrare va esposto come campo; l'app ripiega sulla frase con i PC vecchi. _(2026-11-24)_
+- TestaOrchestratore non disegna nulla se la vista non è arrivata: nessuna percentuale, nessun «leggo…». Vale per ogni autopilota. _(2026-11-24)_
 
 ## posta
 
@@ -742,6 +735,7 @@
 ## pagina-telefono
 
 - Il riassunto dell'autopilota e la linguetta Avanzamento mostravano la stessa percentuale; ora solo la linguetta. Gli specialisti stanno solo in Autopiloti e nel menu della chat. _(2026-11-20)_
+- il riassunto dell'autopilota ha tolto la percentuale il 20/11 (lezioni.md:746) ma il codice la mostra ancora in client-pagina.ts:3385: verificare su main prima di toccarla. _(2026-11-24)_
 
 ## sync
 
@@ -821,6 +815,8 @@
 
 - Le richieste migrate hanno il testo del compito dentro «compiti» (coda-autopiloti.ts:72/87): piano-orchestratore.ts:436 le conta come aperte, e la richiesta resta «in-corso» anche se è tutto unito. _(2026-11-22)_
 - `compiti` di una richiesta deve avere solo id k-N: i testi dei compiti di prima stanno in `collegate`, che serve anche ai doppioni. _(2026-11-22)_
+- le chiusure «risposta» e «doppione» vengono date in 30 secondi per richieste che chiedono lavoro (r-55, r-164): verificare che la richiesta non chieda modifiche prima di chiuderla. _(2026-11-24)_
+- Non chiudere come «risposta» o «doppione» una richiesta che chiede modifiche (r-55, r-164 chiuse in 30 s): Nicholas poi si lamenta che manca roba. Prima i compiti, poi la chiusura. _(2026-11-24)_
 
 ## aiuti
 
@@ -937,3 +933,7 @@
 ## gh
 
 - fuori dalla cartella del repo `gh release upload` vuole `-R niko9090/sierradeck`. Con due bozze sullo stesso tag la risoluzione è ambigua, quindi cancellare prima il doppione. _(2026-11-24)_
+
+## remoto
+
+- ChatAutopilotaRemota non monta la testa con la percentuale: un autopilota su altro PC non la mostra mai. _(2026-11-24)_
