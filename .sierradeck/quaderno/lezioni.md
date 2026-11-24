@@ -134,6 +134,8 @@
 - Il PC passa perChat all'app con lo spread in conVistaConsumi: i campi nuovi di /api/consumi non richiedono modifiche lato PC. _(2026-11-24)_
 - mettiInCoda dava solo false e i chiamanti lo ignoravano: ogni nuovo punto di invio deve passare da MessaInCoda.tenta, che segna il motivo in ErroriInvio. _(2026-11-24)_
 - gradle --offline testDebugUnitTest nel worktree richiede 3-5 minuti: lanciarlo una volta sola dopo aver controllato gli import (un import mancante costa un giro intero). _(2026-11-24)_
+- `LeggibilitaTest` rifiuta `IconButton(Modifier.size(<48dp))` e `.clickable` fuori da Componenti.kt: per stringere un'intestazione si tolgono le barre, non si rimpiccioliscono i tasti. _(2026-11-24)_
+- Per leggere tutti i PC collegati insieme basta `Deposito.di(id, chiave, filesDir).stato` per ognuno: ha già la copia salvata e segna `vecchia` quando il PC tace. _(2026-11-24)_
 
 ## release
 
@@ -537,7 +539,6 @@
 
 ## unione
 
-- Un MERGE_HEAD in main è durato circa 5 minuti e poi è sparito senza cambiare HEAD. Più sleep di fila nello stesso comando vengono bloccati, quindi un `sleep 20` per chiamata. _(2026-11-14)_
 - Il nome di un workspace è l'identità anche in `tolti`; l'unione ora confronta con `chiaveNomeWorkspace` (trim, spazi, minuscole) e tiene il nome già sul Drive. _(2026-11-20)_
 - Dopo una correzione di conflitto su un ramo nuovo, l'unione automatica può riprovare il ramo vecchio del compito: rilanciare unisci col ramo nuovo esplicito. _(2026-11-23)_
 - «ramo vecchio riprovato» non viene dal ramo salvato nel compito: `ramoDelCompito` mette il nuovo come principale e unisce prima gli «altri», cioè i vecchi. _(2026-11-23)_
@@ -546,7 +547,6 @@
 
 ## pubblica-app
 
-- `npm run pubblica-app` copia anche `app-android.json` su v0.107.2 (la Latest) senza cambiarne i file né la Latest. _(2026-11-14)_
 - noteDi cerca `versione: '<v>'` e si ferma al prossimo `versione: `: mai quella parola con i due punti nel testo delle righe. _(2026-11-16)_
 
 ## log
