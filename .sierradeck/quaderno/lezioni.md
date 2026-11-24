@@ -529,6 +529,8 @@
 - Con fetch rotto (bundle sparito) e nessun tag locale, la versione libera non si verifica dalla copia: dichiararlo nel riepilogo e lasciare il controllo al rilascio. _(2026-11-24)_
 - Un bump patch tocca anche android/novita-app.txt, perché `pubblica-app` si ferma se manca la voce, e il `versionCode` si alza di 1 (qui 164→165). _(2026-11-24)_
 - 0.118.2: `npm run pubblica` ha creato due bozze con lo stesso tag. allega-aiutante esce con 0 anche se mancano file. Dopo pubblica controllare i 7 file e cancellare la bozza doppia. _(2026-11-24)_
+- `git fetch` in queste copie punta a un bundle che sparisce: `origin/main` è vecchio, per i controlli sulle versioni vale `main` locale. _(2026-11-24)_
+- L'app Android può essere già alzata (gradle e novita-app.txt) dai lavori uniti prima del rilascio: controllare prima di fare +1 al versionCode. _(2026-11-24)_
 
 ## aiuto-rete
 
@@ -579,8 +581,6 @@
 
 ## menu
 
-- Gli affidati ad altri PC stanno solo in `aiuti-affidati.json` (non in `orchestratore.stato`): ogni vista che filtra `s.pc === undefined` li perde. _(2026-11-16)_
-- menu-specialisti.ts finisce nello script della pagina con .toString(): niente helper importati dentro, testi italiani scritti nella funzione stessa. _(2026-11-16)_
 - Il telefono ha tre strutture diverse (PC 7+1 voci, pagina `MENU_TELEFONO` 4 voci, app `Navigazione.kt` 3 voci). Cambiare `MENU_PRINCIPALE` non basta: l'app legge `assets/menu.json` e l'enum va ritocc… _(2026-11-19)_
 - Il test menu-principale.test.ts confronta assets/menu.json con MENU_PRINCIPALE: dopo ogni cambio di voci rigenerarlo con AGGIORNA=1 prima del commit. _(2026-11-19)_
 - Gli errori hanno due fonti: Salute legge il registro, Impostazioni → Errori legge lo storico (storico-errori-file). Possono non coincidere. _(2026-11-20)_
