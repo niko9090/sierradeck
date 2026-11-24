@@ -141,6 +141,7 @@
 - `gradle --offline testDebugUnitTest` nel worktree dura circa 9 minuti, non 3-5. _(2026-11-24)_
 - LeggibilitaTest vieta `.clickable` fuori da Componenti.kt: per un tasto che apre e chiude una sezione basta un TextButton alto 48dp. _(2026-11-24)_
 - Nel merge di CasellaScrivi (PezziLavoro.kt) la Column di k-and6 con l'avviso «Non inviato» avvolge la Row. Il modifier del chiamante va sulla Column, non sulla Row interna. _(2026-11-24)_
+- Prima di creare un file in nucleo/ cerca il nome: VistaLavoro.kt esisteva già (modello di Lavoro) e Write l'ha sovrascritto in silenzio; recuperato con git checkout. _(2026-11-24)_
 
 ## release
 
@@ -462,7 +463,6 @@
 
 ## rilascio
 
-- prima di taggare controllare che package.json in main dica la versione da pubblicare: il compito di pubblicazione può partire prima che l'unione del bump sia avvenuta. _(2026-11-15)_
 - Prima di un compito di rilascio controllare che il bump di versione sia già in main: qui la bozza v0.107.4 esisteva su GitHub ma package.json era fermo a 0.107.3. _(2026-11-15)_
 - Prima di pubblicare controllare non solo package.json nella cartella ma anche `git show HEAD:package.json`: la versione può essere solo nell'indice di un'unione a metà (MERGE_HEAD). _(2026-11-15)_
 - `npm run pubblica` rifiuta le copie di lavoro: `controlla-pacchetto` blocca se `node_modules` è una junction, quindi serve la cartella principale col ramo giusto. _(2026-11-15)_
