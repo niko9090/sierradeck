@@ -4,8 +4,6 @@
 
 ## test
 
-- `tests/aiutante` passa 114/114 in due corse sul PC principale a HEAD 9c3dc639; un 113/114 isolato fa pensare a una prova sensibile al carico, non a file locali diversi. _(2026-11-16)_
-- 16/11: tests/aiutante passa 114/114 lanciato a mano anche nel principale, ma 113/114 quando lo misura il servizio (≈2,8 s contro 6,4): una prova dipende dall'ambiente del processo (env, PATH). _(2026-11-16)_
 - Il servizio lancia i criteri con TEMP/TMP su una sottocartella: percorsi >260 caratteri, `git rev-list` risponde «Filename too long» e l'Aiutante registra 0 commit. Prova a mano: TEMP su una sottocar… _(2026-11-16)_
 - I criteri del servizio girano con TEMP/TMP su una sottocartella sierradeck-criterio-…: i percorsi dei test possono superare 260 caratteri. I git dell'Aiutante usano -c core.longpaths=true (16/11) _(2026-11-16)_
 - tests/autopilot-host/servizio-orchestratore.test.ts («PreToolUse dell'unico», git -C … merge) fallisce se il test gira in una copia di lavoro: usa process.cwd() come principale _(2026-11-17)_
@@ -134,6 +132,8 @@
 - gradle testDebugUnitTest --offline in worktree: 3m36s, non 9 minuti. _(2026-11-24)_
 - «Tutti i PC» leggeva solo la rubrica degli accoppiati: i PC visti da `/api/pc` e raggiunti dal ponte vanno aggiunti con `TuttiIPc.dalPonte`; le loro chat non si aprono (navigazione legata alla rubric… _(2026-11-24)_
 - Il ponte (`Ponte.ROTTE`) non porta gli aggiornamenti: i comandi verso un altro PC vanno sempre al PC accoppiato con `pc` nel corpo (`Api.accoppiato()`), mai da un'`Api` puntata col ponte. _(2026-11-24)_
+- Dettaglio.Chat ha `sulPonte`: l'Api della chat si prende con `dettaglio.api(apiInUso)`, mai direttamente. Salvataggio con tag `chatponte|pc|id`. _(2026-11-24)_
+- Le chat dei PC del ponte non hanno copia nel Deposito: titolo e nome PC nel dettaglio sono poveri finché non si legge il loro stato dal ponte. _(2026-11-24)_
 
 ## release
 
