@@ -137,6 +137,9 @@
 - gradle --offline testDebugUnitTest nel worktree richiede 3-5 minuti: lanciarlo una volta sola dopo aver controllato gli import (un import mancante costa un giro intero). _(2026-11-24)_
 - `LeggibilitaTest` rifiuta `IconButton(Modifier.size(<48dp))` e `.clickable` fuori da Componenti.kt: per stringere un'intestazione si tolgono le barre, non si rimpiccioliscono i tasti. _(2026-11-24)_
 - Per leggere tutti i PC collegati insieme basta `Deposito.di(id, chiave, filesDir).stato` per ognuno: ha già la copia salvata e segna `vecchia` quando il PC tace. _(2026-11-24)_
+- `gradle --offline testDebugUnitTest` nel worktree dura circa 9 minuti, non 3-5. _(2026-11-24)_
+- LeggibilitaTest vieta `.clickable` fuori da Componenti.kt: per un tasto che apre e chiude una sezione basta un TextButton alto 48dp. _(2026-11-24)_
+- Nel merge di CasellaScrivi (PezziLavoro.kt) la Column di k-and6 con l'avviso «Non inviato» avvolge la Row. Il modifier del chiamante va sulla Column, non sulla Row interna. _(2026-11-24)_
 
 ## release
 
@@ -194,7 +197,6 @@
 
 ## ambiente
 
-- Il programma blocca sleep oltre 30 s anche in ciclo o a pezzi; attese lunghe solo con il sì di Nicholas (classe sottofondo). _(2026-11-15)_
 - Il blocco di sicurezza rifiuta `$p` nelle cancellazioni: scrivere i percorsi per intero, uno per comando, e le junction con `cmd /c rmdir`. _(2026-11-22)_
 - Un workspace come BG4 può girare su un altro PC: i suoi registri non sono in questo AppData, le misure su di lui vanno chieste a quel PC. _(2026-11-23)_
 
@@ -215,8 +217,6 @@
 
 ## criteri
 
-- Mai criteri «versione === X» per un compito di versione: il cancello li rimisura e blocca ogni versione dopo. Usare «almeno X» (confronto numerico >=) o `gh release view vX`. _(2026-11-15)_
-- un criterio con versione fissa passa sul principale ma cade su ogni ramo che alza la versione: va escluso dalla prova prima/dopo (`fissaLaVersione`), non rimisurato. _(2026-11-15)_
 - Mai criterio `grep -q '"version": "X"' package.json`: fissaLaVersione ≤0.109.1 non lo riconosce e il cancello respinge ogni bump dopo (0.109.2). Usare `git rev-parse vX`. _(2026-11-17)_
 - dimenticaIRossi azzera ogni esito non passato: ogni nuova memoria con esiti «non misurati» va esclusa per prefisso di chiave, o muore a ogni unione _(2026-11-23)_
 - EsitoVerifica non conserva il codice di uscita (126/127): il riconoscimento «programma assente» si basa solo sul testo dell'uscita _(2026-11-23)_
