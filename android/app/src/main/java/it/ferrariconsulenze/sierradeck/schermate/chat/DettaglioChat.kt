@@ -47,6 +47,7 @@ import it.ferrariconsulenze.sierradeck.schermate.comune.CasellaScrivi
 import it.ferrariconsulenze.sierradeck.schermate.comune.InviiInCoda
 import it.ferrariconsulenze.sierradeck.schermate.comune.TastoAzioniChat
 import it.ferrariconsulenze.sierradeck.schermate.comune.TastoScelta
+import it.ferrariconsulenze.sierradeck.schermate.comune.avvisaNonInviato
 import it.ferrariconsulenze.sierradeck.schermate.comune.mettiInCoda
 import it.ferrariconsulenze.sierradeck.schermate.tema.Banco
 import it.ferrariconsulenze.sierradeck.schermate.tema.FontTerminale
@@ -124,6 +125,7 @@ fun SchermataDettaglioChat(
         }
     }
     val titolo = chat?.nome ?: chat?.titolo?.ifBlank { null } ?: "Chat"
+    val contestoAvviso = androidx.compose.ui.platform.LocalContext.current
     val elenco = rememberLazyListState()
     LaunchedEffect(righe.ultima) {
         if (righe.righe.isNotEmpty()) {
@@ -173,17 +175,20 @@ fun SchermataDettaglioChat(
         scelte?.let { s ->
             Column(Modifier.fillMaxWidth().background(Banco.chassis).padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 for (o in s.opzioni.filter { !it.libera }) TastoScelta(SceltaLavoro(o.numero.toString(), o.testo, consigliata = false), largo = true) {
-                    // Con il PC in aggiornamento la scelta resta lì: si preme al ritorno.
-                    if (aggiornando != null) return@TastoScelta
                     // Sparisce subito: un secondo tocco finirebbe nella domanda dopo.
+                    // Se non parte, torna lì e l'avviso dice perché (PC in aggiornamento compreso).
+                    val prima = scelte
                     scelte = null
                     val corpo = buildJsonObject { put("chat", id); put("opzione", senzaMezziCaratteri(o.testo)) }.toString()
-                    mettiInCoda(pc, "/api/scegli", corpo, "scelta:$id", o.testo)
+                    if (!mettiInCoda(pc, "/api/scegli", corpo, "scelta:$id", o.testo, aggiornando = aggiornando != null)) {
+                        scelte = prima
+                        avvisaNonInviato(contestoAvviso, "scelta:$id")
+                    }
                 }
             }
         }
         // Invio sospeso mentre il PC si aggiorna: il testo resta nella casella e si manda al ritorno.
-        val manda = { t: String -> aggiornando == null && mettiInCoda(pc, "/api/scrivi", buildJsonObject { put("chat", id); put("testo", t) }.toString(), "chat:$id", t) }
+        val manda = { t: String -> mettiInCoda(pc, "/api/scrivi", buildJsonObject { put("chat", id); put("testo", t) }.toString(), "chat:$id", t, aggiornando = aggiornando != null) }
         BarraConversazione(frasiLette.toList(), manda)
         CasellaScrivi(casella = "chat:$id", segnaposto = "Scrivi alla chat…", onManda = manda, modifier = Modifier.imePadding())
     }

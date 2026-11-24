@@ -52,6 +52,7 @@ import it.ferrariconsulenze.sierradeck.schermate.comune.PalliniRuoli
 import it.ferrariconsulenze.sierradeck.schermate.comune.SchedaDomandaNuova
 import it.ferrariconsulenze.sierradeck.schermate.comune.Tessera
 import it.ferrariconsulenze.sierradeck.schermate.comune.coloreTono
+import it.ferrariconsulenze.sierradeck.schermate.comune.avvisaNonInviato
 import it.ferrariconsulenze.sierradeck.schermate.comune.mettiInCoda
 import it.ferrariconsulenze.sierradeck.schermate.tema.Banco
 import kotlinx.serialization.json.buildJsonObject
@@ -91,15 +92,20 @@ fun SchermataLavoro(
     var scriviTu by remember { mutableStateOf<DomandaLavoro?>(null) }
     var scriviA by remember { mutableStateOf(false) }
 
-    fun rispondi(d: DomandaLavoro, testo: String) {
+    val contestoAvviso = androidx.compose.ui.platform.LocalContext.current
+    // `errore` è la casella che mostra «Non inviato»: quella del dialogo, se si scrive a mano.
+    fun rispondi(d: DomandaLavoro, testo: String, errore: String = "domanda:${d.chiave}"): Boolean {
         val (rotta, corpo) = ComponiLavoro.strada(d.via, testo)
-        if (mettiInCoda(pc, rotta, corpo, "domanda:${d.chiave}", testo)) risposte[d.chiave] = testo
+        val ok = mettiInCoda(pc, rotta, corpo, "domanda:${d.chiave}", testo, casellaErrore = errore)
+        if (ok) risposte[d.chiave] = testo
+        else if (errore.startsWith("domanda:")) avvisaNonInviato(contestoAvviso, errore)
+        return ok
     }
 
     CorpoLavoro(
         vista = vista,
         evidenzia = evidenzia,
-        onRispondi = ::rispondi,
+        onRispondi = { d, t -> rispondi(d, t) },
         onScriviTu = { scriviTu = it },
         onApriWorkspace = onApriWorkspace,
         onScriviA = { scriviA = true },
@@ -109,7 +115,8 @@ fun SchermataLavoro(
     scriviTu?.let { d ->
         DialogoScrivi(
             titolo = d.testo, casella = "domanda-libera:${d.chiave}", segnaposto = d.segnaposto,
-            onManda = { t -> rispondi(d, t); scriviTu = null; true },
+            // Se non parte il dialogo resta aperto, col testo e il motivo.
+            onManda = { t -> rispondi(d, t, "domanda-libera:${d.chiave}").also { if (it) scriviTu = null } },
             onChiudi = { scriviTu = null }
         )
     }

@@ -49,6 +49,8 @@ import androidx.compose.ui.unit.dp
 import it.ferrariconsulenze.sierradeck.dati.CodaInvii
 import it.ferrariconsulenze.sierradeck.dati.Telefono
 import it.ferrariconsulenze.sierradeck.nucleo.DomandaLavoro
+import it.ferrariconsulenze.sierradeck.nucleo.ErroriInvio
+import it.ferrariconsulenze.sierradeck.nucleo.MessaInCoda
 import it.ferrariconsulenze.sierradeck.nucleo.RegoleSchermate
 import it.ferrariconsulenze.sierradeck.nucleo.RuoloTelefono
 import it.ferrariconsulenze.sierradeck.nucleo.SceltaLavoro
@@ -167,7 +169,15 @@ fun CasellaScrivi(casella: String, segnaposto: String, onManda: (String) -> Bool
     var locale by rememberSaveable(casella) { mutableStateOf("") }
     val testo = bozze?.value?.get(casella) ?: locale
     fun cambia(t: String) { if (coda != null) coda.bozza(casella, t) else locale = t }
-    Row(modifier.fillMaxWidth().background(Banco.chassis).padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.Bottom) {
+    val errori by ErroriInvio.unico.motivi.collectAsState()
+    val nonInviato = errori[casella]
+    Column(modifier.fillMaxWidth().background(Banco.chassis)) {
+    // Il testo resta qui sotto (bozza): «Riprova» lo rimanda.
+    if (nonInviato != null) Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(MessaInCoda.frase(nonInviato), style = MaterialTheme.typography.labelMedium, color = Banco.rosso, modifier = Modifier.weight(1f))
+        TextButton(onClick = { val t = testo.trim(); if (t.isNotEmpty()) onManda(t) }) { Text("Riprova") }
+    }
+    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.Bottom) {
         // Il microfono solo dove c'è la dettatura: la sua riga di ripiego schiaccerebbe la casella.
         val contesto = androidx.compose.ui.platform.LocalContext.current
         val dettatura = remember { android.speech.SpeechRecognizer.isRecognitionAvailable(contesto) }
@@ -184,6 +194,7 @@ fun CasellaScrivi(casella: String, segnaposto: String, onManda: (String) -> Bool
             enabled = testo.isNotBlank(),
             colors = androidx.compose.material3.IconButtonDefaults.iconButtonColors(disabledContentColor = it.ferrariconsulenze.sierradeck.schermate.tema.Banco.testoQuieto)
         ) { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Manda") }
+    }
     }
 }
 
@@ -206,10 +217,24 @@ fun InviiInCoda(casella: String) {
     }
 }
 
-/** Mette un messaggio nella coda degli invii e lo fa partire; false se la coda non c'è (app non avviata). */
-fun mettiInCoda(pc: String, rotta: String, corpo: String, casella: String, testo: String): Boolean {
-    val coda = CodaInvii.pronta ?: return false
-    val t = Telefono.pronto ?: return false
-    coda.manda(t.ambito, pc, rotta, corpo, casella, testo)
-    return true
+/**
+ * Mette un messaggio nella coda degli invii e lo fa partire. Se non si può
+ * (coda o telefono non pronti, PC in aggiornamento, disco) dà false **e lo segna**
+ * in [ErroriInvio] sotto [casellaErrore]: la schermata dice «Non inviato: …».
+ */
+fun mettiInCoda(
+    pc: String, rotta: String, corpo: String, casella: String, testo: String,
+    aggiornando: Boolean = false, casellaErrore: String = casella
+): Boolean {
+    val coda = CodaInvii.pronta
+    val t = Telefono.pronto
+    return MessaInCoda.tenta(ErroriInvio.unico, casellaErrore, coda != null, t != null, aggiornando) {
+        coda!!.manda(t!!.ambito, pc, rotta, corpo, casella, testo)
+    }
+}
+
+/** Per i tasti senza casella (risposte, scelte): il motivo in un avviso corto. */
+fun avvisaNonInviato(contesto: android.content.Context, casella: String) {
+    val m = ErroriInvio.unico.motivi.value[casella] ?: return
+    android.widget.Toast.makeText(contesto, MessaInCoda.frase(m), android.widget.Toast.LENGTH_LONG).show()
 }
