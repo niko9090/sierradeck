@@ -97,6 +97,29 @@ class TuttiIPcTest {
         assertEquals(StatoGruppoPc.RAGGIUNGIBILE, r.first { it.id == "id-c" }.stato)
     }
 
+    @Test fun unPcCheTaceMostraLeChatDelSuoBattito() {
+        val elenco = Api.json.decodeFromString(
+            ElencoPc.serializer(),
+            """{"io":"id-a","pc":[{"pcId":"id-a","nome":"Uno","vivo":true},
+               {"pcId":"id-b","nome":"Due","vivo":false,"chat":[{"sessione":"s1","titolo":"Una","cwd":"x","aspetta":true},{"titolo":"Senza","cwd":"y","aspetta":false}]}]}"""
+        )
+        val rubrica = listOf(PcNoto(id = "b", nome = "Due", chiave = "k", impronta = ProvaTelefono.improntaDaId("id-b")))
+        val remoto = TuttiIPc.remotoDi(rubrica[0], elenco)
+        assertEquals("id-b", remoto?.pcId)
+        // Mai letto: prima la riga restava vuota.
+        val senza = TuttiIPc.gruppo(rubrica[0], TuttiIPc.conBattito(Deposito.Copia(null, 0, vecchia = true, motivo = "spento"), remoto), false, ora)
+        assertEquals(StatoGruppoPc.VECCHIO, senza.stato)
+        assertEquals(setOf("s1", "Senza|y"), senza.chat.map { it.id }.toSet())
+        assertTrue(senza.ultimaCopia)
+        // Una copia fresca, anche vuota, non si tocca; una vecchia con chat nemmeno.
+        val fresca = viva()
+        assertTrue(TuttiIPc.conBattito(fresca, remoto) === fresca)
+        val vecchiaPiena = Deposito.Copia(Stato(chat = listOf(Chat(id = "9"))), 5, vecchia = true)
+        assertTrue(TuttiIPc.conBattito(vecchiaPiena, remoto) === vecchiaPiena)
+        // Mai letto del tutto (copia assente).
+        assertEquals(2, TuttiIPc.conBattito(null, remoto)?.stato?.chat?.size)
+    }
+
     @Test fun senzaElencoDelPonteNienteDiPiu() {
         assertTrue(TuttiIPc.dalPonte(listOf(pc("a", "Uno")), null).isEmpty())
     }

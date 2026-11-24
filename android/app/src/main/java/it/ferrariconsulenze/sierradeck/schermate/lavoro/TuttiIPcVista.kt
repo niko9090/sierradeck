@@ -86,7 +86,10 @@ fun TuttiIPcVista(elenco: List<PcNoto>, corrente: String?, ponte: ElencoPc?, onA
         copie[p.id] = lette[p.id]
             ?: if (p.id in daLeggere) Deposito.Copia(null, 0, vecchia = true) else Deposito.Copia(null, 0, vecchia = true, motivo = "spento")
     }
-    val gruppi = TuttiIPc.tutti(elenco + altri, copie, corrente, Parola.Companion::oraBreve)
+    // Un PC che tace mostra almeno le chat del suo battito (ultima copia), non una riga vuota.
+    val conChat = HashMap<String, Deposito.Copia>()
+    for (p in elenco + altri) TuttiIPc.conBattito(copie[p.id], TuttiIPc.remotoDi(p, ponte))?.let { conChat[p.id] = it }
+    val gruppi = TuttiIPc.tutti(elenco + altri, conChat, corrente, Parola.Companion::oraBreve)
         .map { if (it.id in altri.map { a -> a.id }) it.copy(dalPonte = true) else it }
     CorpoTuttiIPc(gruppi, onApriChat)
 }
