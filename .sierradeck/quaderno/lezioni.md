@@ -142,6 +142,7 @@
 - LeggibilitaTest vieta `.clickable` fuori da Componenti.kt: per un tasto che apre e chiude una sezione basta un TextButton alto 48dp. _(2026-11-24)_
 - Nel merge di CasellaScrivi (PezziLavoro.kt) la Column di k-and6 con l'avviso «Non inviato» avvolge la Row. Il modifier del chiamante va sulla Column, non sulla Row interna. _(2026-11-24)_
 - Prima di creare un file in nucleo/ cerca il nome: VistaLavoro.kt esisteva già (modello di Lavoro) e Write l'ha sovrascritto in silenzio; recuperato con git checkout. _(2026-11-24)_
+- `gradle --offline testDebugUnitTest assembleDebug` dura circa 8 minuti in primo piano: timeout di almeno 10 minuti. _(2026-11-24)_
 
 ## release
 
@@ -249,6 +250,7 @@
 - un blocco «cartella sporca» senza «(N file)» nell'errore = git non ha dato file: la domanda «li salvo?» non può partire, serve un avviso a parte. _(2026-11-23)_
 - la scadenza adattiva della prova ha un minimo fisso: con prove veloci in memoria una prova con molti criteri o un gradle a freddo scade; ora il minimo cresce con i criteri _(2026-11-23)_
 - dentro la misura di una prova ogni attesa che non è la prova va passata a `inFila` (ora `attesaDellaProva` in turni-criteri.ts), altrimenti consuma la scadenza _(2026-11-23)_
+- un conflitto vero in un merge a polpo lascia i file in conflitto; il caso senza file si prova solo con un git finto sul comando merge _(2026-11-24)_
 
 ## ui
 
@@ -463,10 +465,6 @@
 
 ## rilascio
 
-- Prima di un compito di rilascio controllare che il bump di versione sia già in main: qui la bozza v0.107.4 esisteva su GitHub ma package.json era fermo a 0.107.3. _(2026-11-15)_
-- Prima di pubblicare controllare non solo package.json nella cartella ma anche `git show HEAD:package.json`: la versione può essere solo nell'indice di un'unione a metà (MERGE_HEAD). _(2026-11-15)_
-- `npm run pubblica` rifiuta le copie di lavoro: `controlla-pacchetto` blocca se `node_modules` è una junction, quindi serve la cartella principale col ramo giusto. _(2026-11-15)_
-- Nella copia di un ramo `pubblica` chiede anche le credenziali Drive: bastano `SD_GOOGLE_CLIENT_ID` e `SD_GOOGLE_CLIENT_SECRET`, lette da `google-oauth.json` della cartella principale. _(2026-11-15)_
 - le note di versione stanno in src/shared/novita.ts (non in un changelog); il tag v0.109.0 punta a un commit qualsiasi, non al bump _(2026-11-16)_
 - nelle copie di lavoro «origin» può puntare a un bundle sparito: git fetch fallisce e l'esistenza del tag va controllata dalla cartella principale _(2026-11-17)_
 - il ruolo di rilascio non fa merge nemmeno su richiesta dell'autopilota: le unioni fuori dal cancello vanno assegnate a chi può cambiare la storia di git. _(2026-11-17)_
@@ -528,6 +526,7 @@
 - Con `npm run pubblica | tail` l'output resta vuoto fino alla fine: il progresso si segue con `gh api repos/niko9090/sierradeck/releases` sugli asset. _(2026-11-23)_
 - In questa copia git fetch fallisce: l'origin è un .bundle sparito. Prima di scegliere la patch non si possono vedere i tag remoti, solo quelli locali (qui nessuno). _(2026-11-23)_
 - Il fetch dal bundle in `arrivi\` può fallire se il file non c'è più: i tag locali sono vuoti, quindi la versione libera va riverificata sul PC principale. _(2026-11-23)_
+- In `novita-app.txt` le righe di `righe: [` stanno una per riga, come nelle voci già presenti. _(2026-11-24)_
 
 ## aiuto-rete
 
@@ -928,3 +927,7 @@
 ## revisione
 
 - un ramo può restare in .git/refs/heads senza la sua copia: per rivederlo serve git show, non bastano Read e Grep _(2026-11-24)_
+
+## lotti
+
+- unisciALotti divide già a metà ogni lotto fallito senza `ritenta`: un motivo grezzo di git è solo un problema di testo, non di ripiego mancante _(2026-11-24)_

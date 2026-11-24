@@ -36,6 +36,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.FilterChip
 import it.ferrariconsulenze.sierradeck.schermate.lavoro.TuttiIPcVista
+import it.ferrariconsulenze.sierradeck.nucleo.MemoriaVistaPartenza
+import it.ferrariconsulenze.sierradeck.nucleo.VistaPartenza
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -329,12 +331,15 @@ private fun GuscioLavoro(pc: PcNoto, elenco: List<PcNoto>, api: Api, dettaglio: 
         }
         else -> Column(Modifier.fillMaxSize()) {
             // Con più PC collegati: «Questo PC» (workspace e domande) o «Tutti i PC» (ognuno con le sue chat).
-            var tutti by rememberSaveable { mutableStateOf(false) }
+            // Si parte da «Tutti i PC»; la scelta «Questo PC» vive quanto il processo (anche aprendo un dettaglio).
+            val memoria = memoriaVistaPartenza.conPc(elenco.size)
+            LaunchedEffect(memoria) { memoriaVistaPartenza = memoria }
+            val tutti = memoria.vista() == VistaPartenza.TUTTI_I_PC
             if (elenco.size > 1) Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = !tutti, onClick = { tutti = false }, label = { Text("Questo PC") })
-                FilterChip(selected = tutti, onClick = { tutti = true }, label = { Text("Tutti i PC") })
+                FilterChip(selected = !tutti, onClick = { memoriaVistaPartenza = memoria.scegli(VistaPartenza.QUESTO_PC) }, label = { Text("Questo PC") })
+                FilterChip(selected = tutti, onClick = { memoriaVistaPartenza = memoria.scegli(VistaPartenza.TUTTI_I_PC) }, label = { Text("Tutti i PC") })
             }
-            if (tutti && elenco.size > 1) TuttiIPcVista(elenco, pc.id, onApriChatDi)
+            if (tutti) TuttiIPcVista(elenco, pc.id, onApriChatDi)
             else SchermataLavoro(
                 pc = pc.id, stato = copia.stato, quando = copia.quando, vecchia = copia.vecchia,
                 leggiDomande = { try { api.domande().conversazioni } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null } },
@@ -402,3 +407,6 @@ private fun Ingresso(vm: RadiceViewModel, scansionaQr: ((String) -> Unit, (Strin
         }
     }
 }
+
+/** Vista di Lavoro ricordata finché il processo vive: alla riapertura dell'app si riparte da «Tutti i PC». */
+private var memoriaVistaPartenza by mutableStateOf(MemoriaVistaPartenza())
