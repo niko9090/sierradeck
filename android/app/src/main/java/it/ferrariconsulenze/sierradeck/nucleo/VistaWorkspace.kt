@@ -57,6 +57,15 @@ object ComponiWorkspace {
         )
     }
 
+    /** La riga fissa in alto: «Avanzamento 80%», o «Avanzamento —» se il dato manca. */
+    fun testoAvanzamento(percento: Int?): String =
+        if (percento == null) "Avanzamento —" else "Avanzamento ${percento.coerceIn(0, 100)}%"
+
+    /** La testa con la percentuale letta dal PC al posto di quella che manca. */
+    fun conAvanzamento(testa: TestaWorkspace, avanzamento: AvanzamentoAutopilota?): TestaWorkspace =
+        if (testa.percento != null) testa
+        else testa.copy(percento = avanzamento?.percento?.roundToInt()?.coerceIn(0, 100))
+
     fun chat(battute: List<Battuta>, ora: Long): List<RigaChat> {
         val righe = mutableListOf<RigaChat>()
         val note = mutableListOf<String>()

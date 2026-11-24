@@ -3,6 +3,12 @@ per le note della pubblicazione e della notifica sul telefono).
 La più recente in cima. Ogni riga fra apici, come in src/shared/novita.ts.
 
   {
+    versione: '3.5.2',
+    righe: [
+      'Nel workspace la riga «Avanzamento» con la barra si vede sempre, anche all’apertura. Se il dato manca c’è scritto «Avanzamento —».',
+    ],
+  },
+  {
     versione: '3.5.1',
     righe: [
       'In «Tutti i PC» vedi le chat di ogni PC, anche di quelli raggiunti passando da un altro PC, e ora si aprono: puoi leggerle e scriverci.',
