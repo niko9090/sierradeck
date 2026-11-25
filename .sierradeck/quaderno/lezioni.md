@@ -103,7 +103,6 @@
 
 ## worktree
 
-- per togliere un worktree con giunzione node_modules: verificare LinkType, `cmd /c rmdir` sulla giunzione, poi `git worktree remove` e `prune`; il node_modules principale resta intatto. _(2026-11-17)_
 - Le copie «locked» possono non avere più la cartella su disco: `unlock` e poi `worktree remove --force` toglie il riferimento senza errori. _(2026-11-22)_
 
 ## android
@@ -144,7 +143,6 @@
 
 ## release
 
-- nelle note di novita.ts la parola «commit» fa fallire tests/shared/novita.test.ts (linguaggio da utente, niente gergo) _(2026-11-17)_
 - `noteDi()` di scripts/note-novita.mjs restituisce un array di righe, non una stringa: per `--notes-file` va unito con "- " e "\n" prima di `writeFileSync`. _(2026-11-20)_
 - Nella cartella principale `npm run pubblica` dura oltre 10 minuti (finisce in sottofondo): niente seconda copia, basta controllare gli allegati con `gh release view` finché ci sono tutti e sette. _(2026-11-20)_
 - La bozza creata prima di avere il tag online risulta «untagged-…», ma `npm run pubblica` la riempie lo stesso. Il tag `v0.112.0` era già sul remoto prima della bozza. _(2026-11-20)_
@@ -154,8 +152,6 @@
 
 ## git
 
-- il ramo worktree-agent-r8b9c35b5a04b parte da 881cd23f, indietro rispetto a main: il fast-forward da HEAD fallisce, serve cherry-pick. _(2026-11-17)_
-- il controllo dei comandi scambia `git -C <copia> cherry-pick` per un cherry-pick nella cartella principale; il rifiuto arriva sull'intera riga, anche se contiene altri comandi. _(2026-11-17)_
 - Dalla cartella principale `worktree add` in Temp e `cherry-pick` nella copia passano se sono chiamate separate; il blocco scatta solo sulla cancellazione (`rmdir`, `worktree remove`) fuori dalle cart… _(2026-11-17)_
 - per provare un test senza la correzione: `git stash push -u`, `git stash apply`, `git checkout -- <file>`, poi `git checkout stash@{0} -- <file>` e `git stash drop`. _(2026-11-20)_
 - `git cherry main <ramo>` dà "nuovi=0" solo per i rami identici a main. Per quelli rifatti o unificati serve anche cercare il k-N nel log di main. _(2026-11-22)_
@@ -281,6 +277,7 @@
 - `creaAggiornamenti` prende parametri posizionali in coda: un nuovo aggancio (come `annunciaAgliAltri`) va aggiunto per ultimo, senza toccare l'ordine. _(2026-11-19)_
 - `note()` leggeva `versioneScaricata` prima di `stato.versione`: durante lo scaricamento di una versione più nuova mostrava le note della vecchia. _(2026-11-23)_
 - I test della ricerca silenziosa usano timer finti e `RICONTROLLA_MS`; la fase `attendo` compare solo se `attendiQuiete` chiama `avvisa`. _(2026-11-23)_
+- updaterVivo aspetta 6 s (24x250 ms) il diario sierradeck-update.log; l'errore arriva ~6 s dopo il tasto, non subito. _(2026-11-25)_
 
 ## guardia
 
@@ -320,6 +317,7 @@
 ## registro
 
 - «riparte con --resume» non basta: investimento è stato spento il 21/11 13:25 senza ripresa nei log, probabilmente perché nessuna sveglia era rimasta fissata. _(2026-11-22)_
+- un errore doppio a pochi ms: guardare se la funzione fa console.error E registro.errore. consoleNelRegistro rimette ogni console.error nel registro e scarta solo l'eco «[registro] ». _(2026-11-25)_
 
 ## pc-remoto
 
@@ -539,6 +537,8 @@
 - `npm run pubblica` supera i 10 minuti (build più Aiutante): il tool lo sposta in sottofondo. Si aspetta con un ciclo `until` su `gh release view` finché gli asset sono 7. _(2026-11-24)_
 - In questa copia `origin` può essere un bundle sparito: `git fetch origin` fallisce e `origin/main` resta vecchio, quindi la versione dell'altro PC non si può controllare da qui. _(2026-11-25)_
 - Il tag v0.119.0 non c'è nelle copie di lavoro: per i commit dopo una versione si parte dal commit «Versione X» (a3042428). _(2026-11-25)_
+- Con la release creata prima di `npm run pubblica`, electron-builder non carica installer, blockmap e latest.yml: allega-aiutante lo segnala. Caricarli con `gh release upload` dal `dist` (nomi con tra… _(2026-11-25)_
+- In `dist` l'installer ha gli spazi («SierraDeck Setup X.exe») ma `latest.yml` vuole i trattini: copiare con il nome giusto prima dell'upload. Carica `latest.yml` per ultimo. _(2026-11-25)_
 
 ## aiuto-rete
 
