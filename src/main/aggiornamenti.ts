@@ -410,7 +410,13 @@ export function creaAggiornamenti(
   annunciaAgliAltri?: (versione: string) => Promise<void>
 ): Aggiornamenti {
   const nota = (m: string): void => { console.log(`[aggiornamenti] ${m}`); registro?.info(`[aggiornamenti] ${m}`) }
-  const guaio = (m: string): void => { console.error(`[aggiornamenti] ${m}`); registro?.errore(`[aggiornamenti] ${m}`) }
+  // Con il registro si scrive **una volta sola**: il registro ripete già la riga in console, e
+  // `consoleNelRegistro` rimette nel registro ogni `console.error`. Fare tutte e due scriveva
+  // ogni guaio due volte a pochi millisecondi (lotto 20261125151237).
+  const guaio = (m: string): void => {
+    if (registro !== undefined) registro.errore(`[aggiornamenti] ${m}`)
+    else console.error(`[aggiornamenti] ${m}`)
+  }
   // Anche le righe di electron-updater («Checking for update», «Found version»,
   // «Auto install update on quit»): sono loro a dire per quale strada e'
   // passata un'installazione.
