@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.121.0',
+    righe: [
+      '**Accesso a Claude per PC:** ogni PC dice nel suo battito se il suo accesso a Claude va o è scaduto. Il programma non chiede più di rinnovarlo per errori vecchi: dice quale PC è scaduto e che si rinnova dal suo schermo, e il tasto «Rinnova» dice quale PC rinnova.',
+      '**Una finestra sola:** riaprire SierraDeck dall\'icona mentre è già aperto (anche nascosto vicino all\'orologio) mostra la finestra che c\'era invece di aprirne un\'altra. Anche il riavvio dopo un aggiornamento apre una finestra sola.',
+      '**Aiutante:** una copia appena costruita per le prove non si iscrive più all\'avvio di Windows.',
+    ],
+  },
+  {
     versione: '0.120.1',
     righe: [
       '**Accesso a Claude scaduto:** il registro scrive un avviso una volta sola, non più un errore che arrivava come guasto. Il programma riprova ogni 10 minuti invece di ogni minuto: basta rinnovare l\'accesso con «Rinnova l\'accesso a Claude».',
