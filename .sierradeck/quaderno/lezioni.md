@@ -100,6 +100,7 @@
 - Il test sulle spinte a processo vivo deve chiudere con un risultato il turno che la guardia apre al minuto 1; senza, la spinta non parte e il test sembra rotto. _(2026-11-25)_
 - il fallimento 3710/3711 non si ripete: i test con git vero fuori dal gruppo `lenti` (es. autopulizia.test.ts) hanno solo 20 s e cadono a PC carico. _(2026-11-25)_
 - l'esito del criterio non dice quale test cade: lanciare con `--reporter=dot` e cercare FAIL per sapere il nome. _(2026-11-25)_
+- gradle testDebugUnitTest --offline ha impiegato 21 minuti, non 7: il sistema lo passa in sottofondo oltre i 600 s anche con timeout 900000. _(2026-11-25)_
 
 ## worktree
 
@@ -332,8 +333,6 @@
 
 ## rete
 
-- il compito k-g2 va lanciato sul PC di nikof (E:\Users\nikof\Documents\SierraDeck); sugli altri PC il primo controllo lo ferma. _(2026-11-17)_
-- NB-PROBOOK ha più posti: occuparne uno con un altro compito non tiene qui lo specialista. Ogni Agent va alla rete finché c'è un posto libero là, qualunque cosa dica il prompt. _(2026-11-17)_
 - il compito k-g2 va lanciato sul PC con E:\Users\nikof\Documents\SierraDeck; il controllo iniziale lo ha riconosciuto come sbagliato. _(2026-11-17)_
 - i compiti con percorsi assoluti di un PC specifico (E:\Users\nikof\...) vanno assegnati solo a quel PC; gli altri PC della rete devono fermarsi al controllo iniziale. _(2026-11-17)_
 - Unione fuori dal cancello: general-purpose è rifiutato (lavorerebbe nella cartella principale), k-v1 non si chiude (già unito). Resta solo uno sviluppatore quando la rete non ha posti liberi. _(2026-11-17)_
@@ -539,6 +538,7 @@
 - In `dist` l'installer ha gli spazi («SierraDeck Setup X.exe») ma `latest.yml` vuole i trattini: copiare con il nome giusto prima dell'upload. Carica `latest.yml` per ultimo. _(2026-11-25)_
 - su alcuni PC della rete `gh` non è installato: il controllo delle release su GitHub va fatto dallo specialista «rilascio» nella cartella principale. _(2026-11-25)_
 - un cambio di testo in android/ dopo l'ultima versione non alza da solo versionCode/versionName: va deciso a parte se serve un nuovo APK. _(2026-11-25)_
+- Una frase cambiata solo in android/ non arriva ai telefoni senza bump di versionCode/versionName e voce in android/novita-app.txt. _(2026-11-25)_
 
 ## aiuto-rete
 
