@@ -4,7 +4,6 @@
 
 ## test
 
-- tests/autopilot-host/servizio-orchestratore.test.ts («PreToolUse dell'unico», git -C … merge) fallisce se il test gira in una copia di lavoro: usa process.cwd() come principale _(2026-11-17)_
 - `criticitaDi` ha bisogno di `adesso` per escludere i PC spenti; senza, un PC spento torna tra le criticità «non risponde». _(2026-11-19)_
 - `vistaAutopilota` vuole `ora` e un autopilota con `dialogo`/`decisioni`: una fixture minima fa cadere `statoAutopilotaDalVivo` per un motivo diverso da `chats`. _(2026-11-19)_
 - Alcuni test leggono `src/main/index.ts` come testo con regex: se ci si aggiungono righe fra `senzaAiutanti` e il suo contesto, vanno allargati. _(2026-11-19)_
@@ -538,6 +537,8 @@
 - `npm run pubblica` può finire senza caricare installer e latest.yml (exit 0, ma `allega-aiutante` dice «mancano»). Il file in dist ha spazi nel nome: copiarlo come `SierraDeck-Setup-X.exe` prima di `… _(2026-11-24)_
 - electron-builder lascia una bozza doppia «X.Y.Z» con lo stesso tag accanto alla release «SierraDeck X.Y.Z»: controllare `gh api repos/niko9090/sierradeck/releases` dopo la pubblicazione. _(2026-11-24)_
 - `npm run pubblica` supera i 10 minuti (build più Aiutante): il tool lo sposta in sottofondo. Si aspetta con un ciclo `until` su `gh release view` finché gli asset sono 7. _(2026-11-24)_
+- In questa copia `origin` può essere un bundle sparito: `git fetch origin` fallisce e `origin/main` resta vecchio, quindi la versione dell'altro PC non si può controllare da qui. _(2026-11-25)_
+- Il tag v0.119.0 non c'è nelle copie di lavoro: per i commit dopo una versione si parte dal commit «Versione X» (a3042428). _(2026-11-25)_
 
 ## aiuto-rete
 
@@ -623,10 +624,6 @@
 
 - Per leggere un workspace su un altro PC serve un agente su quel PC o su PC-Fisso, o una rotta di sola lettura nuova per registro e piano; in questa copia `E:` è vuoto. _(2026-11-23)_
 - il ramo di aiuto gira su un PC che può non avere i dati del workspace citato: controllare prima se la cartella del servizio contiene davvero quel workspace. _(2026-11-25)_
-
-## metodo
-
-- se un criterio rosso nel principale è verde in un worktree pulito, confrontare lo stato non committato del principale prima di toccare i tempi dei test. _(2026-11-16)_
 
 ## prova
 
