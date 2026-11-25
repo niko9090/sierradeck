@@ -412,7 +412,7 @@ export function misuraDalPiano(piano: Piano, chats: ChatMisurata[] = []): Misura
     const stato: StatoCompito = c.stato === 'unito' && c.criterioVerde !== true ? 'in-revisione' : c.stato
     const chat = c.chat !== undefined ? chats.find((x) => x.id === c.chat) : undefined
     const passo = stato === 'in-corso' ? (passoDichiarato(chat?.rapporto?.testo) ?? passoDichiarato(chat?.ultimaAzione)) : undefined
-    const m: CompitoMisurato = { stato, peso: c.peso, ...(passo !== undefined ? { passo } : {}) }
+    const m: CompitoMisurato = { stato, peso: c.peso, ...(passo !== undefined ? { passo } : {}), ...(c.chiuso !== undefined ? { chiuso: true as const } : {}) }
     return m
   }
 }

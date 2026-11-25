@@ -82,7 +82,7 @@ import { leggiTrascrizione, trovaTrascrizione } from './trascrizione-specialista
 import { pianoVisto, type PianoVisto } from '@shared/registro-workspace'
 import { ADOTTATA_VECCHIA_MS } from '@shared/adozione'
 import { homedir } from 'node:os'
-import { attesaVuota, cambiaPrecedenzaWorkspace, cambiaPriorita, inFila, parcheggia, passo as passoAttesa, rifiutata as rifiutataDalTetto, rivedi as rivediPosti, togliVoce, type Mossa, type MossaAttesa, type StatoAttesa, type VistaAttesa } from '@shared/attesa-specialisti'
+import { attesaVuota, cambiaPrecedenzaWorkspace, cambiaPriorita, inFila, parcheggia, passo as passoAttesa, rifiutata as rifiutataDalTetto, rivedi as rivediPosti, togliVoce, vociDiCompitiFiniti, type Mossa, type MossaAttesa, type StatoAttesa, type VistaAttesa } from '@shared/attesa-specialisti'
 import { nomeWorkspace } from '@shared/attesa-vista'
 import { PESO_PREDEFINITO, stimaLista, titoloBreve, type DurataVera, type PesoCompito } from '@shared/stima-specialisti'
 import { rigaUltimaAzione } from '@shared/specialisti'
@@ -95,7 +95,7 @@ import { attesaDopoScadenza, UNIONE_MAX_MS } from './tempi-unione'
 import { fraseScadenzeRipetute, motivoScadenzaFila, piuTempoPerTentativo, rigaUnioneAttiva, scegliProssima, sogliaScadenze } from './unioni-che-scadono'
 import { togliCopiaUnita } from './autopulizia'
 import { togliRamiSuperati } from './rami-superati'
-import { causaDelFallimento, causaDelMotivo, chiaveCompito, COMPITI_PER_PAUSA_PC, colpaDelPc, fraseCausa, livelloRigaAiuto, motivoBreve, motivoDelRisultato, motivoSuPc, pauseAiuti, pcInPausa, serieGuasti, type CausaFallimento } from '@shared/aiuto-esito'
+import { aiutiDaTenere, causaDelFallimento, causaDelMotivo, chiaveCompito, COMPITI_PER_PAUSA_PC, colpaDelPc, fraseCausa, livelloRigaAiuto, motivoBreve, motivoDelRisultato, motivoSuPc, pauseAiuti, pcInPausa, serieGuasti, type CausaFallimento } from '@shared/aiuto-esito'
 
 /** 0.89.4: dopo quanto il lavoro fermo sveglia l'autopilota. 11/11: senza un tetto di spinte (`lavoro-fermo.ts`). */
 export const FERMO_DOPO_MS = 3 * 60_000
@@ -1541,6 +1541,9 @@ ${NOTA_SENZA_GIT}`,
         const compito = compitoDelPiano(ws, s.compito)
         const unione = (filaUnioni.get(ws) ?? []).find((l) => (s.compito !== undefined && l.compito === s.compito) || l.p.specialista === s.id)
         const ultimo = (esitiUnioni.get(ws) ?? []).find((e) => s.compito !== undefined && e.compito === s.compito)
+        // 25/11: un compito chiuso senza unirlo (superato, annullato, richiesta chiusa) non è «in fila per l'unione»:
+        // senza un'unione vera in corso il suo specialista esce da qui.
+        if (unione === undefined && compito?.chiuso !== undefined) return []
         const stato = statoDopoLavoro({
           ...(unione !== undefined ? { unione } : {}),
           ...(compito !== undefined ? { compito } : s.unito === true ? { compito: { stato: 'unito', criterioVerde: true } } : {}),
@@ -3197,9 +3200,41 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     }
   }
 
+  /**
+   * 25/11: la pulizia da sola. I lavori affidati ad altri PC che non servono più (compito unito o chiuso,
+   * richiesta fatta, ramo unito, aperti da tre giorni: `aiutiDaTenere`) escono dall'elenco; e dalla lista
+   * d'attesa le voci di compiti già uniti o chiusi, che nessuno rilancerà più. All'avvio e ogni minuto.
+   */
+  const pulisciDaSolo = (): void => {
+    const chiuse = new Map<string, Set<string>>()
+    const fatte = (ws: string): Set<string> => {
+      let s = chiuse.get(ws)
+      if (s === undefined) { s = richiesteChiuse(ws); chiuse.set(ws, s) }
+      return s
+    }
+    const { tenuti, tolti } = aiutiDaTenere(affidati(), {
+      adesso: oraMs(),
+      compito: (ws, id) => compitoDelPiano(ws, id),
+      richiestaFatta: (ws, id) => fatte(ws).has(id),
+      unito: (ws, id) => uniti.get(ws)?.has(id) === true
+    })
+    if (tolti.length > 0) {
+      archivioAiuti.scrivi(tenuti)
+      cambiSpecialisti.segna()
+      console.info(`[aiuto] pulizia: ${tolti.length} lavori affidati tolti dall’elenco (${tolti.slice(0, 5).map((t) => `${t.id}: ${t.perche}`).join('; ')}${tolti.length > 5 ? '; …' : ''})`)
+    }
+    const attesa = archivioAttesa.leggi()
+    const via = new Set(vociDiCompitiFiniti(attesa.voci, (ws, id) => compitoDelPiano(ws, id), (ws, id) => fatte(ws).has(id)).map((v) => v.id))
+    if (via.size > 0) {
+      archivioAttesa.scrivi({ ...attesa, voci: attesa.voci.filter((v) => !via.has(v.id)) })
+      console.info(`[attesa] pulizia: ${via.size} voci fuori dalla lista d’attesa (compito già unito o chiuso)`)
+    }
+  }
+
   /** Ogni minuto: le chat adottate zitte da 20 minuti diventano un evento (una volta per silenzio). */
   const guardia = (): void => {
     const ora = Date.parse(x.adesso())
+    try { pulisciDaSolo() } catch (err) { console.error('[orchestratore] pulizia dei lavori affidati e della lista d’attesa non riuscita:', err) }
     try { chiudiDomandeVecchie(ora) } catch (err) { console.error('[orchestratore] chiusura delle domande vecchie non riuscita:', err) }
     try { emergiDomande(ora) } catch (err) { console.error('[orchestratore] domande dalla chat alle Domande non riuscito:', err) }
     try { ricordaRossi(ora) } catch (err) { console.error('[orchestratore] promemoria del criterio rosso non riuscito:', err) }
@@ -3339,6 +3374,8 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     let n = 0
     const ora = oraMs()
     riprendiUnioniEFila()
+    // 25/11: all'avvio, gli avanzi di prima (lavori affidati già uniti, voci in fila di compiti chiusi).
+    try { pulisciDaSolo() } catch (err) { console.error('[orchestratore] pulizia all’avvio non riuscita:', err) }
     for (const a of unici()) {
       if (a.archiviato === true) continue
       const ws = wsDi(a)
@@ -3595,12 +3632,9 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     postiLiberi: () => ({ liberi: liberiPc(), tetto: tettoPc() }),
     aiutoGiro(lista) {
       aiutanti = { lista, il: oraMs() }
-      // I lavori chiusi da più di un giorno escono dall'elenco (il loro ramo, se c'è, è nel piano).
-      const ora = oraMs()
-      const prima = affidati()
-      const dopo = prima.filter((l) => l.fine === undefined || ora - Date.parse(l.fine) < 86_400_000)
-      if (dopo.length !== prima.length) archivioAiuti.scrivi(dopo)
-      return dopo.filter((l) => l.stato === 'da-spedire' || l.stato === 'spedito')
+      // I lavori che non servono più escono dall'elenco (25/11: `pulisciDaSolo`, anche ogni minuto e all'avvio).
+      try { pulisciDaSolo() } catch (err) { console.error('[aiuto] pulizia dei lavori affidati non riuscita:', err) }
+      return affidati().filter((l) => l.stato === 'da-spedire' || l.stato === 'spedito')
     },
     aiutoAvanza(id, pIn) {
       let p = pIn

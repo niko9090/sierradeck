@@ -570,6 +570,8 @@ export type CompitoMisurato = {
   peso?: number
   /** Il «passo k di n» dichiarato dalla chat. */
   passo?: { k: number; n: number }
+  /** 25/11: chiuso senza unirlo (superato, annullato, richiesta chiusa): fuori dalla percentuale, come dal piano vivo. */
+  chiuso?: true
 }
 
 /** «passo 2 di 5», «Passo 3/4»: il passo dichiarato, se c'è. */
@@ -606,9 +608,12 @@ export type MisuraCompito = (compito: string) => CompitoMisurato | undefined
 /** Una richiesta senza compiti misurati vale per il suo stato. */
 const PER_STATO: Record<StatoCoda, number> = { 'in-coda': 0, pianificata: 0, 'in-corso': 0.2, 'in-verifica': 0.8, fatta: 1 }
 
-/** I compiti di una richiesta, misurati: quelli che non si trovano sono da fare. */
+/**
+ * I compiti di una richiesta, misurati: quelli che non si trovano sono da fare. 25/11: quelli chiusi
+ * senza unirli non contano (prima un «in revisione» o un «da fare» chiuso il 31/10 pesava ancora).
+ */
 function compitiMisurati(r: Richiesta, misura: MisuraCompito): CompitoMisurato[] {
-  return r.compiti.map((c) => misura(c) ?? { stato: 'da-fare' })
+  return r.compiti.map((c): CompitoMisurato => misura(c) ?? { stato: 'da-fare' }).filter((c) => c.chiuso !== true)
 }
 
 /** La percentuale di una richiesta, da 0 a 100: una fatta è 100. */
