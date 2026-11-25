@@ -1,6 +1,7 @@
 import { aggiungi, type Coda, type PuntoRichiesta, type Richiesta } from '@shared/coda-richieste'
 import type { SceltaDomanda } from '@shared/domanda-strutturata'
 import type { DomandaAperta } from './domande'
+import { ordineDiPausa } from './lavoro-fermo'
 
 /**
  * **Le domande nascono nella chat dell'autopilota** (0.96.0, Nicholas 06/11:
@@ -254,7 +255,9 @@ export function scadenzaDomanda(
 export function rispostaSenzaLavoro(testo: string): boolean {
   const t = testo.trim().toLowerCase().replace(/[.!…]+$/u, '').replace(/\s+/gu, ' ')
   if (t === '') return true
-  return /^(no|nope|niente|nulla|annulla|annullata|ferma|fermati|stop|non serve|non ora|non adesso|no grazie|lascia stare|lascia perdere|lascia così|lascia cosi|non farlo|non farla|non farle|non fare niente|non fare nulla|ignora|ignorala|ignoralo|lascialo|lasciala)(,? (grazie|per ora|adesso|ora))?$/u.test(t)
+  // k-310c: una sola regola con la pausa: un ordine di restare fermi non è lavoro.
+  if (ordineDiPausa(testo) !== undefined) return true
+  return /^(no|nope|niente|nulla|annulla|annullata|ferma|fermati|stop|aspetta|basta|pausa|non serve|non ora|non adesso|no grazie|lascia stare|lascia perdere|lascia così|lascia cosi|non farlo|non farla|non farle|non fare niente|non fare nulla|ignora|ignorala|ignoralo|lascialo|lasciala)(,? (grazie|per ora|adesso|ora))?$/u.test(t)
     || /^no\b.{0,12}\b(lascia|stare|niente|grazie)\b.{0,12}$/u.test(t)
 }
 

@@ -116,6 +116,7 @@ describe('«Resta fermo» come risposta a una domanda (k-310b)', () => {
     processi[0]!.emetti(risultato('Fermo.'))
     expect(apriOrchestratori(c.orch).impostazioni('Lavoro').pausa).toBeDefined()
 
+    avanti += 1000 // la domanda nasce dopo la pausa (k-310c)
     const d2 = domande.apri({ autopilotaId: unico(c), testo: 'E adesso riprendo?', scadenzaMs: 60_000 })
     await rispondi(d2.id, 'Riprendi stasera')
     expect(apriOrchestratori(c.orch).impostazioni('Lavoro').pausa).toBeUndefined()
