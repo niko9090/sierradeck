@@ -202,20 +202,38 @@ describe('autopilota unico nel servizio', () => {
   // ha il suo gestore (qui sotto): questa prova usa l'accesso scaduto, che resta un «turno non riuscito».
   it('11/11: «turno non riuscito» arriva in italiano e la stessa riga non si ripete a ogni tentativo', async () => {
     zitto()
+    const avviso = vi.spyOn(console, 'warn').mockImplementation(() => {})
     await avviaServizio([ap()])
     migra()
     const eventi = (): string[] => orch.ultimeDialogo('Lavoro', 40).filter((r) => r.da === 'evento').map((r) => r.testo)
     const fallisce = (): void => { processi.at(-1)!.emetti({ type: 'result', is_error: true, result: 'Login expired · Please run /login', total_cost_usd: 0, session_id: 'sess-1', usage: { input_tokens: 5 } }) }
     fallisce()
     expect(eventi()).toHaveLength(1)
-    expect(eventi()[0]).toBe('turno non riuscito: l’accesso a Claude è scaduto: rinnovalo con «Rinnova l’accesso a Claude» (vale un anno) o rifai il login. Appena torna riparto da solo, subito')
-    // Nel registro resta il motivo com'è, per chi cerca il guasto.
-    expect(vi.mocked(console.error).mock.calls.some((c) => String(c[0]).includes('turno non riuscito') && String(c[0]).includes('Login expired'))).toBe(true)
-    // Il primo guasto riprova subito: il turno riparte, fallisce uguale, e la riga non si riscrive.
-    await attendi(() => processi.reduce((n, p) => n + p.scritte.length, 0) >= 2, { cosa: 'il secondo tentativo' })
+    expect(eventi()[0]).toBe('turno non riuscito: l’accesso a Claude è scaduto: rinnovalo con «Rinnova l’accesso a Claude» (vale un anno) o rifai il login. Appena torna riparto da solo, subito — riprovo fra 10 min')
+    // Nel registro resta il motivo com'è, per chi cerca il guasto: ma come avviso (k-318a), non come ERRORE.
+    expect(avviso.mock.calls.filter((c) => String(c[0]).includes('turno non riuscito') && String(c[0]).includes('Login expired'))).toHaveLength(1)
     fallisce()
-    expect(vi.mocked(console.error).mock.calls.filter((c) => String(c[0]).includes('turno non riuscito')).length).toBeGreaterThanOrEqual(2)
+    fallisce()
+    expect(avviso.mock.calls.filter((c) => String(c[0]).includes('turno non riuscito'))).toHaveLength(1)
+    expect(vi.mocked(console.error).mock.calls.some((c) => String(c[0]).includes('turno non riuscito'))).toBe(false)
     expect(eventi()).toHaveLength(1)
+  })
+
+  it('k-318a: «this login reached its time limit» è un avviso e non un errore, una volta sola; se il motivo cambia si riscrive', async () => {
+    zitto()
+    const avviso = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await avviaServizio([ap()])
+    migra()
+    const scaduto = 'Failed to authenticate: this login reached its time limit and cannot be renewed. Run `claude auth login`'
+    const fallisce = (testo: string): void => { processi.at(-1)!.emetti({ type: 'result', is_error: true, result: testo, total_cost_usd: 0, session_id: 'sess-1', usage: { input_tokens: 5 } }) }
+    const avvisi = (): number => avviso.mock.calls.filter((c) => String(c[0]).includes('turno non riuscito')).length
+    fallisce(scaduto)
+    fallisce(scaduto)
+    fallisce(scaduto)
+    expect(avvisi()).toBe(1)
+    expect(vi.mocked(console.error).mock.calls.some((c) => String(c[0]).includes('turno non riuscito'))).toBe(false)
+    fallisce('Login expired · Please run /login')
+    expect(avvisi()).toBe(2)
   })
 
   it('11/11: il limite del piano non è un ERRORE: un avviso nel registro e una riga sola nel dialogo, in italiano, con l’ora', async () => {

@@ -362,6 +362,43 @@ describe('il motore', () => {
     expect(processi[0]!.scritte).toHaveLength(4)
   })
 
+  describe('k-318a: l’accesso a Claude scaduto non si riprova ogni minuto', () => {
+    const scaduto = { type: 'result', is_error: true, result: 'Failed to authenticate: this login reached its time limit and cannot be renewed. Run `claude auth login`', total_cost_usd: 0, session_id: 'sess-x', usage: { input_tokens: 10, output_tokens: 0 } }
+    const scritte = (ps: { scritte: unknown[] }[]): number => ps.reduce((n, p) => n + p.scritte.length, 0)
+
+    it('niente riprova subito né a 1 minuto: si aspetta 10 minuti, senza fermarsi mai', () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-11-25T10:00:00.000Z'))
+      const { o, processi, errori } = motore()
+      o.messaggio('ws', { quando: '2026-11-25T10:00:00.000Z', testo: 'x' })
+      processi[0]!.emetti(scaduto)
+      expect(errori).toHaveLength(1)
+      expect(errori[0]).toMatch(/riprovo fra 10 min$/u)
+      vi.advanceTimersByTime(60_000)
+      expect(scritte(processi)).toBe(1)
+      vi.advanceTimersByTime(9 * 60_000 - 1)
+      expect(scritte(processi)).toBe(1)
+      vi.advanceTimersByTime(1)
+      expect(scritte(processi)).toBe(2)
+      // Ancora scaduto: altri 10 minuti, non di meno e non uno stop.
+      processi.at(-1)!.emetti(scaduto)
+      vi.advanceTimersByTime(10 * 60_000 - 1)
+      expect(scritte(processi)).toBe(2)
+      vi.advanceTimersByTime(1)
+      expect(scritte(processi)).toBe(3)
+    })
+
+    it('quando l’accesso cambia riparte subito', () => {
+      vi.useFakeTimers()
+      const { o, processi } = motore()
+      o.messaggio('ws', { quando: '2026-11-25T10:00:00.000Z', testo: 'x' })
+      processi[0]!.emetti(scaduto)
+      expect(scritte(processi)).toBe(1)
+      expect(o.accessoCambiato({ riavvia: false })).toBe(1)
+      expect(scritte(processi)).toBe(2)
+    })
+  })
+
   describe('11/11: il limite del piano non è un guasto', () => {
     const limite = { type: 'result', is_error: true, result: "You've hit your weekly limit · resets 1am (Europe/Rome)", total_cost_usd: 0, session_id: 'sess-x', usage: { input_tokens: 10, output_tokens: 0 } }
     type Detto = { primo: boolean; riprovoIl: number; azzeraIl?: number }
