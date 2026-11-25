@@ -103,6 +103,7 @@
 - gradle testDebugUnitTest --offline ha impiegato 21 minuti, non 7: il sistema lo passa in sottofondo oltre i 600 s anche con timeout 900000. _(2026-11-25)_
 - le prove con git vero (`execFileSync('git'…)`) vanno elencate in LENTI di vitest.config.ts, altrimenti a PC carico superano i 20 s e il criterio diventa rosso. _(2026-11-25)_
 - un criterio rosso senza nomi non si riproduce sempre: se a PC scarico passa, il sospetto è la lentezza sotto carico, non un testo vecchio. _(2026-11-25)_
+- dopo aver spostato prove nel gruppo lenti, le prove veloci con git vero rimaste fuori vanno in timeout a PC carico: cercarle con grep su 'init' e execFileSync('git'. _(2026-11-25)_
 
 ## worktree
 
@@ -335,7 +336,6 @@
 
 ## rete
 
-- Unione fuori dal cancello: general-purpose è rifiutato (lavorerebbe nella cartella principale), k-v1 non si chiude (già unito). Resta solo uno sviluppatore quando la rete non ha posti liberi. _(2026-11-17)_
 - i compiti che nominano percorsi assoluti del PC di Nicholas (E:\Users\nikof\...) non si possono eseguire sui PC della rete: il controllo `Test-Path` del primo passo li ferma subito. _(2026-11-17)_
 - Cancello bloccato e specialisti sempre sulla rete: lo specialista di rete fa il cherry-pick sopra il main del PC e un push normale su GitHub; poi il programma riallinea la cartella principale. _(2026-11-17)_
 - il push verso GitHub dalla copia può essere negato dai permessi; il ramo `porta-0109-2` (aa30211d) resta pronto in locale per essere pubblicato da chi ha il permesso. _(2026-11-17)_
