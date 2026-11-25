@@ -44,7 +44,7 @@ export const NOVITA: Novita[] = [
     versione: '0.119.2',
     righe: [
       '**Un errore dell’aggiornamento non compare più due volte:** lo stesso errore veniva scritto due volte nel registro, ora una sola.',
-      '**I messaggi sull’aggiornamento dicono il vero:** non promettono più che si installa alla chiusura. Si installa solo col tasto Installa; se non è partito, si riprova da lì.',
+      '**I messaggi sull’aggiornamento dicono il vero:** non promettono più che si installa alla chiusura. Si installa solo col tasto Installa; se non è partito, si riprova da lì. **App Android 3.5.4:** anche l\'app non dice più che l\'aggiornamento del PC si installa alla chiusura. Si scarica a parte.',
     ],
   },
   {

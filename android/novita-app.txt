@@ -3,6 +3,12 @@ per le note della pubblicazione e della notifica sul telefono).
 La più recente in cima. Ogni riga fra apici, come in src/shared/novita.ts.
 
   {
+    versione: '3.5.4',
+    righe: [
+      'L’app non dice più che l’aggiornamento del PC si installa alla chiusura: si installa solo con il tasto Installa.',
+    ],
+  },
+  {
     versione: '3.5.3',
     righe: [
       'In «Tutti i PC» un computer spento o che non risponde mostra comunque le sue chat, prese dall’ultimo battito, segnate come vecchie.',
