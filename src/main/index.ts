@@ -86,7 +86,7 @@ import { dentroCartella, eNomeDiSistema, eSenzaNome, nomeNormalizzato, raggruppa
 import { ACCESO_ENTRO_MS, conSpazioDrive, type Pannello } from '@shared/pannello-drive'
 import { conVista } from '@shared/progetti-vista'
 import { conVistaSalute } from '@shared/salute-vista'
-import { memoriaBreve } from '@shared/memoria-breve'
+import { creaQuadroPannello } from './cassaforte/quadro-pannello'
 import { statInParallelo } from './stat-in-parallelo'
 import type { CartellaInRecupero, StatoRimozione } from '@shared/rimozione-sicura'
 import { leggiElencoRecupero, ripristinaDaRecupero, spostaCartellaInRecupero, storieDiProvaInRecupero } from './rimozione-sicura'
@@ -159,7 +159,7 @@ import { apriIdentitaPc, type IdentitaPcStore } from './progetti/pc'
 import { nomeDaMostrare, sottotitoloPc } from '@shared/nome-pc'
 import {
   aggiungiProgetto, apriRegistroProgetti, fondiRegistri, rimuoviProgetto, progettoDiCartella,
-  parseRegistro, type ProgettoDrive, type RegistroProgetti
+  type ProgettoDrive, type RegistroProgetti
 } from './progetti/registro'
 import type { Manifesto } from './cassaforte/incrementale'
 import { creaProgettiSync } from './progetti/sincronia-progetti'
@@ -3426,14 +3426,12 @@ if (!app.requestSingleInstanceLock()) {
       // Vale un minuto; chi chiede mentre si scarica aspetta lo stesso.
       // Con il manifesto si legge il registro dei progetti sul Drive: il
       // pannello mostra anche i progetti messi sul Drive da un altro PC.
-      const quadroPannello = memoriaBreve(async (): Promise<{ manifesto: Manifesto; registro?: RegistroProgetti } | undefined> => {
-        const manifesto = await sincronia.manifestoDrive().catch(() => undefined)
-        if (manifesto === undefined) return undefined
-        const grezzo = await sincronia.leggiFileDrive('sierradeck/progetti-drive.json', manifesto).catch(() => undefined)
-        let registro: RegistroProgetti | undefined
-        try { registro = grezzo === undefined ? undefined : parseRegistro(JSON.parse(grezzo.toString('utf8'))) } catch { registro = undefined }
-        return { manifesto, ...(registro !== undefined ? { registro } : {}) }
-      }, 60_000, () => Date.now(), 10 * 60_000)
+      // 25/11: fino a un'ora si mostra subito l'ultimo e si rilegge intanto
+      // (vedi `creaQuadroPannello`): il pannello era pronto in 3–10 s.
+      const quadroPannello = creaQuadroPannello({
+        manifestoDrive: () => sincronia.manifestoDrive(),
+        leggiFileDrive: (percorso, m) => sincronia.leggiFileDrive(percorso, m)
+      })
       /**
        * Il registro di qui fuso con quello sul Drive (0.88.0): tutti i progetti,
        * ognuno con il suo PC. `ancheVecchio` (0.80.0) solo per la vista.
@@ -3736,7 +3734,9 @@ if (!app.requestSingleInstanceLock()) {
       const workspacePerIProgetti = async (): Promise<string[]> => {
         const store = workspaceStore
         if (store === undefined) return []
-        const p = await leggiPannello()
+        // 25/11: il Drive di qualche minuto fa basta (aggiunge soltanto, e il
+        // giro dopo vede il resto); fresco, a ogni giro si aspettavano 3–10 s.
+        const p = await leggiPannello(true)
         // Le sessioni interne degli autopiloti non sono chat (0.67.3).
         const interne = sessioniInterne(await clientAutopilota.elenca().catch(() => []))
         // E i loro riquadri già aggiunti dalla 0.67.1/0.67.2 si tolgono, solo quelli

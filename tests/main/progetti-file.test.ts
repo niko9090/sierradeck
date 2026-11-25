@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { elencaFileProgetto, transitorioDiGit } from '../../src/main/progetti/file'
+import { elencaFileProgetto, ramoDiLavoroGiovane, RAMO_DI_LAVORO_SALE_DOPO_MS, transitorioDiGit } from '../../src/main/progetti/file'
 
 /**
  * Cosa di un progetto va sul Drive: quello che git terrebbe, piu' `.git`;
@@ -101,11 +101,15 @@ describe('elencaFileProgetto', () => {
     }
     const restano = [
       '.git/MERGE_HEAD', '.git/MERGE_MSG', '.git/MERGE_MODE', '.git/AUTO_MERGE', '.git/sierradeck-prova.json',
-      '.git/index.lock', '.git/HEAD.lock', '.git/refs/heads/main.lock', 'sotto/.git/MERGE_HEAD', 'sotto/.git/index.lock'
+      '.git/index.lock', '.git/HEAD.lock', '.git/refs/heads/main.lock', 'sotto/.git/MERGE_HEAD', 'sotto/.git/index.lock',
+      // 25/11: i segni del momento e il diario dei rami delle copie di lavoro.
+      '.git/ORIG_HEAD', '.git/FETCH_HEAD', '.git/logs/refs/heads/worktree-agent-a1b2', 'sotto/.git/logs/refs/heads/worktree-prova'
     ]
     const vengono = [
-      '.git/HEAD', '.git/index', '.git/ORIG_HEAD', '.git/packed-refs', '.git/config',
-      '.git/refs/heads/main', '.git/refs/heads/worktree-agent-a1b2', '.git/logs/refs/heads/worktree-agent-a1b2', '.git/objects/ab/cdef',
+      '.git/HEAD', '.git/index', '.git/packed-refs', '.git/config', '.git/logs/HEAD', '.git/logs/refs/heads/main',
+      '.git/refs/tags/v1.0.0', '.git/refs/remotes/origin/main', '.git/refs/heads/ap/c-1',
+      // Il ramo di uno specialista sale (11/11) se non si sa quando è nato: qui il suo diario non c'è.
+      '.git/refs/heads/main', '.git/refs/heads/worktree-agent-a1b2', '.git/objects/ab/cdef',
       // Fuori da .git un nome uguale è un file come gli altri.
       'src/MERGE_HEAD', 'pacchetto.lock', 'src/sierradeck-prova.json', 'sotto/.git/HEAD'
     ]
@@ -114,5 +118,35 @@ describe('elencaFileProgetto', () => {
     expect(file.sort()).toEqual([...vengono].sort())
     for (const rel of restano) expect(transitorioDiGit(rel), rel).toBe(true)
     for (const rel of vengono) expect(transitorioDiGit(rel), rel).toBe(false)
+  })
+
+  it('25/11: il ramo di uno specialista nato da poco non sale; uno vecchio sì, anche dopo un commit nuovo', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sd-progetto-'))
+    const scrivi = (rel: string, testo = 'x'): void => {
+      const p = join(dir, ...rel.split('/'))
+      mkdirSync(join(p, '..'), { recursive: true })
+      writeFileSync(p, testo)
+    }
+    const adesso = Date.UTC(2026, 10, 25, 12, 0, 0)
+    const riga = (msFa: number, msg: string): string =>
+      `${'0'.repeat(40)} ${'a'.repeat(40)} Persona <persona@esempio.invalid> ${Math.floor((adesso - msFa) / 1000)} +0100\t${msg}\n`
+    scrivi('.git/HEAD', 'ref: refs/heads/main')
+    scrivi('.git/refs/heads/main', 'a'.repeat(40))
+    scrivi('.git/logs/refs/heads/main', riga(5_000, 'commit: nuovo'))
+    // Nato 2 minuti fa: si unisce e si toglie prima di salire.
+    scrivi('.git/refs/heads/worktree-agent-giovane', 'b'.repeat(40))
+    scrivi('.git/logs/refs/heads/worktree-agent-giovane', riga(2 * 60_000, 'branch: Created from HEAD'))
+    // Nato 2 ore fa, commit un minuto fa: conta la nascita, resta sul Drive.
+    scrivi('.git/refs/heads/worktree-agent-vecchio', 'c'.repeat(40))
+    scrivi('.git/logs/refs/heads/worktree-agent-vecchio', riga(2 * 60 * 60_000, 'branch: Created from HEAD') + riga(60_000, 'commit: ancora'))
+    // Un worktree con nome, in una sotto-cartella del ramo.
+    scrivi('.git/refs/heads/worktree-nuovo/parte', 'd'.repeat(40))
+    scrivi('.git/logs/refs/heads/worktree-nuovo/parte', riga(1_000, 'branch: Created from HEAD'))
+    const { file } = await elencaFileProgetto(dir, undefined, adesso)
+    expect(file.sort()).toEqual(['.git/HEAD', '.git/logs/refs/heads/main', '.git/refs/heads/main', '.git/refs/heads/worktree-agent-vecchio'])
+    // Il confine: appena oltre la mezz'ora sale.
+    expect(await ramoDiLavoroGiovane(dir, '.git/refs/heads/worktree-agent-giovane', adesso - 2 * 60_000 + RAMO_DI_LAVORO_SALE_DOPO_MS + 1_000)).toBe(false)
+    // Solo i rami delle copie di lavoro: `main` non e' mai «giovane».
+    expect(await ramoDiLavoroGiovane(dir, '.git/refs/heads/main', adesso)).toBe(false)
   })
 })
