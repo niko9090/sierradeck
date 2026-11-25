@@ -2884,6 +2884,16 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     const quando = x.adesso()
     const nota = rispostaNellaCoda(ws, { domanda, risposta: testo, quando, ...(richiestaId !== undefined ? { richiestaId } : {}) })
     x.orchestratori.aggiungiDialogo(ws, { quando, da: 'tu', testo: `Hai risposto a «${domanda.slice(0, 200)}»: ${testo}` })
+    // k-310b: «Resta fermo» come risposta a una domanda vale come «resta fermo» scritto nel dialogo: pausa vera.
+    // Prima solo il messaggio libero la metteva, e NexoraOS, fermo apposta da giorni su quella risposta, veniva
+    // svegliato a 7 e a 19 minuti a ogni riavvio (4 sveglie in due giorni, sempre con la stessa risposta). Una risposta
+    // qualsiasi di Nicholas toglie la pausa precedente, come un suo messaggio.
+    fermiVisti.delete(ws)
+    const frase = chiedeDiFermarsi(testo)
+    x.orchestratori.cambiaImpostazioni(ws, (i) => {
+      const { pausa: _via, ...senza } = i
+      return frase !== undefined ? { ...senza, pausa: { dal: quando, frase } } : senza
+    })
     orchestratore.messaggio(ws, { quando, testo: `Risposta alla tua domanda «${domanda.replace(/\s+/gu, ' ').slice(0, 300)}»: ${testo}${nota}` })
     return true
   }
