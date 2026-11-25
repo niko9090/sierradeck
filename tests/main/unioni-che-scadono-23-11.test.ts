@@ -188,6 +188,7 @@ async function prepara(porte: Porte): Promise<void> {
     unioneRiprovaMs: 10,
     provaMaxMs: 400,
     unioneTentativiMax: 2,
+    unioneRiposoMs: 1500,
     turni: creaTurni({ unioneMaxMs: 40, registra: () => {} })
   })
   server = s
@@ -252,9 +253,13 @@ describe('un’unione che scade di continuo: esito chiaro, le altre passano, lo 
     // Più tempo a ogni giro: dal terzo tentativo il passo git può durare il triplo (nessun errore, solo il tetto).
     expect(piuTempoPerTentativo(4)).toBe(3)
 
-    // Appena git risponde, unisci la rimette in fila ed entra.
+    // 25/11 (0.120.0): durante il riposo unisci non la rilancia (prima ripartiva subito e il riposo saltava): dice fino a quando.
     porte.appesi = []
-    expect(await strumento('unisci', { compito: 'k-1' })).toMatch(/Unione (avviata|in fila)/u)
+    expect(await strumento('unisci', { compito: 'k-1' })).toMatch(/in riposo fino alle/u)
+    // Finito il riposo, unisci la rimette in fila ed entra (o è già rientrata da sola).
+    await new Promise((r) => setTimeout(r, 1700))
+    const dopoRiposo = await strumento('unisci', { compito: 'k-1' })
+    expect(dopoRiposo).not.toMatch(/in riposo fino alle/u)
     await attendi(() => unitoK('k-1'), { cosa: 'k-1 unito dopo unisci', timeout: 8000 })
   }, 30_000)
 })

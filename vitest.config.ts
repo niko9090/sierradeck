@@ -20,7 +20,9 @@ const LENTI = [
   'tests/main/pty-host-client.test.ts',
   'tests/pty-host/pty-manager.test.ts',
   'tests/main/cassaforte-sincronia.test.ts',
-  'tests/main/file-autopilota.test.ts'
+  'tests/main/file-autopilota.test.ts',
+  // 25/11: unioni di prova con git vero, fino a 40 s a PC carico (passano tutte con tempo largo).
+  'tests/autopilot-host/unioni-recupero-24-11.test.ts'
 ]
 
 /** `SD_TEST_WORKERS=4` (un numero) o `SD_TEST_WORKERS=25%`; di serie la metà dei processori. */
