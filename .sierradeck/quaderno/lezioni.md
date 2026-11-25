@@ -152,7 +152,6 @@
 
 ## git
 
-- Dalla cartella principale `worktree add` in Temp e `cherry-pick` nella copia passano se sono chiamate separate; il blocco scatta solo sulla cancellazione (`rmdir`, `worktree remove`) fuori dalle cart… _(2026-11-17)_
 - per provare un test senza la correzione: `git stash push -u`, `git stash apply`, `git checkout -- <file>`, poi `git checkout stash@{0} -- <file>` e `git stash drop`. _(2026-11-20)_
 - `git cherry main <ramo>` dà "nuovi=0" solo per i rami identici a main. Per quelli rifatti o unificati serve anche cercare il k-N nel log di main. _(2026-11-22)_
 - `togliCopiaUnita` cancella già il ramo (`branch -d`/`-D` con `forza`): un secondo `branch -D` subito dopo fallisce con «not found», va verificato prima. _(2026-11-22)_
@@ -217,7 +216,6 @@
 
 ## criteri
 
-- Mai criterio `grep -q '"version": "X"' package.json`: fissaLaVersione ≤0.109.1 non lo riconosce e il cancello respinge ogni bump dopo (0.109.2). Usare `git rev-parse vX`. _(2026-11-17)_
 - dimenticaIRossi azzera ogni esito non passato: ogni nuova memoria con esiti «non misurati» va esclusa per prefisso di chiave, o muore a ogni unione _(2026-11-23)_
 - EsitoVerifica non conserva il codice di uscita (126/127): il riconoscimento «programma assente» si basa solo sul testo dell'uscita _(2026-11-23)_
 
@@ -278,6 +276,8 @@
 - `note()` leggeva `versioneScaricata` prima di `stato.versione`: durante lo scaricamento di una versione più nuova mostrava le note della vecchia. _(2026-11-23)_
 - I test della ricerca silenziosa usano timer finti e `RICONTROLLA_MS`; la fase `attendo` compare solo se `attendiQuiete` chiama `avvisa`. _(2026-11-23)_
 - updaterVivo aspetta 6 s (24x250 ms) il diario sierradeck-update.log; l'errore arriva ~6 s dopo il tasto, non subito. _(2026-11-25)_
+- dalla 0.69.0 alla chiusura non si installa nulla (autoInstallOnAppQuit=false ovunque): testi e commenti che promettono «si installa alla chiusura» sono falsi. _(2026-11-25)_
+- la finestra dell'Aiutante (src/aiutante/finestra/aggiornamenti.tsx:48) dice «si installa da sola appena non gira nessun lavoro»: non verificata. _(2026-11-25)_
 
 ## guardia
 
