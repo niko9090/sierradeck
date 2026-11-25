@@ -173,6 +173,8 @@ type Mondo = {
   /** Chiuso finché non sono state chieste tutte le unioni. */
   cancello: Promise<void>
   apri: () => void
+  /** 25/11: il primo lotto (più di un ramo) resta appeso nel merge finché il segnale non lo ferma. */
+  lottoAppeso?: boolean
 }
 
 function gitDiProva(m: Mondo): { git: Git; asinc: GitAsincrono } {
@@ -213,11 +215,19 @@ function gitDiProva(m: Mondo): { git: Git; asinc: GitAsincrono } {
     return { codice: 1, uscita: '' }
   }
   // Il primo comando git della fila aspetta il cancello: così le unioni chieste dopo sono già in fila quando la prima parte.
-  const asinc: GitAsincrono = async (args, cwd) => { await m.cancello; return git(args, cwd) }
+  const asinc: GitAsincrono = async (args, cwd, segnale) => {
+    await m.cancello
+    if (m.lottoAppeso === true && args.includes('merge') && args.includes('--no-commit') && args.filter((x) => FILE_DI[x] !== undefined).length > 1) {
+      m.lottoAppeso = false
+      m.prove.push(args.filter((x) => FILE_DI[x] !== undefined))
+      return new Promise((ris) => { segnale?.addEventListener('abort', () => ris({ codice: 1, uscita: 'fermato' }), { once: true }) })
+    }
+    return git(args, cwd)
+  }
   return { git, asinc }
 }
 
-async function avviaServizio(git: Git, asinc: GitAsincrono, esegui: Esecutore): Promise<void> {
+async function avviaServizio(git: Git, asinc: GitAsincrono, esegui: Esecutore, piu: { unioneMaxMs?: number } = {}): Promise<void> {
   const orologio = orologioDa('2026-10-30T08:00:00.000Z')
   const archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'ap-lotti-')))
   archivio.scrivi(ap())
@@ -244,7 +254,8 @@ async function avviaServizio(git: Git, asinc: GitAsincrono, esegui: Esecutore): 
     unioneDaSola: false,
     unioneRiprovaMs: 10,
     // k-191e: qui la prima parte da sola (il cancello la tiene ferma): niente raccolta di raffica.
-    raccoltaRafficaMs: 0
+    raccoltaRafficaMs: 0,
+    ...(piu.unioneMaxMs !== undefined ? { unioneMaxMs: piu.unioneMaxMs } : {})
   })
   server = s
   await new Promise<void>((ris) => s.listen(0, '127.0.0.1', () => { porta = (s.address() as { port: number }).port; ris() }))
@@ -287,11 +298,11 @@ const nuovoMondo = (): Mondo => {
 }
 
 /** Tre (o quattro) compiti finiti, con un'unione già verde (k-0) che la prova rimisura; poi si chiede l'unione di tutti, una dopo l'altra. */
-async function prepara(m: Mondo, compiti: string[], dopo: Record<string, string[]> = {}): Promise<void> {
+async function prepara(m: Mondo, compiti: string[], dopo: Record<string, string[]> = {}, piu: { unioneMaxMs?: number } = {}): Promise<void> {
   // Rossa solo con un ramo «rosso» dentro la prova; senza il ramo (la rimisura) passa.
   const esegui: Esecutore = () => Promise.resolve(m.inProva.some((r) => m.rossi.has(r)) ? { codice: 1, uscita: 'FAIL tests/x.test.ts\nAssertionError' } : { codice: 0, uscita: 'ok' })
   const { git, asinc } = gitDiProva(m)
-  await avviaServizio(git, asinc, esegui)
+  await avviaServizio(git, asinc, esegui, piu)
   processi[0]!.emetti({ type: 'result', result: 'Pronto.', total_cost_usd: 0.001, session_id: 'sess-1', usage: { input_tokens: 100 } })
   orch.scriviPiano('Lavoro', { versione: 1, compiti: [
     { ...compito('k-0'), stato: 'unito', criterioVerde: true, criterio: 'le prove passano: `npx vitest run tests/x.test.ts`' },
@@ -310,6 +321,19 @@ async function chiediTutte(m: Mondo, compiti: string[]): Promise<void> {
 const eventiDi = (testo: string, k: string): number => testo.split(/\r?\n/u).filter((r) => r.includes(`${k}`) && /unito nel principale|unione NON fatta/u.test(r)).length
 
 describe('unioni a lotti nel servizio', () => {
+  // 25/11 (difetto 3): il lotto stava fuori dalla scadenza dell'unione: appeso, teneva la testa della fila «in corso» per ore.
+  it('un lotto appeso sta sotto la scadenza dell’unione: si ferma, e i rami entrano uno alla volta', async () => {
+    zitto()
+    const m = nuovoMondo()
+    m.lottoAppeso = true
+    const tutti = ['k-1', 'k-2', 'k-3']
+    await prepara(m, tutti, {}, { unioneMaxMs: 1500 })
+    await chiediTutte(m, tutti)
+    await attendi(() => tutti.every(unitoK), { cosa: 'tutti uniti, il lotto appeso fermato', timeout: 15_000 })
+    expect(m.prove.some((p) => p.length > 1)).toBe(true)
+    expect(m.prove.filter((p) => p.length === 1)).toHaveLength(3)
+  }, 30_000)
+
   // k-1 parte da solo (la fila era vuota); le altre unioni gli arrivano dietro e fanno i lotti.
   it('lotto verde: una prova sola per tre rami, e un evento per compito', async () => {
     zitto()

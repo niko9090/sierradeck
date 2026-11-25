@@ -116,7 +116,7 @@ function gitDiProva(porte: Porte): { git: Git; asinc: GitAsincrono } {
   return { git, asinc: (args, cwd) => Promise.resolve(git(args, cwd)) }
 }
 
-type Opzioni = { esegui?: Esecutore; chiediSalvaDopoMs?: number; sporcaInFondoDopoMs?: number; criterioK1?: string; richiediDopoMs?: number; avvisa?: (tipo: string, testo?: string) => void }
+type Opzioni = { esegui?: Esecutore; chiediSalvaDopoMs?: number; sporcaInFondoDopoMs?: number; criterioK1?: string; richiediDopoMs?: number; avvisa?: (tipo: string, testo?: string) => void; attesaLungaMs?: number; attesaGitMs?: number }
 
 async function prepara(porte: Porte, o: Opzioni = {}): Promise<void> {
   const orologio = orologioDa('2026-11-11T08:00:00.000Z')
@@ -148,6 +148,9 @@ async function prepara(porte: Porte, o: Opzioni = {}): Promise<void> {
     unioneRiprovaMs: 10,
     chiediSalvaDopoMs: o.chiediSalvaDopoMs ?? 60,
     sporcaInFondoDopoMs: o.sporcaInFondoDopoMs ?? 60_000,
+    // 25/11: le attese lunghe (risposta di Nicholas, troppi file, stato git a metà) qui sono brevi.
+    unioneAttesaLungaMs: o.attesaLungaMs ?? 40,
+    unioneAttesaGitMs: o.attesaGitMs ?? 40,
     ...(o.richiediDopoMs !== undefined ? { richiediDopoMs: o.richiediDopoMs } : {})
   })
   server = s
@@ -499,6 +502,78 @@ describe('un’unione a metà nella principale non è «file non salvati» (k-er
     await attendi(() => unitoK('k-1'), { cosa: 'k-1 misurato e unito', timeout: 40_000 })
     expect(chiamate).toBe(1)
     expect(compitoK('k-1')?.criterioVerde).toBe(true)
+  })
+})
+
+describe('nessuna unione ferma per sempre, e il perché si vede (25/11)', () => {
+  /** Quante unioni di prova sono partite (ognuna chiede a git i file che il ramo tocca). */
+  const prove = (porte: Porte): number => porte.comandi.filter((c) => c[0] === 'diff' && c[1] === '--name-only' && c.at(-1) === `main...${R1}`).length
+
+  it('difetto 4: mentre aspetta la risposta di Nicholas la fila non riprova a vuoto e lo dice; la risposta la sveglia subito', async () => {
+    zitto()
+    const porte = porteNuove({ sporchi: ['pannello.js'], tocca: { [R1]: ['pannello.js'], [R2]: ['c.js'] } })
+    await prepara(porte, { attesaLungaMs: 60_000 })
+    await strumento('unisci', { compito: 'k-1' })
+    await attendi(() => domandeSalva().length === 1, { cosa: 'la domanda del programma' })
+    await attendi(async () => (await statoTesto()).includes('aspetta la risposta di Nicholas'), { cosa: 'il motivo nello stato' })
+    const prima = prove(porte)
+    await pausa(500)
+    expect(prove(porte)).toBe(prima)
+    expect(await rispondi(domandeSalva()[0]!.id, SCELTA_SALVA)).toBe(200)
+    await attendi(() => unitoK('k-1'), { cosa: 'k-1 unito subito dopo il sì', timeout: 5000 })
+    expect(await statoTesto()).not.toContain('aspetta la risposta di Nicholas')
+  })
+
+  it('difetto 5: lo stesso rosso con gli stessi file, dopo la risposta di Nicholas, conta: al tetto vale rosso, la fila non gira per sempre', async () => {
+    zitto()
+    const porte = porteNuove({ sporchi: ['altro.js'] })
+    let chiamate = 0
+    await prepara(porte, { criterioK1: 'le prove: `npx vitest run tests/x.test.ts`', esegui: () => { chiamate += 1; return Promise.resolve({ codice: 1, uscita: '1 test fallito' }) } })
+    await strumento('unisci', { compito: 'k-1' })
+    await attendi(() => domandeSalva().length === 1, { cosa: 'la domanda sul criterio rosso' })
+    expect(await rispondi(domandeSalva()[0]!.id, SCELTA_ASPETTA)).toBe(200)
+    await attendi(() => unitoK('k-1'), { cosa: 'k-1 chiuso con il criterio rosso', timeout: 8000 })
+    expect(compitoK('k-1')?.criterioVerde).toBe(false)
+    // Una misura all'inizio e una al tetto: in mezzo nessuna rimisura a vuoto.
+    expect(chiamate).toBe(2)
+    expect(salvataggi(porte)).toEqual([])
+  })
+
+  it('difetto 6: uno stato git a metà non del programma, già detto, non fa girare la fila a vuoto e il motivo si vede', async () => {
+    zitto()
+    const cartellaGit = mkdtempSync(join(tmpdir(), 'ap-git-finto-'))
+    const porte = porteNuove({ sporchi: [], cartellaGit, apriDopoUnione: true })
+    const avvisi: string[] = []
+    await prepara(porte, { criterioK1: 'le prove: `npx vitest run tests/x.test.ts`', attesaGitMs: 60_000, avvisa: (tipo, testo) => { if (tipo === 'avviso') avvisi.push(testo ?? '') } })
+    porte.tocca[R1] = []
+    await strumento('unisci', { compito: 'k-1' })
+    await attendi(() => avvisi.length >= 1, { cosa: 'l’avviso con lo stato git a metà', timeout: 8000 })
+    await attendi(async () => (await statoTesto()).includes('MERGE_HEAD'), { cosa: 'il motivo nello stato' })
+    const controlli = (): number => porte.comandi.filter((c) => c.join(' ') === 'rev-parse --absolute-git-dir').length
+    const prima = controlli()
+    await pausa(500)
+    expect(controlli()).toBe(prima)
+    expect(avvisi).toHaveLength(1)
+    rmSync(join(cartellaGit, 'MERGE_HEAD'))
+  })
+
+  it('difetto 9: un errore nel giro della fila (fuori dalla corsa) non la uccide: si registra come blocco e l’unione riparte', async () => {
+    zitto()
+    const errori = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const porte = porteNuove({ sporchi: ['pannello.js'], tocca: { [R1]: ['pannello.js'], [R2]: ['c.js'] } })
+    await prepara(porte)
+    const vero = domande.apri.bind(domande)
+    let rotte = 1
+    vi.spyOn(domande, 'apri').mockImplementation((...a: Parameters<typeof domande.apri>) => {
+      if (rotte > 0) { rotte -= 1; throw new Error('registro delle domande rotto per un attimo') }
+      return vero(...a)
+    })
+    await strumento('unisci', { compito: 'k-1' })
+    await attendi(() => errori.mock.calls.some((c) => String(c[0]).startsWith('[blocco]') && String(c[0]).includes('giro della fila')), { cosa: 'il blocco registrato' })
+    // La fila è viva: la domanda parte al giro dopo, e col sì l'unione entra.
+    await attendi(() => domandeSalva().length === 1, { cosa: 'la domanda al giro dopo' })
+    expect(await rispondi(domandeSalva()[0]!.id, SCELTA_SALVA)).toBe(200)
+    await attendi(() => unitoK('k-1'), { cosa: 'k-1 unito dopo l’errore del giro' })
   })
 })
 

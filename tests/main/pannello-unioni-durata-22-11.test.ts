@@ -75,7 +75,11 @@ describe('stato del lavoro dopo la fine dello specialista', () => {
   it('conflitto dall’ultimo tentativo; senza notizie, niente', () => {
     expect(statoDopoLavoro({ compito: { stato: 'in-revisione' }, ultimoEsito: 'conflitto' })).toBe('conflitto')
     // 23/11: un compito ancora «in revisione» non sparisce dal pannello: il programma deve ancora unirlo.
-    expect(statoDopoLavoro({ compito: { stato: 'in-revisione' }, ultimoEsito: 'non-unita' })).toBe('in-fila')
+    // 25/11: ma fuori dalla fila con un'unione non riuscita non è «in fila»: è da riprovare (prima lo diceva in fila per sempre).
+    expect(statoDopoLavoro({ compito: { stato: 'in-revisione' }, ultimoEsito: 'non-unita' })).toBe('da-riprovare')
+    expect(statoDopoLavoro({ compito: { stato: 'in-revisione', esito: 'unione ferma: scaduta 3 volte' } })).toBe('da-riprovare')
+    expect(statoDopoLavoro({ compito: { stato: 'in-revisione', esito: 'unione non fatta: senza ramo principale non si può unire' } })).toBe('da-riprovare')
+    expect(statoDopoLavoro({ compito: { stato: 'in-revisione' } })).toBe('in-fila')
     expect(statoDopoLavoro({ compito: { stato: 'da-fare' }, ultimoEsito: 'non-unita' })).toBeUndefined()
     expect(statoDopoLavoro({})).toBeUndefined()
   })

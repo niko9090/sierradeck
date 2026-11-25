@@ -69,7 +69,7 @@ import type { AvviaProcesso } from './orchestratore'
 import { passoRiassettoServizio } from './riassetto-servizio'
 import { conPreambolo, prendiMessaggiPer, rimettiInCoda } from './stop-specialista'
 import { campiVecchiDa } from './migra-orchestratore'
-import { creaServizioUnico, type EsitoAvvioUnico, type EsitoProvaPrincipale, type ServizioUnico } from './servizio-orchestratore'
+import { creaServizioUnico, type EsitoAvvioUnico, type EsitoProvaPrincipale, type ServizioUnico, type TempoDellaProva } from './servizio-orchestratore'
 import { apriDoppioni, type ArchivioDoppioni } from './doppioni-store'
 import { apriAttesa, type ArchivioAttesa } from './attesa-store'
 import { apriAperti } from './specialisti-aperti'
@@ -174,6 +174,11 @@ export type Dipendenze = {
   /** k-191e, per i test: raccolta della raffica prima della testa della fila. */
   raccoltaRafficaMs?: number
   unioneTentativiMax?: number
+  /** 25/11, per i test: riposo dopo troppe scadenze, attese lunghe e tetto dell'attesa del turno (vedi `ContestoUnico`). */
+  unioneRiposoMs?: number
+  unioneAttesaLungaMs?: number
+  unioneAttesaGitMs?: number
+  unioneAttesaTurnoMaxMs?: number
   /** 11/11, per i test: i tempi dei file non salvati nella principale (vedi `ContestoUnico`). */
   chiediSalvaDopoMs?: number
   sporcaInFondoDopoMs?: number
@@ -828,19 +833,27 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   /** k-191e: le durate (ms) delle ultime prove finite in tempo di ogni workspace: la scadenza adattiva parte da qui. */
   const proveRecenti = new Map<string, number[]>()
   const chiaveProva = (cwd: string): string => cwd.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
-  const aspettaProve = async (cwd: string): Promise<void> => {
-    for (let p = proveInCorso.get(chiaveProva(cwd)); p !== undefined; p = proveInCorso.get(chiaveProva(cwd))) await p
+  /** 25/11: con il segnale dell'unione l'attesa si ferma (prima, senza tempo, aspettava anche la prova fantasma di un tentativo scaduto). Torna `false` se fermata. */
+  const aspettaProve = async (cwd: string, segnale?: AbortSignal): Promise<boolean> => {
+    const fermata = segnale === undefined ? undefined : new Promise<void>((ris) => { if (segnale.aborted) ris(); else segnale.addEventListener('abort', () => { ris() }, { once: true }) })
+    for (let p = proveInCorso.get(chiaveProva(cwd)); p !== undefined; p = proveInCorso.get(chiaveProva(cwd))) {
+      if (segnale?.aborted === true) return false
+      await (fermata !== undefined ? Promise.race([p, fermata]) : p)
+    }
+    return segnale?.aborted !== true
   }
   /**
    * Il ramo unito nel principale senza commit, i criteri **dei compiti già
    * uniti con il criterio verde** misurati prima e dopo: l'unione si conferma
    * se il ramo non rompe niente di quello che passava, altrimenti si annulla.
    */
-  const provaNelPrincipale = async (a: Autopilota, ramo: string, altri: string[] = [], tempo: { piuTempo?: number } = {}): Promise<EsitoProvaPrincipale> => {
+  const provaNelPrincipale = async (a: Autopilota, ramo: string, altri: string[] = [], tempo: TempoDellaProva = {}): Promise<EsitoProvaPrincipale> => {
     const git = deps.git
     if (git === undefined || a.ramoBase === undefined) return { unito: false, motivo: 'senza git non si può fare un’unione di prova' }
     const base = a.ramoBase
     const turni = deps.turni ?? TURNI_PC
+    // 25/11: il segnale dell'unione ferma solo il passo che unisce il ramo; la chiusura (commit o annullo) finisce sempre.
+    const soloTempo = tempo.piuTempo !== undefined ? { piuTempo: tempo.piuTempo } : {}
     // 24/11 (k-unf1): i file non salvati che il ramo tocca sono stati messi al sicuro per la prova; qui si dice com'è andata a rimetterli.
     const alRecupero: AlRecupero = (e) => {
       if (e.rimessi) { console.info(`[unione di prova] ${segnoDiLog(chiaveWorkspace(a))}${ramo}: file non salvati messi al sicuro per l’unione e rimessi com’erano (${e.file.slice(0, 5).join(', ')})`); return }
@@ -896,10 +909,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         }
       })
       girata.catch(() => {})
-      await inFila(() => partita)
+      // 25/11: se il turno non parte (fermato dal segnale) l'attesa finisce lo stesso: prima restava appesa a `partita`.
+      await inFila(() => Promise.race([partita, girata.then(() => {}, () => {})]))
       return girata
     }
-    await aspettaProve(a.cwd)
+    // 25/11: l'unione sopra è già scaduta mentre aspettava: la prova non parte nemmeno.
+    if (!await aspettaProve(a.cwd, tempo.segnale)) return { unito: false, motivo: 'prova fermata prima di partire: l’unione ha superato il suo tempo massimo', ritenta: 'scaduta' }
     let fine = (): void => {}
     proveInCorso.set(chiaveProva(a.cwd), new Promise<void>((r) => { fine = r }))
     // 06/11: la prova ha un tempo massimo. Scaduto, si chiude (la cartella si ripulisce da sola)
@@ -939,12 +954,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         // 11/11: una misura interrotta per tempo non dice niente sul ramo (07/11: rami respinti
         // a PC carico). La prova si chiude e l'unione torna in fila.
         if (rossi.some((e) => interrottoPerTempo(e.uscita))) {
-          await turni.unione(a.cwd, (segnale) => chiudiProvaAsincrono(gitFermabile(git, segnale), { cwd: a.cwd, tieni: false, alRecupero }), tempo)
+          await turni.unione(a.cwd, (segnale) => chiudiProvaAsincrono(gitFermabile(git, segnale), { cwd: a.cwd, tieni: false, alRecupero }), soloTempo)
           return { unito: false, motivo: PER_TEMPO, ritenta: 'scaduta' }
         }
         if (rossi.length > 0) {
           stato.punto = 'rimisurare i criteri senza il ramo'
-          await turni.unione(a.cwd, (segnale) => chiudiProvaAsincrono(gitFermabile(git, segnale), { cwd: a.cwd, tieni: false, alRecupero }), tempo)
+          await turni.unione(a.cwd, (segnale) => chiudiProvaAsincrono(gitFermabile(git, segnale), { cwd: a.cwd, tieni: false, alRecupero }), soloTempo)
           const prima = await misura(criteri.filter((c) => rossi.some((r) => r.descrizione === c.descrizione)), segnale, inFila)
           if (eScaduta()) return { unito: false, motivo: provaScaduta(), ritenta: 'scaduta' }
           if (prima.some((e) => !e.passato && interrottoPerTempo(e.uscita))) return { unito: false, motivo: PER_TEMPO, ritenta: 'scaduta' }
@@ -962,7 +977,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       }
       if (eScaduta()) return { unito: false, motivo: provaScaduta(), ritenta: 'scaduta' }
       stato.punto = 'confermare l’unione'
-      const tenuta =await turni.unione(a.cwd, (segnale) => chiudiProvaAsincrono(gitFermabile(git, segnale), { cwd: a.cwd, tieni: peggiorati.length === 0, alRecupero }), tempo)
+      const tenuta =await turni.unione(a.cwd, (segnale) => chiudiProvaAsincrono(gitFermabile(git, segnale), { cwd: a.cwd, tieni: peggiorati.length === 0, alRecupero }), soloTempo)
       // Qui arriva solo una misura che non è riuscita (un errore del programma): non dice che il ramo rompe qualcosa.
       if (peggiorati.length > 0) return { unito: false, motivo: `l’unione di prova non si è potuta misurare (${peggiorati.join('; ')}): non è detto che sia colpa del ramo` }
       return tenuta ? { unito: true } : { unito: false, motivo: 'i criteri passavano, ma il commit dell’unione non è riuscito' }
@@ -970,8 +985,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     try {
       // 11/11: alla scadenza il segnale ferma davvero il comando figlio (e rende il turno dei
       // pesanti): il tentativo dopo non aspetta una suite fantasma. I tempi vanno nel registro.
+      // 25/11: l'attesa del turno ferma anche la scadenza dell'unione sopra (`tempo.inFila`), non solo quella della prova.
+      const fuori = tempo.inFila
       const r = await conScadenza(
-        (segnale, iniziata, inFila) => corpo(segnale, iniziata, inFila).catch((err: unknown) => { if (err instanceof TurnoScaduto) return 'scaduta' as const; throw err }),
+        (segnale, iniziata, inFila) => corpo(segnale, iniziata, fuori === undefined ? inFila : <R>(fai: () => Promise<R>) => inFila(() => fuori(fai))).catch((err: unknown) => { if (err instanceof TurnoScaduto) return 'scaduta' as const; throw err }),
         // 11/11: la durata massima della prova la decide Nicholas (di serie `PROVA_MAX_MS`).
         // k-191e: adattiva (4 × la mediana delle ultime prove del workspace, almeno 5 minuti), con più tempo a ogni scadenza.
         scadenzaAdattiva(proveRecenti.get(chiaveWorkspace(a)) ?? [], deps.provaMaxMs ?? (deps.limiti !== undefined ? deps.limiti.leggi().provaMaxMin * 60_000 : PROVA_MAX_MS), tempo.piuTempo ?? 1, criteri.length),
@@ -979,7 +996,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           // 23/11: una prova che non è partita non è una prova: riga a parte (il rapporto la conta come «non partita», non nelle medie).
           if (!t.scaduta && stato.nonPartita !== undefined) { console.info(`[unione di prova] ${segnoDiLog(chiaveWorkspace(a))}${ramo}: non partita (${stato.nonPartita})`); return }
           if (!t.scaduta && t.esecuzioneMs > 0) proveRecenti.set(chiaveWorkspace(a), [...(proveRecenti.get(chiaveWorkspace(a)) ?? []), t.esecuzioneMs].slice(-PROVE_RICORDATE))
-          console.info(`[unione di prova] ${segnoDiLog(chiaveWorkspace(a))}${ramo}: attesa del turno ${Math.round(t.attesaMs / 1000)} s, prova ${Math.round(t.esecuzioneMs / 1000)} s${t.scaduta ? ` (scaduta mentre stava per ${stato.punto})` : ''}`) } }
+          console.info(`[unione di prova] ${segnoDiLog(chiaveWorkspace(a))}${ramo}: attesa del turno ${Math.round(t.attesaMs / 1000)} s, prova ${Math.round(t.esecuzioneMs / 1000)} s${t.scaduta ? ` (scaduta mentre stava per ${stato.punto})` : ''}`) },
+        ...(tempo.segnale !== undefined ? { segnale: tempo.segnale } : {}) }
       )
       if (!r.scaduta && r.valore !== 'scaduta') return r.valore
       stato.scaduta = true
@@ -1877,6 +1895,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     ...(deps.unioneRiprovaMs !== undefined ? { unioneRiprovaMs: deps.unioneRiprovaMs } : {}),
     ...(deps.raccoltaRafficaMs !== undefined ? { raccoltaRafficaMs: deps.raccoltaRafficaMs } : {}),
     ...(deps.unioneTentativiMax !== undefined ? { unioneTentativiMax: deps.unioneTentativiMax } : {}),
+    ...(deps.unioneRiposoMs !== undefined ? { unioneRiposoMs: deps.unioneRiposoMs } : {}),
+    ...(deps.unioneAttesaLungaMs !== undefined ? { unioneAttesaLungaMs: deps.unioneAttesaLungaMs } : {}),
+    ...(deps.unioneAttesaGitMs !== undefined ? { unioneAttesaGitMs: deps.unioneAttesaGitMs } : {}),
+    ...(deps.unioneAttesaTurnoMaxMs !== undefined ? { unioneAttesaTurnoMaxMs: deps.unioneAttesaTurnoMaxMs } : {}),
     ...(deps.chiediSalvaDopoMs !== undefined ? { chiediSalvaDopoMs: deps.chiediSalvaDopoMs } : {}),
     ...(deps.sporcaInFondoDopoMs !== undefined ? { sporcaInFondoDopoMs: deps.sporcaInFondoDopoMs } : {}),
     ...(deps.richiediDopoMs !== undefined ? { richiediDopoMs: deps.richiediDopoMs } : {}),
