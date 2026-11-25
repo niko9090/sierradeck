@@ -3401,7 +3401,8 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       if (ora - v.ultima < attesaRisveglio(v.n)) { risvegliVisti.set(ws, v); continue }
       risvegliVisti.set(ws, { firma, n: v.n + 1, ultima: ora })
       console.info(`[orchestratore] ${ws} — l’autopilota non è acceso e c’è lavoro da portare avanti: lo riavvio (risveglio ${v.n + 1})`)
-      evento(ws, { tipo: 'fermo', quando: x.adesso(), testo: 'Ti ho riavviato: il processo si era fermato (spegnimento, errore o riavvio del servizio) e in coda e nel piano c’è lavoro che si può portare avanti. Riprendi dallo stato: guarda coda e piano, affida i compiti pronti, unisci quelli finiti, chiudi le richieste concluse. Non aspettare una conferma di Nicholas per quello che si può muovere.' }, true)
+      const rinnovo = orchestratore.rinnovata?.(ws) === true
+      evento(ws, { tipo: 'fermo', quando: x.adesso(), testo: (rinnovo ? 'Sessione rinnovata apposta (la conversazione era diventata troppo lunga): non si è fermato niente, quindi non dire a Nicholas che il programma si è fermato. In coda' : 'Ti ho riavviato: il processo si era fermato (spegnimento, errore o riavvio del servizio) e in coda') + ' e nel piano c’è lavoro che si può portare avanti. Riprendi dallo stato: guarda coda e piano, affida i compiti pronti, unisci quelli finiti, chiudi le richieste concluse. Non aspettare una conferma di Nicholas per quello che si può muovere.' }, true)
     }
   }
   const giroRiallineo = (ora: number): void => {

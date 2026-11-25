@@ -343,6 +343,8 @@ export type Orchestratore = {
   chiamateInVolo: () => number
   inAttesa: (ws: string) => { messaggi: number; eventi: number }
   vivo: (ws: string) => boolean
+  /** 25/11: il processo è spento perché la sessione è stata rinnovata apposta (contesto pieno), non per un guasto. */
+  rinnovata?: (ws: string) => boolean
   stato: (ws: string) => StatoFlusso
   /** Gli specialisti (subagenti) al lavoro su tutto il PC, in ogni workspace; `escludi`: quello che sta partendo (il suo Agent è già nel flusso quando arriva il PreToolUse). */
   specialistiSulPc: (escludi?: string) => number
@@ -373,6 +375,8 @@ export type Orchestratore = {
 
 type StatoWs = {
   proc?: ProcessoClaude
+  /** 25/11: l'ultimo spegnimento era un rinnovo voluto della sessione (contesto pieno), non un guasto. */
+  rinnovata?: boolean
   flusso: StatoFlusso
   messaggi: MessaggioUtente[]
   eventi: EventoOrchestratore[]
@@ -494,8 +498,9 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
     } else metti(ws)
   }
 
-  const spegniSe = (ws: string, s: StatoWs, perche: string): void => {
+  const spegniSe = (ws: string, s: StatoWs, perche: string, rinnovo = false): void => {
     if (s.proc === undefined) return
+    s.rinnovata = rinnovo
     console.info(`[orchestratore] ${ws} — spengo il processo: ${perche}`)
     const p = s.proc
     s.proc = undefined
@@ -573,7 +578,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
       const limite = sogliaDiRotazione(soglia, s.baseContesto)
       s.baseContesto = undefined
       d.cambiaImpostazioni(ws, (i) => ({ ...i, sessione: undefined, daSeminare: true, rotazioni: (i.rotazioni ?? 0) + 1 }))
-      spegniSe(ws, s, `contesto oltre ${limite} token: la prossima volta una sessione nuova, con lo stato e le ultime ${BATTUTE_SEMINA} battute`)
+      spegniSe(ws, s, `contesto oltre ${limite} token: la prossima volta una sessione nuova, con lo stato e le ultime ${BATTUTE_SEMINA} battute`, true)
       return
     }
     s.inattivo = setTimeout(() => {
@@ -632,6 +637,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
     if (nuovaSess) d.cambiaImpostazioni(ws, (i) => ({ ...i, sessione: id }))
     const p = d.avvia({ args, cwd: ctx.cwd, env: ambiente(ctx.scelti ?? ctx.tetto) })
     s.proc = p
+    s.rinnovata = false
     s.sceltiUsati = ctx.scelti
     console.info(`[orchestratore] ${ws} — processo avviato (${nuovaSess ? 'sessione nuova' : `ripresa ${id.slice(0, 8)}`}, al più ${ctx.tetto} specialisti insieme)`)
     p.suRiga((riga) => {
@@ -738,6 +744,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
     chiamateInVolo: turniPc,
     inAttesa: (ws) => ({ messaggi: stati.get(ws)?.messaggi.length ?? 0, eventi: stati.get(ws)?.eventi.length ?? 0 }),
     vivo: (ws) => stati.get(ws)?.proc !== undefined,
+    rinnovata: (ws) => stati.get(ws)?.proc === undefined && stati.get(ws)?.rinnovata === true,
     stato: (ws) => stati.get(ws)?.flusso ?? flussoVuoto(),
     specialistiSulPc: (escludi) => [...stati.values()].reduce((n, s) => n + (s.proc !== undefined ? specialistiAlLavoro(s.flusso).filter((x) => x.id !== escludi).length : 0), 0),
     segnaFermato: (ws, id) => {

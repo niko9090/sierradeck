@@ -204,8 +204,11 @@ describe('il motore', () => {
     expect(imp.get('ws')?.sessione).toBeUndefined()
     expect(imp.get('ws')?.daSeminare).toBe(true)
     expect(imp.get('ws')?.rotazioni).toBe(1)
+    // 25/11: spento per il rinnovo, non per un guasto (il risveglio non deve dire «il processo si era fermato»).
+    expect(o.rinnovata?.('ws')).toBe(true)
     o.messaggio('ws', { quando: '2026-10-30T09:05:00.000Z', testo: 'quattro' })
     const p2 = processi[1]!
+    expect(o.rinnovata?.('ws')).toBe(false)
     expect(p2.args).toContain('--session-id')
     expect(p2.args).not.toContain('--resume')
     const t = testoScritto(p2.scritte[0]!)
