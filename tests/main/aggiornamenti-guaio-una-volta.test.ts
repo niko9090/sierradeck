@@ -64,4 +64,20 @@ describe('un guaio dell aggiornamento si scrive una volta sola', () => {
     expect(h.avvii).toBe(1)
     expect(righe.filter((r) => r.startsWith('ERRORE') && r.includes('non si e fatto vivo'))).toHaveLength(1)
   })
+
+  it('il testo mostrato non promette l’installazione alla chiusura: dice di riprovare col tasto', async () => {
+    const dati = mkdtempSync(join(tmpdir(), 'guaio-testo-'))
+    const a = creaAggiornamenti(() => [], dati, async () => undefined, undefined, undefined, () => true, () => 47640)
+    h.updater.emit('update-available', { version: '0.119.2' })
+    h.updater.emit('update-downloaded', { version: '0.119.2', downloadedFile: 'C:\\tmp\\SierraDeck-Setup-0.119.2.exe' })
+    await a.installa()
+    await new Promise((r) => setTimeout(r, 20))
+
+    const errore = a.stato().errore ?? ''
+    expect(errore).toContain('SierraDeck Update non si è fatto vivo')
+    expect(errore).toContain('Le chat e gli autopiloti hanno ripreso da soli. Riprova con il tasto Installa.')
+    expect(errore).not.toMatch(/alla chiusura|chiudere SierraDeck/)
+    // E alla chiusura, davvero, non si installa niente.
+    expect(h.updater.autoInstallOnAppQuit).toBe(false)
+  })
 })

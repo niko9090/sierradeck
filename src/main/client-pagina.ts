@@ -5063,7 +5063,7 @@ function descriviAggiornamentoSenzaFasi() {
   if (!a) return 'Non lo so.'
   if (a.fase === 'disponibile') return 'C’è la ' + (a.versione || 'versione nuova') + '.'
   if (a.fase === 'scarico') return 'Sto scaricando… ' + (a.percento || 0) + '%'
-  if (a.fase === 'pronto') return (a.errore ? a.errore + ' ' : '') + 'La ' + (a.versione || 'nuova') + ' si installa da sola alla prossima chiusura.'
+  if (a.fase === 'pronto') return (a.errore ? a.errore + ' ' : '') + 'La ' + (a.versione || 'nuova') + ' è pronta: si installa solo con il tasto Installa.'
   // Le tre fasi che finivano nel ripiego «Sei alla versione più recente»:
   // durante l'installazione era una bugia, e a computer appena acceso pure.
   if (a.fase === 'installo') return a.testo || ('Sto installando la ' + (a.versione || 'versione nuova') + ': il computer si chiude e riparte da solo. Questa pagina non risponde per un minuto o due.')
@@ -5127,7 +5127,7 @@ function noteAggHtml(n) {
     fallitoHtml(aggiornamentoVisto) +
     (n.installata ? '<div class="sotto">Sul computer adesso c’è la ' + esc(n.installata) + (note.length > 1 ? ': qui sotto la nuova e le ' + (note.length - 1) + ' che aveva saltato.' : '.') + '</div>' : '') +
     avviso + versioni +
-    '<div class="sotto" style="margin-top:12px">Cosa fanno i due tasti' + aiuto('installa', '<b>Installa e riavvia</b>: il computer aspetta che le chat finiscano quello che hanno in mano, le avvisa, si chiude, installa e riparte da solo; chat e autopiloti riprendono da dove erano. Questa pagina non risponde per un minuto o due. <b>Più tardi</b>: non installa niente adesso; si installa da sola quando chiudi SierraDeck sul computer.') + '</div>' +
+    '<div class="sotto" style="margin-top:12px">Cosa fanno i due tasti' + aiuto('installa', '<b>Installa e riavvia</b>: il computer aspetta che le chat finiscano quello che hanno in mano, le avvisa, si chiude, installa e riparte da solo; chat e autopiloti riprendono da dove erano. Questa pagina non risponde per un minuto o due. <b>Più tardi</b>: non installa niente; si installa solo quando premi Installa.') + '</div>' +
     '<div class="riga"><button class="pericolo" onclick="confermaInstalla()">Installa e riavvia</button><button onclick="piuTardiAggiornamento()">Più tardi</button></div>'
 }
 
