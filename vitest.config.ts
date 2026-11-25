@@ -20,7 +20,30 @@ const LENTI = [
   'tests/main/pty-host-client.test.ts',
   'tests/pty-host/pty-manager.test.ts',
   'tests/main/cassaforte-sincronia.test.ts',
-  'tests/main/file-autopilota.test.ts'
+  'tests/main/file-autopilota.test.ts',
+  'tests/main/aiuto-credenziali-collegate.test.ts',
+  'tests/main/aiuto-credenziali.test.ts',
+  'tests/main/aiuto-rete-fallimenti.test.ts',
+  'tests/main/errore-aiuto-una-volta-23-11.test.ts',
+  // git vero (init, commit, merge) anche qui: sotto carico passavano i 20 s.
+  'tests/autopilot-host/unioni-recupero-24-11.test.ts',
+  'tests/autopilot-host/unioni-recupero-24-11-casi.test.ts',
+  'tests/autopilot-host/unioni-file-non-salvati-11-11-stato-git.test.ts',
+  'tests/autopilot-host/unione-lotto-motivo-24-11.test.ts',
+  'tests/autopilot-host/unione-aperta-riconosciuta-24-11.test.ts',
+  'tests/autopilot-host/riallineo-remoto-11-11.test.ts',
+  'tests/autopilot-host/rami-del-compito-11-11.test.ts',
+  'tests/autopilot-host/quaderno-prima-di-unire-11-11.test.ts',
+  'tests/autopilot-host/git-locale-12-11.test.ts',
+  'tests/autopilot-host/copia-con-junction-11-11.test.ts',
+  'tests/autopilot-host/autopulizia.test.ts',
+  'tests/autopilot-host/autopulizia-trascrizioni-p2.test.ts',
+  'tests/autopilot-host/fine-chat-p2.test.ts',
+  'tests/autopilot-host/fine-chat-ramo-d2.test.ts',
+  'tests/autopilot-host/aiutante-riavvio-silenzio-22-11.test.ts',
+  'tests/autopilot-host/aiuto-esito-percorso.test.ts',
+  'tests/autopilot-host/aiuto-lavoratore-pulizia.test.ts',
+  'tests/autopilot-host/aiuto-rete-percorso.test.ts'
 ]
 
 /** `SD_TEST_WORKERS=4` (un numero) o `SD_TEST_WORKERS=25%`; di serie la metà dei processori. */
