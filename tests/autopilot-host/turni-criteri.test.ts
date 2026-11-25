@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { conTurni, creaTurni, TurnoScaduto } from '../../src/autopilot-host/turni-criteri'
+import { attesaDellaProva, conRisorse, conRisorseContenute, conTurni, creaTurni, LAVORATORI_PROVA, TurnoScaduto } from '../../src/autopilot-host/turni-criteri'
+import type { GuardiaPc } from '../../src/autopilot-host/guardia-pc'
 import { ePesante } from '../../src/autopilot-host/criteri-veloci'
 
 /**
@@ -132,5 +133,33 @@ describe('un’unione appesa non tiene il turno per sempre (06/11)', () => {
     await new Promise((ris) => setTimeout(ris, 0))
     await expect(turni.unione('C:/principale', () => Promise.resolve('mai'))).rejects.toBeInstanceOf(TurnoScaduto)
     expect(turni.stato().unioni).toBe(0)
+  })
+})
+
+// 25/11: dentro la prova (che tiene già il turno pesante) niente attese della guardia, e più processi di test.
+describe('25/11: comandi pesanti dentro un’unione di prova', () => {
+  const guardiaContata = (): { guardia: GuardiaPc; volte: () => number } => {
+    let n = 0
+    return { guardia: { valuta: () => undefined, stato: () => undefined, attendi: async () => { n += 1 } }, volte: () => n }
+  }
+
+  it('dentro il turno pesante la guardia non si aspetta; fuori sì', async () => {
+    const turni = creaTurni()
+    const { guardia, volte } = guardiaContata()
+    const esegui = conTurni(async () => ({ codice: 0, uscita: '' }), turni, guardia)
+    await turni.pesante('C:/prova', () => esegui('npx vitest run', 'C:/prova'))
+    expect(volte()).toBe(0)
+    await esegui('npx vitest run', 'C:/prova')
+    expect(volte()).toBe(1)
+  })
+
+  it('vitest con 4 processi solo dentro la misura della prova; le chat restano a 2', async () => {
+    const lanciati: string[] = []
+    const esegui = conRisorse(async (comando) => { lanciati.push(comando); return { codice: 0, uscita: '' } })
+    const inFila = <R>(fai: () => Promise<R>): Promise<R> => fai()
+    await attesaDellaProva.run(inFila, () => esegui('npx vitest run tests/main', 'C:/prova'))
+    await esegui('npx vitest run tests/main', 'C:/prova')
+    expect(lanciati).toEqual([`npx vitest run --maxWorkers=${LAVORATORI_PROVA} tests/main`, 'npx vitest run --maxWorkers=2 tests/main'])
+    expect(conRisorseContenute('npx vitest related --run a.ts', undefined, 4)).toBe('npx vitest --maxWorkers=4 related --run a.ts')
   })
 })

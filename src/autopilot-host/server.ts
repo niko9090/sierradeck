@@ -876,7 +876,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       }
       if (soloVers.size > 0) cambiatiPerProva = senzaSolaVersione(cambiati, soloVers)
     }
-    const criteri = criteriPerLaProva(tutti, cambiatiPerProva)
+    // 25/11: `prova` spezza i composti, un typecheck solo, via i controlli che il ramo non cambia (criteri-prova.ts).
+    const criteri = criteriPerLaProva(tutti, cambiatiPerProva, { prova: true })
     // k-197c: le misure passano dal turno pesante del PC (uno alla volta fra workspace). L'attesa in fila non conta
     // nella scadenza della prova (`inFila`); i comandi dentro il turno non lo chiedono ancora (`pesante` è rientrante).
     const misura = async (criteri: Criterio[], segnale: AbortSignal, inFila: <R>(fai: () => Promise<R>) => Promise<R>) => {

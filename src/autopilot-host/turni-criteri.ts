@@ -255,6 +255,11 @@ export function creaTurni(opz: { ora?: () => number; unioneMaxMs?: number; liber
 
 /** Quanti processi di test si concedono a una suite dei criteri. */
 export const LAVORATORI_TEST = 2
+/**
+ * 25/11: dentro un'unione di prova (che tiene il turno pesante del PC, nessun altro pesante gira)
+ * vitest ne ha di più, come le prove della release. Le chat restano a `LAVORATORI_TEST`.
+ */
+export const LAVORATORI_PROVA = 4
 
 /**
  * **I criteri del servizio con le risorse contenute** (0.85.2). Il 27/10 il
@@ -266,19 +271,19 @@ export const LAVORATORI_TEST = 2
  *   scaldare costa più processore del demone che resta.
  * La chiave della cache dei criteri resta il comando scritto nei criteri.
  */
-export function conRisorseContenute(comando: string, scriptTest?: string): string {
+export function conRisorseContenute(comando: string, scriptTest?: string, lavoratori: number = LAVORATORI_TEST): string {
   let c = comando
   if (/\bgradle(w)?\b/i.test(c)) c = c.replace(/\s+--no-daemon\b/g, '')
   if (/--max-?workers|--pool[= ]|--threads|--no-file-parallelism/i.test(c)) return c
-  if (/\bvitest(\.mjs)?\s+run\b/i.test(c)) return c.replace(/\b(vitest(?:\.mjs)?\s+run)\b/i, `$1 --maxWorkers=${LAVORATORI_TEST}`)
-  if (/\bnpx\s+vitest\b/i.test(c)) return c.replace(/\b(npx\s+vitest)\b/i, `$1 --maxWorkers=${LAVORATORI_TEST}`)
+  if (/\bvitest(\.mjs)?\s+run\b/i.test(c)) return c.replace(/\b(vitest(?:\.mjs)?\s+run)\b/i, `$1 --maxWorkers=${lavoratori}`)
+  if (/\bnpx\s+vitest\b/i.test(c)) return c.replace(/\b(npx\s+vitest)\b/i, `$1 --maxWorkers=${lavoratori}`)
   if (scriptTest !== undefined && /\bvitest\b/.test(scriptTest) && !/max-?workers/i.test(scriptTest)) {
     const m = /\bnpm\s+(?:run\s+)?test\b(\s+--(?=\s|$))?/i.exec(c)
     if (m !== null) {
       const fine = m.index + m[0].length
       return m[1] !== undefined
-        ? `${c.slice(0, fine)} --maxWorkers=${LAVORATORI_TEST}${c.slice(fine)}`
-        : `${c.slice(0, fine)} -- --maxWorkers=${LAVORATORI_TEST}${c.slice(fine)}`
+        ? `${c.slice(0, fine)} --maxWorkers=${lavoratori}${c.slice(fine)}`
+        : `${c.slice(0, fine)} -- --maxWorkers=${lavoratori}${c.slice(fine)}`
     }
   }
   return c
@@ -295,7 +300,9 @@ function scriptTestDi(cwd: string): string | undefined {
 /** L'esecutore che lancia i pesanti con le risorse contenute (vedi `conRisorseContenute`). */
 export function conRisorse(esegui: Esecutore): Esecutore {
   return (comando, cwd, timeoutMs, segnale) => {
-    const c = ePesante(comando) ? conRisorseContenute(comando, /\bnpm\s+(run\s+)?test\b/i.test(comando) ? scriptTestDi(cwd) : undefined) : comando
+    // 25/11: dentro la misura di un'unione di prova (`attesaDellaProva`) più processi di test.
+    const lavoratori = attesaDellaProva.getStore() !== undefined ? LAVORATORI_PROVA : LAVORATORI_TEST
+    const c = ePesante(comando) ? conRisorseContenute(comando, /\bnpm\s+(run\s+)?test\b/i.test(comando) ? scriptTestDi(cwd) : undefined, lavoratori) : comando
     return segnale !== undefined ? esegui(c, cwd, timeoutMs, segnale) : timeoutMs !== undefined ? esegui(c, cwd, timeoutMs) : esegui(c, cwd)
   }
 }
@@ -331,7 +338,9 @@ export function conTurni(esegui: Esecutore, turni: TurniCriteri = TURNI_PC, guar
     }
     if (scattato()) return annullatoPrima
     if (!ePesante(comando, cwd)) return lancia()
-    if (guardia !== undefined) {
+    // 25/11: chi tiene già il turno pesante (la misura di una prova) non aspetta la guardia: il carico
+    // è quello della prova stessa (il suo vitest), e ogni comando aspettava fino a 2 minuti + 60 s di calma.
+    if (guardia !== undefined && turni.giaDentro?.() !== true) {
       const cosa = `«${comando.slice(0, 80)}»`
       // 24/11: dentro una prova di unione l'attesa della guardia non conta nella sua scadenza.
       const fuoriDallaProva = attesaDellaProva.getStore()

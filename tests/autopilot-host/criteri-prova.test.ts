@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { criteriPerLaProva, fissaLaVersione, misuraIlRemoto } from '../../src/autopilot-host/criteri-prova'
+import { criteriPerLaProva, fileLetti, fissaLaVersione, misuraIlRemoto, nonDipendeDalRamo, partiDelComposto } from '../../src/autopilot-host/criteri-prova'
 import { ePesante } from '../../src/autopilot-host/criteri-veloci'
 import type { Criterio } from '../../src/shared/autopilota'
 
@@ -120,6 +120,132 @@ describe('la prova prima/dopo non misura il remoto', () => {
     expect(misuraIlRemoto(gh)).toBe(true)
     expect(misuraIlRemoto('node -e "console.log(require(\'./package.json\').version)"')).toBe(false)
     expect(misuraIlRemoto('npx vitest run tests/main')).toBe(false)
+  })
+})
+
+// 25/11: il 24/11 ogni unione di prova rimisurava ~236 comandi (10-18 minuti): composti, typecheck ripetuti, controlli da poco.
+describe('25/11: unioni veloci (prova: true)', () => {
+  const P = { prova: true }
+  const comandi = (cr: Criterio[]): (string | undefined)[] => cr.map((x) => x.comando)
+
+  it('spezza i composti con && solo se fatti di comandi semplici', () => {
+    expect(partiDelComposto('npm run typecheck && npx vitest run tests/shared')).toEqual(['npm run typecheck', 'npx vitest run tests/shared'])
+    expect(partiDelComposto(`node -e "a();b()" && npm run typecheck`)).toEqual([`node -e "a();b()"`, 'npm run typecheck'])
+    expect(partiDelComposto('npm run typecheck && cd android && gradle test && gradle lint')).toEqual(['npm run typecheck', 'cd android && gradle test && gradle lint'])
+    expect(partiDelComposto('a && b || c')).toBeUndefined()
+    expect(partiDelComposto('a && b | grep x')).toBeUndefined()
+    expect(partiDelComposto('a; b && c')).toBeUndefined()
+    expect(partiDelComposto('(a && b)')).toBeUndefined()
+    expect(partiDelComposto('a && $(b)')).toBeUndefined()
+    expect(partiDelComposto('a & b')).toBeUndefined()
+    expect(partiDelComposto('npm run typecheck')).toBeUndefined()
+  })
+
+  it('i controlli che un ramo non cambia', () => {
+    for (const x of ['git tag --list v0.97.0', 'git tag --list', 'git rev-parse -q --verify HEAD', '! git rev-parse --verify --quiet worktree-agent-abc', 'wsl --list --quiet', 'git status --short', 'gh auth status', 'git tag --list | grep -q v0.97.0']) {
+      expect(nonDipendeDalRamo(x), x).toBe(true)
+    }
+    for (const x of ['git log -1', 'git tag v1 && rm x', 'git status --short || exit 1', 'git tag --list | node x.js', 'grep -q x a.txt']) {
+      expect(nonDipendeDalRamo(x), x).toBe(false)
+    }
+  })
+
+  it('i file letti da un controllo, solo quando si sa dirlo', () => {
+    expect(fileLetti('grep -q "3.1.1" android/novita-app.txt')).toEqual(['android/novita-app.txt'])
+    expect(fileLetti('git grep -n "abc" -- src/shared/novita.ts')).toEqual(['src/shared/novita.ts'])
+    expect(fileLetti(`node -e "const s=require('fs').readFileSync('src/shared/novita.ts','utf8');if(!s.includes('x'))process.exit(1)"`)).toEqual(['src/shared/novita.ts'])
+    expect(fileLetti(`node -e "console.log(require('./package.json').version)"`)).toEqual(['package.json'])
+    expect(fileLetti('grep -rq foo src/main')).toEqual(['src/main'])
+    expect(fileLetti('test -s .sierradeck/quaderno/x.md')).toEqual(['.sierradeck/quaderno/x.md'])
+    // Non si sa: resta.
+    expect(fileLetti('grep -q foo')).toBeUndefined()
+    expect(fileLetti('git grep -n foo')).toBeUndefined()
+    expect(fileLetti('grep -rq foo .')).toBeUndefined()
+    expect(fileLetti(`node -e "require('fs').readFileSync(p)"`)).toBeUndefined()
+    expect(fileLetti(`node -e "require('child_process').execSync('git status')"`)).toBeUndefined()
+    expect(fileLetti(`node -e "require('fs')"`)).toBeUndefined()
+    expect(fileLetti('node scripts/controlla.js')).toBeUndefined()
+    expect(fileLetti('grep -q x ../fuori.txt')).toBeUndefined()
+  })
+
+  it('un controllo su file resta solo se il ramo tocca quel file (o non si sanno i file del ramo)', () => {
+    const g = c('grep -q "3.1.1" android/novita-app.txt')
+    const n = c(`node -e "if(!require('fs').readFileSync('src/shared/novita.ts','utf8').includes('x'))process.exit(1)"`)
+    expect(comandi(criteriPerLaProva([g, n], ['src/main/a.ts'], P))).toEqual([])
+    expect(comandi(criteriPerLaProva([g, n], ['src/shared/novita.ts'], P))).toEqual([n.comando])
+    expect(comandi(criteriPerLaProva([g, n], undefined, P))).toEqual([g.comando, n.comando])
+    // Un comando che non si sa cosa legga resta.
+    expect(comandi(criteriPerLaProva([c('node scripts/controlla.js')], ['src/main/a.ts'], P))).toEqual(['node scripts/controlla.js'])
+  })
+
+  it('typecheck e tsc diventano uno; saltato senza codice nel ramo, fatto con file non noti', () => {
+    const tc = [c('npm run typecheck'), c('npx tsc --noEmit'), c('tsc --noEmit')]
+    expect(comandi(criteriPerLaProva(tc, ['src/main/a.ts'], P))).toEqual(['npm run typecheck'])
+    expect(comandi(criteriPerLaProva(tc, undefined, P))).toEqual(['npm run typecheck'])
+    expect(comandi(criteriPerLaProva(tc, ['src/shared/dati.json'], P))).toEqual(['npm run typecheck'])
+    expect(comandi(criteriPerLaProva(tc, ['.sierradeck/quaderno/x.md'], P))).toEqual([])
+    expect(comandi(criteriPerLaProva(tc, ['scripts/a.sh'], P))).toEqual([])
+  })
+
+  it('senza `prova` (il criterio di un compito) tutto come prima', () => {
+    const composto = 'npm run typecheck && npx vitest run tests/shared'
+    expect(comandi(criteriPerLaProva([c(composto)]))).toEqual([composto])
+    expect(comandi(criteriPerLaProva([c('git tag --list v0.97.0')]))).toEqual(['git tag --list v0.97.0'])
+  })
+
+  it('le parti di un composto hanno ciascuna la sua descrizione', () => {
+    const r = criteriPerLaProva([c('npm run build && node scripts/a.js', 'il compito')], undefined, P)
+    expect(r.map((x) => x.descrizione)).toEqual(['il compito — npm run build', 'il compito — node scripts/a.js'])
+  })
+
+  describe('la lista vera del 24/11', () => {
+    const composti = [
+      'npm run typecheck && npx vitest run --maxWorkers=2 tests/shared tests/main',
+      'npm run typecheck && npx vitest run --maxWorkers=2 tests/autopilot-host tests/shared',
+      'npm run typecheck && npx vitest run tests/main',
+      'npm run typecheck && npx vitest run --maxWorkers=2 tests/renderer',
+      'npx tsc --noEmit && npx vitest run tests/autopilot-host',
+      'npm run typecheck && npx vitest run --maxWorkers=2 tests/main/a.test.ts tests/shared/b.test.ts',
+      'npm run typecheck && npx vitest run --maxWorkers=2',
+      'tsc --noEmit && npx vitest run --maxWorkers=2 tests/shared'
+    ]
+    const da_poco = [
+      'git tag --list v0.97.0',
+      'git tag --list',
+      'git rev-parse -q --verify HEAD',
+      '! git rev-parse --verify --quiet worktree-agent-abc123',
+      'wsl --list --quiet',
+      'git status --short',
+      `node -e "const p=require('./package.json');if(!/^\\d+\\.\\d+\\.\\d+$/.test(p.version))process.exit(1)"`,
+      'grep -q "3.1.1" android/novita-app.txt',
+      'git grep -n "Unioni veloci" -- src/shared/novita.ts',
+      `node -e "const s=require('fs').readFileSync('src/shared/novita.ts','utf8');if(!s.includes('0.118'))process.exit(1)"`
+    ]
+    const tutti = [...composti, 'npm run typecheck', 'npx tsc --noEmit', ...da_poco, 'npx vitest run tests/shared'].map((x) => c(x))
+
+    it('ramo con codice: un typecheck e un vitest related, niente gradle', () => {
+      const r = comandi(criteriPerLaProva(tutti, ['src/autopilot-host/criteri-prova.ts', 'tests/autopilot-host/criteri-prova.test.ts'], P))
+      expect(r).toEqual(['npm run typecheck', 'npx vitest related --run src/autopilot-host/criteri-prova.ts tests/autopilot-host/criteri-prova.test.ts'])
+    })
+    it('ramo con Android: anche gradle, una volta', () => {
+      const conGradle = [...tutti, c('npm run typecheck && cd android && gradle clean testDebugUnitTest --no-daemon')]
+      const r = comandi(criteriPerLaProva(conGradle, ['src/main/a.ts', 'android/app/A.kt'], P))
+      expect(r).toEqual(['npm run typecheck', 'npx vitest related --run src/main/a.ts', 'cd android && gradle testDebugUnitTest --no-daemon'])
+    })
+    it('ramo con solo una nota del quaderno: niente di pesante', () => {
+      expect(comandi(criteriPerLaProva(tutti, ['.sierradeck/quaderno/x.md'], P))).toEqual([])
+    })
+    it('file non noti: suite intera e typecheck, come prima; i controlli su file restano', () => {
+      const r = comandi(criteriPerLaProva(tutti, undefined, P))
+      expect(r.slice(0, 2)).toEqual(['npm run typecheck', 'npx vitest run'])
+      expect(r.filter((x) => /typecheck|tsc|vitest/.test(x ?? '')).length).toBe(2)
+      expect(r).toContain('grep -q "3.1.1" android/novita-app.txt')
+      expect(r).not.toContain('git tag --list')
+    })
+    it('un file che cambia tutto: suite intera', () => {
+      const r = comandi(criteriPerLaProva(tutti, ['vitest.config.ts', 'src/main/a.ts'], P))
+      expect(r.slice(0, 2)).toEqual(['npm run typecheck', 'npx vitest run'])
+    })
   })
 })
 
