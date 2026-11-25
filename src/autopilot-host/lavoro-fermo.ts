@@ -123,6 +123,26 @@ export function testoLavoroFermo(f: LavoroFermo, minuti: number, domandeAperte: 
  */
 export function chiedeDiFermarsi(testo: string): string | undefined {
   const t = testo.trim().replace(/\s+/gu, ' ')
-  if (t.length > 40) return undefined
-  return /^(ok[, ]+|per ora[, ]+|adesso[, ]+)?(resta(re)? fermo|restate fermi|fermati|fermatevi|stop|basta|aspetta|pausa|fermo cos[iì])([ ,]+(per ora|adesso|un attimo|che ti dico io))?[\s.!]*$/iu.test(t) ? t : undefined
+  if (t.length <= 40 && /^(ok[, ]+|per ora[, ]+|adesso[, ]+)?(resta(re)? fermo|restate fermi|fermati|fermatevi|stop|basta|aspetta|pausa|fermo cos[iì])([ ,]+(per ora|adesso|un attimo|che ti dico io))?[\s.!]*$/iu.test(t)) return t
+  return ordineDiPausa(testo)
+}
+
+const FERMO = String.raw`(?:rest(?:a|are|o|ate)|riman(?:i|ere|go|ete)) (?:fermo|ferma|fermi)`
+const COMANDO_PAUSA = String.raw`(?:${FERMO}|fermati|fermatevi|fermo cos[iì]|non (?:fare|toccare) (?:niente|nulla)|lascia stare (?:per ora|per il momento|adesso|un attimo|fino a nuovo ordine)|aspetta (?:la mia risposta|mie notizie|un mio (?:via|ok|segnale|messaggio)|il mio (?:via|ok|segnale|ordine|messaggio)|che (?:ti )?(?:scriva|dica|dico|scrivo|avvisi|avviso)(?: io)?))`
+const CODA_PAUSA = String.raw`(?:per ora|per il momento|adesso|un attimo|qui|subito|così|cosi|ok|che ti dico io|finch[eé] non (?:ti (?:scrivo|dico|avviso|faccio sapere|richiamo|do (?:il via|l'ok))|te lo (?:dico|scrivo)(?: io)?|torno|arrivo)|fino a (?:nuovo ordine|nuovi ordini|mio ordine|mio via|mio ok|domani|mio ritorno)|non (?:fare|toccare) (?:niente|nulla))`
+const ORDINE_PAUSA = new RegExp(String.raw`^(?:(?:ok|sì|si|va bene|allora|per ora|adesso)[, ]+)?${COMANDO_PAUSA}(?:(?:[, ]+e |[, ]+)${CODA_PAUSA})*[\s.!]*$`, 'iu')
+/** Parole che dicono «ma il resto va avanti»: con una di queste non è mai una pausa (nel dubbio non si ferma il lavoro). */
+const RESTO_VA_AVANTI = /\b(ma|poi|tranne|escluso|vai avanti|continua|prosegui|procedi)\b/iu
+
+/**
+ * k-310c: un ordine esplicito di restare fermi («Resta fermo», «Rimani fermo finché non ti scrivo», «Fermati qui»,
+ * «Non fare niente», «Lascia stare per ora», «Aspetta la mia risposta»). Vale anche per le risposte a una domanda:
+ * lì «aspetta», «stop», «basta» da soli NON bastano (vogliono dire «aspetta quella cosa»). Frasi che continuano
+ * («resta fermo il ramo X ma vai avanti col resto», «aspetta che finisca la prova e poi unisci») non sono pausa.
+ * Restituisce la frase, o niente.
+ */
+export function ordineDiPausa(testo: string): string | undefined {
+  const t = testo.trim().replace(/\s+/gu, ' ').replace(/[’‘]/gu, "'")
+  if (t === '' || t.length > 90 || RESTO_VA_AVANTI.test(t)) return undefined
+  return ORDINE_PAUSA.test(t) ? t : undefined
 }

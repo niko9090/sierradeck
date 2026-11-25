@@ -71,7 +71,7 @@ import { giudicaGuardiaOrchestratore } from './guardia-orchestratore'
 import type { Giudizio } from './divieti'
 import { doppioniDaArchiviare, rigaDoppione, type Doppione, type RichiestaDoppioni } from '@shared/autopiloti-doppioni'
 import type { ArchivioDoppioni } from './doppioni-store'
-import { chiedeDiFermarsi, intervalloSpinta, lavoroFermo, rigaFermoPerNicholas, SPINTE_PRIMA_DI_DIRLO, SPINTE_SENZA_EFFETTO_MAX, testoLavoroFermo } from './lavoro-fermo'
+import { chiedeDiFermarsi, ordineDiPausa, intervalloSpinta, lavoroFermo, rigaFermoPerNicholas, SPINTE_PRIMA_DI_DIRLO, SPINTE_SENZA_EFFETTO_MAX, testoLavoroFermo } from './lavoro-fermo'
 import { aspettaDipendenze, compitiInFilaPerUnione, righeDopoUnione, rigaUnioneEPoi, salvaPromptDopo } from './dipendenze'
 import { promemoriaRosso, type RossoVisto } from './criterio-rosso'
 import { permessoDaSolo } from './permessi-automatici'
@@ -314,7 +314,8 @@ export type ServizioUnico = {
   fermata: (a: Autopilota, chatId: string, corpo: Record<string, unknown>) => Record<string, unknown>
   notifica: (a: Autopilota, chatId: string | undefined, corpo: Record<string, unknown>) => void
   /** Una risposta di Nicholas a una domanda dell'unico: torna `true` se l'ha presa. */
-  risposta: (autopilotaId: string, domanda: string, risposta: string, richiestaId?: string) => boolean
+  /** `info` (k-310c): quando fu aperta la domanda e se è un permesso/consenso: serve a decidere se la risposta toglie la pausa. */
+  risposta: (autopilotaId: string, domanda: string, risposta: string, richiestaId?: string, info?: { apertaIl?: number; consenso?: boolean }) => boolean
   guardia: () => void
   /** 0.96.0: la chat di questo workspace è davanti a Nicholas adesso (PC o telefono): le sue domande in chat contano come viste. */
   visto: (ws: string) => void
@@ -1611,6 +1612,8 @@ ${NOTA_SENZA_GIT}`,
       if (lavoro.domandaSalva !== id) return
       if (r !== undefined) {
         lavoro.domandaSalva = undefined
+        // k-310c: «Resta fermo» a questa domanda mette la pausa come dopo un riavvio; una domanda di consenso non la toglie.
+        pausaDaRisposta(ws, r.risposta, x.adesso(), { consenso: true })
         lavoro.rispostaSalva = rispostaSalva(r.risposta) ? 'si' : 'no'
         lavoro.rispostaIl = Date.now()
         // 25/11: aspettava solo questa risposta (attesa lunga): riparte subito.
@@ -2877,23 +2880,32 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     return nota
   }
 
-  const risposta = (autopilotaId: string, domanda: string, testo: string, richiestaId?: string): boolean => {
+  /**
+   * k-310b/c: la pausa che viene da una risposta a una domanda. Un ordine esplicito di restare fermi (`ordineDiPausa`,
+   * non «aspetta» da solo) la mette. Toglie quella che c'era solo se la domanda è stata aperta dopo la pausa e non è
+   * un permesso o un consenso (un «No» a «posso cancellare X?» non riprende il lavoro). Prima solo il messaggio libero
+   * la metteva, e NexoraOS, fermo apposta da giorni, veniva svegliato a 7 e a 19 minuti a ogni riavvio.
+   */
+  const pausaDaRisposta = (ws: string, testo: string, quando: string, info: { apertaIl?: number; consenso?: boolean } = {}): void => {
+    const frase = ordineDiPausa(testo)
+    if (frase !== undefined) fermiVisti.delete(ws)
+    x.orchestratori.cambiaImpostazioni(ws, (i) => {
+      if (frase !== undefined) { const { pausa: _via, ...senza } = i; return { ...senza, pausa: { dal: quando, frase } } }
+      if (i.pausa === undefined || info.consenso === true || info.apertaIl === undefined || info.apertaIl <= Date.parse(i.pausa.dal)) return i
+      const { pausa: _via, ...senza } = i
+      fermiVisti.delete(ws)
+      return senza
+    })
+  }
+
+  const risposta = (autopilotaId: string, domanda: string, testo: string, richiestaId?: string, info?: { apertaIl?: number; consenso?: boolean }): boolean => {
     const a = x.archivio.leggi(autopilotaId)
     if (a === undefined || !eUnico(a)) return false
     const ws = wsDi(a)
     const quando = x.adesso()
     const nota = rispostaNellaCoda(ws, { domanda, risposta: testo, quando, ...(richiestaId !== undefined ? { richiestaId } : {}) })
     x.orchestratori.aggiungiDialogo(ws, { quando, da: 'tu', testo: `Hai risposto a «${domanda.slice(0, 200)}»: ${testo}` })
-    // k-310b: «Resta fermo» come risposta a una domanda vale come «resta fermo» scritto nel dialogo: pausa vera.
-    // Prima solo il messaggio libero la metteva, e NexoraOS, fermo apposta da giorni su quella risposta, veniva
-    // svegliato a 7 e a 19 minuti a ogni riavvio (4 sveglie in due giorni, sempre con la stessa risposta). Una risposta
-    // qualsiasi di Nicholas toglie la pausa precedente, come un suo messaggio.
-    fermiVisti.delete(ws)
-    const frase = chiedeDiFermarsi(testo)
-    x.orchestratori.cambiaImpostazioni(ws, (i) => {
-      const { pausa: _via, ...senza } = i
-      return frase !== undefined ? { ...senza, pausa: { dal: quando, frase } } : senza
-    })
+    pausaDaRisposta(ws, testo, quando, info)
     orchestratore.messaggio(ws, { quando, testo: `Risposta alla tua domanda «${domanda.replace(/\s+/gu, ' ').slice(0, 300)}»: ${testo}${nota}` })
     return true
   }
@@ -3426,6 +3438,8 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     // k-178k: uno specialista in sottofondo oltre il tempo massimo si ferma davvero.
     try { orchestratore.fermaAppesi() } catch (err) { console.error('[orchestratore] fermo degli specialisti appesi non riuscito:', err) }
     for (const a of unici()) {
+      // k-310c: in pausa per ordine di Nicholas anche il silenzio di una chat non sveglia l'autopilota.
+      if (inPausa(wsDi(a))) continue
       for (const c of specialistiVivi(a)) {
         if (c.stato !== 'lavoro') continue
         const ultimo = x.ultimoSegnale(a.id, c.id) ?? (c.dal !== undefined ? Date.parse(c.dal) : undefined)

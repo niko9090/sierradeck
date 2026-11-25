@@ -768,7 +768,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     contesto.delete(idDomanda)
     const chi = dati?.autopilotaId ?? chiesta?.autopilotaId
     if (chi === undefined) return
-    if (unico?.risposta(chi, dati?.grezza ?? chiesta?.parti?.domanda ?? chiesta?.testo ?? '', risposta, dati?.richiestaId ?? chiesta?.contesto?.richiestaId) === true) return
+    const apertaIl = chiesta?.apertaIl
+    const consenso = dati?.permesso !== undefined || dati?.maiDaSola === true
+    if (unico?.risposta(chi, dati?.grezza ?? chiesta?.parti?.domanda ?? chiesta?.testo ?? '', risposta, dati?.richiestaId ?? chiesta?.contesto?.richiestaId, { ...(apertaIl !== undefined ? { apertaIl } : {}), consenso }) === true) return
     console.info(`[domande] ${chi} — risposta «${breveRisposta(risposta)}» (${da}): l’autopilota non c’è più`)
   })
 
