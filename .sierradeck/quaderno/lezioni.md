@@ -190,6 +190,7 @@
 - un sotto-agente in sottofondo non fa mai partire il cane da turno: va armato anche a turno chiuso, e le righe con parent_tool_use_id sono i suoi segni di vita _(2026-11-22)_
 - le chat adottate (`unico.adottate`) non hanno stato: né riprese, né chiuse, e la conta «ferme» le include tutte. Quando si tocca la conta, distinguere «al lavoro» da «ferme». _(2026-11-24)_
 - il flusso degli specialisti è solo in memoria (`orchestratore.ts:425`): dopo un riavvio spariscono dalla vista senza passare per `fermato`. _(2026-11-24)_
+- «resta fermo» detto come risposta a una domanda non metteva la pausa (solo il messaggio libero lo faceva): il lavoro fermo apposta veniva svegliato a 7 e 19 min a ogni riavvio. _(2026-11-25)_
 
 ## controllo
 
@@ -531,6 +532,9 @@
 - 0.118.2: `npm run pubblica` ha creato due bozze con lo stesso tag. allega-aiutante esce con 0 anche se mancano file. Dopo pubblica controllare i 7 file e cancellare la bozza doppia. _(2026-11-24)_
 - `git fetch` in queste copie punta a un bundle che sparisce: `origin/main` è vecchio, per i controlli sulle versioni vale `main` locale. _(2026-11-24)_
 - L'app Android può essere già alzata (gradle e novita-app.txt) dai lavori uniti prima del rilascio: controllare prima di fare +1 al versionCode. _(2026-11-24)_
+- `npm run pubblica` può finire senza caricare installer e latest.yml (exit 0, ma `allega-aiutante` dice «mancano»). Il file in dist ha spazi nel nome: copiarlo come `SierraDeck-Setup-X.exe` prima di `… _(2026-11-24)_
+- electron-builder lascia una bozza doppia «X.Y.Z» con lo stesso tag accanto alla release «SierraDeck X.Y.Z»: controllare `gh api repos/niko9090/sierradeck/releases` dopo la pubblicazione. _(2026-11-24)_
+- `npm run pubblica` supera i 10 minuti (build più Aiutante): il tool lo sposta in sottofondo. Si aspetta con un ciclo `until` su `gh release view` finché gli asset sono 7. _(2026-11-24)_
 
 ## aiuto-rete
 
@@ -592,35 +596,16 @@
 - `Correzioni` è `soloPc`: va filtrata (`soloPc !== true`) sia in `menu.json` sia nella pagina; le sottovoci vengono da `COMANDI_CHAT_WORKSPACE` e `SEZIONI`. _(2026-11-20)_
 - la barra dell'app (Lavoro/File/Altro) e due sezioni di Altro («Tutte le chat», «Dati riservati») non sono nel menu.json: nomi propri del telefono, non allinearli alla fonte. _(2026-11-20)_
 
-## panoramica
-
-- le fonti di «Al lavoro» (riquadri, specialisti dell'autopilota, lavori affidati) non coincidono: lo stesso lavoro compare in una vista e manca nell'altra. _(2026-11-16)_
-- la vista dell'autopilota (VistaOrchestratore) è l'unica fonte che conosce gli specialisti affidati a un altro PC (campo pc): niente riquadro, niente chat locale. _(2026-11-16)_
-
 ## shared
 
-- `statoVero` in specialisti.ts restituisce una stringa libera, quindi `PAROLE` va indicizzata con stringhe e deve avere la voce 'ferma'. _(2026-11-16)_
 - Per leggere `a.chats` in src/shared usare `chatsDi` (chats-di.ts), non `a.chats` diretto: gli autopiloti da altri PC o di formato vecchio possono non averlo. _(2026-11-19)_
 - statoPc (stato-pc.ts, dal battito) e titoloDopoIlBussare (scoperta-pc.ts, dopo il ping) sono due livelli diversi; il vocabolario in vocabolario-stati-pc.ts li copre entrambi. _(2026-11-19)_
 
-## viste
-
-- le stime fatte coi minuti trascorsi (10+min) mentono su lavori bloccati: per lavori remoti la percentuale va omessa, non inventata _(2026-11-16)_
-
 ## stato
 
-- il tono `riposo` di `fraseStatoOrchestratore` vale sia per «a riposo» sia per «in attesa di unioni»: `autopiloti-vista` lo legge come finito. Serve distinguere dal testo. _(2026-11-16)_
 - Esistono due funzioni `statoPc`: `shared/stato-pc.ts` (battito, soglia 35 min) e `shared/scoperta-pc.ts` (ping). Importare quella sbagliata cambia la soglia senza errori. _(2026-11-19)_
 - il riassunto tronca in coda a 12.000 caratteri: con una coda lunga perdi PRONTI, DOMANDE ed EVENTI senza avviso (riassunto-orchestratore.ts:140). _(2026-11-20)_
 - L'orchestratore costruisce lo stato per sezioni (testata, coda, piano, specialisti, fisse, eventi): una nuova sezione che non deve sparire va in «fisse». _(2026-11-20)_
-
-## chat
-
-- `c.stato === 'lavoro'` non dice che la chat lavora: resta così a fine turno e dopo la chiusura; i conteggi devono guardare `viva`, `fine` e `conclusa`. _(2026-11-16)_
-
-## notifiche
-
-- in `Ronda.kt` il calcolo del suono è fatto e poi ignorato (`suona = true`): i test Kotlin non lo coprono. _(2026-11-16)_
 
 ## errori arrivati
 
@@ -647,6 +632,7 @@
 
 - un autopilota da un altro PC o da un file vecchio può mancare di `dialogo`, `decisioni` o `chats`: le funzioni in `shared` che lo leggono devono trattare gli elenchi assenti come vuoti. _(2026-11-16)_
 - Per leggere un workspace su un altro PC serve un agente su quel PC o su PC-Fisso, o una rotta di sola lettura nuova per registro e piano; in questa copia `E:` è vuoto. _(2026-11-23)_
+- il ramo di aiuto gira su un PC che può non avere i dati del workspace citato: controllare prima se la cartella del servizio contiene davvero quel workspace. _(2026-11-25)_
 
 ## metodo
 
@@ -876,6 +862,7 @@
 - riavvio normale = motivo che comincia con «avvio con la versione» o «aggiornamento da»; le stringhe vengono da contaLavori e vanno tenute allineate _(2026-11-23)_
 - contaLavori vede solo le righe dopo `fino`: ogni informazione che attraversa due giri (come la versione avviata) va ricordata nello stato del giro, anche quando il rapporto non parte. _(2026-11-23)_
 - 24/11 PC in Glos (0.118.0): 25-31 rallentamenti del servizio per mezz'ora (max 26 s) mentre BG4 riprovava le unioni ferme. Dopo la 0.118.1 ricontrollare: se restano, è un difetto da cercare. _(2026-11-24)_
+- «lavori svegliati» conta le righe di log «lavoro fermo da N minuti», quindi due spinte nello stesso episodio valgono 2 sveglie. Non indica da solo una sveglia inutile. _(2026-11-25)_
 
 ## pc-glos
 
@@ -934,3 +921,7 @@
 ## shell
 
 - in questa copia un heredoc in Bash con apostrofi può bloccarsi senza eseguire nulla: per i file usare Write ed Edit. _(2026-11-24)_
+
+## diagnosi
+
+- il registro del servizio tronca le righe [blocco] a 400 caratteri: il testo intero delle risposte dell'autopilota sta in orchestratori/<ws>/dialogo.jsonl (UTF-8, da leggere come tale). _(2026-11-25)_
