@@ -101,6 +101,10 @@ describe('dati vecchi di un altro PC', () => {
 })
 
 describe('campiRigaUnione: dalla fila del servizio alla vista', () => {
+  it('aspetta la risposta di Nicholas anche senza una domanda aperta (troppi file): «aspetta te»', () => {
+    expect(campiRigaUnione({ inCorso: false, entrataIl: ms(20), tentativi: 0, aspettaRisposta: true }, ORA).ferma).toBe('risposta')
+  })
+
   const ms = (min: number): number => ORA - min * 60_000
 
   it('in fila da poco: solo da quando', () => {

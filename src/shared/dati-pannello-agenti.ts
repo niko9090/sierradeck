@@ -202,6 +202,8 @@ export type LavoroUnioneVisto = {
   nonPrima?: number
   sporcaDal?: number
   domandaSalva?: string
+  /** 25/11: aspetta la risposta di Nicholas (anche con «troppi file», senza una domanda aperta). */
+  aspettaRisposta?: boolean
   avvisatoSenzaFile?: boolean
   ultimoMotivo?: string
   fileChiesti?: string[]
@@ -211,7 +213,7 @@ export type LavoroUnioneVisto = {
 export function campiRigaUnione(l: LavoroUnioneVisto, ora: number): CampiRigaUnione {
   const iso = (ms: number): string => new Date(ms).toISOString()
   const dal = l.entrataIl ?? l.partitaIl
-  const ferma: CampiRigaUnione['ferma'] = l.domandaSalva !== undefined ? 'risposta' : l.sporcaDal !== undefined ? (l.avvisatoSenzaFile === true ? 'git' : 'file') : undefined
+  const ferma: CampiRigaUnione['ferma'] = l.domandaSalva !== undefined || l.aspettaRisposta === true ? 'risposta' : l.sporcaDal !== undefined ? (l.avvisatoSenzaFile === true ? 'git' : 'file') : undefined
   const motivo = l.ultimoMotivo?.trim()
   return {
     ...(dal !== undefined ? { dal: iso(dal) } : {}),
