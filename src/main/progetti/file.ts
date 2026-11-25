@@ -64,11 +64,55 @@ export function cartellaEsclusa(rel: string): boolean {
  * subito dopo ne venivano tolti («conflitto… vince questo PC», «rimossi dal
  * Drive»), e su un altro PC avrebbero fatto sembrare il progetto fermo a metà
  * di un'unione o bloccato. Il resto di `.git` (la storia, i rami) viene come prima.
+ *
+ * 25/11: anche `ORIG_HEAD` e `FETCH_HEAD` (cambiano a ogni reset, unione,
+ * fetch: segni del momento, che git rifà da solo) e il **diario dei rami
+ * delle copie di lavoro** di Claude Code (`logs/refs/heads/worktree-*`): un
+ * ramo per specialista, nato e tolto in pochi minuti, e il Drive caricava e
+ * subito cancellava il suo diario (110 volte in due giorni, fino al «Google
+ * chiede di rallentare»). Il diario non porta lavoro: solo i passi del ramo.
+ * Il ramo stesso (`refs/heads/worktree-*`) e' un'altra cosa: vedi
+ * `ramoDiLavoroGiovane`. `main`, gli altri rami, i tag, `HEAD`, `packed-refs`
+ * e gli oggetti vengono come prima.
  */
 export function transitorioDiGit(rel: string): boolean {
   const dentro = /(?:^|\/)\.git\/(.+)$/.exec(rel)?.[1]
   if (dentro === undefined) return false
-  return /^(?:MERGE_[A-Z_]+|AUTO_MERGE|sierradeck-prova\.json)$/.test(dentro) || /(?:^|\/)[^/]+\.lock$/.test(dentro)
+  return /^(?:MERGE_[A-Z_]+|AUTO_MERGE|ORIG_HEAD|FETCH_HEAD|sierradeck-prova\.json)$/.test(dentro) ||
+    /(?:^|\/)[^/]+\.lock$/.test(dentro) ||
+    /^logs\/refs\/heads\/worktree-/.test(dentro)
+}
+
+/**
+ * Quanto deve vivere il ramo di una copia di lavoro prima di salire (25/11).
+ * Lo specialista tipico nasce, lavora, viene unito e tolto in meno di così:
+ * il suo ramo non tocca mai il Drive. Uno che resta (lavoro non unito,
+ * specialista fermato) sale come prima, e non lo si perde (11/11: senza il
+ * ramo, sull'altro PC quel lavoro non si ritroverebbe).
+ */
+export const RAMO_DI_LAVORO_SALE_DOPO_MS = 30 * 60_000
+
+/**
+ * Il ramo `refs/heads/worktree-*` di `rel` e' nato da meno di
+ * `RAMO_DI_LAVORO_SALE_DOPO_MS`? L'eta' e' quella della **nascita** del ramo,
+ * dalla prima riga del suo diario (`logs/refs/heads/…`), non dell'ultima
+ * modifica: un ramo gia' salito che riceve un commit resta sul Drive (se no
+ * lo si toglierebbe e rimetterebbe a ogni commit). Senza diario, o diario
+ * illeggibile: non si sa, e allora sale (mai perdere un ramo per un dubbio).
+ */
+export async function ramoDiLavoroGiovane(cartella: string, rel: string, adessoMs: number): Promise<boolean> {
+  const m = /^((?:.*\/)?\.git)\/refs\/heads\/(worktree-.+)$/.exec(rel)
+  if (m === null) return false
+  let testo: string
+  try {
+    testo = await readFile(join(cartella, ...(m[1] as string).split('/'), 'logs', 'refs', 'heads', ...(m[2] as string).split('/')), 'utf8')
+  } catch {
+    return false
+  }
+  const prima = testo.slice(0, testo.indexOf('\n') === -1 ? undefined : testo.indexOf('\n'))
+  const t = /> (\d+) [+-]\d{4}\t/.exec(prima)?.[1]
+  if (t === undefined) return false
+  return adessoMs - Number(t) * 1000 < RAMO_DI_LAVORO_SALE_DOPO_MS
 }
 
 /** Oltre questo un file non e' un sorgente: e' un binario che si scarica, non si sincronizza. */
@@ -100,7 +144,8 @@ function ignorato(livelli: Livello[], rel: string, cartella: boolean): boolean {
  */
 export async function elencaFileProgetto(
   cartella: string,
-  tettoByte?: number
+  tettoByte?: number,
+  adessoMs: number = Date.now()
 ): Promise<{ file: string[]; troppoGrandi: string[] }> {
   const file: string[] = []
   const troppoGrandi: string[] = []
@@ -141,6 +186,7 @@ export async function elencaFileProgetto(
         // Sparito o illeggibile fra l'elenco e lo stat.
         if (size === undefined) continue
         if (size > (tettoByte ?? (dentroGit(relVoce) ? TETTO_GIT_BYTE : TETTO_FILE_BYTE))) { troppoGrandi.push(relVoce); continue }
+        if (await ramoDiLavoroGiovane(cartella, relVoce, adessoMs)) continue
         file.push(relVoce)
       }
     }
