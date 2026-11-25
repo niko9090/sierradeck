@@ -91,6 +91,10 @@ publish:
     # Bozza (0.86.2, audit I7): con `release` il rilascio diventava pubblico
     # prima che `latest.yml` e l'installer fossero caricati, e i PC che
     # guardavano in quel momento prendevano 404 («Cannot find latest.yml»).
-    # Si rende pubblico a mano, a caricamento finito:
-    #   gh release edit v<versione> --draft=false
+    # Si rende pubblico a caricamento finito (0.119.2: da solo, ultimo passo di
+    # `npm run pubblica`, `scripts/controlla-release.mjs --sistema`):
+    #   gh release edit v<versione> --draft=false --latest
+    # Se la release era già pubblica, electron-builder salta il caricamento
+    # («existing type not compatible»): i 3 file li carica comunque
+    # `scripts/carica-programma.mjs`.
     releaseType: draft
