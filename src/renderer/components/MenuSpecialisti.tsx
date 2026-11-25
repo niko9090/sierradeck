@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSorgente } from '../sorgente-autopilota'
 import type { MossaAttesa, VistaAttesa } from '@shared/attesa-specialisti'
-import { menuSpecialisti, type RigaMenuSpecialisti } from '@shared/menu-specialisti'
+import { menuSpecialisti, statoUnione, type RigaMenuSpecialisti } from '@shared/menu-specialisti'
 import { Aiuto } from './Aiuto'
 
 /** Ogni quanto si rilegge con il menu aperto, e con il menu chiuso (solo per il tasto). */
@@ -90,7 +90,7 @@ export function ElencoMenuSpecialisti({ vista, riferimenti, daFermare, onMossa, 
             {m.inUnione.map((u) => (
               <li key={u.id} className={`menuspec__riga${u.corrente ? ' menuspec__riga--mia' : ''}`}>
                 <span className="menuspec__titolo">{u.titolo}{u.altroWorkspace !== '' ? <span className="menuspec__ws"> · {u.altroWorkspace}</span> : null}</span>
-                <span className="menuspec__sotto">{u.inCorso ? 'in prova adesso' : 'aspetta il suo turno'}</span>
+                {((s) => <span className={`menuspec__sotto${s.tono === 'rosso' ? ' agenti-testo--rosso' : ''}`} title={s.motivo !== '' ? s.motivo : undefined}>{s.parole}{s.sotto !== '' ? ` · ${s.sotto}` : ''}</span>)(statoUnione(u.voce, Date.now()))}
               </li>
             ))}
           </ul>

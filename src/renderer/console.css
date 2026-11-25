@@ -5128,6 +5128,12 @@ label.gc-voce { cursor: pointer; }
 .agenti__corpo { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .agenti__stato { font-size: 12px; white-space: nowrap; }
 .agenti__pallino { width: 8px; height: 8px; border-radius: 50%; flex: none; align-self: center; }
+/* 25/11: sotto ogni unione, da quanto e perché; i dati vecchi di un altro PC. */
+.agenti__sotto { display: block; color: var(--testo-quieto); font-size: 12px; }
+.agenti__sotto.agenti-testo--rosso { color: var(--rosso); }
+.agenti__sotto.agenti-testo--ambra { color: var(--ambra); }
+.agenti__riga--unione[data-tono='rosso'] { border-left: 2px solid var(--rosso); padding-left: 6px; }
+.agenti__vecchi { color: var(--ambra); font-size: 12px; padding: 4px 2px; }
 
 
 /* ── Menu Specialisti nella chat dell'autopilota (k-54) ────────────────── */

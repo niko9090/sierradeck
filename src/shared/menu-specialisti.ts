@@ -40,8 +40,99 @@ export type RigaMenuSpecialisti = {
   chat?: true
 }
 
-/** 16/11: un lavoro finito che il programma sta provando e unendo. */
-export type RigaUnioneMenu = { id: string; titolo: string; altroWorkspace: string; corrente: boolean; inCorso: boolean }
+/**
+ * 25/11: i dati di una riga della fila delle unioni per dire da quanto aspetta e perché.
+ * Tutti facoltativi: un servizio di prima non li manda, e la riga dice solo «in fila».
+ */
+export type VoceStatoUnione = {
+  inCorso?: boolean
+  /** Quando è entrata nella fila (ISO). */
+  dal?: string
+  /** Quando è partito il tentativo in corso (ISO). */
+  inProvaDal?: string
+  /** Quante volte è già scaduta. */
+  tentativi?: number
+  /** Scaduta: quando riprova da sola (ISO). */
+  riprovaIl?: string
+  /** Perché è ferma: file non salvati, un'operazione git a metà, o aspetta la risposta di Nicholas. */
+  ferma?: 'file' | 'risposta' | 'git'
+  /** Da quando è ferma (ISO). */
+  fermaDal?: string
+  /** L'ultimo motivo per esteso (per il «?» o il title). */
+  motivo?: string
+  /** Quanti file chiede di salvare. */
+  fileFermi?: number
+}
+
+/** Lo stato di una riga della fila delle unioni, pronto da disegnare. */
+export type StatoUnione = {
+  /** La parola dello stato: «in prova adesso», «in fila», «riprova da sola», «ferma». */
+  parole: string
+  /** La riga piccola sotto: da quanto e perché. */
+  sotto: string
+  tono: 'blu' | 'ambra' | 'rosso'
+  /** Il motivo per esteso, o vuoto. */
+  motivo: string
+  /** Aspetta una risposta di Nicholas. */
+  aspettaTe: boolean
+  /** In fila da più di un'ora. */
+  lunga: boolean
+}
+
+/**
+ * **Da quanto e perché** (25/11) per una riga della fila delle unioni, sul PC e sul telefono.
+ * Come `menuSpecialisti` finisce dentro lo script della pagina con `.toString()`: basta a se stessa.
+ */
+export function statoUnione(u: VoceStatoUnione, adesso: number): StatoUnione {
+  const ms = (iso: string | undefined): number | undefined => {
+    if (iso === undefined || iso === null || iso === '') return undefined
+    const t = Date.parse(iso)
+    return Number.isFinite(t) ? t : undefined
+  }
+  const durata = (d: number): string => {
+    const min = Math.floor(Math.max(0, d) / 60000)
+    if (min < 1) return 'meno di 1 min'
+    if (min < 60) return min + ' min'
+    const h = Math.floor(min / 60)
+    if (h >= 48) return Math.floor(h / 24) + ' giorni'
+    return h + ' h' + (min % 60 > 0 ? ' ' + (min % 60) + ' min' : '')
+  }
+  const da = (iso: string | undefined): string => {
+    const t = ms(iso)
+    return t === undefined ? '' : durata(adesso - t)
+  }
+  const entrata = ms(u.dal)
+  const lunga = entrata !== undefined && adesso - entrata >= 3600000
+  const tentativi = typeof u.tentativi === 'number' && u.tentativi > 0 ? Math.floor(u.tentativi) : 0
+  const motivo = typeof u.motivo === 'string' ? u.motivo.replace(/\s+/g, ' ').trim() : ''
+  const tono = (normale: 'blu' | 'ambra'): 'blu' | 'ambra' | 'rosso' => (lunga ? 'rosso' : normale)
+  if (u.ferma === 'risposta') {
+    const quanti = typeof u.fileFermi === 'number' && u.fileFermi > 0 ? ' (' + u.fileFermi + ' file)' : ''
+    const d = da(u.fermaDal !== undefined ? u.fermaDal : u.dal)
+    return { parole: 'ferma', sotto: 'aspetta te: rispondi a «li salvo?»' + quanti + (d !== '' ? ' · da ' + d : ''), tono: 'rosso', motivo, aspettaTe: true, lunga }
+  }
+  if (u.inCorso === true) {
+    const d = da(u.inProvaDal !== undefined ? u.inProvaDal : u.dal)
+    const sotto = (d !== '' ? 'in prova da ' + d : 'in prova') + (tentativi > 0 ? ' · tentativo ' + (tentativi + 1) : '')
+    return { parole: 'in prova adesso', sotto, tono: tono('blu'), motivo, aspettaTe: false, lunga }
+  }
+  if (u.ferma === 'file' || u.ferma === 'git') {
+    const d = da(u.fermaDal !== undefined ? u.fermaDal : u.dal)
+    const perche = u.ferma === 'file' ? 'file non salvati nella cartella principale' : 'un’operazione lasciata a metà nella cartella principale'
+    return { parole: 'ferma', sotto: (d !== '' ? 'ferma da ' + d + ': ' : 'ferma: ') + perche, tono: tono('ambra'), motivo, aspettaTe: false, lunga }
+  }
+  const riprova = ms(u.riprovaIl)
+  if (riprova !== undefined && riprova > adesso) {
+    const volte = tentativi > 0 ? 'scaduta ' + tentativi + (tentativi === 1 ? ' volta' : ' volte') + ' · ' : ''
+    return { parole: 'riprova da sola', sotto: volte + 'riprova fra ' + durata(riprova - adesso), tono: tono('ambra'), motivo, aspettaTe: false, lunga }
+  }
+  const d = da(u.dal)
+  const sotto = (d !== '' ? 'in fila da ' + d : '') + (tentativi > 0 ? (d !== '' ? ' · ' : '') + 'scaduta ' + tentativi + (tentativi === 1 ? ' volta' : ' volte') : '')
+  return { parole: 'in fila', sotto, tono: tono('ambra'), motivo, aspettaTe: false, lunga }
+}
+
+/** 16/11: un lavoro finito che il programma sta provando e unendo. 25/11: `voce` porta i dati per {@link statoUnione}. */
+export type RigaUnioneMenu = { id: string; titolo: string; altroWorkspace: string; corrente: boolean; inCorso: boolean; voce: VoceStatoUnione }
 
 export type MenuSpecialisti = {
   /** Il testo del tasto: «Specialisti 2 · 1 in fila». */
@@ -80,7 +171,7 @@ type VoceMenu = {
 
 export type VistaMenu = {
   alLavoro: VoceMenu[]
-  inUnione?: Array<{ id: string; workspace: string; workspaceNome?: string; titolo?: string; inCorso?: boolean }>
+  inUnione?: Array<{ id: string; workspace: string; workspaceNome?: string; titolo?: string; inCorso?: boolean } & VoceStatoUnione>
   inFila: VoceMenu[]
   totale?: { minuti: number; compiti: number }
 }
@@ -143,7 +234,8 @@ export function menuSpecialisti(vista: VistaMenu, riferimenti: string[]): MenuSp
       titolo: corto(u.titolo !== undefined && u.titolo !== '' ? u.titolo : 'lavoro finito'),
       altroWorkspace: corrente ? '' : (u.workspaceNome !== undefined && u.workspaceNome !== '' ? u.workspaceNome : nome(u.workspace)),
       corrente,
-      inCorso: u.inCorso === true
+      inCorso: u.inCorso === true,
+      voce: u
     }
   })
   const etichetta = lavorano.length === 0 && inArrivo.length === 0 && inFila.length === 0 && inUnione.length === 0

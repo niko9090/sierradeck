@@ -2,6 +2,7 @@ import type { VistaAttesa } from '@shared/attesa-specialisti'
 import type { EsitoUnione, StatoDopoLavoro } from '@shared/dati-pannello-agenti'
 import { daQuanto, nomeWorkspace } from '@shared/attesa-vista'
 import { chiaveWorkspace } from '@shared/coda-richieste'
+import { statoUnione } from '@shared/menu-specialisti'
 
 /**
  * **Il pannello degli agenti** (k-176a): la parte pura, senza DOM. Filtri,
@@ -99,16 +100,59 @@ export function testoFile(file: readonly string[], altri: number): string {
   return `${mostrati.join(', ')}${resto > 0 ? ` + ${resto} altri` : ''}`
 }
 
-export type RigaFilaUnione = { id: string; titolo: string; inCorso: boolean; posizione: number; parole: string }
-export type RigaEsito = { id: string; titolo: string; verde: boolean; parole: string; quando: string; comando: string }
+export type RigaFilaUnione = {
+  id: string; titolo: string; inCorso: boolean; posizione: number
+  /** La parola dello stato: «in prova adesso», «in fila», «riprova da sola», «ferma». */
+  parole: string
+  /** 25/11: la riga piccola sotto, da quanto e perché («in fila da 40 min»); vuota con un servizio di prima. */
+  sotto: string
+  tono: 'blu' | 'ambra' | 'rosso'
+  /** Il motivo per esteso (per il title), o vuoto. */
+  motivo: string
+  aspettaTe: boolean
+}
+export type RigaEsito = {
+  id: string; titolo: string; verde: boolean; parole: string; quando: string; comando: string
+  /** 25/11: perché non è verde, intero (per il title), e accorciato per la riga. */
+  motivo: string
+  motivoCorto: string
+}
 
-/** La fila delle unioni: quella in corso per prima, poi le successive in ordine. */
-export function filaUnioni(vista: VistaAttesa, riferimenti: readonly string[]): RigaFilaUnione[] {
+/** Quanto resta del motivo di un esito nella riga; il resto è nel title. */
+export const MOTIVO_CORTO_MAX = 70
+
+const accorcia = (t: string, max: number): string => {
+  const s = t.replace(/\s+/g, ' ').trim()
+  return s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s
+}
+
+/**
+ * La fila delle unioni: quella in corso per prima, poi le successive in ordine. 25/11: ogni riga dice
+ * anche da quanto aspetta, perché, i tentativi e se aspetta Nicholas (`statoUnione`, la stessa del telefono).
+ */
+export function filaUnioni(vista: VistaAttesa, riferimenti: readonly string[], adesso: number = Date.now()): RigaFilaUnione[] {
   return (vista.inUnione ?? [])
     .filter((u) => delWorkspace(u.workspace, riferimenti))
     .map((u, i) => ({ u, i }))
     .sort((a, b) => Number(b.u.inCorso) - Number(a.u.inCorso) || (a.u.posizione ?? 999) - (b.u.posizione ?? 999) || a.i - b.i)
-    .map(({ u }, n) => ({ id: u.id, titolo: u.titolo, inCorso: u.inCorso, posizione: n + 1, parole: u.inCorso ? 'in prova adesso' : 'aspetta il suo turno' }))
+    .map(({ u }, n) => {
+      const s = statoUnione(u, adesso)
+      return { id: u.id, titolo: u.titolo, inCorso: u.inCorso, posizione: n + 1, parole: s.parole, sotto: s.sotto, tono: s.tono, motivo: s.motivo, aspettaTe: s.aspettaTe }
+    })
+}
+
+/** Dopo quanto i dati di un altro PC si dicono vecchi. */
+export const DATI_VECCHI_MS = 30_000
+
+/**
+ * 25/11: i dati di un altro PC che non si aggiornano più. Restano a vista, ma una riga lo dice:
+ * «Dati di 12 min fa: NOME non risponde». Vuoto se sono freschi, se si legge da questo PC, o se non si è mai letto.
+ */
+export function testoDatiVecchi(o: { pcNome?: string | undefined; lettoIl?: number | undefined; nonRisponde: boolean; adesso: number }): string {
+  if (o.pcNome === undefined || o.lettoIl === undefined) return ''
+  const eta = o.adesso - o.lettoIl
+  if (!o.nonRisponde && eta < DATI_VECCHI_MS) return ''
+  return `Dati di ${eta < 60_000 ? 'meno di 1 min' : testoDurata(eta)} fa: ${o.pcNome} ${o.nonRisponde ? 'non risponde' : 'non si aggiorna'}`
 }
 
 const PAROLE_ESITO: Record<EsitoUnione['esito'], string> = { verde: 'unita, criterio verde', rosso: 'criterio rosso', conflitto: 'conflitto', 'non-unita': 'non unita' }
@@ -120,7 +164,11 @@ export function esitiRecenti(vista: VistaAttesa, riferimenti: readonly string[],
     .flatMap(([, lista]) => lista)
     .sort((a, b) => Date.parse(b.quando) - Date.parse(a.quando))
     .slice(0, max)
-    .map((e) => ({ id: `${e.id}|${e.quando}`, titolo: e.titolo, verde: e.esito === 'verde' && e.verde !== false, parole: PAROLE_ESITO[e.esito], quando: e.quando, comando: e.comando ?? '' }))
+    .map((e) => {
+      const verde = e.esito === 'verde' && e.verde !== false
+      const motivo = verde ? '' : (e.motivo ?? '').trim()
+      return { id: `${e.id}|${e.quando}`, titolo: e.titolo, verde, parole: PAROLE_ESITO[e.esito], quando: e.quando, comando: e.comando ?? '', motivo, motivoCorto: accorcia(motivo, MOTIVO_CORTO_MAX) }
+    })
 }
 
 export type ColoreStato = 'verde' | 'ambra' | 'rosso'
@@ -348,4 +396,7 @@ export const SPIEGA_TOKEN =
   'I token sono il consumo dell’intelligenza artificiale: quelli di oggi e quelli di sempre per questo workspace, più quelli degli agenti che lavorano adesso, divisi per PC.'
 
 export const SPIEGA_UNIONI =
-  'Quando uno specialista finisce, il programma prova il suo lavoro e lo unisce, una unione alla volta. In fila: quella in corso e le successive. Gli esiti recenti sono verdi se il criterio è passato, rossi se no: in quel caso il lavoro torna indietro.'
+  'Quando uno specialista finisce, il programma prova il suo lavoro e lo unisce, una unione alla volta. In fila: quella in corso e le successive. Gli esiti recenti sono verdi se il criterio è passato, rossi se no: in quel caso il lavoro torna indietro. ' +
+  'Sotto ogni riga: da quanto aspetta e perché. «Scaduta» vuol dire che la prova ci ha messo troppo: riprova da sola più tardi e intanto passano le altre. ' +
+  '«Ferma» vuol dire che nella cartella principale ci sono file non salvati (o un’operazione lasciata a metà) che il programma non tocca: riparte da sola appena sono a posto. ' +
+  '«Aspetta te» vuol dire che il programma ti ha fatto una domanda («li salvo?»): finché non rispondi resta lì. Una riga rossa aspetta da più di un’ora. Passa sopra una riga per leggere il motivo intero.'

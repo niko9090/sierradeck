@@ -168,8 +168,60 @@ export type EsitoUnione = {
   comando?: string
   /** Il compito del piano, se c'è. */
   compito?: string
+  /** 25/11: perché non è verde (il motivo di git o l'uscita del criterio), corto. */
+  motivo?: string
   /** Quando (ISO). */
   quando: string
+}
+
+/** Quanto è lungo al massimo il motivo di un esito o di una riga della fila. */
+export const MOTIVO_UNIONE_MAX = 400
+
+/**
+ * 25/11: i dati di una riga della fila delle unioni per dire da quanto aspetta e perché
+ * (stessi nomi di `VoceStatoUnione` in `menu-specialisti.ts`). Tutti facoltativi.
+ */
+export type CampiRigaUnione = {
+  dal?: string
+  inProvaDal?: string
+  tentativi?: number
+  riprovaIl?: string
+  ferma?: 'file' | 'risposta' | 'git'
+  fermaDal?: string
+  motivo?: string
+  fileFermi?: number
+}
+
+/** Un lavoro della fila delle unioni del servizio, solo i campi che servono alla vista (ms). */
+export type LavoroUnioneVisto = {
+  inCorso: boolean
+  entrataIl?: number
+  partitaIl?: number
+  tentativi: number
+  nonPrima?: number
+  sporcaDal?: number
+  domandaSalva?: string
+  avvisatoSenzaFile?: boolean
+  ultimoMotivo?: string
+  fileChiesti?: string[]
+}
+
+/** Dalla fila del servizio ai campi della vista: da quando, tentativi, quando riprova, perché è ferma. */
+export function campiRigaUnione(l: LavoroUnioneVisto, ora: number): CampiRigaUnione {
+  const iso = (ms: number): string => new Date(ms).toISOString()
+  const dal = l.entrataIl ?? l.partitaIl
+  const ferma: CampiRigaUnione['ferma'] = l.domandaSalva !== undefined ? 'risposta' : l.sporcaDal !== undefined ? (l.avvisatoSenzaFile === true ? 'git' : 'file') : undefined
+  const motivo = l.ultimoMotivo?.trim()
+  return {
+    ...(dal !== undefined ? { dal: iso(dal) } : {}),
+    ...(l.inCorso && l.partitaIl !== undefined ? { inProvaDal: iso(l.partitaIl) } : {}),
+    ...(l.tentativi > 0 ? { tentativi: l.tentativi } : {}),
+    ...(!l.inCorso && l.nonPrima !== undefined && l.nonPrima > ora ? { riprovaIl: iso(l.nonPrima) } : {}),
+    ...(ferma !== undefined ? { ferma } : {}),
+    ...(l.sporcaDal !== undefined ? { fermaDal: iso(l.sporcaDal) } : {}),
+    ...(motivo !== undefined && motivo !== '' ? { motivo: motivo.slice(0, MOTIVO_UNIONE_MAX) } : {}),
+    ...(ferma === 'risposta' && l.fileChiesti !== undefined && l.fileChiesti.length > 0 ? { fileFermi: l.fileChiesti.length } : {})
+  }
 }
 
 /** Quanti esiti recenti si ricordano per workspace. */

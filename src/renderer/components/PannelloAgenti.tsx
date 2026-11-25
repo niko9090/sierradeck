@@ -5,7 +5,7 @@ import { useSorgente } from '../sorgente-autopilota'
 import { daQuanto } from '@shared/attesa-vista'
 import {
   FRASE_NESSUNO, SPIEGA_PANNELLO, SPIEGA_TOKEN, SPIEGA_UNIONI, STATI_AGENTE, TESTO_FERMA,
-  consumoPerPc, contaAlLavoro, contatoriToken, esitiRecenti, fileInModifica, filaUnioni, schedeAgenti, testoToken
+  consumoPerPc, contaAlLavoro, contatoriToken, esitiRecenti, fileInModifica, filaUnioni, schedeAgenti, testoDatiVecchi, testoToken
 } from '../pannello-agenti-vista'
 
 const RILEGGI_MS = 5_000
@@ -21,6 +21,8 @@ type Props = {
   pcNome?: string
   /** La lettura è fallita e non c'è ancora niente da mostrare. */
   nonRisponde?: boolean
+  /** 25/11: quando la vista è stata letta bene l'ultima volta (ms): i dati di un altro PC fermi da troppo si dicono vecchi. */
+  lettoIl?: number
   /** L'agente di cui «Ferma» aspetta il «Sì». */
   daFermare?: string
   /** Il messaggio dell'ultima fermata. */
@@ -40,7 +42,7 @@ const nulla = (): void => undefined
  * Non sparisce mai: se nessuno lavora lo dice con una frase. Solo disegno: la logica
  * sta in `pannello-agenti-vista.ts`.
  */
-export function ElencoAgenti({ vista, riferimenti, adesso, soloLettura = false, pcNome, nonRisponde = false, daFermare, nota, onFerma = nulla, onConfermaFerma = nulla, onAnnullaFerma = nulla }: Props): React.JSX.Element {
+export function ElencoAgenti({ vista, riferimenti, adesso, soloLettura = false, pcNome, nonRisponde = false, lettoIl, daFermare, nota, onFerma = nulla, onConfermaFerma = nulla, onAnnullaFerma = nulla }: Props): React.JSX.Element {
   if (vista === undefined) {
     return <div className="agenti"><div className="progetti__vuoto">{nonRisponde ? `Non riesco a leggere gli agenti${pcNome !== undefined ? ` su ${pcNome}` : ''}. Riprovo da solo.` : 'Leggo gli agenti…'}</div></div>
   }
@@ -50,10 +52,12 @@ export function ElencoAgenti({ vista, riferimenti, adesso, soloLettura = false, 
   const token = contatoriToken(vista, riferimenti)
   const perPc = consumoPerPc(schede)
   const files = fileInModifica(schede)
-  const fila = filaUnioni(vista, riferimenti)
+  const fila = filaUnioni(vista, riferimenti, adesso)
+  const vecchi = testoDatiVecchi({ pcNome, lettoIl, nonRisponde, adesso })
   const esiti = esitiRecenti(vista, riferimenti)
   return (
     <div className="agenti" aria-label={pcNome !== undefined ? `Agenti, su ${pcNome}` : 'Agenti'}>
+      {vecchi !== '' ? <div className="agenti__vecchi" role="status">{vecchi}</div> : null}
       <div className="agenti__sezione">
         <span className="serigrafia con-aiuto">Token<Aiuto di="i token">{SPIEGA_TOKEN}</Aiuto></span>
         <div className="agenti__cifre">
@@ -133,10 +137,13 @@ export function ElencoAgenti({ vista, riferimenti, adesso, soloLettura = false, 
         {fila.length > 0 ? (
           <ul className="agenti__elenco" aria-label="Fila delle unioni">
             {fila.map((u) => (
-              <li key={u.id} className="agenti__riga">
+              <li key={u.id} className="agenti__riga agenti__riga--unione" title={u.motivo !== '' ? u.motivo : undefined} data-tono={u.tono}>
                 <span className="agenti__num">{u.posizione}°</span>
-                <span className="agenti__corpo">{u.titolo}</span>
-                <span className={`agenti__stato agenti-testo--${u.inCorso ? 'blu' : 'ambra'}`}>{u.inCorso ? 'in prova adesso' : 'in fila'}</span>
+                <span className="agenti__corpo">
+                  {u.titolo}
+                  {u.sotto !== '' ? <span className={`agenti__sotto${u.tono === 'rosso' ? ' agenti-testo--rosso' : u.aspettaTe ? ' agenti-testo--ambra' : ''}`}>{u.sotto}</span> : null}
+                </span>
+                <span className={`agenti__stato agenti-testo--${u.tono}`}>{u.parole}</span>
               </li>
             ))}
           </ul>
@@ -144,9 +151,12 @@ export function ElencoAgenti({ vista, riferimenti, adesso, soloLettura = false, 
         {esiti.length > 0 ? (
           <ul className="agenti__elenco" aria-label="Esiti recenti">
             {esiti.map((e) => (
-              <li key={e.id} className="agenti__riga" title={e.comando}>
+              <li key={e.id} className="agenti__riga" title={[e.motivo, e.comando].filter((t) => t !== '').join('\n')}>
                 <span className={`agenti__pallino agenti-sfondo--${e.verde ? 'verde' : 'rosso'}`} aria-hidden="true" />
-                <span className="agenti__corpo">{e.titolo}</span>
+                <span className="agenti__corpo">
+                  {e.titolo}
+                  {e.motivoCorto !== '' ? <span className="agenti__sotto">{e.motivoCorto}</span> : null}
+                </span>
                 <span className={`agenti__stato agenti-testo--${e.verde ? 'verde' : 'rosso'}`}>{e.parole} · {daQuanto(e.quando, adesso)} fa</span>
               </li>
             ))}
@@ -166,16 +176,18 @@ export function PannelloAgenti({ riferimenti }: { riferimenti: string[] }): Reac
   const remoto = sorgente.remoto
   const [vista, setVista] = useState<VistaAttesa | 'vecchio' | undefined>(undefined)
   const [nonRisponde, setNonRisponde] = useState(false)
+  const [lettoIl, setLettoIl] = useState<number | undefined>(undefined)
   const [adesso, setAdesso] = useState(() => Date.now())
   const [daFermare, setDaFermare] = useState<string | undefined>(undefined)
   const [nota, setNota] = useState<string | undefined>(undefined)
   const rileggi = useMemo(() => (): void => {
     sorgente.attesa()
-      .then((v) => { setNonRisponde(false); setVista((p) => { const n = v ?? 'vecchio'; return JSON.stringify(p) === JSON.stringify(n) ? p : n }) })
+      .then((v) => { setNonRisponde(false); setLettoIl(Date.now()); setVista((p) => { const n = v ?? 'vecchio'; return JSON.stringify(p) === JSON.stringify(n) ? p : n }) })
       .catch(() => setNonRisponde(true))
   }, [sorgente])
   useEffect(() => {
     setVista(undefined)
+    setLettoIl(undefined)
     rileggi()
     const t = setInterval(rileggi, RILEGGI_MS)
     const spinta = sorgente.suSpecialistiCambiati(rileggi)
@@ -193,6 +205,7 @@ export function PannelloAgenti({ riferimenti }: { riferimenti: string[] }): Reac
   return (
     <ElencoAgenti
       vista={vista} riferimenti={rif} adesso={adesso} soloLettura={remoto !== undefined} nonRisponde={nonRisponde}
+      {...(lettoIl !== undefined ? { lettoIl } : {})}
       {...(remoto !== undefined ? { pcNome: remoto.pcNome } : {})}
       {...(daFermare !== undefined ? { daFermare } : {})}
       {...(nota !== undefined ? { nota } : {})}
