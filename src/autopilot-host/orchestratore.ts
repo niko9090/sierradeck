@@ -3,6 +3,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { gitPerLeChat } from '../main/git-nel-path'
 import { POSTI_MAX } from '@shared/posti-chat'
 import { separaAvvisiNode } from '@shared/avvisi-node'
+import { eErroreAccesso } from '@shared/accesso-claude'
 import { eErroreDiRete } from '@shared/errori-rete'
 import { attesaLimiteMs, azzeramentoDalTesto, eLimiteDelPiano } from '@shared/limite-del-piano'
 import { applicaRiga, flussoVuoto, specialistiAlLavoro, type EffettoFlusso, type Specialista, type StatoFlusso } from '@shared/flusso-orchestratore'
@@ -95,7 +96,9 @@ export const RIPROVA_RETE_MS = 30_000
 export const RIPROVA_RETE_MAX_MS = 10 * 60_000
 /** Altro guasto (processo, risposta vuota, strumento, uscita inattesa): il primo si riprova subito, poi 30 s, 1, 2, 5 min, poi 5 min fissi. */
 export const RIPROVA_GUASTO_PASSI_MS = [30_000, 60_000, 120_000, 300_000]
-export const attesaGuastoMs = (n: number): number => RIPROVA_GUASTO_PASSI_MS[Math.min(n - 2, RIPROVA_GUASTO_PASSI_MS.length - 1)] ?? 300_000
+/** k-318a: accesso a Claude scaduto: si riguarda ogni 10 minuti (prima ogni 1-5), e subito se l'accesso cambia. */
+export const RIPROVA_ACCESSO_MS = 10 * 60_000
+export const attesaGuastoMs =(n: number): number => RIPROVA_GUASTO_PASSI_MS[Math.min(n - 2, RIPROVA_GUASTO_PASSI_MS.length - 1)] ?? 300_000
 const tra = (ms: number): string => (ms < 60_000 ? `${Math.round(ms / 1000)} s` : `${Math.round(ms / 60_000)} min`)
 /** Lo strumento MCP che risponde alle richieste di permesso. */
 export const STRUMENTO_PERMESSO = 'mcp__sierradeck__permesso'
@@ -318,6 +321,8 @@ export type DipendenzeOrchestratore = {
   riprovaReteMs?: (n: number) => number
   /** Attesa prima di riprovare dopo l'n-esimo guasto di fila non di rete (n da 2: il primo riprova subito). */
   riprovaGuastoMs?: (n: number) => number
+  /** k-318a: l'attesa fra i tentativi quando l'accesso a Claude è scaduto (default 10 minuti). */
+  riprovaAccessoMs?: number
   /** Nicholas sta decidendo un permesso per questo workspace: il silenzio è giusto, il cane aspetta. */
   attendeNicholas?: (ws: string) => boolean
   /**
@@ -489,7 +494,9 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
   const guasto = (ws: string, s: StatoWs, motivo: string, rete: boolean): void => {
     if (eLimiteDelPiano(motivo)) { limiteDelPiano(ws, s, motivo); return }
     s.tentativi += 1
-    const attesa = rete ? riprovaReteMs(s.tentativi) : s.tentativi < 2 ? 0 : riprovaGuastoMs(s.tentativi)
+    // k-318a: l'accesso a Claude scaduto lo rinnova Nicholas, non passa da solo: riprovare ogni minuto non serve.
+    // Si aspetta a lungo, senza fermarsi mai; quando l'accesso cambia (`accessoCambiato`) si riparte subito.
+    const attesa = rete ? riprovaReteMs(s.tentativi) : eErroreAccesso(motivo) ? (d.riprovaAccessoMs ?? RIPROVA_ACCESSO_MS) : s.tentativi < 2 ? 0 : riprovaGuastoMs(s.tentativi)
     d.errore(ws, attesa > 0 ? `${motivo} — riprovo fra ${tra(attesa)}` : motivo)
     if (s.riprova !== undefined) { clearTimeout(s.riprova); s.riprova = undefined }
     if (attesa > 0) {

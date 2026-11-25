@@ -17,7 +17,7 @@ import { modelloAutopilotaAmmesso } from '@shared/modelli'
 import { righeLezioni } from '@shared/lezioni-chat'
 import { esaminaCriterio, principaleSporca, titoloDiSolaAnalisi } from '@shared/controllo-comandi'
 import { DOMANDA_MAX, domandaControllataSubito, domandaPerRegistro, noteSulTesto, testoDomanda } from '@shared/domanda-strutturata'
-import { azzeramentoDaiLimiti, fraseLimite, quandoInParole as quandoDelLimite } from '@shared/limite-del-piano'
+import { azzeramentoDaiLimiti, eLimiteDelPiano, fraseLimite, quandoInParole as quandoDelLimite } from '@shared/limite-del-piano'
 import type { LimitiPiano } from '@shared/harness'
 import type { ArchivioCode } from './coda-store'
 import { migraAutopiloti, misuraDaAutopiloti } from './coda-autopiloti'
@@ -87,7 +87,8 @@ import { nomeWorkspace } from '@shared/attesa-vista'
 import { PESO_PREDEFINITO, stimaLista, titoloBreve, type DurataVera, type PesoCompito } from '@shared/stima-specialisti'
 import { rigaUltimaAzione } from '@shared/specialisti'
 import { eErroreDiRete } from '@shared/errori-rete'
-import { motivoInItaliano, stessaRigaDiPrima } from './turno-non-riuscito'
+import { eErroreAccesso } from '@shared/accesso-claude'
+import { motivoInItaliano, senzaRiprovo, stessaRigaDiPrima } from './turno-non-riuscito'
 import type { ArchivioAttesa } from './attesa-store'
 import { MOTIVO_RIAVVIO, apertiVuoti, type ArchivioAperti, type StatoAperti } from './specialisti-aperti'
 import { creaCambi, type Cambi } from '@shared/spinta-specialisti'
@@ -1430,6 +1431,8 @@ ${NOTA_SENZA_GIT}`,
     nelDialogo(ws, { quando: x.adesso(), da: 'lui', testo: frase })
   }
 
+  /** k-318a: l'ultimo motivo d'accesso/limite già avvisato nel registro, per workspace. */
+  const ultimoAvvisoAccesso = new Map<string, string>()
   const orchestratore = creaOrchestratore({
     avvia: x.avviaProcesso,
     impostazioni: imp,
@@ -1443,7 +1446,15 @@ ${NOTA_SENZA_GIT}`,
     errore: (ws, motivo) => {
       // La rete che manca passa da sola e l'orchestratore riprova con calma: un avviso, non un errore.
       if (eErroreDiRete(motivo)) console.warn(`[orchestratore] ${ws} — turno non riuscito per la rete, riprovo: ${motivo.slice(0, 200)}`)
-      else console.error(`[orchestratore] ${ws} — turno non riuscito: ${motivo}`)
+      else if (eErroreAccesso(motivo) || eLimiteDelPiano(motivo)) {
+        // k-318a: l'accesso scaduto è l'account di Nicholas da rinnovare, il limite è la quota del piano: non sono
+        // guasti del programma. Un avviso, e una volta sola finché il motivo non cambia (non a ogni tentativo).
+        const chiave = senzaRiprovo(motivo)
+        if (ultimoAvvisoAccesso.get(ws) !== chiave) {
+          ultimoAvvisoAccesso.set(ws, chiave)
+          console.warn(`[orchestratore] ${ws} — turno non riuscito (non è un guasto del programma), riprovo con calma: ${motivo.slice(0, 200)}`)
+        }
+      } else { ultimoAvvisoAccesso.delete(ws); console.error(`[orchestratore] ${ws} — turno non riuscito: ${motivo}`) }
       const u = unicoDi(ws)
       if (u === undefined) return
       // 11/11: a Nicholas in italiano, e una volta sola. Il 09/11: «turno non riuscito: You've hit your weekly
