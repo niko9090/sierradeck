@@ -1,3 +1,4 @@
+import { avvioAlLoginAmmesso } from './avvio-al-login'
 import { app, BrowserWindow, ipcMain, Menu, nativeImage, safeStorage, shell, Tray } from 'electron'
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync } from 'node:fs'
@@ -343,6 +344,7 @@ function avvia(): void {
     // Partire all'accensione (di serie sì): è un PC dedicato agli altri.
     const allineaAvvio = (): void => {
       if (!app.isPackaged) return
+      if (!avvioAlLoginAmmesso(process.execPath)) { registro.info('[avvio] copia non installata: l’avvio con Windows non lo tocco'); return }
       try { app.setLoginItemSettings({ openAtLogin: preferenze.leggi().avvioAlLogin, args: ['--nascosto'] }) } catch (err) { registro.info(`[avvio] non impostato: ${String(err)}`) }
     }
     allineaAvvio()
