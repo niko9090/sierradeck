@@ -142,7 +142,7 @@ export function durataAgenteMs(inizio: string | undefined, fine: string | undefi
 }
 
 /** Dopo che lo specialista ha finito: dove è arrivato il suo lavoro. */
-export type StatoDopoLavoro = 'in-fila' | 'in-unione' | 'unito' | 'criterio-rosso' | 'conflitto'
+export type StatoDopoLavoro = 'in-fila' | 'in-unione' | 'unito' | 'criterio-rosso' | 'conflitto' | 'da-riprovare'
 
 /** Le parole per dirlo a Nicholas. */
 export const PAROLE_STATO_DOPO: Record<StatoDopoLavoro, string> = {
@@ -150,7 +150,8 @@ export const PAROLE_STATO_DOPO: Record<StatoDopoLavoro, string> = {
   'in-unione': 'in unione',
   unito: 'unito',
   'criterio-rosso': 'criterio rosso',
-  conflitto: 'conflitto'
+  conflitto: 'conflitto',
+  'da-riprovare': 'unione ferma, da riprovare'
 }
 
 /** Come è finita un'unione: verde, criterio rosso, conflitto, o ramo non unito per un altro motivo. */
@@ -244,7 +245,7 @@ export function esitoDelRifiuto(motivo: string): EsitoUnioneTipo {
  */
 export function statoDopoLavoro(o: {
   unione?: { inCorso: boolean }
-  compito?: { stato: string; criterioVerde?: boolean }
+  compito?: { stato: string; criterioVerde?: boolean; esito?: string }
   ultimoEsito?: EsitoUnioneTipo
 }): StatoDopoLavoro | undefined {
   if (o.unione !== undefined) return o.unione.inCorso ? 'in-unione' : 'in-fila'
@@ -252,7 +253,8 @@ export function statoDopoLavoro(o: {
   // 23/11: finito e «in revisione» ma senza un'unione in memoria (dopo un riavvio del servizio, o nell'attimo prima che parta):
   // il programma lo deve ancora provare e unire, non sparisce.
   if (o.ultimoEsito === 'conflitto') return 'conflitto'
-  if (o.compito?.stato === 'in-revisione') return 'in-fila'
+  // 25/11: fuori dalla fila con un'unione non riuscita (o ferma dopo troppe scadenze) non è «in fila»: il pannello lo diceva per sempre.
+  if (o.compito?.stato === 'in-revisione') return o.ultimoEsito === 'non-unita' || /^unione (non fatta|ferma)/u.test(o.compito.esito ?? '') ? 'da-riprovare' : 'in-fila'
   return undefined
 }
 

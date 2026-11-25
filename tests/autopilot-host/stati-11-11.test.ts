@@ -691,4 +691,27 @@ describe('compito senza specialisti in memoria: il cancello chiede a git (11/11,
     expect(dette).not.toContain('unione di k-6 ripresa dopo il riavvio')
     expect(k('k-6')!.stato).toBe('in-revisione')
   })
+
+  // 25/11 (difetto 8): all'accensione (senza aggiornamento) un compito in revisione senza ramo noto restava fuori dalla fila per
+  // sempre, e il pannello lo diceva «in fila». Adesso torna in fila e il cancello lo chiude (o scrive perché no).
+  it('all’accensione ogni compito in revisione di una richiesta aperta torna in fila, anche senza ramo; uno respinto apposta no', async () => {
+    const spia = info()
+    const porte: Porte = { merge: [], rami: { [R1]: 1 } }
+    const cartella = await avviaServizio(porte)
+    await strumento('stato', {})
+    const aperta = code.leggi(WS).richieste[0]!.id
+    orch.scriviPiano(WS, { versione: 1, compiti: [
+      compito('k-9', { richiesta: aperta, stato: 'in-revisione', rami: [R1] }),
+      compito('k-7', { richiesta: aperta, stato: 'in-revisione', esito: 'unione non fatta: conflitto in src/a.ts' })
+    ] })
+    server?.close()
+    await avviaServizio(porte, { cartella, archivio })
+    server!.riprendiLavori({ servizioAppenaPartito: true })
+    await attendi(() => k('k-9')?.stato === 'unito', { cosa: 'k-9 ripreso e unito all’accensione', timeout: 8000 })
+    const dette = spia()
+    expect(dette).toContain('unione di k-9 ripresa dopo il riavvio')
+    expect(dette).not.toContain('unione di k-7 ripresa dopo il riavvio')
+    expect(porte.merge).toEqual([R1])
+    expect(k('k-7')!.stato).toBe('in-revisione')
+  })
 })

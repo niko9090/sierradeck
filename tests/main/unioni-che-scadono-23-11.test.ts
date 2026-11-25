@@ -240,24 +240,21 @@ describe('un’unione che scade di continuo: esito chiaro, le altre passano, lo 
     expect(esitoK('k-1')).toMatch(/mentre stava per unire il ramo/u)
     expect(esitoK('k-1')).not.toContain('NON fatta')
 
-    // L'autopilota riceve la frase della prima soglia; alla seconda quella che dice cosa guardare (stesso evento che lo sveglia).
-    await attendi(async () => (await strumento('stato', {})).includes('non è un caso'), { cosa: 'la seconda soglia', timeout: 8000 })
+    // 25/11: al tetto l'unione esce dalla fila con un esito (prima riprovava per sempre): l'autopilota è svegliato con la frase
+    // che dice dove era lenta e come rimetterla in fila, e il blocco entra nello storico degli errori.
+    await attendi(async () => (await strumento('stato', {})).includes('esce dalla fila'), { cosa: 'l’uscita dalla fila', timeout: 8000 })
     const dopo = await strumento('stato', {})
-    expect(dopo).toContain('unione scaduta 2 volte')
-    expect(dopo).toContain('unione scaduta 4 volte')
-    expect(dopo).toContain('resta in fondo alla fila e riprova da sola')
-    // Alla seconda soglia il blocco entra nello storico degli errori, con il motivo.
-    expect(errori.mock.calls.some((c) => String(c[0]).includes('[blocco]') && String(c[0]).includes('scaduta 4 volte'))).toBe(true)
+    expect(dopo).toContain('unione scaduta 2 volte, esce dalla fila')
+    expect(dopo).toContain('il compito resta in revisione')
+    expect(esitoK('k-1')).toMatch(/^unione ferma: scaduta 2 volte/u)
+    expect(errori.mock.calls.some((c) => String(c[0]).includes('[blocco]') && String(c[0]).includes('scaduta 2 volte'))).toBe(true)
 
     // Più tempo a ogni giro: dal terzo tentativo il passo git può durare il triplo (nessun errore, solo il tetto).
     expect(piuTempoPerTentativo(4)).toBe(3)
 
-    // Il lavoro è ancora in fila, non è uscito: «scaduta N volte» sta nello stato con il motivo, non sparisce.
-    const stato = await strumento('stato', {})
-    expect(stato).toMatch(/k-1: (in corso|scaduta \d+ volte)/u)
-
-    // Appena git risponde, entra da solo.
+    // Appena git risponde, unisci la rimette in fila ed entra.
     porte.appesi = []
-    await attendi(() => unitoK('k-1'), { cosa: 'k-1 unito da solo', timeout: 8000 })
+    expect(await strumento('unisci', { compito: 'k-1' })).toMatch(/Unione (avviata|in fila)/u)
+    await attendi(() => unitoK('k-1'), { cosa: 'k-1 unito dopo unisci', timeout: 8000 })
   }, 30_000)
 })

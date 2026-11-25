@@ -81,6 +81,19 @@ export function fraseScadenzeRipetute(p: { chi: string; tentativi: number; motiv
   return `${base}, non è un caso: ${dove}. Il lavoro è salvo nel suo ramo e continua a riprovare, ma non entrerà finché questo non cambia. Ultimo motivo: ${p.motivo}.`
 }
 
+/**
+ * 25/11: l'esito quando un'unione esce dalla fila dopo troppe scadenze. Dice quante volte, dove era lenta, che il
+ * lavoro è salvo, quando riprova da sola e che `unisci` la rimette in fila subito. Le parole che contano all'inizio.
+ */
+export function fraseUscitaDopoScadenze(p: { chi: string; tentativi: number; motivo: string; fase: FaseUnione; riposoMin: number }): string {
+  const dove = p.fase === 'criterio'
+    ? 'è la misura del criterio che non finisce: guarda il comando del criterio'
+    : p.fase === 'prova'
+      ? 'sono i passi di git o le prove del ramo a essere troppo lenti'
+      : 'il tempo se ne va prima dell’unione di prova (salvataggi o controlli dei rami)'
+  return `${p.chi}: unione scaduta ${p.tentativi} ${p.tentativi === 1 ? 'volta' : 'volte'}, esce dalla fila: ${dove}. Il lavoro è salvo nel suo ramo e il compito resta in revisione; riprovo da sola fra ${p.riposoMin} minuti, o subito se chiami unisci dopo aver tolto la causa. Ultimo motivo: ${p.motivo}.`
+}
+
 /** Una riga per l'autopilota: cosa unisce adesso il programma, e da quanto. Pura. */
 export function rigaUnioneAttiva(p: { chi: string; fase: FaseUnione; daMs: number; tentativi: number }): string {
   const cosa = p.fase === 'criterio' ? 'misura il criterio di' : 'sta provando e unendo'

@@ -24,10 +24,14 @@ import { RIGA_ANNULLATO_PRIMA, type Esecutore } from './verifiche'
  *   nessun commit.
  */
 export type TurniCriteri = {
-  /** Esegue `fai` quando tocca a lui: nessun altro pesante, nessuna unione in `cwd`. */
-  pesante: <T>(cwd: string, fai: () => Promise<T>) => Promise<T>
+  /**
+   * Esegue `fai` quando tocca a lui: nessun altro pesante, nessuna unione in `cwd`.
+   * 25/11: con `segnale`, se scatta mentre aspetta il turno esce dalla fila con `TurnoFermato` (`fai` non parte).
+   */
+  pesante: <T>(cwd: string, fai: () => Promise<T>, segnale?: AbortSignal) => Promise<T>
   /** Esegue l'unione quando nella cartella non gira nessun pesante né un'altra unione; intanto non ne parte nessuno lì. */
-  unione: <T>(cwd: string, fai: (segnale: AbortSignal) => T | Promise<T>, per?: { piuTempo?: number }) => Promise<T>
+  /** 25/11: `per.segnale`, quando scatta (l'unione sopra è scaduta), fa scadere il turno subito: il git in corso si ferma. */
+  unione: <T>(cwd: string, fai: (segnale: AbortSignal) => T | Promise<T>, per?: { piuTempo?: number; segnale?: AbortSignal }) => Promise<T>
   /**
    * **Il turno di un comando pesante lanciato da una chat** (0.85.2). Non
    * aspetta: o il turno è libero e la chat lo prende subito, per al più
@@ -81,6 +85,11 @@ export class TurnoScaduto extends Error {
   constructor() { super('l’unione ha superato il tempo massimo nel turno del PC') }
 }
 
+/** 25/11: l'attesa del turno pesante fermata dal segnale di chi aspettava (un'unione scaduta): il comando non è partito. */
+export class TurnoFermato extends Error {
+  constructor() { super('l’attesa del turno pesante è stata fermata') }
+}
+
 /** 22/11: oltre questo tempo dalla scadenza, una corsa che non si chiude più lascia comunque libera la cartella (e si registra). */
 export const UNIONE_LIBERA_DOPO_MS = 5 * 60_000
 
@@ -113,18 +122,25 @@ export function creaTurni(opz: { ora?: () => number; unioneMaxMs?: number; liber
   }
 
   return {
-    async pesante(cwd, fai) {
+    async pesante(cwd, fai, segnale) {
       // k-197c: chi ha già il turno pesante (la misura di una prova di unione) e lancia un comando
       // che lo chiede ancora (`conTurni`) non si mette in fila dietro a se stesso: sarebbe un'attesa circolare.
       if (dentro.getStore() === chiaveTurni) return fai()
+      // Si rilegge ogni volta: il segnale scatta mentre si aspetta.
+      const fermato = (): boolean => segnale?.aborted === true
+      if (fermato()) throw new TurnoFermato()
       const dove = normale(cwd)
       const mio = ++numero
       fila.push({ n: mio, dove })
       // Tocca al primo della fila che può partire: chi aspetta un'unione nella
       // sua cartella non ferma quelli dietro di lui, che lavorano altrove.
-      const tocca = (): boolean => inCorso === undefined && fila.find((f) => (unioni.get(f.dove) ?? 0) === 0)?.n === mio
-      await aspetta(tocca)
+      const tocca = (): boolean => fermato() || (inCorso === undefined && fila.find((f) => (unioni.get(f.dove) ?? 0) === 0)?.n === mio)
+      // 25/11: il segnale sveglia l'attesa (prima un'unione scaduta restava in fila qui per sempre, e teneva il posto).
+      const alSegnale = (): void => { sveglia() }
+      segnale?.addEventListener('abort', alSegnale, { once: true })
+      try { await aspetta(tocca) } finally { segnale?.removeEventListener('abort', alSegnale) }
       fila.splice(fila.findIndex((f) => f.n === mio), 1)
+      if (fermato()) { sveglia(); throw new TurnoFermato() }
       inCorso = dove
       partitoIl = ora()
       try {
@@ -145,11 +161,18 @@ export function creaTurni(opz: { ora?: () => number; unioneMaxMs?: number; liber
       const controllo = new AbortController()
       const controlloScattato = (): boolean => controllo.signal.aborted
       let timer: ReturnType<typeof setTimeout> | undefined
+      let scadiOra = (): void => {}
       const scaduta = new Promise<never>((_, no) => {
-        timer = setTimeout(() => { stop.scaduto = true; no(new TurnoScaduto()) }, (opz.unioneMaxMs ?? UNIONE_TURNO_MAX_MS) * Math.max(1, per?.piuTempo ?? 1))
+        scadiOra = () => { if (stop.scaduto) return; stop.scaduto = true; no(new TurnoScaduto()) }
+        timer = setTimeout(scadiOra, (opz.unioneMaxMs ?? UNIONE_TURNO_MAX_MS) * Math.max(1, per?.piuTempo ?? 1))
         timer.unref?.()
       })
       scaduta.catch(() => {})
+      // 25/11: l'unione sopra è scaduta: il turno scade adesso, come al suo tempo massimo (prima il git appeso restava fino a 12 minuti).
+      const fuori = per?.segnale
+      const alFuori = (): void => { scadiOra(); sveglia() }
+      if (fuori?.aborted === true) alFuori()
+      else fuori?.addEventListener('abort', alFuori, { once: true })
       try {
         // **Una sola unione per cartella** (Revisione 0.84.0). Con git
         // sincrono un'unione era atomica; da asincrona cede il passo a ogni
@@ -178,6 +201,7 @@ export function creaTurni(opz: { ora?: () => number; unioneMaxMs?: number; liber
         }
       } finally {
         if (timer !== undefined) clearTimeout(timer)
+        fuori?.removeEventListener('abort', alFuori)
         let chiusa = false
         let sicurezza: ReturnType<typeof setTimeout> | undefined
         // Il lucchetto sulla cartella si rende una volta sola: alla fine della corsa o, per sicurezza, dopo il tempo massimo.
@@ -352,6 +376,15 @@ export function conTurni(esegui: Esecutore, turni: TurniCriteri = TURNI_PC, guar
     // 24/11: chi ha già il turno (la misura di una prova) non aspetta dietro nessuno: niente riga che dice il falso.
     const davanti = turni.giaDentro?.() === true ? 0 : s.inFila + (s.inCorso !== undefined ? 1 : 0)
     if (davanti > 0) console.info(`[criterio] ${segnoDiLog(ws)}aspetta il suo turno dietro ${davanti} comandi lunghi: ${comando.slice(0, 120)}`)
-    return turni.pesante(cwd, lancia)
+    const fermato = (err: unknown): Awaited<ReturnType<Esecutore>> => { if (err instanceof TurnoFermato) return annullatoPrima; throw err }
+    const fuori = attesaDellaProva.getStore()
+    if (fuori === undefined || turni.giaDentro?.() === true) return turni.pesante(cwd, lancia, segnale).catch(fermato)
+    // 25/11: dentro un'unione (o una prova) l'attesa del turno non conta nella sua scadenza: si ferma finché il comando non parte.
+    let via = (): void => {}
+    const partito = new Promise<void>((ris) => { via = ris })
+    const girata = turni.pesante(cwd, () => { via(); return lancia() }, segnale)
+    girata.catch(() => {})
+    await fuori(() => Promise.race([partito, girata.then(() => {}, () => {})]))
+    return girata.catch(fermato)
   }
 }

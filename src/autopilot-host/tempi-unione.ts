@@ -52,7 +52,7 @@ export type MisuraTempi = { attesaMs: number; esecuzioneMs: number }
 export async function conScadenza<T>(
   corpo: (segnale: AbortSignal, iniziata: () => void, inFila: <R>(fai: () => Promise<R>) => Promise<R>) => Promise<T>,
   maxMs: number,
-  opz: { ora?: () => number; scrivi?: (t: MisuraTempi & { scaduta: boolean }) => void } = {}
+  opz: { ora?: () => number; scrivi?: (t: MisuraTempi & { scaduta: boolean }) => void; /** 25/11: chi sta sopra (la fila delle unioni) può far scadere la prova prima. */ segnale?: AbortSignal } = {}
 ): Promise<{ scaduta: false; valore: T } | { scaduta: true }> {
   const ora = opz.ora ?? (() => Date.now())
   const controllo = new AbortController()
@@ -61,6 +61,9 @@ export async function conScadenza<T>(
   let timer: ReturnType<typeof setTimeout> | undefined
   let scattaScadenza = (): void => {}
   const scadenza = new Promise<'scaduta'>((ris) => { scattaScadenza = () => ris('scaduta') })
+  // 25/11: l'unione sopra è scaduta: la prova si chiude come se fosse scaduta lei (segnale, pulizia, turno reso).
+  if (opz.segnale?.aborted === true) scattaScadenza()
+  else opz.segnale?.addEventListener('abort', () => { scattaScadenza() }, { once: true })
   /** Quanto tempo resta alla scadenza; il timer si ferma mentre il corpo aspetta in fila (`inFila`). */
   let resto = maxMs
   let partito = t0
@@ -111,10 +114,100 @@ export async function conScadenza<T>(
 }
 
 /**
+ * 25/11: quanto tempo, in tutto, la scadenza di un'unione resta ferma mentre aspetta il turno pesante del PC.
+ * Oltre, l'attesa conta di nuovo: un turno che non si libera mai non tiene l'unione appesa per sempre.
+ */
+export const UNIONE_ATTESA_TURNO_MAX_MS = 4 * 60 * 60_000
+
+/** Il tetto di un timer di Node (oltre ~24,8 giorni scatterebbe subito). */
+const TIMER_MAX_MS = 2_000_000_000
+
+export type ScadenzaFermabile = {
+  /** Scatta alla scadenza: ferma la prova e le misure di questo tentativo. */
+  segnale: AbortSignal
+  /** Respinta con l'errore di `errore()` alla scadenza. */
+  scaduta: Promise<never>
+  /** Esegue `fai` con la scadenza ferma (l'attesa del turno pesante del PC non è tempo dell'unione). */
+  inFila: <R>(fai: () => Promise<R>) => Promise<R>
+  /** Il tentativo è finito: niente più scadenza. */
+  chiudi: () => void
+  /** Sta aspettando il turno adesso. */
+  inAttesa: () => boolean
+}
+
+/**
+ * **La scadenza dell'unione che non conta l'attesa del turno** (25/11). Prima i 60 minuti della fila contavano
+ * anche l'attesa del turno pesante del PC (mentre la prova la fermava): a PC carico le unioni scadevano, tornavano
+ * in fila e scadevano ancora, per ore. Come `conScadenza`, il tempo si ferma dentro `inFila`, al più
+ * `pausaMaxMs` in tutto. Alla scadenza il segnale scatta e `scaduta` viene respinta con `errore()`.
+ * `alCambio(true|false)` dice quando comincia e finisce un'attesa del turno (per lo stato).
+ */
+export function scadenzaFermabile(maxMs: number, errore: () => Error, opz: { pausaMaxMs?: number; alCambio?: (inAttesa: boolean) => void; ora?: () => number } = {}): ScadenzaFermabile {
+  const ora = opz.ora ?? (() => Date.now())
+  const controllo = new AbortController()
+  let resto = Math.max(0, maxMs)
+  let budget = Math.max(0, opz.pausaMaxMs ?? UNIONE_ATTESA_TURNO_MAX_MS)
+  let partito = ora()
+  let pausaDa = 0
+  let attese = 0
+  let chiusa = false
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let respingi: (e: Error) => void = () => {}
+  const scaduta = new Promise<never>((_, no) => { respingi = no })
+  scaduta.catch(() => {})
+  const avvisa = (si: boolean): void => { try { opz.alCambio?.(si) } catch { /* lo stato non ferma l'unione */ } }
+  const scatta = (): void => {
+    if (chiusa) return
+    chiusa = true
+    if (timer !== undefined) clearTimeout(timer)
+    const e = errore()
+    controllo.abort()
+    respingi(e)
+  }
+  const arma = (ms: number): void => {
+    if (timer !== undefined) clearTimeout(timer)
+    timer = setTimeout(scatta, Math.min(TIMER_MAX_MS, Math.max(0, ms)))
+    timer.unref?.()
+  }
+  arma(resto)
+  const inFila = async <R>(fai: () => Promise<R>): Promise<R> => {
+    if (chiusa) return fai()
+    if (attese === 0) {
+      const t = ora()
+      resto -= t - partito
+      pausaDa = t
+      // Ferma: scatta solo se l'attesa passa il tetto che resta.
+      arma(resto + budget)
+      avvisa(true)
+    }
+    attese += 1
+    try {
+      return await fai()
+    } finally {
+      attese -= 1
+      if (attese === 0 && !chiusa) {
+        const t = ora()
+        budget = Math.max(0, budget - (t - pausaDa))
+        partito = t
+        arma(resto)
+        avvisa(false)
+      }
+    }
+  }
+  return {
+    segnale: controllo.signal,
+    scaduta,
+    inFila,
+    chiudi: () => { chiusa = true; if (timer !== undefined) clearTimeout(timer) },
+    inAttesa: () => attese > 0
+  }
+}
+
+/**
  * Quanto aspetta un'unione scaduta prima di riprovare (11/11): 30 secondi, poi
  * 2, 5 e 15 minuti, e da lì sempre 15. `passo` è l'attesa di base (30 s).
- * Mai fuori dalla fila: il 07/11 sette lavori finiti sono rimasti fuori dal
- * ramo principale perché dopo tre scadenze l'unione veniva tolta.
+ * 25/11: dopo `UNIONE_TENTATIVI_MAX` scadenze l'unione esce dalla fila con un esito e torna
+ * da sola dopo un riposo lungo (`UNIONE_RIPOSO_MS`), o subito se l'autopilota la richiede.
  */
 export function attesaDopoScadenza(tentativi: number, passo: number): number {
   const volte = [1, 4, 10, 30]

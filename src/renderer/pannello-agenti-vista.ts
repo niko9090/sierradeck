@@ -177,7 +177,9 @@ const STATI_DOPO: Record<StatoDopoLavoro, { parole: string; colore: ColoreStato 
   'in-unione': { parole: 'in prova', colore: 'ambra' },
   unito: { parole: 'unito', colore: 'verde' },
   'criterio-rosso': { parole: 'rimandato indietro: criterio rosso', colore: 'rosso' },
-  conflitto: { parole: 'rimandato indietro: conflitto', colore: 'rosso' }
+  conflitto: { parole: 'rimandato indietro: conflitto', colore: 'rosso' },
+  // 25/11: uscito dalla fila senza unirsi (esito nel compito): non è più «in fila».
+  'da-riprovare': { parole: 'unione ferma: da riprovare', colore: 'rosso' }
 }
 
 export type RigaDopoFinito = { id: string; titolo: string; durata: string; stato: StatoDopoLavoro; parole: string; colore: ColoreStato }

@@ -50,7 +50,7 @@ const ap = (): Autopilota => ({
   chats: [{ id: 'c-1', compito: 'la barra delle chat', stato: 'lavoro', cicli: 1, sessionId: 's-1' }]
 })
 
-type Tempi = { provaMaxMs?: number; unioneRiprovaMs?: number; unioneTentativiMax?: number; turniMaxMs?: number; esegui?: Esecutore }
+type Tempi = { provaMaxMs?: number; unioneRiprovaMs?: number; unioneTentativiMax?: number; turniMaxMs?: number; esegui?: Esecutore; unioneRiposoMs?: number }
 
 async function avviaServizio(git: Git, asinc: GitAsincrono, tempi: Tempi): Promise<void> {
   const orologio = orologioDa('2026-10-30T08:00:00.000Z')
@@ -80,6 +80,7 @@ async function avviaServizio(git: Git, asinc: GitAsincrono, tempi: Tempi): Promi
     unioneRiprovaMs: tempi.unioneRiprovaMs ?? 10,
     ...(tempi.provaMaxMs !== undefined ? { provaMaxMs: tempi.provaMaxMs } : {}),
     ...(tempi.unioneTentativiMax !== undefined ? { unioneTentativiMax: tempi.unioneTentativiMax } : {}),
+    ...(tempi.unioneRiposoMs !== undefined ? { unioneRiposoMs: tempi.unioneRiposoMs } : {}),
     ...(tempi.turniMaxMs !== undefined ? { turni: creaTurni({ unioneMaxMs: tempi.turniMaxMs }) } : {})
   })
   server = s
@@ -218,28 +219,40 @@ describe('la fila delle unioni (06/11)', () => {
 
   // 11/11: prima, al tetto di tentativi, l'unione usciva dalla fila («unione NON fatta») e il
   // lavoro finito restava fuori dal principale (07/11, sette lavori per cinque ore).
-  it('un’unione che scade sempre non esce dalla fila: lo dice una volta, le altre passano, e quando può entra da sola', async () => {
+  // 25/11: poi non usciva mai e riprovava ogni 15 minuti per sempre. Adesso esce con un esito chiaro,
+  // il compito resta in revisione, e torna in fila da sola dopo il riposo o subito con unisci.
+  it('un’unione che scade sempre esce dalla fila con un esito, le altre passano, e unisci la rimette in fila', async () => {
     zitto()
     const porte: Porte = { sporca: false, appesa: 0, merge: [], appesi: [R1] }
     await prepara(porte, { provaMaxMs: 150, turniMaxMs: 40, unioneTentativiMax: 2 })
     await strumento('unisci', { compito: 'k-1' })
     await attendi(() => orch.piano('Lavoro').compiti[0]!.esito?.includes('scaduta 2 volte') === true, { cosa: 'detto dopo due scadenze', timeout: 8000 })
-    expect(orch.piano('Lavoro').compiti[0]!.esito).toContain('il programma riprova da solo')
-    expect(orch.piano('Lavoro').compiti[0]!.esito).not.toContain('NON fatta')
+    const k1 = orch.piano('Lavoro').compiti[0]!
+    expect(k1.esito).toMatch(/^unione ferma: scaduta 2 volte .*riprovo da sola fra 60 minuti, o subito con unisci$/u)
+    expect(k1.stato).not.toBe('unito')
     expect(unitoK('k-1')).toBe(false)
+    const testo = await statoTesto()
+    expect(testo.match(/esce dalla fila/gu)).toHaveLength(1)
+    expect(testo).not.toContain('k-1: in corso')
     // La fila non è ferma dietro di lei: un'altra unione parte ed entra.
     expect(await strumento('unisci', { compito: 'k-2' })).toMatch(/Unione (avviata|in fila)/u)
-    await attendi(() => unitoK('k-2'), { cosa: 'k-2 unito mentre k-1 continua a scadere', timeout: 8000 })
+    await attendi(() => unitoK('k-2'), { cosa: 'k-2 unito', timeout: 8000 })
     expect(unitoK('k-1')).toBe(false)
-    // È ancora in fila, e l'evento del tetto è stato detto una volta sola.
-    await new Promise((ris) => setTimeout(ris, 400))
-    const testo = await statoTesto()
-    expect(testo.match(/resta in fondo alla fila e riprova da sola/gu)).toHaveLength(1)
-    expect(await strumento('unisci', { compito: 'k-1' })).toContain('già in corso o in fila')
-    // Appena l'unione di prova riesce, entra da sola: nessuno la deve rilanciare.
+    // Fuori dalla fila: unisci la rimette in fila subito, e appena l'unione di prova riesce entra.
     porte.appesi = []
-    await attendi(() => unitoK('k-1'), { cosa: 'k-1 unito da solo, senza rilanciarlo', timeout: 8000 })
+    expect(await strumento('unisci', { compito: 'k-1' })).toMatch(/Unione (avviata|in fila)/u)
+    await attendi(() => unitoK('k-1'), { cosa: 'k-1 unito dopo unisci', timeout: 8000 })
     expect(porte.merge.filter((r) => r === R1).length).toBeGreaterThanOrEqual(3)
+  })
+
+  it('dopo il riposo l’unione uscita dalla fila ci torna da sola', async () => {
+    zitto()
+    const porte: Porte = { sporca: false, appesa: 0, merge: [], appesi: [R1] }
+    await prepara(porte, { provaMaxMs: 150, turniMaxMs: 40, unioneTentativiMax: 1, unioneRiposoMs: 300 })
+    await strumento('unisci', { compito: 'k-1' })
+    await attendi(() => orch.piano('Lavoro').compiti[0]!.esito?.startsWith('unione ferma: scaduta 1 volta') === true, { cosa: 'uscita dopo una scadenza', timeout: 8000 })
+    porte.appesi = []
+    await attendi(() => unitoK('k-1'), { cosa: 'k-1 unito dopo il riposo, senza rilanciarlo', timeout: 8000 })
   })
 
   const conCriterioGiaVerde = (): void => {
