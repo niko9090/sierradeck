@@ -337,7 +337,6 @@
 
 ## rete
 
-- Dai PC della rete il git push è negato dai permessi di Bash (non da GitHub): portare in main un commit già pronto va affidato al «rilascio», che lavora nella cartella principale. _(2026-11-17)_
 - Dai PC dell'Aiutante la cartella principale e origin non sono raggiungibili: il controllo versione su origin/main va fatto dall'autopilota. _(2026-11-19)_
 - `Aiutante` (aiuto-rete.ts) non ha `battito` né `capacita`: il collegamento k-166n6 deve aggiungerli prima di usare `valutaPrimaDiAffidare`. _(2026-11-20)_
 - Le azioni fra PC passano da POST /api/azione sul Client (stessa firma): per un file al telefono serve sempre conferma di chi sta là, mai solo la richiesta remota. _(2026-11-20)_
@@ -374,7 +373,6 @@
 
 ## cancello
 
-- Una correzione al cancello (criteri-prova.ts) vale solo dalla versione installata: unita in main non sblocca subito i rami respinti dal cancello che gira; serve un'unione fuori dal cancello. _(2026-11-17)_
 - Il criterio di un compito già unito (es. k-v1 di r-141) non si può correggere con piano_scrivi: richiesta fatta. Un criterio di versione sbagliato resta nel cancello fino alla nuova installazione. _(2026-11-17)_
 
 ## flusso
@@ -430,6 +428,7 @@
 - nella storia git `.sierradeck/quaderno/*.md` è LF anche se la copia di lavoro è CRLF: un `git add` da CRLF riscrive tutto il file e rischia conflitti sulle note del programma. _(2026-11-24)_
 - il messaggio «unione ferma per file non salvati» (lavoroFermo) copre sia l'unione di prova sia il criterio rosso: confrontare il caso con caf5c856 prima di scrivere «corretto» _(2026-11-24)_
 - errori-arrivati.md non ha a capo finale: per aggiungere una voce con Edit si ancora l'ultima frase del file. _(2026-11-24)_
+- Il file del lotto in .sierradeck/errori-arrivati/ può mancare nella copia dell'helper: la voce si scrive dai dati del compito e si segnala che il lotto non è stato letto. _(2026-11-25)_
 
 ## preferenze
 
@@ -680,6 +679,7 @@
 - Con `git fetch` rotto (bundle in arrivi sparito) la base del bump è l'ultimo `Versione x.y.z` in main locale: far verificare all'autopilota che la nuova non sia già uscita da un altro PC. _(2026-11-23)_
 - Per alzare la versione bastano package.json, package-lock.json (2 punti) e la voce in cima a NOVITA in src/shared/novita.ts. _(2026-11-23)_
 - Prima di un rilascio patch controlla se le correzioni sono già in main: qui lo erano, serviva solo alzare la versione e scrivere le note. _(2026-11-23)_
+- Un bump di patch dell'app tocca solo package.json, package-lock.json (2 righe) e novita.ts; i file note di Android e Aiutante solo se cambiano quelle app. _(2026-11-25)_
 
 ## aggiornamento
 
