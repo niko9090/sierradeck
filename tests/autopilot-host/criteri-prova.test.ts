@@ -263,3 +263,26 @@ describe('pesante è il comando, non una parola dentro', () => {
     expect(ePesante('npx vitest run tests/main | tail -5')).toBe(true)
   })
 })
+
+describe('25/11: le prove Android scritte in tre modi girano una volta', () => {
+  const P = { prova: true }
+  const tre = [
+    c('cd android && gradle testDebugUnitTest assembleDebug :app:compileReleaseKotlin --no-daemon --offline'),
+    c('/e/Programs/Gradle/gradle-8.11.1/bin/gradle -p android testDebugUnitTest --offline'),
+    c('gradle -p android :app:compileReleaseKotlin --no-daemon')
+  ]
+  it('un ramo Android: un solo comando gradle con tutti i compiti', () => {
+    const r = criteriPerLaProva(tre, ['android/app/src/main/java/A.kt'], P).map((x) => x.comando)
+    expect(r).toEqual(['cd android && gradle testDebugUnitTest assembleDebug :app:compileReleaseKotlin --no-daemon --offline'])
+  })
+  it('senza file in android/ nessuna delle tre gira', () => {
+    expect(criteriPerLaProva(tre, ['src/main/a.ts'], P).filter((x) => /gradle/.test(x.comando ?? ''))).toEqual([])
+  })
+  it('solo con il percorso: si usa quello assoluto, dentro android/', () => {
+    const r = criteriPerLaProva([tre[1]!], ['android/app/A.kt'], P).map((x) => x.comando)
+    expect(r).toEqual(['cd android && /e/Programs/Gradle/gradle-8.11.1/bin/gradle testDebugUnitTest --offline'])
+  })
+  it('fuori dalla prova non cambia niente', () => {
+    expect(criteriPerLaProva([tre[2]!], ['android/app/A.kt']).map((x) => x.comando)).toEqual(['gradle -p android :app:compileReleaseKotlin --no-daemon'])
+  })
+})

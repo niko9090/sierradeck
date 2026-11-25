@@ -43,7 +43,7 @@ export const NOVITA: Novita[] = [
   {
     versione: '0.119.0',
     righe: [
-      '**Unioni molto più veloci:** a ogni unione girano solo le prove che i file cambiati possono rompere: un typecheck solo invece di otto, niente controlli vecchi che il ramo non può toccare, e nessuna pausa per il carico durante la prova. Da 10-18 minuti a pochi minuti.',
+      '**Unioni molto più veloci:** a ogni unione girano solo le prove che i file cambiati possono rompere: un controllo del codice solo invece di otto, le prove Android una volta sola, niente controlli vecchi che il ramo non può toccare, e nessuna pausa per il carico durante la prova. Da 10-18 minuti a pochi minuti.',
       '**Unioni che non restano appese:** il tempo massimo non conta più l\'attesa del turno del PC, una prova scaduta si ferma davvero, e dopo 3 scadenze l\'unione esce dalla fila con il motivo e riprova da sola dopo un\'ora. La fila non si blocca più per un errore.',
       '**Ogni unione ha un esito:** se non si può fare, il motivo è scritto e l\'autopilota lo sa. Dopo un riavvio tutti i lavori finiti tornano in fila da soli.',
       '**Pannello Unioni:** ogni riga dice da quanto aspetta, perché, quanti tentativi e se aspetta te («li salvo?»). Sopra 1 ora la riga diventa rossa. Le stesse righe sono sulla pagina del telefono.',

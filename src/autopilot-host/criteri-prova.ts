@@ -25,6 +25,23 @@ const GRADLE_ANDROID = /^\s*cd\s+android\s*&&\s*(gradlew?)\s+([^;&|<>`$()]+)$/i
  * si riconosceva, e gli altri giravano a ogni unione (2 minuti e mezzo) anche senza Android.
  */
 const GRADLE_QUALSIASI = /\bgradlew?(?:\.bat)?\b[^\n]*\bandroid\b|\bandroid\b[^\n]*\bgradlew?(?:\.bat)?\b/i
+/**
+ * 25/11: `gradle -p android …` (anche col percorso del programma) è lo stesso progetto di
+ * `cd android && gradle …`: nella prova entra nel comando Android unico. Prima le tre forme
+ * scritte nei compiti giravano tutte, una dopo l'altra (circa 6 minuti in più a ogni unione Android).
+ */
+/**
+ * Il programma del comando Android unico, che gira dentro `android/`: prima quello senza percorso
+ * (`gradle`, `gradlew`), poi uno con il percorso assoluto; uno relativo (`./gradlew`) cambierebbe
+ * significato dentro `android/` e si scarta.
+ */
+export function programmaGradle(programmi: readonly string[]): string {
+  const semplice = programmi.find((p) => !/[\\/]/.test(p))
+  if (semplice !== undefined) return semplice
+  const assoluto = programmi.find((p) => /^(?:[a-z]:)?[\\/]/i.test(p))
+  return assoluto ?? 'gradle'
+}
+const GRADLE_P_ANDROID =/^\s*((?:[^\s;&|<>`$()]*[\\/])?gradlew?(?:\.bat)?)\s+-p\s+\.?[\\/]?android[\\/]?\s+([^;&|<>`$()]+)$/i
 
 /** I file che cambiano tutto il modo di provare: con uno di questi si prova tutta la suite. */
 const CAMBIA_TUTTO = /^(?:package(?:-lock)?\.json|tsconfig[^/]*\.json|vitest\.config\.[cm]?[jt]s|vite\.config\.[cm]?[jt]s|electron\.vite[^/]*\.[cm]?[jt]s|tests\/setup\/.*)$/i
@@ -296,7 +313,7 @@ export function criteriPerLaProva(criteri: Criterio[], cambiati?: readonly strin
       if (toccaResto) vitest.push(v)
       return true
     }
-    const g = GRADLE_ANDROID.exec(comando)
+    const g = GRADLE_ANDROID.exec(comando) ?? (opz.prova === true ? GRADLE_P_ANDROID.exec(comando) : null)
     if (g !== null) {
       quantiGradle += 1
       if (toccaAndroid) gradle.push({ programma: g[1]!, parti: g[2]!.trim().split(/\s+/).filter((t) => t !== '' && t.toLowerCase() !== 'clean') })
@@ -355,7 +372,7 @@ export function criteriPerLaProva(criteri: Criterio[], cambiati?: readonly strin
     // k-191e: `--rerun` rifaceva ogni volta anche i test già verdi (64 volte su 78): la cache di gradle, che guarda i file, basta.
     const parti = [...new Set(gradle.flatMap((g) => g.parti).filter((p) => !/^--rerun(?:-tasks)?$/i.test(p)))]
     const ordinate = [...parti.filter((p) => !p.startsWith('-')), ...parti.filter((p) => p.startsWith('-'))]
-    uniti.push({ descrizione: `le prove Android dei compiti già uniti (${quantiGradle} criteri in un comando)`, comando: `cd android && ${gradle[0]!.programma} ${ordinate.join(' ')}`, soddisfatto: true })
+    uniti.push({ descrizione: `le prove Android dei compiti già uniti (${quantiGradle} criteri in un comando)`, comando: `cd android && ${programmaGradle(gradle.map((g) => g.programma))} ${ordinate.join(' ')}`, soddisfatto: true })
   }
   return [...uniti, ...fuori]
 }
