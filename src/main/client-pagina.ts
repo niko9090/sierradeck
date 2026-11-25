@@ -31,7 +31,7 @@ import { normalizza as normalizzaImp, sezioniDi } from '@shared/impostazioni-str
 import { MENU_PRINCIPALE, MENU_TELEFONO, type IdTelefono } from '@shared/menu-principale'
 import { PERCORSO } from '@shared/percorsi-menu'
 import { SPIEGA_STIME, daQuanto, minutiTesto, nomeWorkspace, postiTesto, prioritaTesto, quantoManca, totaleTesto } from '@shared/attesa-vista'
-import { menuSpecialisti } from '@shared/menu-specialisti'
+import { menuSpecialisti, statoUnione } from '@shared/menu-specialisti'
 import { apriSezioneAltro, indietroTelefono, linguettaDi, pannelliDelPosto, postoIniziale, scegliLinguetta, SEZIONI_ALTRO, toccaVoce, versoDestinazione } from '@shared/navigazione-telefono'
 import { azioniMenuWorkspace, gruppiMenuWorkspace } from '@shared/menu-workspace'
 import { FRASE_SVUOTA, motivoNonChiude, TESTI_AZIONI_CHAT } from '@shared/gestione-chat'
@@ -822,6 +822,8 @@ ${minutiTesto.toString()}
 ${totaleTesto.toString()}
 // Il menu Specialisti nella chat dell'autopilota (k-54), da src/shared/menu-specialisti.ts.
 ${menuSpecialisti.toString()}
+// 25/11: da quanto e perché per ogni unione in fila, la stessa del pannello sul PC.
+${statoUnione.toString()}
 // Le sezioni e le voci delle impostazioni per la pagina (0.56.0), da src/shared/impostazioni-struttura.ts.
 var IMPOSTAZIONI_PAGINA = ${JSON.stringify(sezioniDi('pagina').map((g) => ({ sezione: g.sezione, voci: g.voci.map((v) => ({ id: v.id, titolo: v.titolo, spiega: v.spiega, chiave: normalizzaImp([v.titolo, v.spiega, ...(v.parole ?? []), g.sezione.titolo].join(' ')) })) })))}
 /** La ricerca: le sezioni con almeno una voce che contiene tutte le parole (senza accenti). Aspetto si cerca per titolo. */
@@ -5958,6 +5960,12 @@ window.menuSpecFerma = (id) => { menuSpecConferma = id; pannello(ultimoStato) }
 window.menuSpecAnnulla = () => { menuSpecConferma = ''; pannello(ultimoStato) }
 // k-u6: gli specialisti stanno dentro Autopiloti: si chiude la chat dell'autopilota e si torna all'elenco, dove sono sotto.
 window.menuSpecApri = () => { menuSpecAperto = false; menuSpecConferma = ''; window.chiudiAp(); leggiAttesa().then(() => pannello(ultimoStato)) }
+// 25/11: sotto ogni unione: stato, da quanto e perché (il motivo intero nel title); rosso se aspetta da più di un'ora o aspetta Nicholas.
+function rigaStatoUnione(u) {
+  const s = statoUnione(u.voce || { inCorso: u.inCorso }, Date.now())
+  const colore = s.tono === 'rosso' ? 'var(--rosso, #d9534f)' : s.aspettaTe ? 'var(--ambra, #d9a441)' : ''
+  return '<div class="sotto"' + (s.motivo ? ' title="' + esc(s.motivo) + '"' : '') + (colore ? ' style="color:' + colore + '"' : '') + '><b>' + esc(s.parole) + '</b>' + (s.sotto ? ' · ' + esc(s.sotto) : '') + '</div>'
+}
 function menuSpecHtml(a) {
   const vm = vistaMenu()
   // k-60: di un altro PC la lista si guarda e basta, e se quel PC non risponde una riga lo dice.
@@ -5987,7 +5995,7 @@ function menuSpecHtml(a) {
     '<div class="solco"></div><div class="titolo">In fila</div>' +
     (m.inFila.length === 0 ? '<div class="sotto">Nessuno in fila</div>' : m.inFila.map((r) => riga(r, false)).join('')) +
     (m.inUnione.length === 0 ? '' : '<div class="solco"></div><div class="titolo">In prova e unione dal programma</div>' + m.inUnione.map((u) =>
-      '<div class="cartella"' + (u.corrente ? ' style="border-left:3px solid var(--ambra, #d9a441)"' : '') + '><div>' + esc(u.titolo) + (u.altroWorkspace ? ' <span class="sotto">· ' + esc(u.altroWorkspace) + '</span>' : '') + '</div><div class="sotto">' + (u.inCorso ? 'in prova adesso' : 'aspetta il suo turno') + '</div></div>').join('')) +
+      '<div class="cartella"' + (u.corrente ? ' style="border-left:3px solid var(--ambra, #d9a441)"' : '') + '><div>' + esc(u.titolo) + (u.altroWorkspace ? ' <span class="sotto">· ' + esc(u.altroWorkspace) + '</span>' : '') + '</div>' + rigaStatoUnione(u) + '</div>').join('')) +
     (attesaNota ? '<div class="errore">' + esc(attesaNota) + '</div>' : '') +
     '<div class="riga"><span class="sotto">' + esc(m.totale) + '</span>' + (lettura ? '' : '<button onclick="menuSpecApri()">Apri Specialisti</button>') + '</div></div>'
 }

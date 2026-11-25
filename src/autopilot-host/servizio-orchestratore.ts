@@ -62,7 +62,7 @@ import { motivoSpecialistaDoppio, ripresaDopoRiavvio } from './ripresa-riavvio'
 import { AGENTI_ORCHESTRATORE, fileAgenti, fileImpostazioniCli, RUOLI_AGENTI } from './agenti-orchestratore'
 import { percentualeVera, voceOspitata } from './vista-ospitati'
 import {
-  aggiungiEsitoUnione, datiPannello, durataAgenteMs, ESITI_UNIONE_MAX, esitoDelRifiuto, PAROLE_STATO_DOPO, statoDopoLavoro, totaliPannello,
+  aggiungiEsitoUnione, campiRigaUnione, datiPannello, MOTIVO_UNIONE_MAX, durataAgenteMs, ESITI_UNIONE_MAX, esitoDelRifiuto, PAROLE_STATO_DOPO, statoDopoLavoro, totaliPannello,
   type EsitoUnione, type VoceDopoLavoro
 } from '@shared/dati-pannello-agenti'
 import { valutaPrimaDiAffidare } from './affida-valuta'
@@ -1108,7 +1108,9 @@ ${v.prompt}` : ''}` })
       })),
       inUnione: [...filaUnioni.entries()].flatMap(([ws, lista]) => lista.map((l, i) => ({
         id: l.chiave, workspace: ws, workspaceNome: nomeWorkspace(ws),
-        titolo: titoloDi(ws, l.compito, l.chi), inCorso: l.inCorso, posizione: i + 1
+        titolo: titoloDi(ws, l.compito, l.chi), inCorso: l.inCorso, posizione: i + 1,
+        // 25/11: da quanto aspetta, perché, quanti tentativi, se aspetta Nicholas.
+        ...campiRigaUnione(l, Date.now())
       }))),
       esitiUnioni: Object.fromEntries([...esitiUnioni.entries()].filter(([, e]) => e.length > 0)),
       dopoLavoro: dopoLavoro(),
@@ -1486,6 +1488,8 @@ ${NOTA_SENZA_GIT}`,
     chiave: string; chi: string; compito?: string; p: { compito?: string; specialista?: string; ramo?: string }; tentativi: number; inCorso: boolean; nonPrima?: number
     /** 23/11: quando è partito il tentativo in corso (ms), per dire da quanto il programma ci lavora. */
     partitaIl?: number
+    /** 25/11: quando è entrata nella fila (ms), per dire da quanto aspetta. */
+    entrataIl?: number
     /** 23/11: l'ultimo motivo di scadenza, per lo stato e per l'esito. */
     ultimoMotivo?: string
     /** 11/11, file non salvati nella principale: da quando è ferma (ms), se lo si è già detto, e la domanda del programma a Nicholas. */
@@ -1633,7 +1637,7 @@ ${NOTA_SENZA_GIT}`,
     const idCompito = p.compito ?? daUnire(ws, p).sub?.compito
     // 11/11: chi è scaduto e aspetta di riprovare non conta: la nuova gli passa davanti.
     const davanti = fila.filter((l) => prontaOra(l, Date.now()))
-    fila.push({ chiave, chi: p.specialista ?? p.compito ?? p.ramo ?? '?', ...(idCompito !== undefined ? { compito: idCompito } : {}), p, tentativi: 0, inCorso: false })
+    fila.push({ chiave, chi: p.specialista ?? p.compito ?? p.ramo ?? '?', ...(idCompito !== undefined ? { compito: idCompito } : {}), p, tentativi: 0, inCorso: false, entrataIl: Date.now() })
     filaUnioni.set(ws, fila)
     cambiSpecialisti.segna()
     if (fila.length === 1) void giraFila(ws)
@@ -2166,7 +2170,7 @@ ${NOTA_SENZA_GIT}`,
       }
       if (motivo !== undefined) {
         if (compito !== undefined) cambiaCompito(ws, compito.id, (k) => ({ ...k, esito: `unione non fatta: ${motivo}` }))
-        ricordaEsitoUnione(ws, { id: `${ws}|${compito?.id ?? nome}`, titolo: titoloDi(ws, compito?.id, nome), esito: esitoDelRifiuto(motivo), ...(compito !== undefined ? { compito: compito.id } : {}) })
+        ricordaEsitoUnione(ws, { id: `${ws}|${compito?.id ?? nome}`, titolo: titoloDi(ws, compito?.id, nome), esito: esitoDelRifiuto(motivo), motivo: motivo.slice(0, MOTIVO_UNIONE_MAX), ...(compito !== undefined ? { compito: compito.id } : {}) })
         return `${nome}: unione NON fatta — ${motivo}. Il ramo ${ramo} resta com’è: affida la correzione a uno specialista.${fraseSalvati(prendiSalvati())}`
       }
     }
@@ -2260,7 +2264,7 @@ ${NOTA_SENZA_GIT}`,
     }
     if (compito !== undefined) {
       cambiaCompito(ws, compito.id, (k) => ({ ...k, stato: 'unito', criterioVerde: verde, unitoIl: il, esito: dettaglio }))
-      ricordaEsitoUnione(ws, { id: `${ws}|${compito.id}`, titolo: titoloDi(ws, compito.id, nome), esito: verde ? 'verde' : 'rosso', verde, ...(comando !== undefined ? { comando } : {}), compito: compito.id })
+      ricordaEsitoUnione(ws, { id: `${ws}|${compito.id}`, titolo: titoloDi(ws, compito.id, nome), esito: verde ? 'verde' : 'rosso', verde, ...(comando !== undefined ? { comando } : {}), ...(!verde ? { motivo: dettaglio.slice(0, MOTIVO_UNIONE_MAX) } : {}), compito: compito.id })
     }
     for (const o of assorbiti) {
       const s = uniti.get(ws) ?? new Set<string>()

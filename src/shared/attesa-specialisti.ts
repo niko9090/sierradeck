@@ -18,7 +18,7 @@
  * - la voce esce dalla lista quando lo Agent passa davvero la guardia.
  */
 
-import type { DatiPannelloAgente, EsitoUnione, TotaliPannello, VoceDopoLavoro } from './dati-pannello-agenti'
+import type { CampiRigaUnione, DatiPannelloAgente, EsitoUnione, TotaliPannello, VoceDopoLavoro } from './dati-pannello-agenti'
 
 export const PRENOTAZIONE_MS = 5 * 60_000
 /** Dopo così tante sveglie a vuoto la voce va a riposo (non cade più, 11/11). */
@@ -419,7 +419,7 @@ export type VistaAttesa = {
     id: string; workspace: string; workspaceNome: string; titolo: string; inCorso: boolean
     /** k-176h: il posto nella fila (1 = tocca a lei o è in corso). */
     posizione?: number
-  }>
+  } & CampiRigaUnione>
   /** k-176h: gli esiti recenti delle unioni, per workspace (chiave = id del workspace), il più recente prima: verde/rosso, comando, ora. */
   esitiUnioni?: Record<string, EsitoUnione[]>
   /** k-176h: gli specialisti finiti da poco, con la durata e dove è arrivato il loro lavoro (in fila, in unione, unito, criterio rosso, conflitto). */

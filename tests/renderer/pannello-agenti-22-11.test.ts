@@ -108,7 +108,8 @@ describe('Unioni', () => {
     expect(f.map((u) => u.id)).toEqual(['u1', 'u2'])
     expect(f.map((u) => u.posizione)).toEqual([1, 2])
     expect(f[0]!.parole).toBe('in prova adesso')
-    expect(f[1]!.parole).toBe('aspetta il suo turno')
+    // 25/11: la stessa parola del pannello («in fila»); da quanto e perché stanno nella riga sotto.
+    expect(f[1]!.parole).toBe('in fila')
   })
 
   it('gli esiti: il più recente prima, verde o rosso', () => {
