@@ -220,17 +220,22 @@ describe('la fila delle unioni (06/11)', () => {
   // 11/11: prima, al tetto di tentativi, l'unione usciva dalla fila («unione NON fatta») e il
   // lavoro finito restava fuori dal principale (07/11, sette lavori per cinque ore).
   // 25/11: poi non usciva mai e riprovava ogni 15 minuti per sempre. Adesso esce con un esito chiaro,
-  // il compito resta in revisione, e torna in fila da sola dopo il riposo o subito con unisci.
-  it('un’unione che scade sempre esce dalla fila con un esito, le altre passano, e unisci la rimette in fila', async () => {
+  // il compito resta in revisione, e torna in fila da sola dopo il riposo. 25/11 (sera): durante il riposo unisci
+  // non la rimette in fila (prima lo faceva, e la spinta del lavoro fermo la faceva ripartire per scadere ancora).
+  it('un’unione che scade sempre esce dalla fila con un esito, le altre passano, e il riposo vale anche per unisci', async () => {
     zitto()
     const porte: Porte = { sporca: false, appesa: 0, merge: [], appesi: [R1] }
-    await prepara(porte, { provaMaxMs: 150, turniMaxMs: 40, unioneTentativiMax: 2 })
+    await prepara(porte, { provaMaxMs: 150, turniMaxMs: 40, unioneTentativiMax: 2, unioneRiposoMs: 1500 })
     await strumento('unisci', { compito: 'k-1' })
     await attendi(() => orch.piano('Lavoro').compiti[0]!.esito?.includes('scaduta 2 volte') === true, { cosa: 'detto dopo due scadenze', timeout: 8000 })
     const k1 = orch.piano('Lavoro').compiti[0]!
-    expect(k1.esito).toMatch(/^unione ferma: scaduta 2 volte .*riprovo da sola fra 60 minuti, o subito con unisci$/u)
+    expect(k1.esito).toMatch(/^unione ferma: scaduta 2 volte, in riposo fino alle \d\d:\d\d, motivo: .+; poi riprovo da sola$/u)
     expect(k1.stato).not.toBe('unito')
-    expect(unitoK('k-1')).toBe(false)
+    // Chiesta di nuovo durante il riposo: non riparte, e la risposta dice fino a quando e perché.
+    const merge = porte.merge.length
+    const risposta = await strumento('unisci', { compito: 'k-1' })
+    expect(risposta).toMatch(/in riposo fino alle \d\d:\d\d, motivo: /u)
+    expect(risposta).not.toMatch(/Unione (avviata|in fila)/u)
     const testo = await statoTesto()
     expect(testo.match(/esce dalla fila/gu)).toHaveLength(1)
     expect(testo).not.toContain('k-1: in corso')
@@ -238,10 +243,10 @@ describe('la fila delle unioni (06/11)', () => {
     expect(await strumento('unisci', { compito: 'k-2' })).toMatch(/Unione (avviata|in fila)/u)
     await attendi(() => unitoK('k-2'), { cosa: 'k-2 unito', timeout: 8000 })
     expect(unitoK('k-1')).toBe(false)
-    // Fuori dalla fila: unisci la rimette in fila subito, e appena l'unione di prova riesce entra.
+    expect(porte.merge.filter((r) => r === R1).length).toBe(porte.merge.slice(0, merge).filter((r) => r === R1).length)
+    // Finito il riposo torna da sola, e appena l'unione di prova riesce entra.
     porte.appesi = []
-    expect(await strumento('unisci', { compito: 'k-1' })).toMatch(/Unione (avviata|in fila)/u)
-    await attendi(() => unitoK('k-1'), { cosa: 'k-1 unito dopo unisci', timeout: 8000 })
+    await attendi(() => unitoK('k-1'), { cosa: 'k-1 unito dopo il riposo', timeout: 8000 })
     expect(porte.merge.filter((r) => r === R1).length).toBeGreaterThanOrEqual(3)
   })
 

@@ -31,7 +31,12 @@ export type TurniCriteri = {
   pesante: <T>(cwd: string, fai: () => Promise<T>, segnale?: AbortSignal) => Promise<T>
   /** Esegue l'unione quando nella cartella non gira nessun pesante né un'altra unione; intanto non ne parte nessuno lì. */
   /** 25/11: `per.segnale`, quando scatta (l'unione sopra è scaduta), fa scadere il turno subito: il git in corso si ferma. */
-  unione: <T>(cwd: string, fai: (segnale: AbortSignal) => T | Promise<T>, per?: { piuTempo?: number; segnale?: AbortSignal }) => Promise<T>
+  /**
+   * 25/11: `per.vaVia`, quando scatta mentre il passo **aspetta ancora** il suo turno (chi lo ha chiesto se n'è andato:
+   * prova scaduta o fermata), il passo lascia la fila subito con `TurnoLasciato` e non parte. Partito, non lo ferma:
+   * un commit o un annullo a metà lascerebbe la cartella peggio (per quello c'è `segnale`).
+   */
+  unione: <T>(cwd: string, fai: (segnale: AbortSignal) => T | Promise<T>, per?: { piuTempo?: number; segnale?: AbortSignal; vaVia?: AbortSignal }) => Promise<T>
   /**
    * **Il turno di un comando pesante lanciato da una chat** (0.85.2). Non
    * aspetta: o il turno è libero e la chat lo prende subito, per al più
@@ -83,6 +88,14 @@ export const UNIONE_TURNO_MAX_MS = 12 * 60_000
 /** L'unione, o l'attesa del suo turno, ha superato il tempo massimo. */
 export class TurnoScaduto extends Error {
   constructor() { super('l’unione ha superato il tempo massimo nel turno del PC') }
+}
+
+/**
+ * 25/11: il passo git ha lasciato la fila prima di partire, perché chi lo aveva chiesto se n'è andato (`vaVia`).
+ * È un `TurnoScaduto`: chi chiama lo tratta come una scadenza (la prova esce «scaduta», l'unione torna in fila).
+ */
+export class TurnoLasciato extends TurnoScaduto {
+  constructor() { super(); this.message = 'il passo git ha lasciato la fila del turno: chi lo aveva chiesto si è fermato' }
 }
 
 /** 25/11: l'attesa del turno pesante fermata dal segnale di chi aspettava (un'unione scaduta): il comando non è partito. */
@@ -161,9 +174,9 @@ export function creaTurni(opz: { ora?: () => number; unioneMaxMs?: number; liber
       const controllo = new AbortController()
       const controlloScattato = (): boolean => controllo.signal.aborted
       let timer: ReturnType<typeof setTimeout> | undefined
-      let scadiOra = (): void => {}
+      let scadiOra = (_e?: TurnoScaduto): void => {}
       const scaduta = new Promise<never>((_, no) => {
-        scadiOra = () => { if (stop.scaduto) return; stop.scaduto = true; no(new TurnoScaduto()) }
+        scadiOra = (e) => { if (stop.scaduto) return; stop.scaduto = true; no(e ?? new TurnoScaduto()) }
         timer = setTimeout(scadiOra, (opz.unioneMaxMs ?? UNIONE_TURNO_MAX_MS) * Math.max(1, per?.piuTempo ?? 1))
         timer.unref?.()
       })
@@ -173,6 +186,12 @@ export function creaTurni(opz: { ora?: () => number; unioneMaxMs?: number; liber
       const alFuori = (): void => { scadiOra(); sveglia() }
       if (fuori?.aborted === true) alFuori()
       else fuori?.addEventListener('abort', alFuori, { once: true })
+      // 25/11: chi ha chiesto il passo se n'è andato mentre il passo aspettava: lascia la fila adesso (prima restava fino a 12 minuti,
+      // e intanto teneva ferme la cartella ai comandi pesanti e ai turni delle chat). Preso il posto, il passo finisce.
+      const via = per?.vaVia
+      const alVaVia = (): void => { if (preso) return; scadiOra(new TurnoLasciato()); sveglia() }
+      if (via?.aborted === true) alVaVia()
+      else via?.addEventListener('abort', alVaVia, { once: true })
       try {
         // **Una sola unione per cartella** (Revisione 0.84.0). Con git
         // sincrono un'unione era atomica; da asincrona cede il passo a ogni
@@ -187,6 +206,8 @@ export function creaTurni(opz: { ora?: () => number; unioneMaxMs?: number; liber
           preso = true
           return true
         }), scaduta])
+        // 25/11: scaduto o lasciato prima di prendere il posto (anche già al primo controllo): il passo non parte.
+        if (!preso) await scaduta
         // 22/11: alla scadenza chi chiama riceve subito `TurnoScaduto` e il segnale ferma i git figli,
         // ma il posto della cartella si libera solo quando `fai()` si è chiuso davvero: un secondo
         // `git merge` non parte mentre il primo gira ancora.
@@ -202,6 +223,7 @@ export function creaTurni(opz: { ora?: () => number; unioneMaxMs?: number; liber
       } finally {
         if (timer !== undefined) clearTimeout(timer)
         fuori?.removeEventListener('abort', alFuori)
+        via?.removeEventListener('abort', alVaVia)
         let chiusa = false
         let sicurezza: ReturnType<typeof setTimeout> | undefined
         // Il lucchetto sulla cartella si rende una volta sola: alla fine della corsa o, per sicurezza, dopo il tempo massimo.

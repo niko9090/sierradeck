@@ -207,7 +207,7 @@ export function scadenzaFermabile(maxMs: number, errore: () => Error, opz: { pau
  * Quanto aspetta un'unione scaduta prima di riprovare (11/11): 30 secondi, poi
  * 2, 5 e 15 minuti, e da lì sempre 15. `passo` è l'attesa di base (30 s).
  * 25/11: dopo `UNIONE_TENTATIVI_MAX` scadenze l'unione esce dalla fila con un esito e torna
- * da sola dopo un riposo lungo (`UNIONE_RIPOSO_MS`), o subito se l'autopilota la richiede.
+ * da sola dopo un riposo lungo (`UNIONE_RIPOSO_MS`); chi la richiede prima riceve «in riposo fino alle HH:MM».
  */
 export function attesaDopoScadenza(tentativi: number, passo: number): number {
   const volte = [1, 4, 10, 30]

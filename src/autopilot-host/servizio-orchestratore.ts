@@ -92,7 +92,7 @@ import type { ArchivioAttesa } from './attesa-store'
 import { MOTIVO_RIAVVIO, apertiVuoti, type ArchivioAperti, type StatoAperti } from './specialisti-aperti'
 import { creaCambi, type Cambi } from '@shared/spinta-specialisti'
 import { attesaDopoScadenza, scadenzaFermabile, UNIONE_ATTESA_TURNO_MAX_MS, UNIONE_MAX_MS } from './tempi-unione'
-import { fraseUscitaDopoScadenze, motivoScadenzaFila, piuTempoPerTentativo, rigaUnioneAttiva, scegliProssima } from './unioni-che-scadono'
+import { fraseRiposo, fraseUscitaDopoScadenze, motivoScadenzaFila, piuTempoPerTentativo, rigaUnioneAttiva, scegliProssima } from './unioni-che-scadono'
 import { attesaDellaProva } from './turni-criteri'
 import { togliCopiaUnita } from './autopulizia'
 import { togliRamiSuperati } from './rami-superati'
@@ -121,7 +121,8 @@ export const UNIONE_RIPROVA_MS = 30_000
 export const RACCOLTA_RAFFICA_MS = 4_000
 /**
  * 11/11: dopo quante scadenze il compito dice com'è andata. 25/11: e l'unione esce dalla fila con un esito
- * (prima riprovava ogni 15 minuti per sempre): torna da sola dopo `UNIONE_RIPOSO_MS`, o subito con unisci.
+ * (prima riprovava ogni 15 minuti per sempre): torna da sola dopo `UNIONE_RIPOSO_MS`. Il riposo vale per tutte le strade
+ * (unisci, il lavoro fermo, le riprese): chi chiede riceve «in riposo fino alle HH:MM, motivo …».
  */
 export const UNIONE_TENTATIVI_MAX = 3
 /** 25/11: quanto riposa un'unione uscita dalla fila dopo troppe scadenze, prima di rientrarci da sola. */
@@ -1676,8 +1677,23 @@ ${NOTA_SENZA_GIT}`,
   }
   /** 25/11: i workspace con il giro della fila vivo: `avviaUnione` lo riparte se non c'è. */
   const giriVivi = new Set<string>()
-  /** 25/11: le unioni uscite dalla fila dopo troppe scadenze (`chiave` → timer del ritorno): rientrano dopo il riposo, o subito con unisci. */
-  const aRiposo = new Map<string, ReturnType<typeof setTimeout>>()
+  /**
+   * 25/11: le unioni uscite dalla fila dopo troppe scadenze (`chiave` → timer del ritorno, fino a quando, perché): rientrano
+   * solo dopo il riposo. Prima unisci (anche quello mandato dalla spinta del lavoro fermo) lo faceva saltare, e l'unione
+   * ripartiva per scadere di nuovo. Non c'è (ancora) un tasto di Nicholas per riprovarla prima.
+   */
+  const aRiposo = new Map<string, { timer: ReturnType<typeof setTimeout>; fino: number; motivo: string; ws: string; compito?: string }>()
+  const chiaveUnione = (ws: string, p: { compito?: string; specialista?: string; ramo?: string }): string =>
+    `${ws}|${p.compito ?? daUnire(ws, p).sub?.compito ?? p.specialista ?? p.ramo ?? ''}`
+  /** Il riposo dell'unione chiesta, se dura ancora. */
+  const riposoDi = (ws: string, p: { compito?: string; specialista?: string; ramo?: string }): { fino: number; motivo: string } | undefined => {
+    const r = aRiposo.get(chiaveUnione(ws, p))
+    return r !== undefined && r.fino > Date.now() ? r : undefined
+  }
+  /** I compiti del workspace con l'unione a riposo, e la frase che lo dice (per il lavoro fermo: non li si rilancia). */
+  // L'orologio è quello del timer del riposo (`Date.now()`), non quello del giro.
+  const compitiARiposo = (ws: string): [string, string][] =>
+    [...aRiposo.values()].flatMap((r) => (r.ws === ws && r.compito !== undefined && r.fino > Date.now() ? [[r.compito, fraseRiposo({ finoMs: r.fino, motivo: r.motivo })] as [string, string]] : []))
   /** 25/11: quello che la prova riceve da questo tentativo (più tempo, segnale, attesa del turno che non conta). */
   const tempoDi = (scambio: ScambioUnione): TempoDellaProva => ({
     piuTempo: piuTempoPerTentativo(scambio.tentativi ?? 0),
@@ -1699,14 +1715,17 @@ ${NOTA_SENZA_GIT}`,
     if (esitiUnioni.get(ws)?.[0] === esitoPrima) ricordaEsitoUnione(ws, { id: `${ws}|${k.id}`, titolo: titoloDi(ws, k.id, lavoro.chi), esito: esitoDelRifiuto(frase), compito: k.id })
   }
   const avviaUnione = (ws: string, p: { compito?: string; specialista?: string; ramo?: string }): number | undefined => {
-    const chi = p.compito ?? daUnire(ws, p).sub?.compito ?? p.specialista ?? p.ramo ?? ''
-    const chiave = `${ws}|${chi}`
+    const chiave = chiaveUnione(ws, p)
     const fila = filaUnioni.get(ws) ?? []
     if (fila.some((l) => l.chiave === chiave)) return undefined
     const idCompito = p.compito ?? daUnire(ws, p).sub?.compito
-    // 25/11: chiesta di nuovo mentre riposava dopo troppe scadenze: rientra adesso.
-    const riposo = aRiposo.get(chiave)
-    if (riposo !== undefined) { clearTimeout(riposo); aRiposo.delete(chiave) }
+    // 25/11: chiesta di nuovo mentre riposa dopo troppe scadenze: resta a riposo, da qualunque strada arrivi la richiesta
+    // (prima rientrava subito, e la spinta del lavoro fermo la faceva ripartire per scadere ancora). Torna da sola alla fine.
+    const riposo = riposoDi(ws, p)
+    if (riposo !== undefined) {
+      console.info(`[orchestratore] ${ws} — ${p.specialista ?? p.compito ?? p.ramo ?? '?'}: unione chiesta di nuovo, ma è ${fraseRiposo({ finoMs: riposo.fino, motivo: riposo.motivo })}`)
+      return undefined
+    }
     // 11/11: chi è scaduto e aspetta di riprovare non conta: la nuova gli passa davanti.
     const davanti = fila.filter((l) => prontaOra(l, Date.now()))
     fila.push({ chiave, chi: p.specialista ?? p.compito ?? p.ramo ?? '?', ...(idCompito !== undefined ? { compito: idCompito } : {}), p, tentativi: 0, inCorso: false, entrataIl: Date.now(), ultimoMotivo: 'in fila' })
@@ -2063,26 +2082,27 @@ ${NOTA_SENZA_GIT}`,
       if (lavoro.tentativi >= tentativiMax) {
         // 25/11: dopo `tentativiMax` scadenze (la scadenza non conta più l'attesa del turno: non è il PC carico) l'unione esce
         // dalla fila con un esito: il compito resta «in revisione» e dice perché, l'autopilota si sveglia e il pannello non la
-        // mostra più «in fila». Torna da sola dopo il riposo, o subito se l'autopilota chiede unisci.
+        // mostra più «in fila». Torna da sola dopo il riposo; fino ad allora nessuna strada la rimette in fila (`aRiposo`).
         cambiSpecialisti.segna()
         const riposoMs = x.unioneRiposoMs ?? UNIONE_RIPOSO_MS
         const riposoMin = Math.max(1, Math.round(riposoMs / 60_000))
+        const finoMs = Date.now() + riposoMs
         const k = idCompito !== undefined ? x.orchestratori.piano(ws).compiti.find((c) => c.id === idCompito) : undefined
         if (k !== undefined && k.stato !== 'unito') {
-          const esito = `unione ferma: scaduta ${lavoro.tentativi} ${lavoro.tentativi === 1 ? 'volta' : 'volte'} (${ancora.perche.slice(0, 200)}); riprovo da sola fra ${riposoMin} minuti, o subito con unisci`
+          const esito = `unione ferma: scaduta ${lavoro.tentativi} ${lavoro.tentativi === 1 ? 'volta' : 'volte'}, ${fraseRiposo({ finoMs, motivo: ancora.perche })}; poi riprovo da sola`
           cambiaCompito(ws, k.id, (c) => (c.stato === 'unito' ? c : { ...c, esito }))
           ricordaEsitoUnione(ws, { id: `${ws}|${k.id}`, titolo: titoloDi(ws, k.id, chi), esito: 'non-unita', compito: k.id })
         }
         console.error(`[blocco] ${ws} — unione di ${chi} scaduta ${lavoro.tentativi} volte, esce dalla fila e riposa ${riposoMin} minuti: ${ancora.perche.slice(0, 200)}`)
-        evento(ws, { tipo: 'unione', quando: x.adesso(), ...dove, testo: fraseUscitaDopoScadenze({ chi, tentativi: lavoro.tentativi, motivo: ancora.perche, fase: scambio.fase, riposoMin }) }, true)
+        evento(ws, { tipo: 'unione', quando: x.adesso(), ...dove, testo: fraseUscitaDopoScadenze({ chi, tentativi: lavoro.tentativi, motivo: ancora.perche, fase: scambio.fase, riposoMin, finoMs }) }, true)
         const vecchio = aRiposo.get(lavoro.chiave)
-        if (vecchio !== undefined) clearTimeout(vecchio)
+        if (vecchio !== undefined) clearTimeout(vecchio.timer)
         const t = setTimeout(() => {
           aRiposo.delete(lavoro.chiave)
           try { if (avviaUnione(ws, p) !== undefined) console.info(`[orchestratore] ${ws} — ${chi}: finito il riposo, l’unione torna in fila`) } catch (err) { console.error(`[blocco] ${ws} — ${chi}: l’unione non è tornata in fila dopo il riposo:`, err) }
         }, riposoMs)
         t.unref?.()
-        aRiposo.set(lavoro.chiave, t)
+        aRiposo.set(lavoro.chiave, { timer: t, fino: finoMs, motivo: ancora.perche, ws, ...(idCompito !== undefined ? { compito: idCompito } : {}) })
         continue
       }
       lavoro.nonPrima = Date.now() + attesaDopoScadenza(lavoro.tentativi, riprova)
@@ -2545,6 +2565,9 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     unisci(ws, p) {
       const k = p.compito !== undefined ? x.orchestratori.piano(ws).compiti.find((c) => c.id === p.compito) : undefined
       if (k !== undefined && k.stato === 'unito' && k.criterioVerde === true && p.ramo === undefined) return { ok: true, testo: `${k.id} è già unito con il criterio verde: non c’è altro da unire.` }
+      // 25/11: a riposo dopo troppe scadenze: lo si dice con l'ora e il motivo, e non si riparte (vedi `aRiposo`).
+      const riposo = riposoDi(ws, p)
+      if (riposo !== undefined) return { ok: false, motivo: `l’unione di ${p.compito ?? p.specialista ?? p.ramo ?? '?'} è ${fraseRiposo({ finoMs: riposo.fino, motivo: riposo.motivo })}. Riparte da sola a quell’ora: non richiederla, intanto togli la causa o affida gli altri compiti.` }
       const posto = avviaUnione(ws, p)
       return posto === undefined
         ? { ok: false, motivo: 'questa unione è già in corso o in fila (il programma unisce da solo il lavoro di chi finisce): l’esito arriva come evento' }
@@ -2961,7 +2984,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
         || alLavoroNel(ws) > 0 || specialistiVivi(a).some((c) => chatAdottataAttiva(a, c, ora)) || unioniVive(ws, ora).length > 0
       const vivi = new Set(subagenti(ws).filter((y) => y.stato === 'avviato' || y.stato === 'lavoro').map((y) => y.id))
       const ferme = (filaUnioni.get(ws) ?? []).filter((l) => unioneFerma(l, ora) && l.compito !== undefined)
-      const f = lavoroFermo({ coda: coda(ws), piano: x.orchestratori.piano(ws), alLavoro: vivi, inUnione: new Set(unioniVive(ws, ora).flatMap((l) => (l.compito !== undefined ? [l.compito] : []))), unioniFerme: new Map(ferme.map((l) => [l.compito!, l.sporcaDal !== undefined ? 'ferma per file non salvati nella cartella principale (la domanda a Nicholas la fa il programma)' : 'riprova da sola fra poco'])) })
+      const f = lavoroFermo({ coda: coda(ws), piano: x.orchestratori.piano(ws), alLavoro: vivi, inUnione: new Set(unioniVive(ws, ora).flatMap((l) => (l.compito !== undefined ? [l.compito] : []))), unioniFerme: new Map([...compitiARiposo(ws), ...ferme.map((l) => [l.compito!, l.sporcaDal !== undefined ? 'ferma per file non salvati nella cartella principale (la domanda a Nicholas la fa il programma)' : 'riprova da sola fra poco'] as [string, string])]) })
       if (f === undefined) { fermiVisti.delete(ws); continue }
       const visto = fermiVisti.get(ws)
       if (visto === undefined || visto.firma !== f.firma) { fermiVisti.set(ws, { firma: f.firma, dal: ora, ultima: ora, spinte: 0 }); continue }
@@ -3349,7 +3372,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
   const firmaLavoroPortabile = (ws: string, ora: number): string | undefined => {
     const vivi = new Set(subagenti(ws).filter((y) => y.stato === 'avviato' || y.stato === 'lavoro').map((y) => y.id))
     const ferme = (filaUnioni.get(ws) ?? []).filter((l) => unioneFerma(l, ora) && l.compito !== undefined)
-    const f = lavoroFermo({ coda: coda(ws), piano: x.orchestratori.piano(ws), alLavoro: vivi, inUnione: new Set(unioniVive(ws, ora).flatMap((l) => (l.compito !== undefined ? [l.compito] : []))), unioniFerme: new Map(ferme.map((l) => [l.compito!, 'ferma'])) })
+    const f = lavoroFermo({ coda: coda(ws), piano: x.orchestratori.piano(ws), alLavoro: vivi, inUnione: new Set(unioniVive(ws, ora).flatMap((l) => (l.compito !== undefined ? [l.compito] : []))), unioniFerme: new Map([...compitiARiposo(ws), ...ferme.map((l) => [l.compito!, 'ferma'] as [string, string])]) })
     if (f === undefined || f.firma.split('|').every((t) => t.endsWith(':unione-ferma'))) return undefined
     return f.firma
   }

@@ -81,17 +81,31 @@ export function fraseScadenzeRipetute(p: { chi: string; tentativi: number; motiv
   return `${base}, non è un caso: ${dove}. Il lavoro è salvo nel suo ramo e continua a riprovare, ma non entrerà finché questo non cambia. Ultimo motivo: ${p.motivo}.`
 }
 
+/** 25/11: «HH:MM» nell'ora del PC. */
+export function oraBreve(ms: number): string {
+  const d = new Date(ms)
+  return Number.isNaN(d.getTime()) ? '?' : `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+/**
+ * 25/11: la risposta a chi chiede un'unione che riposa dopo troppe scadenze (l'autopilota con unisci, la spinta
+ * del lavoro fermo, il giro che riprende le unioni). Il riposo vale per tutte le strade: la si dice, non si riparte.
+ */
+export function fraseRiposo(p: { finoMs: number; motivo: string }): string {
+  return `in riposo fino alle ${oraBreve(p.finoMs)}, motivo: ${p.motivo.replace(/\s+/gu, ' ').trim().slice(0, 200)}`
+}
+
 /**
  * 25/11: l'esito quando un'unione esce dalla fila dopo troppe scadenze. Dice quante volte, dove era lenta, che il
- * lavoro è salvo, quando riprova da sola e che `unisci` la rimette in fila subito. Le parole che contano all'inizio.
+ * lavoro è salvo e a che ora riprova da sola (il riposo vale anche per unisci). Le parole che contano all'inizio.
  */
-export function fraseUscitaDopoScadenze(p: { chi: string; tentativi: number; motivo: string; fase: FaseUnione; riposoMin: number }): string {
+export function fraseUscitaDopoScadenze(p: { chi: string; tentativi: number; motivo: string; fase: FaseUnione; riposoMin: number; finoMs?: number }): string {
   const dove = p.fase === 'criterio'
     ? 'è la misura del criterio che non finisce: guarda il comando del criterio'
     : p.fase === 'prova'
       ? 'sono i passi di git o le prove del ramo a essere troppo lenti'
       : 'il tempo se ne va prima dell’unione di prova (salvataggi o controlli dei rami)'
-  return `${p.chi}: unione scaduta ${p.tentativi} ${p.tentativi === 1 ? 'volta' : 'volte'}, esce dalla fila: ${dove}. Il lavoro è salvo nel suo ramo e il compito resta in revisione; riprovo da sola fra ${p.riposoMin} minuti, o subito se chiami unisci dopo aver tolto la causa. Ultimo motivo: ${p.motivo}.`
+  return `${p.chi}: unione scaduta ${p.tentativi} ${p.tentativi === 1 ? 'volta' : 'volte'}, esce dalla fila: ${dove}. Il lavoro è salvo nel suo ramo e il compito resta in revisione; riprovo da sola fra ${p.riposoMin} minuti${p.finoMs !== undefined ? ` (alle ${oraBreve(p.finoMs)})` : ''}: fino ad allora unisci non la rimette in fila, intanto togli la causa. Ultimo motivo: ${p.motivo}.`
 }
 
 /** Una riga per l'autopilota: cosa unisce adesso il programma, e da quanto. Pura. */
