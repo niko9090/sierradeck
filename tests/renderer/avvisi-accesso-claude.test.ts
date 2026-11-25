@@ -26,7 +26,7 @@ describe('componiAvvisi: l’accesso a Claude di un anno', () => {
   it('scaduto: avviso col tasto per rinnovare, senza «Chiudi»', () => {
     const a = componiAvvisi(fonti({ accessoClaude: con('scaduto', 0) }))
     expect(a).toHaveLength(1)
-    expect(a[0]).toMatchObject({ id: 'accesso-claude', gravita: 'blocco', azione: 'rinnovaAccessoClaude', etichettaAzione: 'Rinnova l’accesso a Claude' })
+    expect(a[0]).toMatchObject({ id: 'accesso-claude', gravita: 'blocco', azione: 'rinnovaAccessoClaude', etichettaAzione: 'Rinnova su questo PC' })
     expect(a[0]?.chiavi).toBeUndefined()
   })
 

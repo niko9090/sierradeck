@@ -160,7 +160,8 @@ export function componiAvvisi(fonti: FontiAvvisi): Avviso[] {
       gravita: accessoClaude.gravita,
       testo: accessoClaude.testo,
       azione: 'rinnovaAccessoClaude',
-      etichettaAzione: 'Rinnova l’accesso a Claude',
+      // 25/11: l'accesso è per PC: il tasto dice che rinnova questo.
+      etichettaAzione: 'Rinnova su questo PC',
       ...(accessoClaude.chiave !== undefined ? { chiavi: [accessoClaude.chiave] } : {})
     })
   }

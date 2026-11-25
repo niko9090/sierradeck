@@ -3,6 +3,7 @@ import type { PostiChat } from './posti-chat'
 import type { RisorsePc } from './risorse'
 import type { InvioErrori } from './storico-errori'
 import type { RapportoLavori } from './rapporto-lavori'
+import type { AccessoClaudePc } from './accesso-claude-pc'
 import { SPENTO_DOPO_MS, statoPc } from './stato-pc'
 /**
  * La posta per un PC: i tipi e le due cose pure che servono anche al
@@ -141,6 +142,12 @@ export type BattitoPc = {
    * Si legge con `postiDelBattito`, mai direttamente.
    */
   posti?: PostiChat
+  /**
+   * 25/11: l'accesso a Claude di quel PC adesso (ok, scaduto da quando,
+   * rinnovato quando). Manca nei battiti di prima: «non so», mai «scaduto».
+   * Si legge con `accessoDalBattito`, mai direttamente.
+   */
+  accessoClaude?: AccessoClaudePc
 }
 
 /** Il motivo per cui un Aiutante non lavora, dal battito: solo una stringa corta vale. */

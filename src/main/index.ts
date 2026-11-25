@@ -155,6 +155,7 @@ import { leggiAccesso } from './accesso'
 import { apriContoDrive, diagnosiDrive } from './cassaforte/conto-drive'
 import { creaGuardiaAccessi, FILE_ACCESSI_VISTI, motivoCassaforte, motivoClaude, motivoDrive, motivoGettone, type GuardiaAccessi } from './accessi-visti'
 import { statoAccesso as statoGettoneClaude } from '@shared/accesso-claude'
+import { accessoClaudeQui, battitoPerNome } from '@shared/accesso-claude-pc'
 import type { Portachiavi } from './segreti-su-file'
 import { apriSincronia, type Sincronia } from './cassaforte/sincronia'
 import { apriIdentitaPc, type IdentitaPcStore } from './progetti/pc'
@@ -2189,6 +2190,8 @@ if (!app.requestSingleInstanceLock()) {
         capacita: capacitaQui,
         // k-179b: i posti di questo PC con il motivo, riletti dal servizio ogni 30 secondi (sotto, dove nasce il client).
         posti: () => postiQuiGlobale,
+        // 25/11: l'accesso a Claude di questo PC adesso, perché gli altri non dicano «rinnova» da errori vecchi.
+        accessoClaude: () => accessoClaudeQui(),
         scatola: () => sincronia.scatola(),
         pcId: () => identitaPc.leggi().id,
         pcNome: () => identitaPc.leggi().nome,
@@ -4375,7 +4378,9 @@ if (!app.requestSingleInstanceLock()) {
               versione: () => app.getVersion(),
               settimanaPercento: () => limitiAggiornati([...polsi.values()], Date.now())?.settimana?.percento,
               affida: (p) => affidaSierraDeck(p),
-              log: (riga) => registro.info(riga)
+              log: (riga) => registro.info(riga),
+              // 25/11: lo stato dell'accesso a Claude di adesso, dal battito di chi ha mandato l'errore.
+              battitoDi: (da) => battitoPerNome(postinoGlobale?.altrui() ?? [], da)
             })
             // k-193b: i rapporti dei lavori arrivati, riassunti per PC e workspace, allo stesso autopilota.
             await giroAnalisiRapporti({
@@ -4406,6 +4411,7 @@ if (!app.requestSingleInstanceLock()) {
               radice: () => radiceSierraDeckGlobale?.(),
               io: () => { const io = identitaPc.leggi(); return { id: io.id, nome: nomeDaMostrare(io) } },
               altri: () => altri,
+              accessoQui: () => accessoClaudeQui(),
               saluteQui: () => leggiSalute(),
               saluteDi: (pc) => saluteDi(pc),
               autopiloti: () => autopilotiAltri?.() ?? Promise.resolve([]),
@@ -4777,7 +4783,7 @@ if (!app.requestSingleInstanceLock()) {
       // risposta immediata a una domanda che blocca tutto il resto.
       ipcMain.handle('accesso:stato', () => leggiAccesso())
       // L'accesso di un anno (16/11): lo stato del gettone e la finestra per rinnovarlo.
-      registraAccessoClaudeIpc((riga) => registro.info(riga))
+      registraAccessoClaudeIpc((riga) => registro.info(riga), () => nomeDaMostrare(identitaPc.leggi()))
       // La cartella dell'utente arriva dal sistema: una chat nuova aperta in un
       // percorso scritto nel codice funziona su una macchina sola.
       ipcMain.handle('sistema:cartellaUtente', () => homedir())

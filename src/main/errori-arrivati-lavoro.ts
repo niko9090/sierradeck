@@ -3,6 +3,8 @@ import { basename, join, relative } from 'node:path'
 import { cancellaSicura } from '@shared/cancella-sicura'
 import type { VoceErrore } from '@shared/storico-errori'
 import { CARTELLA_ARRIVI } from './errori-arrivati'
+import { eErroreAccesso } from '@shared/accesso-claude'
+import { fraseAccessoPc, verdettoAccesso } from '@shared/accesso-claude-pc'
 
 /**
  * «Errori arrivati» (0.81.0, rifatto nella 0.88.4 per l'autopilota unico):
@@ -99,6 +101,32 @@ export type GruppoErrori = {
   versioni: string[]
   /** Già affidato, e si ripresenta su una versione più nuova di allora. */
   ritorna?: { il: string; versione?: string }
+  /** 25/11: un errore d'accesso a Claude: com'è adesso l'accesso dei PC che l'hanno mandato (dal loro battito). */
+  accessoAdesso?: string[]
+}
+
+/** Il battito di un PC per nome (chi ha mandato l'errore), per lo stato dell'accesso a Claude di adesso. */
+export type BattitoDi = (da: string) => { battito?: string; accessoClaude?: unknown } | undefined
+
+/**
+ * 25/11: i gruppi d'errore dell'accesso a Claude, guardati con il battito di
+ * oggi. Nicholas, 25/11: «continua a dirmi di rinnovare claude ma l'ho già
+ * fatto!» — gli errori erano arrivati prima del rinnovo. Se ogni PC del gruppo
+ * dice «va» dopo l'ultimo errore, il gruppo esce dal lotto; altrimenti resta,
+ * con una riga per PC: scaduto (e dove si rinnova) o «non so». Pura.
+ */
+export function conAccessoDiAdesso(gruppi: readonly GruppoErrori[], battitoDi: BattitoDi | undefined): { gruppi: GruppoErrori[]; tornati: number } {
+  if (battitoDi === undefined) return { gruppi: [...gruppi], tornati: 0 }
+  const fuori: GruppoErrori[] = []
+  let tornati = 0
+  for (const g of gruppi) {
+    if (!eErroreAccesso(`${g.messaggio}\n${g.dettagli ?? ''}`)) { fuori.push(g); continue }
+    const verdetti = g.da.map((pc) => ({ pc, v: verdettoAccesso(g.ultima, battitoDi(pc)) }))
+    const restano = verdetti.filter((x) => x.v.esito !== 'ok')
+    if (restano.length === 0) { tornati += 1; continue }
+    fuori.push({ ...g, accessoAdesso: restano.map((x) => fraseAccessoPc(x.pc, x.v)) })
+  }
+  return { gruppi: fuori, tornati }
 }
 
 /** Il messaggio senza quello che cambia ogni volta: numeri, id, percorsi dopo `‹tolto›`. */
@@ -239,6 +267,7 @@ export function testoLotto(p: { id: string; gruppi: readonly GruppoErrori[]; ver
     righe.push(`- volte: ${g.volte} · dal ${g.prima} al ${g.ultima}`)
     righe.push(`- da: ${g.da.join(', ')} · versioni: ${g.versioni.length > 0 ? g.versioni.join(', ') : 'non dette'}`)
     if (g.ritorna !== undefined) righe.push(`- **si ripresenta**: affidato il ${g.ritorna.il.slice(0, 10)}${g.ritorna.versione !== undefined ? ` (alla ${g.ritorna.versione})` : ''}, ma c’è ancora su una versione più nuova: o la correzione non è bastata, o la chiusura era «non è un difetto / si risolve a mano» e l'azione a mano non è ancora stata fatta (guarda nel quaderno com'era stato chiuso)`)
+    for (const a of g.accessoAdesso ?? []) righe.push(`- **adesso**: ${a}`)
     if (g.cosa !== undefined) righe.push(`- cosa si stava facendo: ${g.cosa}`)
     if (g.messaggio.length > 160) righe.push('', '```', g.messaggio, '```')
     if (g.dettagli !== undefined) righe.push('', '```', g.dettagli, '```')
@@ -405,6 +434,8 @@ export type DepsGiroErrori = {
   affida: (p: { testo: string; cwd: string }) => Promise<void>
   log: (riga: string) => void
   nuovoId?: () => string
+  /** 25/11: il battito di un PC per nome, per lo stato dell'accesso a Claude di adesso. */
+  battitoDi?: BattitoDi
 }
 
 /**
@@ -439,7 +470,10 @@ export async function giroErroriArrivati(d: DepsGiroErrori): Promise<string | un
       const illeggibili = dec.file.filter((_f, i) => letti[i] === undefined)
       if (illeggibili.length > 0) d.log(`[errori arrivati] illeggibili, vanno nel recupero: ${illeggibili.join(', ')}`)
       const versioneQui = d.versione()
-      const { gruppi, vecchie, giaAffidati } = raggruppa({ arrivi: letti.filter((x): x is ArrivoLetto => x !== undefined), versioneQui, affidati: stato.affidati, adesso })
+      const rg = raggruppa({ arrivi: letti.filter((x): x is ArrivoLetto => x !== undefined), versioneQui, affidati: stato.affidati, adesso })
+      const { vecchie, giaAffidati } = rg
+      const { gruppi, tornati } = conAccessoDiAdesso(rg.gruppi, d.battitoDi)
+      if (tornati > 0) d.log(`[errori arrivati] ${tornati} ${tornati === 1 ? 'gruppo' : 'gruppi'} d’accesso a Claude lasciati fuori: secondo il battito, l’accesso di quel PC è tornato`)
       if (gruppi.length > 0) {
         const id = d.nuovoId?.() ?? ora.replace(/[-:.TZ]/g, '').slice(0, 14)
         const lotto = fileLotto(arrivi, id)
