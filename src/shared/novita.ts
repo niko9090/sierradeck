@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.120.1',
+    righe: [
+      '**Accesso a Claude scaduto:** il registro scrive un avviso una volta sola, non più un errore che arrivava come guasto. Il programma riprova ogni 10 minuti invece di ogni minuto: basta rinnovare l\'accesso con «Rinnova l\'accesso a Claude».',
+      '**Limite del piano raggiunto:** anche questo è un avviso scritto una volta sola, non un errore.',
+    ],
+  },
+  {
     versione: '0.120.0',
     righe: [
       '**Pannello subito pronto:** si apre dall\'ultima copia e rilegge il Drive in sottofondo. Prima ogni 10 minuti aspettava da 3 a 10 secondi.',

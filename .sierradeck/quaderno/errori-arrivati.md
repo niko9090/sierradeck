@@ -401,3 +401,8 @@ Corretto nella versione 0.118.3 (k-err285). Ipotesi 1 confermata: sul percorso c
 
 ## Gruppo 1: «[aggiornamenti] l updater non si e fatto vivo: non chiudo niente»
 Corretto nella versione 0.119.2. Arrivato 2 volte a 7 ms di distanza dal PC fisso in Glos (0.119.0→0.119.1). Il doppione era `guaio` (src/main/aggiornamenti.ts) che scriveva due volte: una nel registro e una con `console.error`, che il registro rimetteva dentro; ora una volta sola (test: tests/main/aggiornamenti-guaio-una-volta.test.ts). Il testo prometteva un'installazione alla chiusura che non avviene (dalla 0.69.0 installa solo il tasto Installa): ora dice di riprovare col tasto Installa. Il «non si è fatto vivo» in sé (6 s senza segno di SierraDeck Update) non è un difetto del controllo: causa probabile antivirus o avvio lento. Il secondo tentativo su quel PC è andato a buon fine (il rapporto delle 16:12 mostra il riavvio alla 0.119.1).
+
+# Errori arrivati (lotto 20261125184038)
+
+## Gruppo 1: accesso a Claude scaduto sul portatile Asus (versione 0.119.1), workspace Desk_remoto
+La causa è l account: l accesso a Claude è scaduto. A mano: Nicholas lo rinnova con «Rinnova l accesso a Claude». Il difetto del programma (lo trattava come un guasto, scrivendo un errore, e riprovava ogni minuto) è corretto nella versione 0.120.1 (k-318a): ora è un avviso scritto una volta sola e il programma riprova ogni 10 minuti. Test in tests/autopilot-host/orchestratore.test.ts e servizio-orchestratore.test.ts.
