@@ -99,6 +99,8 @@
 - ogni test git vero del cancello unioni nuovo va scritto con `vi.setConfig({ testTimeout: 120_000 })`: il limite di base di 20 s non regge con il PC carico e fa respingere rami buoni. _(2026-11-24)_
 - la suite autopilot-host+shared in primo piano dura circa 11 minuti (371 file, 3658 test): serve timeout 900000. _(2026-11-24)_
 - Il test sulle spinte a processo vivo deve chiudere con un risultato il turno che la guardia apre al minuto 1; senza, la spinta non parte e il test sembra rotto. _(2026-11-25)_
+- il fallimento 3710/3711 non si ripete: i test con git vero fuori dal gruppo `lenti` (es. autopulizia.test.ts) hanno solo 20 s e cadono a PC carico. _(2026-11-25)_
+- l'esito del criterio non dice quale test cade: lanciare con `--reporter=dot` e cercare FAIL per sapere il nome. _(2026-11-25)_
 
 ## worktree
 
@@ -615,12 +617,10 @@
 
 ## codice
 
-- `chatViva` esiste già in `autopilota-telefono.ts` (senza `nelRecupero`): quello condiviso è `chatInVita` in `autopilota.ts`; non confonderli. _(2026-11-16)_
 - foto e ripristino dei file rigenerati stanno in src/autopilot-host/worktree.ts, non in un worktree.ts a parte: `src/**/worktree.ts` trova solo quello _(2026-11-23)_
 
 ## dati
 
-- un autopilota da un altro PC o da un file vecchio può mancare di `dialogo`, `decisioni` o `chats`: le funzioni in `shared` che lo leggono devono trattare gli elenchi assenti come vuoti. _(2026-11-16)_
 - Per leggere un workspace su un altro PC serve un agente su quel PC o su PC-Fisso, o una rotta di sola lettura nuova per registro e piano; in questa copia `E:` è vuoto. _(2026-11-23)_
 - il ramo di aiuto gira su un PC che può non avere i dati del workspace citato: controllare prima se la cartella del servizio contiene davvero quel workspace. _(2026-11-25)_
 
