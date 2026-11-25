@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest'
+﻿import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest'
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -14,6 +14,10 @@ import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/serv
 import { unicoFinto } from '../setup/unico-finto'
 import { finche, programmaVivoIn } from '../setup/programma-vivo'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
+
+// Alcuni casi usano git vero (init, worktree, cherry-pick): a PC carico, con la suite
+// intera in parallelo, i 20 s di serie non bastano e la suite cade senza un difetto.
+vi.setConfig({ testTimeout: 120_000, hookTimeout: 120_000 })
 
 const ORA = Date.parse('2026-10-30T12:00:00.000Z')
 /** Sette ore dopo adesso: le cartelle create dal test non sono più «appena nate». */
