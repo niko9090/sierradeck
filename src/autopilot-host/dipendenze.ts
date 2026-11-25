@@ -129,7 +129,8 @@ export function rigaUnioneEPoi(piano: Piano, inUnione: readonly string[]): strin
   if (inUnione.length === 0) return undefined
   const ids = new Set(inUnione)
   // «Poi parte» solo chi non aspetta anche altro: le altre dipendenze devono essere unite.
-  const dopo = piano.compiti.filter((c) => c.stato === 'da-fare' && c.dopo.some((d) => ids.has(d)) && dipendenzeNonUnite(piano, c.id).every((d) => ids.has(d)))
+  // 25/11: un compito chiuso (superato, annullato) non «parte dopo».
+  const dopo = piano.compiti.filter((c) => c.stato === 'da-fare' && c.chiuso === undefined && c.dopo.some((d) => ids.has(d)) && dipendenzeNonUnite(piano, c.id).every((d) => ids.has(d)))
   const inCorso = inUnione.join(', ')
   if (dopo.length === 0) return `Unione in corso: ${inCorso}. Non è un lavoro fermo.`
   return `Unione in corso: ${inCorso}, poi parte ${dopo.map((c) => c.id).join(', ')}. Non è un lavoro fermo: il programma ti avvisa appena l’unione finisce.`

@@ -270,3 +270,66 @@ export function pauseAiuti(lavori: readonly LavoroAffidato[], adesso: number): P
 export function pcInPausa(pause: readonly PausaAiuto[], pcId: string, workspace: string, compito: string): PausaAiuto | undefined {
   return pause.find((p) => (p.tipo === 'spedizione' ? p.workspace === workspace : p.pcId === pcId && (p.tipo === 'pc' || p.workspace === workspace) && (p.tipo !== 'compito' || p.compito === compito)))
 }
+
+// ---------------------------------------------------------------- la pulizia dei lavori affidati (25/11)
+
+/** 25/11: un lavoro chiuso resta nell'elenco un giorno (ne seguono pause e serie dei guasti), salvo quando non serve più. */
+export const AIUTO_CHIUSO_TIENI_MS = 24 * 60 * 60_000
+/** 25/11: un lavoro ancora «da spedire» o «spedito» da più di tre giorni: quel PC non lo chiude più, è un avanzo. */
+export const AIUTO_APERTO_MAX_MS = 3 * 24 * 60 * 60_000
+
+/** Quanto serve del piano e della coda per decidere: tutto letto da chi chiama. */
+export type ContestoPuliziaAiuti = {
+  adesso: number
+  /** Il compito del piano (stato, chiusura, richiesta); assente se non c'è. */
+  compito: (workspace: string, id: string) => { stato: string; criterioVerde?: boolean; chiuso?: unknown; richiesta: string } | undefined
+  /** La richiesta della coda è fatta? */
+  richiestaFatta: (workspace: string, id: string) => boolean
+  /** Il ramo di questo lavoro è già unito (lo sa il cancello dell'unione)? */
+  unito: (workspace: string, idLavoro: string) => boolean
+}
+
+/**
+ * **Quali lavori affidati restano nell'elenco** (25/11). Pura. Il caso vero:
+ * in `aiuti-affidati.json` restavano lavori finiti da un altro PC con il
+ * compito già unito nel piano; l'unica pulizia era nel giro del programma
+ * (`/aiuto/giro`), solo a 24 ore dalla fine e mai per un lavoro rimasto aperto.
+ *
+ * Esce un lavoro:
+ * - aperto (da spedire o spedito) da più di `AIUTO_APERTO_MAX_MS`;
+ * - chiuso da più di `AIUTO_CHIUSO_TIENI_MS` (come prima);
+ * - finito, se non serve più: il compito è unito (criterio verde) o chiuso, la richiesta è fatta,
+ *   il ramo è unito, o non c'è né compito né ramo. Ma solo se quel PC non ha
+ *   fallimenti più vecchi ancora nell'elenco: togliere il riuscito unirebbe
+ *   due serie di guasti (e farebbe valere la pausa di un accesso già tornato).
+ * I falliti restano il loro giorno: decidono le pause.
+ */
+export function aiutiDaTenere(lavori: readonly LavoroAffidato[], c: ContestoPuliziaAiuti): { tenuti: LavoroAffidato[]; tolti: Array<{ id: string; perche: string }> } {
+  const tolti: Array<{ id: string; perche: string }> = []
+  const perche = (l: LavoroAffidato): string | undefined => {
+    if (l.stato === 'da-spedire' || l.stato === 'spedito') {
+      return c.adesso - Date.parse(l.inizio) > AIUTO_APERTO_MAX_MS ? 'aperto da più di tre giorni, quel PC non lo chiude più' : undefined
+    }
+    if (l.fine === undefined || !(c.adesso - Date.parse(l.fine) < AIUTO_CHIUSO_TIENI_MS)) return 'chiuso da più di un giorno'
+    if (l.stato !== 'finito') return undefined
+    const k = l.compito !== undefined ? c.compito(l.workspace, l.compito) : undefined
+    // Unito con il criterio rosso no: la correzione riparte sullo stesso compito, e il cancello cerca i rami anche qui.
+    const motivo = k?.stato === 'unito' && k.criterioVerde === true ? `${l.compito} è unito`
+      : k?.chiuso !== undefined ? `${l.compito} è chiuso`
+      : k !== undefined && c.richiestaFatta(l.workspace, k.richiesta) ? `la richiesta di ${l.compito} è fatta`
+      : c.unito(l.workspace, l.id) ? 'il suo ramo è unito'
+      : l.compito === undefined && l.ramo === undefined ? 'finito senza compito né ramo'
+      : undefined
+    if (motivo === undefined) return undefined
+    const fine = Date.parse(l.fine)
+    const guastiPrima = lavori.some((v) => v.pcId === l.pcId && v.stato === 'fallito' && v.fine !== undefined && Date.parse(v.fine) <= fine && c.adesso - Date.parse(v.fine) < AIUTO_CHIUSO_TIENI_MS)
+    return guastiPrima ? undefined : motivo
+  }
+  const tenuti = lavori.filter((l) => {
+    const p = perche(l)
+    if (p === undefined) return true
+    tolti.push({ id: l.id, perche: p })
+    return false
+  })
+  return { tenuti, tolti }
+}

@@ -349,6 +349,24 @@ export function togliVoce(stato: StatoAttesa, id: string): { stato: StatoAttesa;
   return voce === undefined ? undefined : { stato: { ...stato, voci: stato.voci.filter((v) => v.id !== id) }, voce }
 }
 
+/**
+ * 25/11: le voci in fila per un compito che non ripartirà più: unito con il criterio verde, chiuso
+ * (superato, annullato, richiesta chiusa) o con la richiesta fatta. Dal 11/11 una voce non cade più da
+ * sola dalla lista, e queste restavano «in fila» per sempre. Unito col criterio rosso resta: la
+ * correzione può aspettare il posto con lo stesso compito. Pura.
+ */
+export function vociDiCompitiFiniti(
+  voci: readonly VoceAttesa[],
+  compito: (workspace: string, id: string) => { stato: string; criterioVerde?: boolean; chiuso?: unknown; richiesta: string } | undefined,
+  richiestaFatta: (workspace: string, id: string) => boolean
+): VoceAttesa[] {
+  return voci.filter((v) => {
+    if (v.compito === undefined) return false
+    const k = compito(v.workspace, v.compito)
+    return k !== undefined && ((k.stato === 'unito' && k.criterioVerde === true) || k.chiuso !== undefined || richiestaFatta(v.workspace, k.richiesta))
+  })
+}
+
 /** Il posto in fila a parole: «2°». */
 export const ordinale = (n: number): string => `${n}°`
 
