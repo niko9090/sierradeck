@@ -16,10 +16,17 @@ describe('«turno non riuscito» in italiano', () => {
 
   it('l’accesso scaduto: è l’unica cosa che deve fare Nicholas, detta in chiaro', () => {
     const t = motivoInItaliano('Login expired · Please run /login')
-    expect(t).toMatch(/l’accesso a Claude è scaduto: rinnovalo con «Rinnova l’accesso a Claude»/)
+    expect(t).toMatch(/l’accesso a Claude di questo PC è scaduto: rinnovalo su questo PC con «Rinnova l’accesso a Claude»/)
     expect(t).toMatch(/login/)
     expect(t).toMatch(/riparto da solo/)
     expect(motivoInItaliano('Invalid API key · Please run /login')).toBe(t)
+  })
+
+  it('25/11: l’accesso scaduto dice di quale PC è, e che si rinnova su quello', () => {
+    const t = motivoInItaliano('Login expired · Please run /login', 'PORTATILE')
+    expect(t).toMatch(/l’accesso a Claude di PORTATILE è scaduto: rinnovalo su PORTATILE con «Rinnova l’accesso a Claude»/)
+    // Un nome vuoto non fa una frase storta.
+    expect(motivoInItaliano('Login expired · Please run /login', '  ')).toBe(motivoInItaliano('Login expired · Please run /login'))
   })
 
   it('i server sovraccarichi; la coda «riprovo fra» resta in fondo; uno sconosciuto resta com’è', () => {

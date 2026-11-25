@@ -27,10 +27,11 @@ function percorsoClaude(env: NodeJS.ProcessEnv = process.env): string {
 }
 
 /** Apre la finestra del rinnovo (lo spawn lo fa `avviaRinnovaAccesso`). Non solleva: un avvio mancato torna come esito. */
-export function apriRinnovoAccesso(log: (riga: string) => void): EsitoRinnovo {
+export function apriRinnovoAccesso(log: (riga: string) => void, nomePc?: () => string | undefined): EsitoRinnovo {
   let esito: EsitoRinnovo
   try {
-    esito = avviaRinnovaAccesso(percorsoClaude(), fileAccesso(), { env: ambientePulito(process.env) })
+    const nome = (() => { try { return nomePc?.() } catch { return undefined } })()
+    esito = avviaRinnovaAccesso(percorsoClaude(), fileAccesso(), { env: ambientePulito(process.env), ...(nome !== undefined ? { nomePc: nome } : {}) })
   } catch (err) {
     esito = { ok: false, messaggio: err instanceof Error ? err.message : String(err) }
   }
@@ -38,9 +39,9 @@ export function apriRinnovoAccesso(log: (riga: string) => void): EsitoRinnovo {
   return esito
 }
 
-export function registraAccessoClaudeIpc(log: (riga: string) => void): void {
+export function registraAccessoClaudeIpc(log: (riga: string) => void, nomePc?: () => string | undefined): void {
   ipcMain.handle('accessoClaude:stato', (): StatoAccesso => {
     try { return statoAccesso() } catch (err) { return { stato: 'illeggibile', perche: err instanceof Error ? err.message : String(err) } }
   })
-  ipcMain.handle('accessoClaude:rinnova', (): EsitoRinnovo => apriRinnovoAccesso(log))
+  ipcMain.handle('accessoClaude:rinnova', (): EsitoRinnovo => apriRinnovoAccesso(log, nomePc))
 }

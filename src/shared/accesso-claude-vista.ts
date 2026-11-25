@@ -60,8 +60,8 @@ export function avvisoAccesso(s: StatoAccesso | undefined): { gravita: 'blocco' 
     const fase = s.giorniRimasti <= 3 ? 'ultimi' : 'presto'
     return { gravita: 'attenzione', testo: `L’accesso a Claude: ${testoScadenza(s.giorniRimasti).toLowerCase()}. Rinnovalo per un altro anno.`, chiave: `accesso-claude|${s.scadeIl}|${fase}` }
   }
-  if (s.stato === 'scaduto') return { gravita: 'blocco', testo: 'L’accesso a Claude di un anno è scaduto: le chat possono fermarsi.' }
-  if (s.stato === 'rifiutato') return { gravita: 'blocco', testo: 'Claude ha rifiutato l’accesso di un anno: le chat possono fermarsi.' }
+  if (s.stato === 'scaduto') return { gravita: 'blocco', testo: 'L’accesso a Claude di un anno di questo PC è scaduto: le chat possono fermarsi.' }
+  if (s.stato === 'rifiutato') return { gravita: 'blocco', testo: 'Claude ha rifiutato l’accesso di un anno di questo PC: le chat possono fermarsi.' }
   return undefined
 }
 
@@ -71,6 +71,21 @@ export function chiaveStatoAccesso(s: StatoAccesso | undefined): string {
   if (s.stato === 'assente') return 'assente'
   if (s.stato === 'illeggibile') return `illeggibile|${s.perche}`
   return `${s.stato}|${s.scadeIl}`
+}
+
+/**
+ * 25/11: il tasto dice quale PC rinnova. L'accesso è per PC: il 25/11 Nicholas
+ * l'ha rinnovato sul PC fisso mentre era scaduto sul portatile.
+ */
+export function etichettaRinnovo(nomePc: string | undefined): string {
+  const n = nomePc?.trim()
+  return n !== undefined && n !== '' ? `Rinnova l’accesso a Claude di ${n}` : 'Rinnova l’accesso a Claude di questo PC'
+}
+
+/** La riga dopo il tasto: la finestra è aperta su questo PC. */
+export function notaRinnovoAperto(nomePc: string | undefined): string {
+  const n = nomePc?.trim()
+  return `Finestra aperta su ${n !== undefined && n !== '' ? n : 'questo PC'}: approva nel browser.`
 }
 
 /** La riga di chat chiede di rinnovare l'accesso (il testo di `turno-non-riuscito.ts`). */
@@ -83,4 +98,4 @@ export const GIRO_ACCESSO_MS = 10 * 60_000
 export const GIRO_VELOCE_MS = 5_000
 export const DURATA_GIRO_VELOCE_MS = 2 * 60_000
 
-export const AIUTO_ACCESSO_CLAUDE = 'Il login normale di Claude Code scade dopo qualche settimana e non si rinnova da solo: quando succede, tutte le chat del programma si fermano con «this login reached its time limit». «Rinnova l’accesso a Claude» apre una finestra che lancia «claude setup-token»: si apre il browser, approvi con il tuo account Claude, e la finestra salva da sola un accesso che vale un anno, cifrato e solo per questo utente di Windows. Da lì ogni chat del programma lo usa, e quelle ferme ripartono da sole. Va fatto una volta l’anno su ogni PC; il programma avvisa due settimane prima. Se Claude lo rifiuta, le chat tornano al login normale invece di fermarsi tutte.'
+export const AIUTO_ACCESSO_CLAUDE = 'Il login normale di Claude Code scade dopo qualche settimana e non si rinnova da solo: quando succede, tutte le chat del programma si fermano con «this login reached its time limit». «Rinnova l’accesso a Claude» apre una finestra che lancia «claude setup-token»: si apre il browser, approvi con il tuo account Claude, e la finestra salva da sola un accesso che vale un anno, cifrato e solo per questo utente di Windows. Da lì ogni chat del programma lo usa, e quelle ferme ripartono da sole. Vale solo per il PC su cui lo premi: va fatto una volta l’anno su ogni PC, sul suo schermo (premerlo qui non rinnova un altro PC); il programma avvisa due settimane prima. Se Claude lo rifiuta, le chat tornano al login normale invece di fermarsi tutte.'

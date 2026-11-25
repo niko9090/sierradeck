@@ -154,6 +154,10 @@ export type Dipendenze = {
   indiceQuaderno?: (cwd: string) => string
   /** k-166n11: un'azione su un altro PC, chiesta al programma principale (`azione-su-pc-programma.ts`). */
   azioneSuPc?: (azione: unknown) => Promise<{ ok: true; testo: string } | { ok: false; motivo: string }>
+  /** 25/11: l'accesso a Claude di questo PC, segnato per il battito. Assente (prove): non si segna. */
+  accessoPc?: { scaduto: () => void; tornato: () => void }
+  /** 25/11: il nome di questo PC, nella riga «accesso scaduto». */
+  nomePc?: () => string | undefined
   /** Per i test: la raccolta degli eventi per l'orchestratore. */
   raccoltaEventiMs?: number
   /** Per le prove: dopo quanto si spegne un orchestratore a riposo (poi riparte con --resume). */
@@ -1894,6 +1898,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     ...(deps.limiti !== undefined ? { limiti: () => deps.limiti!.leggi() } : {}),
     ultimoSegnale: (id, chat) => ultimoSegnale(chiaveTurno(id, chat)),
     ...(deps.raccoltaEventiMs !== undefined ? { raccoltaEventiMs: deps.raccoltaEventiMs } : {}),
+    ...(deps.accessoPc !== undefined ? { accessoPc: deps.accessoPc } : {}),
+    ...(deps.nomePc !== undefined ? { nomePc: deps.nomePc } : {}),
     ...(deps.inattivoOrchestratoreMs !== undefined ? { inattivoMs: deps.inattivoOrchestratoreMs } : {}),
     ...(deps.mutoOrchestratoreMs !== undefined ? { mutoMs: deps.mutoOrchestratoreMs } : {}),
     ...(deps.specialistaMaxMs !== undefined ? { specialistaMaxMs: deps.specialistaMaxMs } : {}),

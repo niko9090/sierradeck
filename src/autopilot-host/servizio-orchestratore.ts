@@ -241,6 +241,10 @@ export type ContestoUnico = {
   limiti?: () => LimitiPc
   /** L'ultimo segno di vita di una chat adottata (hook, battiti), in ms. */
   ultimoSegnale: (autopilotaId: string, chatId: string) => number | undefined
+  /** 25/11: l'accesso a Claude di questo PC, segnato per il battito (`@shared/accesso-claude-pc`). Assente (prove): non si segna. */
+  accessoPc?: { scaduto: () => void; tornato: () => void }
+  /** 25/11: il nome di questo PC, per dire di quale PC è l'accesso scaduto. */
+  nomePc?: () => string | undefined
   /** Per i test. */
   raccoltaEventiMs?: number
   chiamateMax?: number
@@ -1440,6 +1444,8 @@ ${NOTA_SENZA_GIT}`,
     contesto: contestoTurno,
     ultime: (ws, n) => x.orchestratori.ultimeDialogo(ws, n).filter((r) => r.da !== 'evento'),
     risposta: (ws, testo) => {
+      // 25/11: un turno riuscito = l'accesso a Claude va (se era segnato scaduto, non lo è più).
+      try { x.accessoPc?.tornato() } catch { /* solo un segno per il battito */ }
       console.info(`[orchestratore] ${ws} — risponde: ${testo.replace(/\s+/gu, ' ').slice(0, 200)}`)
       nelDialogo(ws, { quando: x.adesso(), da: 'lui', testo })
     },
@@ -1450,6 +1456,8 @@ ${NOTA_SENZA_GIT}`,
         // k-318a: l'accesso scaduto è l'account di Nicholas da rinnovare, il limite è la quota del piano: non sono
         // guasti del programma. Un avviso, e una volta sola finché il motivo non cambia (non a ogni tentativo).
         const chiave = senzaRiprovo(motivo)
+        // 25/11: va nel battito di questo PC, così gli altri sanno che è ancora scaduto (e quale PC).
+        if (eErroreAccesso(motivo)) { try { x.accessoPc?.scaduto() } catch { /* solo un segno per il battito */ } }
         if (ultimoAvvisoAccesso.get(ws) !== chiave) {
           ultimoAvvisoAccesso.set(ws, chiave)
           console.warn(`[orchestratore] ${ws} — turno non riuscito (non è un guasto del programma), riprovo con calma: ${motivo.slice(0, 200)}`)
@@ -1459,7 +1467,7 @@ ${NOTA_SENZA_GIT}`,
       if (u === undefined) return
       // 11/11: a Nicholas in italiano, e una volta sola. Il 09/11: «turno non riuscito: You've hit your weekly
       // limit · resets 1am», 11 righe in 70 minuti, una per tentativo. Nel registro resta il motivo com'è.
-      const detto = motivoInItaliano(motivo)
+      const detto = motivoInItaliano(motivo, x.nomePc?.())
       const riga = `turno non riuscito: ${detto}`
       if (stessaRigaDiPrima(x.orchestratori.ultimeDialogo(ws, 1).at(-1), riga)) return
       x.orchestratori.aggiungiDialogo(ws, { quando: x.adesso(), da: 'evento', testo: riga })

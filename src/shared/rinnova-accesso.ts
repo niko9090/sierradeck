@@ -21,12 +21,21 @@ import { DURATA_GETTONE_MS } from './accesso-claude'
 
 const q = (s: string): string => `'${s.replace(/'/gu, "''")}'`
 
-export function scriptRinnovaAccesso(claude: string, file: string, titolo = 'SierraDeck - Rinnova l accesso a Claude'): string {
+/** 25/11: il nome del PC nella finestra, senza caratteri strani (finisce in un titolo e in una riga di PowerShell). */
+function nomePulito(nomePc: string | undefined): string | undefined {
+  const n = (nomePc ?? '').replace(/[^\p{L}\p{N} ._-]/gu, '').trim().slice(0, 60)
+  return n !== '' ? n : undefined
+}
+
+export function scriptRinnovaAccesso(claude: string, file: string, titolo?: string, nomePc?: string): string {
   const giorni = Math.round(DURATA_GETTONE_MS / (24 * 3600_000))
+  // 25/11: l'accesso è per PC: la finestra dice quale PC rinnova.
+  const pc = nomePulito(nomePc)
+  const t = titolo ?? `SierraDeck - Rinnova l accesso a Claude di ${pc ?? 'questo PC'}`
   return [
     "$ErrorActionPreference = 'Continue'",
-    `$Host.UI.RawUI.WindowTitle = ${q(titolo)}`,
-    "Write-Host 'Rinnovo dell accesso a Claude per un anno.' -ForegroundColor Cyan",
+    `$Host.UI.RawUI.WindowTitle = ${q(t)}`,
+    `Write-Host ${q(`Rinnovo dell accesso a Claude di ${pc !== undefined ? `questo PC (${pc})` : 'questo PC'} per un anno. Vale solo per questo PC.`)} -ForegroundColor Cyan`,
     "Write-Host 'Si apre il browser: approva con il tuo account Claude. Poi torna qui, al resto penso io.' -ForegroundColor Cyan",
     "Write-Host ''",
     `& ${q(claude)} setup-token`,
@@ -81,8 +90,8 @@ export function scriptRinnovaAccesso(claude: string, file: string, titolo = 'Sie
  * Lo script viaggia in base64 (niente apici da sistemare); argomenti
  * verbatim, perché `start` vuole il titolo fra virgolette così com'è.
  */
-export function comandoRinnovaAccesso(claude: string, file: string, titolo?: string): { comando: string; args: string[] } {
-  const script = scriptRinnovaAccesso(claude, file, titolo)
+export function comandoRinnovaAccesso(claude: string, file: string, titolo?: string, nomePc?: string): { comando: string; args: string[] } {
+  const script = scriptRinnovaAccesso(claude, file, titolo, nomePc)
   const codificato = Buffer.from(script, 'utf16le').toString('base64')
   return { comando: 'cmd.exe', args: ['/d', '/c', 'start', '"SierraDeck"', 'powershell.exe', '-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', codificato] }
 }
@@ -91,10 +100,10 @@ export function comandoRinnovaAccesso(claude: string, file: string, titolo?: str
 export function avviaRinnovaAccesso(
   claude: string,
   file: string,
-  p: { titolo?: string; env?: NodeJS.ProcessEnv; avvia?: typeof spawn } = {}
+  p: { titolo?: string; nomePc?: string; env?: NodeJS.ProcessEnv; avvia?: typeof spawn } = {}
 ): { ok: true } | { ok: false; messaggio: string } {
   try {
-    const c = comandoRinnovaAccesso(claude, file, p.titolo)
+    const c = comandoRinnovaAccesso(claude, file, p.titolo, p.nomePc)
     const figlio = (p.avvia ?? spawn)(c.comando, c.args, { detached: true, stdio: 'ignore', windowsHide: true, windowsVerbatimArguments: true, ...(p.env !== undefined ? { env: p.env } : {}) })
     figlio.on('error', (err) => console.error('[accesso-claude] finestra del rinnovo non aperta:', err))
     figlio.unref()

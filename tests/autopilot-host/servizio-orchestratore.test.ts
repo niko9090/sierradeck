@@ -209,7 +209,7 @@ describe('autopilota unico nel servizio', () => {
     const fallisce = (): void => { processi.at(-1)!.emetti({ type: 'result', is_error: true, result: 'Login expired · Please run /login', total_cost_usd: 0, session_id: 'sess-1', usage: { input_tokens: 5 } }) }
     fallisce()
     expect(eventi()).toHaveLength(1)
-    expect(eventi()[0]).toBe('turno non riuscito: l’accesso a Claude è scaduto: rinnovalo con «Rinnova l’accesso a Claude» (vale un anno) o rifai il login. Appena torna riparto da solo, subito — riprovo fra 10 min')
+    expect(eventi()[0]).toBe('turno non riuscito: l’accesso a Claude di questo PC è scaduto: rinnovalo su questo PC con «Rinnova l’accesso a Claude» (vale un anno) o rifai il login. Appena torna riparto da solo, subito — riprovo fra 10 min')
     // Nel registro resta il motivo com'è, per chi cerca il guasto: ma come avviso (k-318a), non come ERRORE.
     expect(avviso.mock.calls.filter((c) => String(c[0]).includes('turno non riuscito') && String(c[0]).includes('Login expired'))).toHaveLength(1)
     fallisce()

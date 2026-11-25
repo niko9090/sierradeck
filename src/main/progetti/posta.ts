@@ -1,6 +1,7 @@
 import { staDentro } from './registro'
 import type { CapacitaPc } from '@shared/capacita-pc'
 import type { PostiChat } from '@shared/posti-chat'
+import type { AccessoClaudePc } from '@shared/accesso-claude-pc'
 
 /**
  * La posta per un PC: azioni che si eseguono **solo su quel computer**,
@@ -197,6 +198,8 @@ export function creaPostino(deps: {
   capacita?: () => CapacitaPc | undefined
   /** k-179b: i posti delle chat di questo PC con motivo e misura: vanno nel battito (senza la misura nella firma). */
   posti?: () => PostiChat | undefined
+  /** 25/11: l'accesso a Claude di questo PC adesso: va nel battito (cambia di rado, fa riscrivere quando cambia). */
+  accessoClaude?: () => AccessoClaudePc | undefined
   cartellaEsiste: (cwd: string) => boolean
   /**
    * Esegue un comando arrivato per posta (0.88.0, «Sposta su questo PC»):
@@ -371,6 +374,7 @@ export function creaPostino(deps: {
       ...(deps.aiutante?.() === true ? { aiutante: true } : {}),
       ...(() => { const c = deps.capacita?.(); return c === undefined ? {} : { capacita: c } })(),
       ...(() => { const p = deps.posti?.(); return p === undefined ? {} : { posti: p } })(),
+      ...(() => { try { const a = deps.accessoClaude?.(); return a === undefined ? {} : { accessoClaude: a } } catch { return {} } })(),
       ...(aggiornando !== undefined ? { aggiornando } : {}),
       ...(() => { const b = deps.aiutante?.() === true ? deps.bloccoAiutante?.() : undefined; return b !== undefined ? { bloccoAiutante: b } : {} })()
     }

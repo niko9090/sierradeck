@@ -39,7 +39,7 @@ function oraDiRipristino(motivo: string): string | undefined {
  * succede dopo; un motivo sconosciuto resta com'è (meglio l'originale che una
  * traduzione inventata). La coda «— riprovo fra N» resta in fondo.
  */
-export function motivoInItaliano(motivo: string): string {
+export function motivoInItaliano(motivo: string, nomePc?: string): string {
   const coda = RIPROVO.exec(motivo)?.[0] ?? ''
   const m = motivo.slice(0, motivo.length - coda.length).trim()
   let detto = m
@@ -53,7 +53,12 @@ export function motivoInItaliano(motivo: string): string {
     // L'account è di Nicholas: è l'unica cosa che deve fare lui, e si dice una volta.
     // 16/11: anche «Failed to authenticate: this login reached its time limit» (restava in inglese),
     // e la strada che dura un anno: «Rinnova l'accesso» (claude setup-token) invece di /login.
-    detto = 'l’accesso a Claude è scaduto: rinnovalo con «Rinnova l’accesso a Claude» (vale un anno) o rifai il login. Appena torna riparto da solo, subito'
+    // 25/11: l'accesso è per PC. Nicholas l'ha rinnovato sul PC sbagliato guardando questa riga da un altro PC:
+    // si dice di quale PC è, e che si rinnova su quello.
+    const pc = nomePc !== undefined && nomePc.trim() !== '' ? nomePc.trim() : undefined
+    detto = pc !== undefined
+      ? `l’accesso a Claude di ${pc} è scaduto: rinnovalo su ${pc} con «Rinnova l’accesso a Claude» (vale un anno) o rifai il login lì. Appena torna riparto da solo, subito`
+      : 'l’accesso a Claude di questo PC è scaduto: rinnovalo su questo PC con «Rinnova l’accesso a Claude» (vale un anno) o rifai il login. Appena torna riparto da solo, subito'
   } else if (/overloaded|(?<!\d)529(?!\d)/iu.test(m)) {
     detto = 'i server di Claude sono sovraccarichi: non dipende da te, riparto da solo'
   }

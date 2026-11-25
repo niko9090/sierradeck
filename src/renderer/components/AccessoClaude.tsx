@@ -1,6 +1,7 @@
-import { useState } from 'react'
-import { AIUTO_ACCESSO_CLAUDE, coloreStatoAccesso, testoStatoAccesso } from '@shared/accesso-claude-vista'
+import { useEffect, useState } from 'react'
+import { AIUTO_ACCESSO_CLAUDE, coloreStatoAccesso, etichettaRinnovo, notaRinnovoAperto, testoStatoAccesso } from '@shared/accesso-claude-vista'
 import { rinnovaAccessoClaude, useAccessoClaude } from '../accesso-claude'
+import { useNomiPc } from '../state/nomi-pc'
 import { Aiuto } from './Aiuto'
 
 const COLORE = { verde: 'var(--verde)', ambra: 'var(--ambra)', rosso: 'var(--rosso)', quieto: 'var(--testo-quieto)' } as const
@@ -12,16 +13,22 @@ const COLORE = { verde: 'var(--verde)', ambra: 'var(--ambra)', rosso: 'var(--ros
 export function TastoRinnovaAccesso({ primario = false }: { primario?: boolean }): React.JSX.Element {
   const [inCorso, setInCorso] = useState(false)
   const [nota, setNota] = useState<string | undefined>(undefined)
+  // 25/11: l'accesso è per PC. Il tasto dice quale PC rinnova (il 25/11 Nicholas ha rinnovato quello sbagliato).
+  const nomePc = useNomiPc((s) => s.io?.nome)
+  useEffect(() => {
+    if (nomePc !== undefined) return
+    try { useNomiPc.getState().ricarica() } catch { /* senza ponte (prove): resta «questo PC» */ }
+  }, [nomePc])
   const premi = (): void => {
     setInCorso(true)
     setNota(undefined)
     void rinnovaAccessoClaude()
-      .then((e) => setNota(e.ok ? 'Finestra aperta: approva nel browser.' : `Non si apre: ${e.messaggio}`))
+      .then((e) => setNota(e.ok ? notaRinnovoAperto(nomePc) : `Non si apre: ${e.messaggio}`))
       .finally(() => setInCorso(false))
   }
   return (
     <span>
-      <button className={`tasto${primario ? ' tasto--primario' : ''}`} disabled={inCorso} onClick={premi}>Rinnova l’accesso a Claude</button>
+      <button className={`tasto${primario ? ' tasto--primario' : ''}`} disabled={inCorso} onClick={premi} title="Rinnova solo questo PC. Per un altro PC, premilo sul suo schermo.">{etichettaRinnovo(nomePc)}</button>
       {nota !== undefined ? <span className="impostazioni__nota" role="status"> {nota}</span> : null}
     </span>
   )

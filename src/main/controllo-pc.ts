@@ -5,6 +5,7 @@ import { prima, type Salute } from '@shared/salute'
 import { SPENTO_DOPO_MS, statoPc, vistoConAiutante, vistoDelPc } from '@shared/stato-pc'
 import { unBattitoPerNome, type AutopilotiDiPc } from '@shared/autopiloti-altri'
 import { senzaAiutanti, type BattitoPc } from '@shared/posta'
+import { accessoDalBattito, fraseAccessoPc, type AccessoClaudePc } from '@shared/accesso-claude-pc'
 
 /**
  * k-196: la versione che un PC dice adesso (rotta leggera /api/pc), se risponde. Una sola fonte:
@@ -46,7 +47,7 @@ export async function altriPcDelControllo(d: {
   ioId: string
   nome: (b: BattitoPc) => string
   adesso: () => number
-}): Promise<Array<{ pcId: string; nome: string; battito?: string; soloAiutante?: boolean }>> {
+}): Promise<Array<{ pcId: string; nome: string; battito?: string; soloAiutante?: boolean; accesso?: AccessoClaudePc }>> {
   const tutti = await d.postino.pc().catch(() => d.postino.altrui())
   const visti = vistoConAiutante(tutti, (b) => b.battito)
   const adesso = d.adesso()
@@ -54,11 +55,13 @@ export async function altriPcDelControllo(d: {
     pcId: b.pcId, nome: d.nome(b),
     ...(visti.get(b.pcId) !== undefined ? { battito: visti.get(b.pcId) as string } : {}),
     // Acceso solo grazie all'Aiutante: SierraDeck là è chiuso, non è un «non risponde».
-    ...(vistoDelPc(tutti, b.pcId, adesso).soloAiutante ? { soloAiutante: true } : {})
+    ...(vistoDelPc(tutti, b.pcId, adesso).soloAiutante ? { soloAiutante: true } : {}),
+    // 25/11: l'accesso a Claude di quel PC adesso, dal suo battito (assente = versione vecchia: non si sa).
+    ...(() => { const a = accessoDalBattito(b.accessoClaude); return a !== undefined ? { accesso: a } : {} })()
   }))
 }
 
-export type SaluteDiPc = { pcId: string; nome: string; salute?: Salute; errore?: string; battito?: string; /** Risponde, ma non ha finito in tempo (anche al secondo tentativo): lento, non spento. */ lento?: boolean; /** Il battito è dell'Aiutante: SierraDeck là è chiuso (`vistoDelPc`). */ soloAiutante?: boolean }
+export type SaluteDiPc = { pcId: string; nome: string; salute?: Salute; errore?: string; battito?: string; /** Risponde, ma non ha finito in tempo (anche al secondo tentativo): lento, non spento. */ lento?: boolean; /** Il battito è dell'Aiutante: SierraDeck là è chiuso (`vistoDelPc`). */ soloAiutante?: boolean; /** 25/11: l'accesso a Claude di quel PC adesso (dal battito); assente = non si sa. */ accesso?: AccessoClaudePc }
 
 /**
  * 0.94.1: un PC spento non è una criticità. Nicholas, 05/11: «lascia perdere il
@@ -135,6 +138,12 @@ export function criticitaDi(saluti: readonly SaluteDiPc[], autopiloti: readonly 
       })
     }
   }
+  // 25/11: l'accesso a Claude scaduto, dal battito di quel PC (lo stato di adesso, non un errore arrivato vecchio).
+  // Una riga per PC, con il PC: si rinnova solo sul suo schermo.
+  for (const s of saluti) {
+    if (s.accesso?.stato !== 'scaduto' || spenti.has(s.pcId)) continue
+    out.push({ pc: s.nome, cosa: 'accesso a Claude scaduto', dettaglio: fraseAccessoPc(s.nome, { esito: 'scaduto', dal: s.accesso.dal }), chiave: `accesso:${s.pcId}` })
+  }
   for (const p of autopiloti) {
     if (p.errore !== undefined) continue // il PC che non risponde è già contato dalla salute
     for (const a of p.autopiloti) {
@@ -198,7 +207,8 @@ export function testoRapporto(p: { quando: string; saluti: readonly SaluteDiPc[]
     // k-191: la versione di chi risponde è quella che dice lui adesso; per chi non risponde, il battito, segnato come vecchio.
     const versione = s.salute?.versione !== undefined ? ` · versione ${s.salute.versione} (detta dal PC adesso)`
       : s.battito !== undefined ? ` · versione ignota adesso (ultimo battito sul Drive: ${s.battito}, ${statoPc(s.battito, adesso).stato === 'acceso' ? statoPc(s.battito, adesso).frase : 'dato vecchio'})` : ''
-    righe.push(`- **${s.nome}**${versione}: ${s.salute !== undefined ? `${s.salute.tono} — ${s.salute.riassunto}${quali}` : soloAiutante(s) ? 'acceso, lavora solo l’Aiutante (SierraDeck non è aperto)' : s.lento === true ? `lento, riprovo (${s.errore ?? '?'})` : `non risponde (${s.errore ?? '?'})`}`)
+    const accesso = s.accesso === undefined ? ' · accesso a Claude: non so (il battito non lo dice)' : s.accesso.stato === 'scaduto' ? ` · accesso a Claude: SCADUTO dal ${s.accesso.dal}` : ` · accesso a Claude: va${s.accesso.rinnovatoIl !== undefined ? ` (rinnovato il ${s.accesso.rinnovatoIl})` : ''}`
+    righe.push(`- **${s.nome}**${versione}${accesso}: ${s.salute !== undefined ? `${s.salute.tono} — ${s.salute.riassunto}${quali}` : soloAiutante(s) ? 'acceso, lavora solo l’Aiutante (SierraDeck non è aperto)' : s.lento === true ? `lento, riprovo (${s.errore ?? '?'})` : `non risponde (${s.errore ?? '?'})`}`)
   }
   if (spentiRiga.length > 0) {
     righe.push('', `## PC spenti (${spentiRiga.length})`, '')
@@ -214,7 +224,8 @@ export function richiestaControllo(file: string, n: number): string {
     `Controllo di tutti i PC: ${n} criticità. Il rapporto è in ${file}.`,
     'Per ognuna: se la causa sta nel codice di SierraDeck, correggila con i suoi test (una release sola, mai installata: installa Nicholas);',
     'se si risolve solo a mano (un PC da accendere o da installare a mano, una scelta di Nicholas), scrivila in una lista corta per Nicholas, con il PC e cosa fare.',
-    'Non riaprire le criticità già corrette in main: dillo e basta.'
+    'Non riaprire le criticità già corrette in main: dillo e basta.',
+    'Accesso a Claude: vale lo stato di ogni PC nel rapporto (dal suo battito), non gli errori arrivati prima. È per PC: se è scaduto, di’ a Nicholas quale PC e che si rinnova sullo schermo di quel PC; se va o non si sa, non chiedergli di rinnovarlo.'
   ].join(' ')
 }
 
@@ -223,7 +234,9 @@ type StatoControllo = { firma?: string; il?: string }
 export async function giroControlloPc(d: {
   radice: () => string | undefined
   io: () => { id: string; nome: string }
-  altri: () => Array<{ pcId: string; nome: string; battito?: string; soloAiutante?: boolean }>
+  altri: () => Array<{ pcId: string; nome: string; battito?: string; soloAiutante?: boolean; accesso?: AccessoClaudePc }>
+  /** 25/11: l'accesso a Claude di questo PC adesso. */
+  accessoQui?: () => AccessoClaudePc | undefined
   saluteQui: () => Promise<Salute>
   saluteDi: (pcId: string) => Promise<Salute>
   autopiloti: () => Promise<AutopilotiDiPc[]>
@@ -238,7 +251,8 @@ export async function giroControlloPc(d: {
   const radice = d.radice()
   if (radice === undefined) return { criticita: 0, affidato: false }
   const io = d.io()
-  const saluti: SaluteDiPc[] = [{ pcId: io.id, nome: io.nome, salute: await d.saluteQui() }]
+  const accessoQui = (() => { try { return d.accessoQui?.() } catch { return undefined } })()
+  const saluti: SaluteDiPc[] = [{ pcId: io.id, nome: io.nome, salute: await d.saluteQui(), ...(accessoQui !== undefined ? { accesso: accessoQui } : {}) }]
   const altri = await Promise.all(d.altri().map(async (p): Promise<SaluteDiPc> => {
     // Un PC che risponde ma non finisce in tempo (stato 504) si riprova una volta.
     const scaduta = (e: unknown): boolean => (e as { stato?: unknown } | null)?.stato === 504

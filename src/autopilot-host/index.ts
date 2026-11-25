@@ -34,6 +34,9 @@ import { apriCode } from './coda-store'
 import { apriOrchestratori } from './orchestratore-store'
 import { avviaProcessoReale, claudeCmd } from './processo-claude'
 import { sorvegliaAccesso } from './sorveglia-accesso'
+import { segnaAccessoTornato, segnaTurnoScaduto } from '@shared/accesso-claude-pc'
+import { statoAccesso } from '@shared/accesso-claude'
+import { nomeDaMostrare } from '@shared/nome-pc'
 import { creaAzioneSuPcDalProgramma, ponteDaFile } from './azione-su-pc-programma'
 import { aggiungiRuntimeAlPath } from '@shared/runtime-noti'
 
@@ -356,7 +359,19 @@ export function avviaServizio(): void {
   if (prove !== undefined) console.info(`[prove] il disco della Temp è quasi pieno: le prove pesanti vanno in ${prove}`)
   try { const n = spazzaCriteri(radiceCriteri(prove)); if (n > 0) console.info(`[prove] tolte ${n} cartelle di criteri rimaste`) } catch { /* al prossimo avvio */ }
 
+  // 25/11: il nome di questo PC come lo mostra il programma (scelto in pc.json, se c'è; poi l'hostname).
+  const nomeDiQuestoPc = (): string | undefined => {
+    try {
+      const o = JSON.parse(readFileSync(join(cartellaStato(), '..', 'pc.json'), 'utf8')) as { nomeScelto?: unknown; nome?: unknown }
+      const n = nomeDaMostrare({ ...(typeof o.nomeScelto === 'string' ? { nomeScelto: o.nomeScelto } : {}), ...(typeof o.nome === 'string' ? { nome: o.nome } : {}), host: hostname() })
+      if (n !== '') return n
+    } catch { /* pc.json non c'è o non si legge */ }
+    try { return hostname() } catch { return undefined }
+  }
   const server = creaServer({
+    // 25/11: l'accesso a Claude di questo PC, per il battito sul Drive (lo scrive il programma).
+    accessoPc: { scaduto: () => { segnaTurnoScaduto() }, tornato: () => { segnaAccessoTornato() } },
+    nomePc: nomeDiQuestoPc,
     archivio,
     autopulizia,
     // Dalla guardia dei divieti (0.72.0): un criterio che cancella fuori dal progetto non parte.
@@ -413,6 +428,11 @@ export function avviaServizio(): void {
   process.on('exit', () => { server.spegniOrchestratori() })
   // 16/11: login rifatto o gettone di un anno salvato: le chat ferme per l'accesso ripartono subito, non fra 5 minuti.
   sorvegliaAccesso((c) => {
+    // 25/11: login rifatto o gettone valido salvato: l'accesso di questo PC è tornato (va nel battito subito).
+    try {
+      const g = statoAccesso()
+      if (!c.riavvia || g.stato === 'valido' || g.stato === 'in-scadenza') segnaAccessoTornato()
+    } catch { /* solo un segno per il battito */ }
     const quanti = server.accessoCambiato({ riavvia: c.riavvia })
     console.info(`[accesso-claude] ${c.perche}: ${quanti > 0 ? `riprovano subito ${quanti} chat` : 'nessuna chat aspettava'}`)
   })
