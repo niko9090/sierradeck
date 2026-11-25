@@ -104,6 +104,7 @@
 - le prove con git vero (`execFileSync('git'…)`) vanno elencate in LENTI di vitest.config.ts, altrimenti a PC carico superano i 20 s e il criterio diventa rosso. _(2026-11-25)_
 - un criterio rosso senza nomi non si riproduce sempre: se a PC scarico passa, il sospetto è la lentezza sotto carico, non un testo vecchio. _(2026-11-25)_
 - dopo aver spostato prove nel gruppo lenti, le prove veloci con git vero rimaste fuori vanno in timeout a PC carico: cercarle con grep su 'init' e execFileSync('git'. _(2026-11-25)_
+- `motivoInItaliano` tiene la coda «— riprovo fra N»: le prove sul testo del dialogo per l'accesso scaduto la includono ora, perché il guasto ha l'attesa. _(2026-11-25)_
 
 ## worktree
 
@@ -336,10 +337,6 @@
 
 ## rete
 
-- i compiti che nominano percorsi assoluti del PC di Nicholas (E:\Users\nikof\...) non si possono eseguire sui PC della rete: il controllo `Test-Path` del primo passo li ferma subito. _(2026-11-17)_
-- Cancello bloccato e specialisti sempre sulla rete: lo specialista di rete fa il cherry-pick sopra il main del PC e un push normale su GitHub; poi il programma riallinea la cartella principale. _(2026-11-17)_
-- il push verso GitHub dalla copia può essere negato dai permessi; il ramo `porta-0109-2` (aa30211d) resta pronto in locale per essere pubblicato da chi ha il permesso. _(2026-11-17)_
-- Prima di rifare un cherry-pick controllare con `git cat-file -t <sha>`: il commit del collega può già essere nella copia. _(2026-11-17)_
 - Dai PC della rete il git push è negato dai permessi di Bash (non da GitHub): portare in main un commit già pronto va affidato al «rilascio», che lavora nella cartella principale. _(2026-11-17)_
 - Dai PC dell'Aiutante la cartella principale e origin non sono raggiungibili: il controllo versione su origin/main va fatto dall'autopilota. _(2026-11-19)_
 - `Aiutante` (aiuto-rete.ts) non ha `battito` né `capacita`: il collegamento k-166n6 deve aggiungerli prima di usare `valutaPrimaDiAffidare`. _(2026-11-20)_
@@ -399,6 +396,7 @@
 - Lo specialista lanciato come «k-agg1: aggiornare altri PC e percentuale» (24/11) lavora in realtà per k-agg254 (r-254): se l'unione lo collega a k-agg1, unirlo con unisci su k-agg254. _(2026-11-24)_
 - «spinte sospese» (k-199d) è solo silenzio delle spinte: la domanda «li salvo?» vive nel ciclo delle unioni e non dipende da `fermiVisti`. _(2026-11-24)_
 - il flusso degli specialisti sta in memoria: ora i vivi e i rilanci stanno in servizio/specialisti-aperti.json. Il ramo è `worktree-agent-<agente>` anche se gli eventi non lo dicono. _(2026-11-24)_
+- l'accesso scaduto si ripara con `accessoCambiato`, che azzera i riprova non-limite: per questo l'attesa lunga (10 min) è sicura, il rinnovo la interrompe. _(2026-11-25)_
 
 ## pubblica
 
@@ -539,6 +537,8 @@
 - su alcuni PC della rete `gh` non è installato: il controllo delle release su GitHub va fatto dallo specialista «rilascio» nella cartella principale. _(2026-11-25)_
 - un cambio di testo in android/ dopo l'ultima versione non alza da solo versionCode/versionName: va deciso a parte se serve un nuovo APK. _(2026-11-25)_
 - Una frase cambiata solo in android/ non arriva ai telefoni senza bump di versionCode/versionName e voce in android/novita-app.txt. _(2026-11-25)_
+- Con la bozza creata prima di `npm run pubblica`, electron-builder 26 ha caricato comunque installer, blockmap e latest.yml: caricarli a mano serve solo se mancano. _(2026-11-25)_
+- `npm run pubblica` dura oltre 10 minuti (build, firma, Aiutante): passa in sottofondo da solo, basta attendere la fine senza rilanciarlo. _(2026-11-25)_
 
 ## aiuto-rete
 
