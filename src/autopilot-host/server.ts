@@ -910,7 +910,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           const rimessi = await ripristinaGeneratiAsincrono(gitA(git), { cwd: a.cwd, prima })
           if (rimessi.length > 0) console.info(`[orchestratore] ${chiaveWorkspace(a)} — la misura ha riscritto ${rimessi.length} file della cartella principale: rimessi com’erano (${rimessi.slice(0, 5).join(', ')})`)
         }
-      })
+      // 25/11: con il segnale della prova: scaduta mentre la misura aspetta il turno, la misura esce dalla fila (prima aspettava il turno lo stesso).
+      }, segnale)
       girata.catch(() => {})
       // 25/11: se il turno non parte (fermato dal segnale) l'attesa finisce lo stesso: prima restava appesa a `partita`.
       await inFila(() => Promise.race([partita, girata.then(() => {}, () => {})]))
@@ -928,6 +929,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     const provaScaduta = (): string => `prova scaduta mentre stava per ${stato.punto}`
     const corpo = async (segnale: AbortSignal, iniziata: () => void, inFila: <R>(fai: () => Promise<R>) => Promise<R>): Promise<EsitoProvaPrincipale> => {
       const eScaduta = (): boolean => stato.scaduta || segnale.aborted
+      // 25/11: la chiusura (commit o annullo) partita finisce sempre; ma se la prova scade mentre aspetta ancora il turno,
+      // lascia la fila subito (`vaVia`): la pulizia dopo la scadenza la fa comunque, e intanto la cartella non resta ferma.
+      const chiusura = { ...soloTempo, vaVia: segnale }
       const PER_TEMPO = 'una misura è scaduta per tempo (PC carico), non è colpa del ramo'
       const unisci = async (): Promise<EsitoProvaPrincipale | undefined> => {
         const registro = (riga: string): void => console.info(`[unione di prova] ${segnoDiLog(chiaveWorkspace(a))}${ramo}: ${riga}`)
@@ -957,12 +961,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         // 11/11: una misura interrotta per tempo non dice niente sul ramo (07/11: rami respinti
         // a PC carico). La prova si chiude e l'unione torna in fila.
         if (rossi.some((e) => interrottoPerTempo(e.uscita))) {
-          await turni.unione(a.cwd, (segnale) => chiudiProvaAsincrono(gitFermabile(git, segnale), { cwd: a.cwd, tieni: false, alRecupero }), soloTempo)
+          await turni.unione(a.cwd, (segnale) => chiudiProvaAsincrono(gitFermabile(git, segnale), { cwd: a.cwd, tieni: false, alRecupero }), chiusura)
           return { unito: false, motivo: PER_TEMPO, ritenta: 'scaduta' }
         }
         if (rossi.length > 0) {
           stato.punto = 'rimisurare i criteri senza il ramo'
-          await turni.unione(a.cwd, (segnale) => chiudiProvaAsincrono(gitFermabile(git, segnale), { cwd: a.cwd, tieni: false, alRecupero }), soloTempo)
+          await turni.unione(a.cwd, (segnale) => chiudiProvaAsincrono(gitFermabile(git, segnale), { cwd: a.cwd, tieni: false, alRecupero }), chiusura)
           const prima = await misura(criteri.filter((c) => rossi.some((r) => r.descrizione === c.descrizione)), segnale, inFila)
           if (eScaduta()) return { unito: false, motivo: provaScaduta(), ritenta: 'scaduta' }
           if (prima.some((e) => !e.passato && interrottoPerTempo(e.uscita))) return { unito: false, motivo: PER_TEMPO, ritenta: 'scaduta' }
@@ -980,7 +984,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       }
       if (eScaduta()) return { unito: false, motivo: provaScaduta(), ritenta: 'scaduta' }
       stato.punto = 'confermare l’unione'
-      const tenuta =await turni.unione(a.cwd, (segnale) => chiudiProvaAsincrono(gitFermabile(git, segnale), { cwd: a.cwd, tieni: peggiorati.length === 0, alRecupero }), soloTempo)
+      const tenuta =await turni.unione(a.cwd, (segnale) => chiudiProvaAsincrono(gitFermabile(git, segnale), { cwd: a.cwd, tieni: peggiorati.length === 0, alRecupero }), chiusura)
       // Qui arriva solo una misura che non è riuscita (un errore del programma): non dice che il ramo rompe qualcosa.
       if (peggiorati.length > 0) return { unito: false, motivo: `l’unione di prova non si è potuta misurare (${peggiorati.join('; ')}): non è detto che sia colpa del ramo` }
       return tenuta ? { unito: true } : { unito: false, motivo: 'i criteri passavano, ma il commit dell’unione non è riuscito' }
