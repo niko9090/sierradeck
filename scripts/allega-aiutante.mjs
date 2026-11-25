@@ -27,7 +27,8 @@
 //    (src/aiutante/novita-aiutante.txt, obbligatorie per la sua versione);
 // 5. controlla i file della release (i 4 del programma e i 3 dell'Aiutante).
 //    Se la release è pubblica, l'ultima del repository deve essere lei (tag v…);
-//    se è ancora in bozza (il giro normale: si rende pubblica a mano dopo),
+//    se è ancora in bozza (il giro normale: la rende pubblica e Latest il passo
+//    dopo, scripts/controlla-release.mjs --sistema),
 //    lo ricorda con il comando da dare.
 import { spawnSync } from 'node:child_process'
 import { copyFileSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
@@ -117,14 +118,15 @@ function principale() {
   const fatto = JSON.parse(controllo.stdout || '{}')
   const caricati = (fatto.assets ?? []).map((x) => x.name)
   const mancano = fileRelease(programma, versione).filter((n) => !caricati.includes(n))
-  if (mancano.length > 0) ferma(`alla release ${tag} mancano: ${mancano.join(', ')}`)
+  if (mancano.length > 0) ferma(`alla release ${tag} mancano: ${mancano.join(', ')}. Per i file del programma:  node scripts/carica-programma.mjs ; per app-android.json:  node scripts/allega-json.mjs ; poi  node scripts/controlla-release.mjs --sistema`)
   if (fatto.isDraft === true) {
     console.log(`SierraDeck Aiutante ${versione} allegato a ${tag} (installer, blockmap, ${yml}).`)
-    console.log(`La release è ancora in BOZZA: rendila pubblica con  gh release edit ${tag} --draft=false --latest  e poi controlla che l'ultima sia ${tag}.`)
+    console.log(`La release è ancora in BOZZA: la rende pubblica e Latest il passo dopo (node scripts/controlla-release.mjs --sistema, cioè  gh release edit ${tag} --draft=false --latest ).`)
     return
   }
   const ultima = gh(['api', `repos/${REPO}/releases/latest`, '--jq', '.tag_name']).stdout.trim()
-  if (!ultima.startsWith('v')) ferma(`ATTENZIONE: l'ultima pubblicazione è «${ultima}», non una del programma completo (v…): né il programma né l'Aiutante vedono gli aggiornamenti. Va rimessa come «ultima» ${tag}`)
+  // 0.119.2: non si ferma più qui: il passo dopo (controlla-release.mjs --sistema) la rimette Latest e ricontrolla tutto.
+  if (!ultima.startsWith('v')) console.warn(`[allega-aiutante] ATTENZIONE: l'ultima pubblicazione è «${ultima}», non una del programma completo (v…): la rimette «ultima» ${tag} il passo dopo (node scripts/controlla-release.mjs --sistema)`)
   if (ultima !== tag) console.warn(`[allega-aiutante] l'ultima pubblicazione è ${ultima}, non ${tag}: finché non lo diventa l'Aiutante non vede la ${versione}`)
   console.log(`SierraDeck Aiutante ${versione} allegato a ${tag} (pubblica, ultima: ${ultima})`)
 }
