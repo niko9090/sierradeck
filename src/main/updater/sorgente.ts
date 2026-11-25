@@ -995,6 +995,10 @@ class Aggiornamento : Form {
             if (File.Exists(eseguibile)) {
                 ProcessStartInfo p = new ProcessStartInfo(eseguibile);
                 p.UseShellExecute = true;
+                // Il segno del rilancio: se la versione vecchia fosse ancora
+                // viva, la nuova le arriva come seconda copia e lei mostra le
+                // sue finestre invece di aprirne un'altra.
+                p.Arguments = "--aggiornato";
                 Process.Start(p);
                 Nota("nuova versione avviata");
             } else {

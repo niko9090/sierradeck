@@ -64,6 +64,7 @@ import { eseguiDavvero, installaRuntimeMancanti } from './installa-runtime'
 import { gitPerLeChat } from './git-nel-path'
 import { ambienteCodeMode } from '@shared/code-mode'
 import { decidiChiusura, vociArea, suggerimentoArea } from './area-notifica'
+import { decidiSecondaCopia, rigaSecondaCopia } from './seconda-copia'
 import { espandiTilde } from './validation'
 import { creaClientAutopilota } from './autopilot-client'
 import { creaSpedizioniere } from './aiuto-spedizioniere'
@@ -1299,14 +1300,34 @@ if (process.platform === 'win32') app.setAppUserModelId(APP_ID)
 // 0.81.0) e sarebbe partito come «Errori arrivati».
 app.setMaxListeners(30)
 
+/** Quando è partito questo processo: un secondo lancio a ridosso è un doppio clic o un rilancio. */
+const avviatoIl = Date.now()
+/** Le finestre salvate sono state aperte: prima, un secondo lancio non ne aggiunge. */
+let finestreDiAvvioAperte = false
+
 if (!app.requestSingleInstanceLock()) {
   app.exit(0)
 } else {
-  app.on('second-instance', () => {
-    // Non è un errore ed è la strada normale per aprire una finestra: l'utente
-    // ha lanciato di nuovo il programma perché ne vuole un'altra.
+  app.on('second-instance', (_evento, argv) => {
+    // Un secondo lancio apre un'altra finestra **solo quando è chiaramente
+    // voluto** (vedi `decidiSecondaCopia`): prima la apriva sempre, anche
+    // accanto a una finestra nascosta nell'area di notifica, e il conto delle
+    // finestre salvato faceva poi riaprire due SierraDeck a ogni avvio.
     try {
-      apriNuovaFinestra()
+      const vive = finestreDiChat().filter((w) => !w.isDestroyed())
+      const copia = {
+        argv,
+        secondiDaAvvio: (Date.now() - avviatoIl) / 1000,
+        avvioFinito: finestreDiAvvioAperte,
+        finestre: vive.length,
+        nonAVista: vive.filter((w) => !w.isVisible() || w.isMinimized()).length
+      }
+      const esito = decidiSecondaCopia(copia)
+      const riga = rigaSecondaCopia(copia, esito)
+      if (registroGlobale !== undefined) registroGlobale.info(riga)
+      else console.info(riga)
+      if (esito.azione === 'nuova') apriNuovaFinestra()
+      else if (esito.azione === 'mostra') mostraFinestre()
     } catch (err) {
       // Una seconda copia lanciata mentre la prima sta ancora avviandosi, o
       // durante la chiusura, trova `ptyClient` non pronto. Senza questo ramo
@@ -5426,7 +5447,7 @@ if (!app.requestSingleInstanceLock()) {
           if (!pronti) return { ok: false, messaggio: 'Non ho riavviato: c’erano chat ancora al lavoro. Riprova quando hanno finito.' }
           registro.info('[sistema] riavvio chiesto dal telefono dopo un lavoro con il Drive')
           aggiornamenti?.nonInstallareAllaChiusura()
-          app.relaunch()
+          app.relaunch({ args: [...process.argv.slice(1).filter((a) => a !== '--riavvio'), '--riavvio'] })
           app.quit()
           return { ok: true }
         },
@@ -6596,7 +6617,7 @@ if (!app.requestSingleInstanceLock()) {
         if (!pronti) return { ok: false, messaggio: 'Non ho riavviato: c’erano chat ancora al lavoro. Riprova quando hanno finito.' }
         registro.info('[sistema] riavvio chiesto dopo un lavoro con il Drive')
         aggiornamenti?.nonInstallareAllaChiusura()
-        app.relaunch()
+        app.relaunch({ args: [...process.argv.slice(1).filter((a) => a !== '--riavvio'), '--riavvio'] })
         app.quit()
         return { ok: true }
       })
@@ -6634,6 +6655,7 @@ if (!app.requestSingleInstanceLock()) {
       const archivioAvvio = workspaceStore?.leggi()
       const quante = quanteFinestre(archivioAvvio?.workspace ?? [], archivioAvvio?.finestre)
       for (let i = 0; i < quante; i += 1) apriNuovaFinestra()
+      finestreDiAvvioAperte = true
 
       // La fusione delle chat sparse fra piu' monitor stava qui, e faceva parte
       // del guasto invece che della cura: girava **dopo** che la finestra era
