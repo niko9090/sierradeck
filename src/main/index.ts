@@ -152,7 +152,9 @@ import { risorseValide, riassuntoGpu, type RisorsePc } from '@shared/risorse'
 import { resolveClaudeCommand } from './config'
 import { registraAccessoClaudeIpc } from './accesso-claude-ipc'
 import { leggiAccesso } from './accesso'
-import { apriContoDrive } from './cassaforte/conto-drive'
+import { apriContoDrive, diagnosiDrive } from './cassaforte/conto-drive'
+import { creaGuardiaAccessi, FILE_ACCESSI_VISTI, motivoCassaforte, motivoClaude, motivoDrive, motivoGettone, type GuardiaAccessi } from './accessi-visti'
+import { statoAccesso as statoGettoneClaude } from '@shared/accesso-claude'
 import type { Portachiavi } from './segreti-su-file'
 import { apriSincronia, type Sincronia } from './cassaforte/sincronia'
 import { apriIdentitaPc, type IdentitaPcStore } from './progetti/pc'
@@ -304,6 +306,8 @@ const righeInVolo = new Map<string, (dati: unknown) => void>()
 
 /** La banda del Drive scollegato (0.39.3): per il PC e per il telefono. */
 let avvisoDrive: () => AvvisoDrive | undefined = () => undefined
+/** La traccia degli accessi (25/11): nasce col conto del Drive, i suoi avvisi aspettano il registro degli avvisi. */
+let guardiaAccessi: GuardiaAccessi | undefined
 
 /** Oltre questo non è più una risposta, è un’attesa. */
 const ATTESA_RIGHE_MS = 3000
@@ -2082,6 +2086,35 @@ if (!app.requestSingleInstanceLock()) {
           }
         }, 5_000)
         app.on('before-quit', () => { clearInterval(timerToken) })
+      }
+      // La traccia degli accessi (25/11): una riga all'avvio per Drive,
+      // cassaforte e Claude con il motivo quando mancano, e un avviso se uno
+      // che c'era la volta scorsa adesso manca. Lo stato visto sta in un file
+      // di questo PC (`accessi-visti.json`, non viaggia sul Drive): sì/no e date.
+      guardiaAccessi = creaGuardiaAccessi({
+        file: join(dati, FILE_ACCESSI_VISTI),
+        versione: app.getVersion(),
+        ...(copia.fatta && copia.da !== 'sconosciuta' ? { da: copia.da } : {}),
+        portachiavi: { disponibile: () => safeStorage.isEncryptionAvailable(), cifra: portachiaviToken.cifra, decifra: portachiaviToken.decifra },
+        log: (r) => registro.info(r),
+        foto: (prova) => ({
+          drive: motivoDrive(diagnosiDrive(dati, portachiaviToken), prova),
+          cassaforte: motivoCassaforte({
+            haCassaforte: existsSync(join(dati, 'cassaforte.json')),
+            aperta: sincronia.maestraInMemoria() !== undefined,
+            ...(sincronia.chiaveRicordata !== undefined ? { chiave: sincronia.chiaveRicordata() } : {})
+          }, prova),
+          claude: motivoClaude(leggiAccesso()),
+          gettoneClaude: motivoGettone(statoGettoneClaude())
+        })
+      })
+      guardiaAccessi.controlla('avvio')
+      {
+        const g = guardiaAccessi
+        // Dopo: un invalid_grant arriva al primo salvataggio, non all'avvio.
+        const primoGiroAccessi = setTimeout(() => { g.controlla('giro') }, 2 * 60_000)
+        const timerAccessi = setInterval(() => { g.controlla('giro') }, 10 * 60_000)
+        app.on('before-quit', () => { clearTimeout(primoGiroAccessi); clearInterval(timerAccessi); g.controlla('chiusura') })
       }
       // Da quando e' scollegato (0.39.3). I PC scollegati prima della 0.39.3 non
       // l'hanno scritto: lo si ricava dal registro, la prima riga che lo dice.
@@ -4984,6 +5017,8 @@ if (!app.requestSingleInstanceLock()) {
       const credenzialiAiuto = collegaCredenziali({ deposito: depositoCredenziali, dichiarate: (lavoro) => spedizioniere.dichiarate(lavoro), chiama: (pc, percorso, corpo) => remoto.chiama(pc, percorso, corpo) })
       const avvisi = accendiAvvisi({ dati, log: (r) => registro.info(r), telefoni: () => dispositivi.elenca(), chat: () => chatAperte, aggiornamento: () => aggiornamenti?.stato(), versioneQui: () => app.getVersion(), coda, quadernoPersonale, altriPc: () => altriPcGlobale?.() ?? Promise.resolve([]), chiamaPc: (pc, percorso) => remoto.chiama(pc, percorso) })
       ipcAvvisi(ipcMain, avvisi)
+      // Gli accessi persi visti all'avvio, prima che il registro degli avvisi ci fosse.
+      guardiaAccessi?.collegaAvvisi((b) => { avvisi.registro.nasce(b) })
       /**
        * La sincronizzazione con il Drive e' accesa: connesso, cassaforte
        * aperta, salvataggio automatico acceso. Non solleva mai.

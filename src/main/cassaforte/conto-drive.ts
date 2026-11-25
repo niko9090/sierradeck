@@ -88,6 +88,47 @@ export type ContoDrive = {
 }
 
 /**
+ * Perché il Drive è (o non è) collegato, letto dai file senza cambiare niente
+ * (25/11, la traccia degli accessi all'avvio). Mai il token: solo com'è andata
+ * la lettura e se c'è il rinnovo.
+ */
+export type DiagnosiDrive = {
+  configurato: boolean
+  /** `illeggibile`: il file si apre ma non è un token (rovinato). */
+  lettura: 'ok' | 'assente' | 'portachiavi-non-pronto' | 'non-si-decifra' | 'illeggibile'
+  /** C'è il refresh token (senza, il collegamento dura un'ora). */
+  rinnovo: boolean
+  scollegamento?: Scollegamento
+  /** Il token rifiutato da Google, messo da parte (0.56.4). */
+  messoDaParte: boolean
+}
+
+export function diagnosiDrive(dati: string, portachiavi: Portachiavi | undefined): DiagnosiDrive {
+  const l = leggiSegretoConStato(join(dati, FILE_TOKEN_DRIVE), portachiavi, 'drive', { migra: false })
+  let lettura: DiagnosiDrive['lettura'] = l.stato
+  let rinnovo = false
+  if (l.stato === 'ok') {
+    try {
+      const g = JSON.parse(l.testo) as Partial<Gettoni> | null
+      if (g === null || typeof g !== 'object' || typeof g.accessToken !== 'string') lettura = 'illeggibile'
+      else rinnovo = typeof g.refreshToken === 'string' && g.refreshToken !== ''
+    } catch { lettura = 'illeggibile' }
+  }
+  let scollegamento: Scollegamento | undefined
+  try {
+    const f = join(dati, FILE_SCOLLEGATO)
+    if (existsSync(f)) scollegamento = leggiScollegamento(JSON.parse(readFileSync(f, 'utf8')))
+  } catch { /* niente segno */ }
+  return {
+    configurato: configGoogle(dati) !== undefined,
+    lettura,
+    rinnovo,
+    ...(scollegamento !== undefined ? { scollegamento } : {}),
+    messoDaParte: existsSync(join(dati, 'google-drive-token.rifiutato.json'))
+  }
+}
+
+/**
  * `portachiavi` (0.86.2, audit I5): i token si scrivono cifrati con
  * `safeStorage`; i file in chiaro di prima si cifrano alla prima lettura,
  * anche le copie di versione. Senza, come prima: in chiaro.

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { apriSincronia, FILE_MAESTRA_RICORDATA, type Portachiavi } from '../../src/main/cassaforte/sincronia'
+import { apriSincronia, FILE_MAESTRA_ILLEGGIBILE, FILE_MAESTRA_RICORDATA, leggiChiaveRicordata, type Portachiavi } from '../../src/main/cassaforte/sincronia'
 import { magazzinoInMemoria, type Magazzino } from '../../src/main/cassaforte/magazzino'
 import { archivioInMemoria, type Archivio } from '../../src/main/cassaforte/archivio'
 import { preparaBlocco } from '../../src/main/cassaforte/lavoro'
@@ -191,19 +191,29 @@ describe('sincronia incrementale: giro completo fra due PC', () => {
     expect((await bloccata.stato()).sbloccato).toBe(false)
   })
 
-  it('un portachiavi che non riapre il file lo butta, e si resta bloccati', async () => {
+  it('un portachiavi che non riapre il file lo mette da parte, lo dice nel registro, e si resta bloccati', async () => {
     // Il file di un altro account Windows, o copiato da un altro PC: non vale
-    // niente e non deve restare li' a fallire a ogni avvio.
+    // niente e non deve restare li' a fallire a ogni avvio. Dal 25/11 non si
+    // cancella: resta la prova del perché, e la riga va nel registro.
     const drive = driveCondiviso()
     const a = pc('A'); traccia(a)
     writeFileSync(join(a.dati, FILE_MAESTRA_RICORDATA), JSON.stringify({ maestra: 'di-un-altro' }))
+    const righe: string[] = []
     const sync = apriSincronia({
       dati: a.dati, radiceClaude: a.claude,
-      driveConnesso: () => true, magazzino: drive.magazzino, archivio: drive.archivio,
+      driveConnesso: () => true, magazzino: drive.magazzino, archivio: drive.archivio, log: (m) => righe.push(m),
       portachiavi: { disponibile: () => true, cifra: (b) => b.toString('base64'), decifra: () => { throw new Error('non mio') } }
     })
     expect((await sync.stato()).sbloccato).toBe(false)
     expect(existsSync(join(a.dati, FILE_MAESTRA_RICORDATA))).toBe(false)
+    expect(existsSync(join(a.dati, FILE_MAESTRA_ILLEGGIBILE))).toBe(true)
+    expect(sync.chiaveRicordata?.()).toBe('non-si-decifra')
+    expect(righe.some((r) => r.includes('non la decifra'))).toBe(true)
+    // Il giro di ogni minuto non riprova e non riscrive la riga.
+    expect(sync.riapriDalPortachiavi()).toBe(false)
+    expect(sync.chiaveRicordata?.()).toBe('messa-da-parte')
+    expect(righe.filter((r) => r.includes('non la decifra'))).toHaveLength(1)
+    expect(leggiChiaveRicordata(a.dati, undefined).stato).toBe('messa-da-parte')
   })
 
   it('il portachiavi non ancora pronto all avvio: la chiave ricordata resta, e la cassaforte si riapre da sola dopo (0.65.0)', async () => {
