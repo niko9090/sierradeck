@@ -41,6 +41,18 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.119.1',
+    righe: [
+      '**«Resta fermo» ferma davvero:** se rispondi «Resta fermo» a una domanda, il progetto va in pausa e non viene più svegliato a vuoto dopo 7 e 19 minuti (il caso di NexoraOS).',
+      '**Le scelte come «Aspetta» non fermano più tutto:** una risposta di questo tipo a una scelta non mette più in pausa il progetto.',
+      '**Frasi di pausa lunghe:** le frasi lunghe con cui chiedi di fermarsi vengono riconosciute.',
+      '**«Resta fermo» non diventa lavoro nuovo:** la risposta non viene più trasformata in un compito da fare.',
+      '**Un «No» a un permesso non toglie la pausa:** se il progetto è in pausa, resta in pausa.',
+      '**In pausa, niente avvisi di silenzio:** un progetto fermo apposta non manda più avvisi perché è silenzioso.',
+      '**Prove Android più veloci:** le prove Android scritte in tre modi girano una volta sola.',
+    ],
+  },
+  {
     versione: '0.119.0',
     righe: [
       '**Unioni molto più veloci:** a ogni unione girano solo le prove che i file cambiati possono rompere: un controllo del codice solo invece di otto, le prove Android una volta sola, niente controlli vecchi che il ramo non può toccare, e nessuna pausa per il carico durante la prova. Da 10-18 minuti a pochi minuti.',
