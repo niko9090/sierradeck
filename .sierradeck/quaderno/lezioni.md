@@ -98,6 +98,7 @@
 - `gradle testDebugUnitTest --offline` in worktree dura circa 7 minuti. Lancialo una volta sola, in primo piano, dopo aver controllato gli import. _(2026-11-24)_
 - ogni test git vero del cancello unioni nuovo va scritto con `vi.setConfig({ testTimeout: 120_000 })`: il limite di base di 20 s non regge con il PC carico e fa respingere rami buoni. _(2026-11-24)_
 - la suite autopilot-host+shared in primo piano dura circa 11 minuti (371 file, 3658 test): serve timeout 900000. _(2026-11-24)_
+- Il test sulle spinte a processo vivo deve chiudere con un risultato il turno che la guardia apre al minuto 1; senza, la spinta non parte e il test sembra rotto. _(2026-11-25)_
 
 ## worktree
 
@@ -607,21 +608,10 @@
 - il riassunto tronca in coda a 12.000 caratteri: con una coda lunga perdi PRONTI, DOMANDE ed EVENTI senza avviso (riassunto-orchestratore.ts:140). _(2026-11-20)_
 - L'orchestratore costruisce lo stato per sezioni (testata, coda, piano, specialisti, fisse, eventi): una nuova sezione che non deve sparire va in «fisse». _(2026-11-20)_
 
-## errori arrivati
-
-- «affidato» non vuol dire «corretto»: per il lotto del 13/11 non c'è stata nessuna modifica di codice, quindi «la correzione non è bastata» è un'etichetta sbagliata. _(2026-11-16)_
-
 ## errori-arrivati
 
-- il dato `affidati` ha solo data e versione, non l'esito della chiusura: «si ripresenta» non può distinguere correzione fallita da azione a mano non fatta. _(2026-11-16)_
-- il rapporto del lotto in .sierradeck/errori-arrivati/ non è nella copia del worktree: va passato nel messaggio del compito. _(2026-11-16)_
 - `volte` è un totale cumulativo: la serie va riconosciuta con PC+dove+punto+quando+messaggio grezzo, aggiungendo solo la differenza; la chiave normalizzata da sola fonde errori diversi. _(2026-11-23)_
 - il giro degli errori arrivati (ogni 2 min, `index.ts`) è il punto dove agganciare altri compiti affidati all'autopilota di SierraDeck: riusa `affidaSierraDeck`. _(2026-11-23)_
-
-## vista
-
-- un tono nuovo di fraseStatoOrchestratore va mappato in 4 posti: autopiloti-vista, stato-telefono, COLORE_TONO di client-pagina e Android (ignoto = riposo grigio) _(2026-11-16)_
-- I lavori ospitati hanno stati ricevo/in-coda/preparo/lavoro: ora `fase` in VistaAttesa separa ricezione e preparazione; in-coda è ancora trattato come «al lavoro». _(2026-11-16)_
 
 ## codice
 
@@ -925,3 +915,13 @@
 ## diagnosi
 
 - il registro del servizio tronca le righe [blocco] a 400 caratteri: il testo intero delle risposte dell'autopilota sta in orchestratori/<ws>/dialogo.jsonl (UTF-8, da leggere come tale). _(2026-11-25)_
+
+## domande
+
+- le risposte senza nessuno in attesa passano tutte da unico.risposta (domande.ts:260): una regola lì vale anche per permessi, domande in chat e domande del programma _(2026-11-25)_
+
+## pausa
+
+- chiedeDiFermarsi (lavoro-fermo.ts) e rispostaSenzaLavoro (domande-in-chat.ts) hanno liste diverse: «Resta fermo» mette la pausa ma apre comunque una richiesta in coda _(2026-11-25)_
+- La pausa di Nicholas va letta ovunque il programma sveglia l'autopilota: anche l'evento «silenzio» di una chat adottata la ignorava, e solo un test a processo vivo l'ha fatto vedere. _(2026-11-25)_
+- Un ordine di pausa è una frase intera, non una parola: «aspetta» da solo come scelta di una domanda vuol dire «aspetta quella cosa». Con «ma», «poi» o «vai avanti» non è mai pausa. _(2026-11-25)_
