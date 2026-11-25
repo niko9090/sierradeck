@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.119.2',
+    righe: [
+      '**Un errore dell’aggiornamento non compare più due volte:** lo stesso errore veniva scritto due volte nel registro, ora una sola.',
+      '**I messaggi sull’aggiornamento dicono il vero:** non promettono più che si installa alla chiusura. Si installa solo col tasto Installa; se non è partito, si riprova da lì.',
+    ],
+  },
+  {
     versione: '0.119.1',
     righe: [
       '**«Resta fermo» ferma davvero:** se rispondi «Resta fermo» a una domanda, il progetto va in pausa e non viene più svegliato a vuoto dopo 7 e 19 minuti (il caso di NexoraOS).',
