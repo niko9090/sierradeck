@@ -332,8 +332,6 @@
 
 ## rete
 
-- i compiti che citano percorsi assoluti della cartella principale non funzionano sui PC della rete: lì esiste solo la copia di lavoro, senza i rami degli altri worktree. _(2026-11-17)_
-- Un'unione fuori dal cancello affidata a uno specialista finisce su un PC della rete anche se scrivi «solo questo PC»: lì la cartella principale non c'è. _(2026-11-17)_
 - il compito k-g2 va lanciato sul PC di nikof (E:\Users\nikof\Documents\SierraDeck); sugli altri PC il primo controllo lo ferma. _(2026-11-17)_
 - NB-PROBOOK ha più posti: occuparne uno con un altro compito non tiene qui lo specialista. Ogni Agent va alla rete finché c'è un posto libero là, qualunque cosa dica il prompt. _(2026-11-17)_
 - il compito k-g2 va lanciato sul PC con E:\Users\nikof\Documents\SierraDeck; il controllo iniziale lo ha riconosciuto come sbagliato. _(2026-11-17)_
@@ -539,6 +537,8 @@
 - Il tag v0.119.0 non c'è nelle copie di lavoro: per i commit dopo una versione si parte dal commit «Versione X» (a3042428). _(2026-11-25)_
 - Con la release creata prima di `npm run pubblica`, electron-builder non carica installer, blockmap e latest.yml: allega-aiutante lo segnala. Caricarli con `gh release upload` dal `dist` (nomi con tra… _(2026-11-25)_
 - In `dist` l'installer ha gli spazi («SierraDeck Setup X.exe») ma `latest.yml` vuole i trattini: copiare con il nome giusto prima dell'upload. Carica `latest.yml` per ultimo. _(2026-11-25)_
+- su alcuni PC della rete `gh` non è installato: il controllo delle release su GitHub va fatto dallo specialista «rilascio» nella cartella principale. _(2026-11-25)_
+- un cambio di testo in android/ dopo l'ultima versione non alza da solo versionCode/versionName: va deciso a parte se serve un nuovo APK. _(2026-11-25)_
 
 ## aiuto-rete
 
