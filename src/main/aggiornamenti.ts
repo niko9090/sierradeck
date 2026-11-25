@@ -550,7 +550,9 @@ export function creaAggiornamenti(
   }
 
   /**
-   * **Si scarica da solo, e si installa quando chiudi.**
+   * **Si scarica da solo, e si installa solo con il tasto** (dalla 0.69.0 mai
+   * alla chiusura: vedi `autoInstallOnAppQuit` sotto). Il testo che segue e'
+   * la storia di com'era prima.
    *
    * Prima nessuna delle due: bisognava premere «Scarica» e poi «Installa», e
    * di conseguenza il programma restava indietro per giorni — una correzione
@@ -956,10 +958,9 @@ export function creaAggiornamenti(
                 togliInCorso()
                 // **Si disfa tutto quello che la quiete aveva fatto.** Gli
                 // autopiloti tornano a ricevere il compito seguente, il file
-                // della pausa se ne va, e electron-updater torna a installare
-                // alla chiusura — cosi' il testo «si installa da sola quando
-                // chiudi» resta vero.
-                // Mai alla chiusura (0.69.0): installa solo Nicholas, con il tasto.
+                // della pausa se ne va. Alla chiusura non si installa niente
+                // (0.69.0): installa solo Nicholas, con il tasto, e il testo
+                // sotto dice di riprovare con quello.
                 try {
                   await disfaPausa?.()
                 } catch (err) {
@@ -968,7 +969,7 @@ export function creaAggiornamenti(
                 annuncia({
                   fase: 'pronto',
                   versione: versioneScaricata ?? stato.versione,
-                  errore: 'Non ho installato: SierraDeck Update non si è fatto vivo (un antivirus che lo blocca, o la cartella temporanea che non si può scrivere). Le chat e gli autopiloti hanno ripreso da soli. Puoi riprovare, oppure chiudere SierraDeck: la versione nuova si installa alla chiusura.'
+                  errore: 'Non ho installato: SierraDeck Update non si è fatto vivo (un antivirus che lo blocca, o la cartella temporanea che non si può scrivere). Le chat e gli autopiloti hanno ripreso da soli. Riprova con il tasto Installa.'
                 })
                 return
               }
