@@ -89,6 +89,49 @@ export type Portachiavi = {
 /** Il file, accanto alla cassaforte, con la maestra avvolta dal portachiavi. */
 export const FILE_MAESTRA_RICORDATA = 'maestra-portachiavi.json'
 
+/**
+ * Dove finisce la chiave ricordata che il portachiavi non apre più (25/11).
+ * Fino alla 0.119.1 si cancellava, e con lei l'unica prova del perché la
+ * cassaforte, dopo un aggiornamento, chiedeva di nuovo la passphrase: la riga
+ * dell'errore andava solo nella console, che nel programma installato non si
+ * vede. Messa da parte resta sul disco (si può riprovare a mano se il
+ * portachiavi torna quello di prima) e non fallisce a ogni avvio.
+ */
+export const FILE_MAESTRA_ILLEGGIBILE = 'maestra-portachiavi.illeggibile.json'
+
+/** Com'è andata la lettura della chiave ricordata (25/11, per la traccia degli accessi). */
+export type EsitoChiaveRicordata = 'ok' | 'assente' | 'portachiavi-non-pronto' | 'non-si-decifra' | 'illeggibile' | 'messa-da-parte'
+
+/**
+ * Legge la chiave ricordata, senza toccare il file: dice anche **perché** non
+ * c'è. `messa-da-parte`: il file manca, ma c'è quello illeggibile di un avvio
+ * di prima (la causa vera di una cassaforte chiusa dopo un aggiornamento).
+ */
+export function leggiChiaveRicordata(dati: string, p: Portachiavi | undefined):
+  | { stato: 'ok'; maestra: Buffer }
+  | { stato: Exclude<EsitoChiaveRicordata, 'ok'>; perche?: string } {
+  const file = join(dati, FILE_MAESTRA_RICORDATA)
+  if (!existsSync(file)) return { stato: existsSync(join(dati, FILE_MAESTRA_ILLEGGIBILE)) ? 'messa-da-parte' : 'assente' }
+  let disponibile = false
+  try { disponibile = p !== undefined && p.disponibile() } catch { disponibile = false }
+  if (p === undefined || !disponibile) return { stato: 'portachiavi-non-pronto' }
+  let cifrato: string
+  try {
+    const j = JSON.parse(readFileSync(file, 'utf8')) as { maestra?: unknown }
+    if (typeof j.maestra !== 'string') return { stato: 'illeggibile', perche: 'forma sconosciuta' }
+    cifrato = j.maestra
+  } catch (err) {
+    return { stato: 'illeggibile', perche: messaggioDi(err) }
+  }
+  try {
+    const m = p.decifra(cifrato)
+    if (m.length === 0) return { stato: 'illeggibile', perche: 'vuota' }
+    return { stato: 'ok', maestra: m }
+  } catch (err) {
+    return { stato: 'non-si-decifra', perche: messaggioDi(err) }
+  }
+}
+
 function messaggioDi(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
 }
@@ -117,6 +160,11 @@ export type Sincronia = {
    * (0.65.0), se è chiusa e la chiave c'è. Vero se adesso è aperta.
    */
   riapriDalPortachiavi: () => boolean
+  /**
+   * Com'è andata l'ultima lettura della chiave ricordata (25/11): il perché di
+   * una cassaforte chiusa, per la traccia degli accessi all'avvio.
+   */
+  chiaveRicordata?: () => EsitoChiaveRicordata
   /** Quanto si sincronizza: numero di file (chat + assetto) e byte totali. */
   info: () => Promise<{ file: number; byte: number }>
   creaPassphrase: (passphrase: string) => Promise<{ ok: boolean; chiaveRecupero?: string; messaggio?: string }>
@@ -563,31 +611,34 @@ export function apriSincronia(deps: {
     }
   }
   /** La maestra della volta scorsa, se il portachiavi la riapre. */
+  /** L'ultima lettura della chiave ricordata: il perché di una cassaforte chiusa (25/11). */
+  let esitoChiave: EsitoChiaveRicordata = 'assente'
   const maestraRicordata = (): Buffer | undefined => {
-    const p = deps.portachiavi
-    if (p === undefined || !existsSync(fileMaestra)) return undefined
     // Il portachiavi non ancora pronto (0.65.0): subito dopo un riavvio di
     // Windows può non esserlo. Il file è buono: resta, e si riprova
     // (`riapriDalPortachiavi`). Prima si buttava, e la cassaforte restava
     // chiusa fino alla passphrase.
-    if (!p.disponibile()) return undefined
-    try {
-      const j = JSON.parse(readFileSync(fileMaestra, 'utf8')) as { maestra?: unknown }
-      if (typeof j.maestra !== 'string') throw new Error('forma sconosciuta')
-      const m = p.decifra(j.maestra)
-      if (m.length === 0) throw new Error('vuota')
-      return m
-    } catch (err) {
-      // Un file di un altro account, o di un altro PC, non si apre: non vale
-      // niente e non deve restare li' a fallire a ogni avvio.
-      console.error('[sync] maestra ricordata illeggibile, la butto:', err)
-      dimenticaMaestra()
-      return undefined
+    const l = leggiChiaveRicordata(deps.dati, deps.portachiavi)
+    esitoChiave = l.stato
+    if (l.stato === 'ok') return l.maestra
+    if (l.stato === 'non-si-decifra' || l.stato === 'illeggibile') {
+      // Un file di un altro account, o di un altro PC, non si apre: non deve
+      // restare li' a fallire a ogni avvio. Ma non si cancella (25/11): si
+      // mette da parte, e la riga va nel registro, non solo nella console.
+      log(`[cassaforte] chiave ricordata ${l.stato === 'non-si-decifra' ? 'presente ma il portachiavi di Windows non la decifra' : 'rovinata'} (${l.perche ?? '?'}): messa da parte in ${FILE_MAESTRA_ILLEGGIBILE}, serve la passphrase`)
+      try {
+        renameSync(fileMaestra, join(deps.dati, FILE_MAESTRA_ILLEGGIBILE))
+      } catch (err) {
+        console.error('[sync] maestra ricordata non messa da parte, la tolgo:', err)
+        dimenticaMaestra()
+      }
     }
+    return undefined
   }
   const adotta = (m: Buffer): void => {
     maestra = m
     ricordaMaestra(m)
+    esitoChiave = 'ok'
   }
   maestra = maestraRicordata()
   if (maestra !== undefined) log('cassaforte sbloccata dal portachiavi del sistema')
@@ -673,6 +724,7 @@ export function apriSincronia(deps: {
       return true
     },
     maestraInMemoria: () => maestra,
+    chiaveRicordata: () => esitoChiave,
     chiaveDiCasa(scopo) {
       if (maestra === undefined || scopo === '') return undefined
       return createHmac('sha256', maestra).update(scopo, 'utf8').digest('base64url')
@@ -796,6 +848,7 @@ export function apriSincronia(deps: {
     blocca() {
       maestra = undefined
       dimenticaMaestra()
+      esitoChiave = 'assente'
     },
 
     async salva(_forza, opzioni) {
