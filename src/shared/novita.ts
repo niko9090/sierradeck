@@ -41,6 +41,17 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.120.0',
+    righe: [
+      '**Pannello subito pronto:** si apre dall\'ultima copia e rilegge il Drive in sottofondo. Prima ogni 10 minuti aspettava da 3 a 10 secondi.',
+      '**Meno traffico sul Drive:** i file di passaggio dei rami appena nati e i loro diari non salgono più, e Google chiede meno spesso di rallentare. I rami con lavoro vero continuano a viaggiare.',
+      '**Accessi che spariscono:** all\'avvio il registro dice per Drive, cassaforte e Claude se l\'accesso c\'è e, se manca, il motivo preciso. Se dopo un aggiornamento un accesso che c\'era non c\'è più, compare un avviso che spiega cosa è successo.',
+      '**Unioni:** un passo in coda lascia subito il posto quando chi l\'ha chiesto si ferma, e il riposo di un\'ora dopo le prove scadute vale da tutte le strade: chi chiede l\'unione sente «in riposo fino alle …».',
+      '**Niente falsi allarmi:** quando l\'autopilota rinnova la sua conversazione perché è troppo lunga, non dice più che il programma si era fermato.',
+      '**Pubblicazione che si controlla da sola:** i file del programma salgono anche se la versione esiste già, e alla fine si verifica che ci siano tutti e 7 con le dimensioni giuste; se manca qualcosa la pubblicazione si ferma e dice come rimediare.',
+    ],
+  },
+  {
     versione: '0.119.2',
     righe: [
       '**Un errore dell’aggiornamento non compare più due volte:** lo stesso errore veniva scritto due volte nel registro, ora una sola.',
