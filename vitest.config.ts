@@ -20,7 +20,11 @@ const LENTI = [
   'tests/main/pty-host-client.test.ts',
   'tests/pty-host/pty-manager.test.ts',
   'tests/main/cassaforte-sincronia.test.ts',
-  'tests/main/file-autopilota.test.ts'
+  'tests/main/file-autopilota.test.ts',
+  'tests/main/aiuto-credenziali-collegate.test.ts',
+  'tests/main/aiuto-credenziali.test.ts',
+  'tests/main/aiuto-rete-fallimenti.test.ts',
+  'tests/main/errore-aiuto-una-volta-23-11.test.ts'
 ]
 
 /** `SD_TEST_WORKERS=4` (un numero) o `SD_TEST_WORKERS=25%`; di serie la metà dei processori. */
