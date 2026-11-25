@@ -101,6 +101,8 @@
 - il fallimento 3710/3711 non si ripete: i test con git vero fuori dal gruppo `lenti` (es. autopulizia.test.ts) hanno solo 20 s e cadono a PC carico. _(2026-11-25)_
 - l'esito del criterio non dice quale test cade: lanciare con `--reporter=dot` e cercare FAIL per sapere il nome. _(2026-11-25)_
 - gradle testDebugUnitTest --offline ha impiegato 21 minuti, non 7: il sistema lo passa in sottofondo oltre i 600 s anche con timeout 900000. _(2026-11-25)_
+- le prove con git vero (`execFileSync('git'…)`) vanno elencate in LENTI di vitest.config.ts, altrimenti a PC carico superano i 20 s e il criterio diventa rosso. _(2026-11-25)_
+- un criterio rosso senza nomi non si riproduce sempre: se a PC scarico passa, il sospetto è la lentezza sotto carico, non un testo vecchio. _(2026-11-25)_
 
 ## worktree
 
@@ -333,8 +335,6 @@
 
 ## rete
 
-- il compito k-g2 va lanciato sul PC con E:\Users\nikof\Documents\SierraDeck; il controllo iniziale lo ha riconosciuto come sbagliato. _(2026-11-17)_
-- i compiti con percorsi assoluti di un PC specifico (E:\Users\nikof\...) vanno assegnati solo a quel PC; gli altri PC della rete devono fermarsi al controllo iniziale. _(2026-11-17)_
 - Unione fuori dal cancello: general-purpose è rifiutato (lavorerebbe nella cartella principale), k-v1 non si chiude (già unito). Resta solo uno sviluppatore quando la rete non ha posti liberi. _(2026-11-17)_
 - i compiti che nominano percorsi assoluti del PC di Nicholas (E:\Users\nikof\...) non si possono eseguire sui PC della rete: il controllo `Test-Path` del primo passo li ferma subito. _(2026-11-17)_
 - Cancello bloccato e specialisti sempre sulla rete: lo specialista di rete fa il cherry-pick sopra il main del PC e un push normale su GitHub; poi il programma riallinea la cartella principale. _(2026-11-17)_
