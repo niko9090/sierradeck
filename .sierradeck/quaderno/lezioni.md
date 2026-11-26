@@ -430,7 +430,6 @@
 
 ## rilascio
 
-- Se `npm run pubblica` si ferma a metà, la bozza resta con i primi 3 file. Rilanciarlo sulla stessa bozza completa gli altri file, compresi quelli dell'Aiutante, senza crearne una seconda. _(2026-11-19)_
 - `gh release view --json` non ha il campo isLatest: per sapere se è Latest usare `gh release list`. _(confermata 2×, ultima 2026-11-20)_
 - `git fetch` fallisce se origin è un .bundle d'arrivo già cancellato: la versione si controlla da package.json e dal log locale, i tag non ci sono. _(2026-11-20)_
 - nel package-lock.json il secondo punto della versione (packages[""]) può restare indietro: nella 0.111.0 era ancora 0.110.2. Controllare entrambi. _(2026-11-20)_
@@ -554,7 +553,6 @@
 
 ## aiutante
 
-- L'Aiutante è una registrazione `pc-<id>` a parte, con `aiutante:true` e lo stesso `host` di SierraDeck: per legare i due si usa `host`, non il pcId. _(2026-11-19)_
 - Per sapere se un PC è acceso solo grazie all'Aiutante usa `vistoDelPc` (stato-pc.ts); se serve una nuova vista sul battito, passa da lì invece di rifare l'abbinamento per host. _(2026-11-19)_
 - SierraDeck Aiutante crea la sincronia dentro `colleghiRete` dopo `aiuto`: per dargli `chiediCredenziali` serve un cambio d'ordine, non l'ho fatto. _(2026-11-20)_
 - L'Aiutante non ha cassaforte di credenziali: per i lavori affidati chiede solo al PC che li ha affidati (`chiedi` senza deposito), collegato in `rete.ts`, non in `index.ts`. _(2026-11-20)_
@@ -881,6 +879,7 @@
 ## remoto
 
 - ChatAutopilotaRemota non monta la testa con la percentuale: un autopilota su altro PC non la mostra mai. _(2026-11-24)_
+- i dati di `/api/autopilota` da un altro PC passano per un cast, non per un validatore: ogni campo del tipo Autopilota può mancare se l'altro PC ha un'altra versione. _(2026-11-26)_
 
 ## server
 
@@ -934,3 +933,7 @@
 
 - Il PC «solo Aiutante» si riconosce con vistoDelPc(postino.altrui(), pcId, adesso).soloAiutante (battito SierraDeck vecchio + Aiutante recente, stesso host). _(2026-11-26)_
 - Il messaggio «solo Aiutante» sta in Memoria.soloAiutante, impostata dal ciclo in index.ts, così passoInstallaLa resta pura e testabile. _(2026-11-26)_
+
+## helper
+
+- per nome/obiettivo di un Autopilota usare `nomeODi`/`testoOVuoto` di `src/shared/nome-autopilota.ts`, non `.nome.trim()` diretto. _(2026-11-26)_
