@@ -240,7 +240,6 @@
 
 ## ui
 
-- I test di sorgente (`readFileSync` sul .tsx) bastano per controllare che un pannello non porti più un elenco, senza DOM. _(2026-11-19)_
 - gli orfani vanno cercati con il suffisso `/Nome'` negli import: un controllo su `./Nome'` ignora gli import fatti da App.tsx (`./components/Nome`). _(2026-11-20)_
 - Nel menu dei workspace le azioni dietro «⋯» sono contate da test e pagina servita: il riordino sta in controlli a parte, non come nuova azione di `azioniMenuWorkspace`. _(2026-11-20)_
 - Il menu principale ha già una funzione «Computer» che non è la sezione Computer delle Impostazioni: le voci delle impostazioni stanno solo in impostazioni-struttura.ts. _(2026-11-20)_
@@ -413,6 +412,7 @@
 - il messaggio «unione ferma per file non salvati» (lavoroFermo) copre sia l'unione di prova sia il criterio rosso: confrontare il caso con caf5c856 prima di scrivere «corretto» _(2026-11-24)_
 - errori-arrivati.md non ha a capo finale: per aggiungere una voce con Edit si ancora l'ultima frase del file. _(2026-11-24)_
 - Il file del lotto in .sierradeck/errori-arrivati/ può mancare nella copia dell'helper: la voce si scrive dai dati del compito e si segnala che il lotto non è stato letto. _(2026-11-25)_
+- in errori-arrivati.md le righe di test si ripetono in tutti i gruppi: per aggiungere in fondo con Edit serve un ancoraggio unico. _(2026-11-26)_
 
 ## preferenze
 
