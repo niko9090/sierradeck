@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.122.5',
+    righe: [
+      '**«Installa là» non aspetta più per sempre:** se l\'altro PC non si aggiorna, dopo 12 minuti dice che non si è mai chiuso invece di restare in attesa.',
+      '**Aggiornamento di riserva che non riesce:** il PC ora dice il perché (prima riapriva la versione vecchia senza spiegare). L\'avviso compare una volta sola.',
+    ],
+  },
+  {
     versione: '0.122.4',
     righe: [
       '**Rapporti dei lavori, meno allarmi inutili:** i rallentamenti piccoli del servizio, tutti sotto i 2 s, fanno partire un\'analisi solo se sono 20 o più nello stesso rapporto.',
