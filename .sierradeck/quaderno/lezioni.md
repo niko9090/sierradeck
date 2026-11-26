@@ -100,10 +100,6 @@
 
 ## android
 
-- In `android/` manca il wrapper `gradlew`: la compilazione si lancia con `gradle` di sistema (`gradle :app:compileReleaseKotlin --no-daemon`). _(2026-11-19)_
-- `/api/pc` passa il battito grezzo (`...resto`): l'app legge `aggiornando` da lì senza toccare il PC. _(2026-11-19)_
-- `SuPc.corrente` e `FasciaLinea` non sono letti da nessuna schermata; la chat remota passa da `Api.ponte` in `SchermataDettaglioChat`. _(2026-11-19)_
-- L'app prende le voci del menu da assets/menu.json (scritto dal test TS con AGGIORNA=1): un cambio di menu sul PC rompe solo l'enum Scheda in Apertura.kt e il `when` in Navigazione.kt. _(2026-11-19)_
 - `SuPc.corrente` non era letto da nessuno: il tasto «Chat dal vivo» di Altri computer apriva solo le chat locali. Il ponte vero andrebbe riscritto, non ripristinato. _(2026-11-20)_
 - Le sezioni di Altro (Salute, Computer) non scorrono da sole: vanno avvolte in Column con verticalScroll dentro il Box della Linguetta. _(2026-11-20)_
 - In una copia senza `gh` consentito non si sa se l'app è uscita: la voce in novita-app.txt viene committata dopo la pubblicazione, e può servire come indizio. _(2026-11-20)_
@@ -200,7 +196,6 @@
 
 ## versioni
 
-- Le voci di versione del quaderno sono file datati (`AAAA-MM-GG-...md`). `errori-arrivati.md` è solo per gli errori arrivati. _(2026-11-19)_
 - Un bump tocca 3 file di note: `src/shared/novita.ts`, `android/novita-app.txt` e `src/aiutante/novita-aiutante.txt` (righe che cominciano con `versione:`); app e Aiutante hanno la loro versione. _(2026-11-20)_
 - I commit sull'Aiutante possono stare in src/shared (aiuto-rete.ts) e src/main, non in src/aiutante: per decidere il bump guardare cosa fanno, non la cartella. _(2026-11-23)_
 - il compito citava la 0.121.2 ma main era già alla 0.122.0: controllare package.json di main prima di numerare la patch (origin della copia è un bundle, git fetch non funziona). _(2026-11-26)_
@@ -274,6 +269,8 @@
 - updaterVivo aspetta 6 s (24x250 ms) il diario sierradeck-update.log; l'errore arriva ~6 s dopo il tasto, non subito. _(2026-11-25)_
 - dalla 0.69.0 alla chiusura non si installa nulla (autoInstallOnAppQuit=false ovunque): testi e commenti che promettono «si installa alla chiusura» sono falsi. _(2026-11-25)_
 - la finestra dell'Aiutante (src/aiutante/finestra/aggiornamenti.tsx:48) dice «si installa da sola appena non gira nessun lavoro»: non verificata. _(2026-11-25)_
+- la guardia di riserva (aggiornamenti.ts:1004) toglie il segno e riapre la versione vecchia: il PC dice «ripartito» senza motivo. Il segno va tolto solo a successo. _(2026-11-26)_
+- La guardia di riserva (aggiornamenti.ts ~1004) toglieva il segno del tentativo e riapriva la vecchia versione: «Installa là» diceva fallito senza motivo. Il segno va tolto solo al successo. _(2026-11-26)_
 
 ## guardia
 
@@ -530,6 +527,7 @@
 - Per controllare una release su GitHub usare «rilascio», non «verificatore»: il verificatore può finire sull'Aiutante di DESKTOP-O2DITVE, dove non ci sono né gh né la cartella del progetto. _(2026-11-26)_
 - Con `npm run pubblica` in corso la release ha solo i 4 file del programma finché l'Aiutante non è costruito: prima di rilanciare controllare i processi node e il log. _(2026-11-26)_
 - Prima di preparare una patch controllare package.json di main: la 0.122.3 era già uscita con altro contenuto, quindi le novità nuove sono andate nella 0.122.4. _(2026-11-26)_
+- Dopo un riavvio, prima di rilanciare `npm run pubblica` controlla i processi node: può essere ancora vivo (`Get-CimInstance Win32_Process`) e finire da solo. Attendi con `Wait-Process -Id`. _(2026-11-26)_
 
 ## aiuto-rete
 
@@ -925,3 +923,11 @@
 ## typecheck
 
 - `powerMonitor.on` ha overload per evento: un ciclo su `['suspend','resume']` non compila, vanno due chiamate separate. _(2026-11-26)_
+
+## powershell
+
+- `gh --jq` con virgolette e `error("...")` si rompe in PowerShell: leggi il JSON con `| ConvertFrom-Json`. _(2026-11-26)_
+
+## installa-la
+
+- `Memoria.installato` era solo un booleano: per un tetto dall'ordine serve `installatoDal`, impostato in src/main/index.ts (non in aggiornamenti.ts). _(2026-11-26)_
