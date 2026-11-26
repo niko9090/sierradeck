@@ -402,6 +402,7 @@
 - errori-arrivati.md non ha a capo finale: per aggiungere una voce con Edit si ancora l'ultima frase del file. _(2026-11-24)_
 - Il file del lotto in .sierradeck/errori-arrivati/ può mancare nella copia dell'helper: la voce si scrive dai dati del compito e si segnala che il lotto non è stato letto. _(2026-11-25)_
 - in errori-arrivati.md le righe di test si ripetono in tutti i gruppi: per aggiungere in fondo con Edit serve un ancoraggio unico. _(2026-11-26)_
+- i lotti di errori-arrivati.md possono stare solo nelle note non salvate della cartella principale: da una copia di lavoro un gruppo recente può non esserci ancora. _(2026-11-26)_
 
 ## preferenze
 
@@ -428,8 +429,6 @@
 
 ## rilascio
 
-- Prima della release controllare che android/novita-app.txt abbia la voce della versione app: pubblica-app si ferma se manca, e la 0.110.0 è uscita senza APK 3.2.0. _(2026-11-19)_
-- `npm run pubblica` supera i 10 minuti (prove, build, Aiutante): va in sottofondo da solo. Si controlla con `gh release view --json assets` finché i file sono 7, senza lanciarlo due volte. _(2026-11-19)_
 - se `pubblica` fallisce sui test, tag e bozza restano senza file: va rilanciato lo stesso comando, non ricreati. _(2026-11-19)_
 - Se `npm run pubblica` si ferma a metà, la bozza resta con i primi 3 file. Rilanciarlo sulla stessa bozza completa gli altri file, compresi quelli dell'Aiutante, senza crearne una seconda. _(2026-11-19)_
 - `gh release view --json` non ha il campo isLatest: per sapere se è Latest usare `gh release list`. _(confermata 2×, ultima 2026-11-20)_
@@ -515,6 +514,7 @@
 - Dopo un riavvio, prima di rilanciare `npm run pubblica` controlla i processi node: può essere ancora vivo (`Get-CimInstance Win32_Process`) e finire da solo. Attendi con `Wait-Process -Id`. _(2026-11-26)_
 - In PowerShell il criterio `--jq 'if .isDraft then error("bozza") else "ok" end'` va scritto con `error(\"bozza\")`, altrimenti gh dà «function not defined: bozza/0». _(2026-11-26)_
 - `npm run pubblica` della 0.122.5 ha impiegato più di 10 minuti: va in sottofondo. Per aspettarlo basta `Wait-Process -Id` sul node con `pubblica` nella riga di comando. _(2026-11-26)_
+- k-346b e k-347b non hanno commit con quel nome in main (solo k-346c): per le novità conviene indicare gli hash. _(2026-11-26)_
 
 ## aiuto-rete
 
