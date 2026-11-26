@@ -421,3 +421,8 @@ Corretto nella versione 0.122.5. Su «Installa là» il PC della scrivania è ri
 
 ## Gruppo 1: «[installa là] PC remoto non risponde più» (DESKTOP-O2DITVE, 1 volta, 26/11/2026 16:25 ora italiana)
 Corretto nella versione 0.122.6. «Installa là» lanciato alle 16:25 da Z2-TECNICO verso DESKTOP-O2DITVE: dopo l'attesa il PC remoto risultava «non risponde più», prima che l'installazione partisse. Su DESKTOP-O2DITVE SierraDeck era chiuso e girava solo l'Aiutante. Causa: l'Aiutante non sa installare SierraDeck, quindi «Installa là» lì non poteva mai riuscire. La pagina del PC mostrava lo stesso il tasto, mentre la Salute già lo nascondeva; il programma aspettava 20 minuti e poi diceva «non risponde». Il fatto che il PC fosse occupato dagli specialisti non c'entrava. Ora il tasto è spento per i PC con solo l'Aiutante, la richiesta viene rifiutata subito con il motivo e il caso si riconosce mentre il programma aspetta.
+
+# Errori arrivati (lotto 20261126160306)
+
+## Gruppo 1: «[renderer] TypeError: Cannot read properties of undefined (reading 'trim')» in VoceAutopilota (Panoramica → ChatAutopilota) (Z2-TECNICO, 0.122.4, 1 volta, 26/11/2026 15:54Z)
+Corretto nella versione 0.122.7. La Panoramica si rompeva in VoceAutopilota quando un autopilota arrivava senza nome. Causa: la chat dell'autopilota di un altro PC usava la risposta di /api/autopilota senza controllarla, e un PC con una versione diversa può mandarla senza nome. Ora i dati passano da `conNomeSicuro` e gli usi del nome da `nomeODi` (src/shared/nome-autopilota.ts): senza nome si mostra «Autopilota». Test: tests/shared/nome-autopilota-k351a.test.ts.
