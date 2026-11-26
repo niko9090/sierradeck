@@ -106,7 +106,7 @@ export function computerDa(d: DatiComputer): Computer {
       azioni: {
         guardaDalVivo: n.tipo === 'pc' && vivo && chat.length > 0,
         cassetta: n.tipo === 'pc',
-        installaLa: n.aggiornabile,
+        installaLa: n.aggiornabile && stato !== 'solo-aiutante',
         dismetti: n.tipo !== 'io' && d.dismettibili?.has(n.id) === true && !vivo && stato !== 'in-aggiornamento'
       }
     }
