@@ -166,12 +166,11 @@ export function passoInstallaLa(nome: string, da: string, o: Osservazione, m: Me
     const dalOrdine = m.installatoDal ?? m.iniziato
     if (adesso - dalOrdine > RITORNO_ENTRO_MS) {
       const minuti = Math.round(RITORNO_ENTRO_MS / 60_000)
-      const t = s?.tentativoFallito
+      // Un tentativoFallito qui non c'e': e' gia' gestito sopra.
       return {
         fase: 'fallito', finito: true,
-        messaggio: t !== undefined ? `${t.titolo} ${t.motivo}` : `${nome} ha ricevuto l’ordine di installare ma dopo ${minuti} minuti è ancora alla ${ver} e non si è mai chiuso.`,
-        cosaFare: t !== undefined && t.strade.length > 0 ? t.strade.join(' ') : `Guarda lo schermo di ${nome}: forse un lavoro lo tiene occupato. Riprova «Installa là», oppure scarica l’installer a mano dalla pagina della versione.`,
-        ...(t !== undefined ? { pagina: t.pagina } : {})
+        messaggio: `${nome} ha ricevuto l’ordine di installare ma dopo ${minuti} minuti è ancora alla ${ver} e non si è mai chiuso.`,
+        cosaFare: `Guarda lo schermo di ${nome}: forse un lavoro lo tiene occupato. Riprova «Installa là», oppure scarica l’installer a mano dalla pagina della versione.`
       }
     }
     return { fase: 'attendo', messaggio: `«Installa» chiesto a ${nome}: aspetto che si chiuda.` }
