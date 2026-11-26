@@ -93,6 +93,7 @@
 - dopo aver spostato prove nel gruppo lenti, le prove veloci con git vero rimaste fuori vanno in timeout a PC carico: cercarle con grep su 'init' e execFileSync('git'. _(2026-11-25)_
 - `motivoInItaliano` tiene la coda «— riprovo fra N»: le prove sul testo del dialogo per l'accesso scaduto la includono ora, perché il guasto ha l'attesa. _(2026-11-25)_
 - la suite `tests/autopilot-host` dura circa 8 minuti e `tests/main` più `tests/shared` circa 4: servono timeout da 600000 ms, in primo piano. _(2026-11-26)_
+- tests/shared/tentativo-installazione.test.ts controlla il sorgente di aggiornamenti.ts per stringhe esatte (es. `segnaTentativo(versioneNuova, motivo)`): se si rinomina, va aggiornato. _(2026-11-26)_
 
 ## worktree
 
@@ -239,9 +240,6 @@
 
 ## ui
 
-- «Usate da altri PC» era sparita dalla fascia con k-u0 senza essere ricollocata: ora sta in PannelloChat (sottofondo.elenco + remoto.pc → righeAltriPc). _(2026-11-19)_
-- Il Drive nel dettaglio sta dietro un tasto: ContenutoDrive appena montato apre la finestra d'attesa, quindi non va montato a ogni progetto scelto. _(2026-11-19)_
-- ferma/riparti/archivia dell'autopilota non hanno API nel renderer (solo crea, dialoga, avvioAlLogin): per metterli in pagina serve prima l'IPC. _(2026-11-19)_
 - I test di sorgente (`readFileSync` sul .tsx) bastano per controllare che un pannello non porti più un elenco, senza DOM. _(2026-11-19)_
 - gli orfani vanno cercati con il suffisso `/Nome'` negli import: un controllo su `./Nome'` ignora gli import fatti da App.tsx (`./components/Nome`). _(2026-11-20)_
 - Nel menu dei workspace le azioni dietro «⋯» sono contate da test e pagina servita: il riordino sta in controlli a parte, non come nuova azione di `azioniMenuWorkspace`. _(2026-11-20)_
@@ -271,6 +269,7 @@
 - la finestra dell'Aiutante (src/aiutante/finestra/aggiornamenti.tsx:48) dice «si installa da sola appena non gira nessun lavoro»: non verificata. _(2026-11-25)_
 - la guardia di riserva (aggiornamenti.ts:1004) toglie il segno e riapre la versione vecchia: il PC dice «ripartito» senza motivo. Il segno va tolto solo a successo. _(2026-11-26)_
 - La guardia di riserva (aggiornamenti.ts ~1004) toglieva il segno del tentativo e riapriva la vecchia versione: «Installa là» diceva fallito senza motivo. Il segno va tolto solo al successo. _(2026-11-26)_
+- il segno del tentativo si toglie solo al successo; ora ha un campo `motivo`, scritto dalla guardia della riserva e consumato alla prima lettura al riavvio. _(2026-11-26)_
 
 ## guardia
 
@@ -931,3 +930,7 @@
 ## installa-la
 
 - `Memoria.installato` era solo un booleano: per un tetto dall'ordine serve `installatoDal`, impostato in src/main/index.ts (non in aggiornamenti.ts). _(2026-11-26)_
+
+## ts
+
+- in installa-la.ts il ramo `tentativoFallito` dopo il tetto era codice morto: il controllo a riga 153 lo intercetta prima, e TypeScript lo vede come `never`. _(2026-11-26)_
