@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+import { EventEmitter } from 'node:events'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -8,6 +9,35 @@ import {
   provaUpdater, rimastiNostri, spiegaUscita, trovaCompilatore, updaterVivo
 } from '../../src/main/updater/compila'
 import { sorgenteUpdater, VERSIONE_UPDATER } from '../../src/main/updater/sorgente'
+
+const h = vi.hoisted(() => ({
+  updater: undefined as unknown as EventEmitter & Record<string, unknown>,
+  relaunch: vi.fn(),
+  exit: vi.fn(),
+  quitAndInstall: vi.fn()
+}))
+vi.mock('electron-updater', () => {
+  const e = new EventEmitter() as EventEmitter & Record<string, unknown>
+  e.autoDownload = true
+  e.autoInstallOnAppQuit = true
+  e.checkForUpdates = vi.fn(async () => { e.emit('update-not-available', {}) })
+  e.downloadUpdate = vi.fn(async () => [])
+  e.quitAndInstall = h.quitAndInstall
+  e.setFeedURL = vi.fn()
+  h.updater = e
+  return { autoUpdater: e }
+})
+vi.mock('electron', () => ({
+  app: { getVersion: () => '0.122.3', getPath: () => tmpdir(), on: vi.fn(), quit: vi.fn(), relaunch: h.relaunch, exit: h.exit },
+  BrowserWindow: class {}
+}))
+vi.mock('../../src/main/finestra-aggiornamento', () => ({ avviaFinestraAggiornamento: vi.fn(async () => undefined) }))
+// Solo `assicuraUpdater` e' finto (nessun updater: si va alla strada di riserva): il resto e' vero.
+vi.mock('../../src/main/updater/compila', async (importaOriginale) => ({
+  ...(await importaOriginale<typeof import('../../src/main/updater/compila')>()),
+  assicuraUpdater: () => undefined
+}))
+const { creaAggiornamenti } = await import('../../src/main/aggiornamenti')
 
 /**
  * 26/11: su un PC «Installa» scriveva «l updater non si e fatto vivo» e non
@@ -113,4 +143,45 @@ describe('updater che non si fa vivo: il perché', () => {
     expect(esito.ok).toBe(true)
     if (esito.ok) expect(esito.temporanea ?? '').not.toBe('')
   }, 90_000)
+})
+
+/**
+ * «Installa là» alla 0.122.3: l'installer di riserva non chiudeva SierraDeck,
+ * la guardia dei 30 s riapriva la versione vecchia e cancellava il segno, e chi
+ * aveva chiesto vedeva «non riuscita» senza perché. Ora il segno resta, con il motivo.
+ */
+describe('installer di riserva che non chiude SierraDeck', () => {
+  it('la guardia lascia il segno con il motivo, e al riavvio tentativoFallito lo riporta una volta sola', async () => {
+    vi.useFakeTimers()
+    try {
+      const dati = mkdtempSync(join(tmpdir(), 'sd-riserva-'))
+      const a = creaAggiornamenti(() => [], dati, async () => undefined, undefined, undefined, () => true, () => 47640, async () => ({ ok: true }))
+      h.updater.emit('update-available', { version: '0.122.4' })
+      h.updater.emit('update-downloaded', { version: '0.122.4', downloadedFile: join(tmpdir(), 'SierraDeck-Setup-0.122.4.exe') })
+      await a.installa()
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(h.quitAndInstall).toHaveBeenCalled()
+      expect(h.relaunch).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(31_000)
+      expect(h.relaunch).toHaveBeenCalled()
+
+      const segno = join(dati, 'tentativo-installazione.json')
+      expect(existsSync(segno)).toBe(true)
+      const scritto = JSON.parse(readFileSync(segno, 'utf8')) as { versione: string; motivo?: string }
+      expect(scritto.versione).toBe('0.122.4')
+      expect(scritto.motivo).toContain('30 s')
+
+      // Riavvio: ancora la 0.122.3, il segno parla.
+      const dopo = creaAggiornamenti(() => [], dati, async () => undefined)
+      const fallito = dopo.stato().tentativoFallito
+      expect(fallito).toBeDefined()
+      expect(fallito?.motivo).toContain('non ha chiuso SierraDeck in 30 s')
+      expect(fallito?.versione).toBe('0.122.4')
+      // Consumato: il riavvio dopo non lo ripete.
+      expect(existsSync(segno)).toBe(false)
+      expect(creaAggiornamenti(() => [], dati, async () => undefined).stato().tentativoFallito).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
