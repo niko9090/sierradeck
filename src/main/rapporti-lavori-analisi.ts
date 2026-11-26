@@ -101,6 +101,8 @@ export function riassumi(rapporti: readonly RapportoLavori[], dopo?: string): Ri
 }
 
 const sec = (ms: number): string => (ms >= 120_000 ? `${Math.round(ms / 60_000)} min` : `${Math.round(ms / 1000)} s`)
+/** Secondi con un decimale (virgola): un ritardo di 1,04 s non si mostra come «1 s», sotto la soglia di 1 s. */
+const secDecimale = (ms: number): string => `${(ms / 1000).toFixed(1).replace('.', ',')} s`
 const media = (somma: number, n: number): number => (n > 0 ? Math.round(somma / n) : 0)
 const elenco = (o: Record<string, number>): string => Object.entries(o).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ×${v}`).join(', ')
 
@@ -133,7 +135,7 @@ function righeWorkspace(s: Somma): string[] {
   }
   const f = s.fermate
   if (f.fermo > 0 || f.riavvii > 0) {
-    const fermate = f.fermo > 0 ? `rallentamenti del servizio oltre 1,5 s: ${f.fermo} (il più lungo ${sec(f.fermoMaxMs)})` : 'fermate: 0'
+    const fermate = f.fermo > 0 ? `rallentamenti del servizio oltre 1 s di ritardo: ${f.fermo} (il più lungo ${secDecimale(f.fermoMaxMs)})` : 'fermate: 0'
     const motivi = f.motiviRiavvio !== undefined && Object.keys(f.motiviRiavvio).length > 0 ? ` (${elenco(f.motiviRiavvio)})` : ''
     r.push(`- ${fermate} · riavvii: ${f.riavvii}${motivi}`)
   }

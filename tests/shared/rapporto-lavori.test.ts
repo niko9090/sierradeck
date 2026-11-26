@@ -86,7 +86,12 @@ describe('haIntoppi', () => {
   it('limite del piano', () => { expect(haIntoppi(con({ avanzamento: { limiteDelPiano: 1 } }))).toBe(true) })
   it('lavoro fermo', () => { expect(haIntoppi(con({ avanzamento: { svegli: 1, lavoroFermoMaxMin: 30 } }))).toBe(true) })
   it('permessi negati', () => { expect(haIntoppi(con({ compiti: { rifiuti: 1 } }))).toBe(true) })
-  it('rallentamenti del servizio', () => { expect(haIntoppi(con({ fermate: { fermo: 1, fermoMaxMs: 2000 } }))).toBe(true) })
+  it('rallentamento serio del servizio (il più lungo oltre 5 s)', () => { expect(haIntoppi(con({ fermate: { fermo: 1, fermoMaxMs: 5001 } }))).toBe(true) })
+  it('molti rallentamenti nello stesso rapporto', () => { expect(haIntoppi(con({ fermate: { fermo: 5, fermoMaxMs: 1200 } }))).toBe(true) })
+  it('pochi rallentamenti piccoli (circa 1 s) non sono un intoppo', () => {
+    expect(haIntoppi(con({ fermate: { fermo: 1, fermoMaxMs: 1000 } }))).toBe(false)
+    expect(haIntoppi(con({ fermate: { fermo: 4, fermoMaxMs: 5000 } }))).toBe(false)
+  })
   it('riavvio senza aggiornamento', () => {
     expect(haIntoppi(con({ fermate: { riavvii: 1, motiviRiavvio: { 'riavvio senza aggiornamento (versione 1.0)': 1 } } }))).toBe(true)
   })

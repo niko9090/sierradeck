@@ -4,8 +4,6 @@
 
 ## test
 
-- Alcuni test leggono `src/main/index.ts` come testo con regex: se ci si aggiungono righe fra `senzaAiutanti` e il suo contesto, vanno allargati. _(2026-11-19)_
-- guardia-pc-0-85-1 ha un limite di 800 ms che salta se il PC è carico: ferma `npm run pubblica` (suite dentro). Rilanciare il solo file passa. _(2026-11-19)_
 - I test sul tempo reale con server HTTP vero (tetti da 400 ms) slittano sotto `--maxWorkers=4`: i limiti superiori vanno larghi (secondi), solo il minimo (≥ tetto) prova l'attesa. _(2026-11-19)_
 - `servizio-orchestratore.test.ts` («PreToolUse dell'unico», riga 330) fallisce in modo deterministico nella copia del worktree; da verificare se è rosso anche su main. _(2026-11-19)_
 - Diversi test leggono i sorgenti .tsx (Console, App) come testo: togliere una voce o una prop rompe anche pannello-specialisti.test.tsx, non solo i test del menu. _(2026-11-19)_
@@ -840,6 +838,8 @@
 - contaLavori vede solo le righe dopo `fino`: ogni informazione che attraversa due giri (come la versione avviata) va ricordata nello stato del giro, anche quando il rapporto non parte. _(2026-11-23)_
 - 24/11 PC in Glos (0.118.0): 25-31 rallentamenti del servizio per mezz'ora (max 26 s) mentre BG4 riprovava le unioni ferme. Dopo la 0.118.1 ricontrollare: se restano, è un difetto da cercare. _(2026-11-24)_
 - «lavori svegliati» conta le righe di log «lavoro fermo da N minuti», quindi due spinte nello stesso episodio valgono 2 sveglie. Non indica da solo una sveglia inutile. _(2026-11-25)_
+- La spia scrive il ritardo (intervallo − 500 ms) sopra 1000 ms: nei testi la soglia è «oltre 1 s di ritardo», non «1,5 s». _(2026-11-26)_
+- Soglie di intoppo del servizio: RALLENTAMENTO_SERIO_MS 5000 o RALLENTAMENTI_MOLTI 5 in rapporto-lavori.ts; i rallentamenti piccoli restano nei numeri ma non avviano l'analisi. _(2026-11-26)_
 
 ## pc-glos
 

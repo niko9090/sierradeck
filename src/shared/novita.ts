@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.122.2',
+    righe: [
+      '**Meno rumore nei rapporti dei lavori:** un solo rallentamento di circa 1 s del servizio non fa più partire la richiesta «analizza i rapporti»; conta solo se il più lungo supera 5 s o se i rallentamenti sono 5 o più. I numeri restano nel rapporto.',
+      '**Riassunto più chiaro:** i rallentamenti sono scritti «oltre 1 s di ritardo» (la soglia vera della spia) e il più lungo con un decimale, senza più arrotondarlo a un valore sotto la soglia.',
+    ],
+  },
+  {
     versione: '0.122.1',
     righe: [
       '**Falsi «servizio fermo»:** una sospensione del PC o un salto dell\'orologio (sincronizzazione dell\'ora) non vengono più contati come servizio fermo nel registro; i blocchi veri restano segnalati.',
