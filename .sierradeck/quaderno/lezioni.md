@@ -4,14 +4,6 @@
 
 ## test
 
-- I test sul tempo reale con server HTTP vero (tetti da 400 ms) slittano sotto `--maxWorkers=4`: i limiti superiori vanno larghi (secondi), solo il minimo (≥ tetto) prova l'attesa. _(2026-11-19)_
-- `servizio-orchestratore.test.ts` («PreToolUse dell'unico», riga 330) fallisce in modo deterministico nella copia del worktree; da verificare se è rosso anche su main. _(2026-11-19)_
-- Diversi test leggono i sorgenti .tsx (Console, App) come testo: togliere una voce o una prop rompe anche pannello-specialisti.test.tsx, non solo i test del menu. _(2026-11-19)_
-- giornoEOra/oggi-ieri: nei test costruire le date con new Date(y,m,d,h) locale a mezzogiorno, non con UTC, per non dipendere dal fuso. _(2026-11-19)_
-- Nel progetto non c'è un ambiente DOM: i test dei riquadri usano renderToStaticMarkup e leggono i .tsx come testo, quindi la logica da provare va in funzioni pure. _(2026-11-19)_
-- gradle testDebugUnitTest --rerun impiega circa 7 minuti a freddo: da lanciare in foreground con timeout di 10 minuti. _(2026-11-19)_
-- menu-unificato.test.ts legge i sorgenti: se sposti etichette fra file, aggiorna anche quel test. _(2026-11-19)_
-- `tests/shared/menu-principale.test.ts` cerca titoli e tasti nel sorgente di VistaProgetti, ContenutoDrive e PannelloAccount: se si rinominano, va aggiornato anche quello. _(2026-11-19)_
 - Per modificare client-pagina.ts con script node: il file ha fine riga CRLF e backslash doppi nel template; cercare una riga sola, non stringhe multi-riga. _(2026-11-19)_
 - In client-pagina.ts le duplicazioni si vedono dall'HTML generato: `misura-riga` compare anche nel menu specialisti, quindi il test conta la stringa precisa dell'Avanzamento. _(2026-11-20)_
 - molti test leggono Console.tsx e App.tsx come testo: spostando etichette in `@shared` (es. chat-workspace) vanno aggiornati subito, falliscono solo al giro completo. _(2026-11-20)_
@@ -151,6 +143,7 @@
 - `errori-arrivati.md` è in CRLF: un Edit che aggiunge righe porta fine riga LF e il file resta con fine riga misti. _(2026-11-20)_
 - `noteDi` (scripts/note-novita.mjs) restituisce [] se le novità stanno su una riga sola, `righe: ['...']`: note della release e di app-android.json vuote. Scriverle a mano o correggere il parser. _(2026-11-20)_
 - `gh release create --draft` stampa un URL «untagged-…» ed è normale: con `--verify-tag` il tag c'è già e la release prende `v0.114.2` alla pubblicazione. _(2026-11-23)_
+- `npm run pubblica` supera i 10 minuti e va in sottofondo: lo `sleep` e i cicli di attesa sono bloccati. Si può solo fare una lettura singola dello stato e aspettare la notifica di fine. _(2026-11-26)_
 
 ## git
 
@@ -221,6 +214,7 @@
 
 - dimenticaIRossi azzera ogni esito non passato: ogni nuova memoria con esiti «non misurati» va esclusa per prefisso di chiave, o muore a ogni unione _(2026-11-23)_
 - EsitoVerifica non conserva il codice di uscita (126/127): il riconoscimento «programma assente» si basa solo sul testo dell'uscita _(2026-11-23)_
+- `gh release view vX --json isDraft,assets` come criterio è verde anche se la release è in bozza (esce 0): per un rilascio usare un controllo che fallisce su isDraft true, es. con --jq. _(2026-11-26)_
 
 ## processo
 
@@ -531,6 +525,11 @@
 - Un `npm run pubblica` da ~6 minuti finisce in sottofondo e non stampa nulla fino alla fine: per aspettare senza sleep, `ping -n 28 127.0.0.1` e poi `gh release view`. _(2026-11-25)_
 - `npm run pubblica` può fallire al primo giro durante le prove senza lasciare file: rilanciarlo sulla stessa bozza completa tutto. Con output su file e controllo di `gh release view` ogni ~30 s. _(2026-11-26)_
 - Il comando lungo passa in sottofondo da solo oltre i 10 minuti; la pubblicazione intera (prove, build, Aiutante, upload) è durata circa 20 minuti. Non rilanciarlo mentre gira. _(2026-11-26)_
+- il rilascio dura circa 25 minuti (test 13, build, upload): se un'altra chat o l'autopilota prepara la versione dopo nella cartella principale, `pubblica` fallisce a metà con «dist è vecchia». _(2026-11-26)_
+- dalla dd567e7a `npm run pubblica` crea da solo la bozza prima di electron-builder: non serve `gh release create --draft` prima. _(2026-11-26)_
+- Non lanciare il rilascio mentre un'unione che alza la versione può arrivare in main: pubblica fallisce a metà con «dist è vecchia» (0.122.1 rimasta bozza, uscita la 0.122.2). _(2026-11-26)_
+- Per controllare una release su GitHub usare «rilascio», non «verificatore»: il verificatore può finire sull'Aiutante di DESKTOP-O2DITVE, dove non ci sono né gh né la cartella del progetto. _(2026-11-26)_
+- Con `npm run pubblica` in corso la release ha solo i 4 file del programma finché l'Aiutante non è costruito: prima di rilanciare controllare i processi node e il log. _(2026-11-26)_
 
 ## aiuto-rete
 
@@ -840,6 +839,7 @@
 - «lavori svegliati» conta le righe di log «lavoro fermo da N minuti», quindi due spinte nello stesso episodio valgono 2 sveglie. Non indica da solo una sveglia inutile. _(2026-11-25)_
 - La spia scrive il ritardo (intervallo − 500 ms) sopra 1000 ms: nei testi la soglia è «oltre 1 s di ritardo», non «1,5 s». _(2026-11-26)_
 - Soglie di intoppo del servizio: RALLENTAMENTO_SERIO_MS 5000 o RALLENTAMENTI_MOLTI 5 in rapporto-lavori.ts; i rallentamenti piccoli restano nei numeri ma non avviano l'analisi. _(2026-11-26)_
+- La soglia dei rallentamenti è in haIntoppi (rapporto-lavori.ts) e anche scritta in novita.ts: se cambia la regola, va rivista pure la nota di versione. _(2026-11-26)_
 
 ## pc-glos
 
