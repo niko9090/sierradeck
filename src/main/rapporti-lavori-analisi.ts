@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
-import { UNIONE_LENTA_ATTESA_MS, UNIONE_LENTA_PROVA_MS, WORKSPACE_GENERALE, haIntoppi, ruoloDi, unioniLente, type LavoriWorkspace, type RapportoLavori } from '@shared/rapporto-lavori'
+import { UNIONE_LENTA_ATTESA_MS, UNIONE_LENTA_PROVA_MS, WORKSPACE_GENERALE, fasceVuote, haIntoppi, ruoloDi, unioniLente, type LavoriWorkspace, type RapportoLavori } from '@shared/rapporto-lavori'
 import { testoRegistroRemoto, type RegistroWorkspaceVisto } from '@shared/registro-workspace'
 import { CARTELLA_RAPPORTI, leggiRapportiArrivati } from './rapporti-lavori'
 
@@ -64,7 +64,14 @@ export function sommaDi(a: Somma, b: LavoriWorkspace): void {
   x.svegli += num(y.svegli); x.limiteDelPiano += num(y.limiteDelPiano); x.criterioRosso += num(y.criterioRosso)
   x.spinteSospese += num(y.spinteSospese); x.lavoroFermoMaxMin = Math.max(x.lavoroFermoMaxMin, num(y.lavoroFermoMaxMin))
   const f = a.fermate, g: Partial<Somma['fermate']> = b.fermate ?? {}
-  f.fermo += num(g.fermo); f.riavvii += num(g.riavvii); f.fermoMaxMs = Math.max(f.fermoMaxMs, num(g.fermoMaxMs))
+  f.fermo += num(g.fermo); f.riavvii += num(g.riavvii)
+  // L'ora del più lungo segue il massimo (a parità resta la prima).
+  if (typeof g.fermoMaxAlle === 'string' && num(g.fermoMaxMs) > f.fermoMaxMs) f.fermoMaxAlle = g.fermoMaxAlle
+  f.fermoMaxMs = Math.max(f.fermoMaxMs, num(g.fermoMaxMs))
+  if (g.fasce !== undefined && g.fasce !== null) {
+    const t = (f.fasce ??= fasceVuote())
+    t.da1a2 += num(g.fasce.da1a2); t.da2a5 += num(g.fasce.da2a5); t.da5a10 += num(g.fasce.da5a10); t.oltre10 += num(g.fasce.oltre10)
+  }
   for (const [m, n] of Object.entries(g.motiviRiavvio ?? {})) (f.motiviRiavvio ??= {})[m] = (f.motiviRiavvio[m] ?? 0) + num(n)
 }
 
@@ -106,6 +113,29 @@ const secDecimale = (ms: number): string => `${(ms / 1000).toFixed(1).replace('.
 const media = (somma: number, n: number): number => (n > 0 ? Math.round(somma / n) : 0)
 const elenco = (o: Record<string, number>): string => Object.entries(o).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ×${v}`).join(', ')
 
+const oraLocale = (iso: string): string | undefined => {
+  const t = Date.parse(iso)
+  if (Number.isNaN(t)) return undefined
+  const d = new Date(t)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+/** «il più lungo 22,4 s alle 15:07; 80 da 1-2 s, 12 da 2-5 s…»: le fasce e l'ora mancano nei rapporti dei PC vecchi. */
+export function dettaglioRallentamenti(f: Somma['fermate']): string {
+  const ora = f.fermoMaxAlle !== undefined ? oraLocale(f.fermoMaxAlle) : undefined
+  const parti = [`il più lungo ${secDecimale(f.fermoMaxMs)}${ora !== undefined ? ` alle ${ora}` : ''}`]
+  const fa = f.fasce
+  if (fa !== undefined) {
+    const voci: Array<[number, string]> = [[fa.da1a2, 'da 1-2 s'], [fa.da2a5, 'da 2-5 s'], [fa.da5a10, 'da 5-10 s'], [fa.oltre10, 'oltre 10 s']]
+    const dette = voci.filter(([n]) => n > 0).map(([n, e]) => `${n} ${e}`)
+    if (dette.length > 0) {
+      const noti = voci.reduce((s, [n]) => s + n, 0)
+      parti.push(dette.join(', ') + (noti < f.fermo ? `, per ${f.fermo - noti} non detto (PC con versione vecchia)` : ''))
+    }
+  }
+  return parti.join('; ')
+}
+
 /** Le righe di un workspace: solo quello che dice qualcosa. */
 function righeWorkspace(s: Somma): string[] {
   const r: string[] = []
@@ -135,7 +165,7 @@ function righeWorkspace(s: Somma): string[] {
   }
   const f = s.fermate
   if (f.fermo > 0 || f.riavvii > 0) {
-    const fermate = f.fermo > 0 ? `rallentamenti del servizio oltre 1 s di ritardo: ${f.fermo} (il più lungo ${secDecimale(f.fermoMaxMs)})` : 'fermate: 0'
+    const fermate = f.fermo > 0 ? `rallentamenti del servizio oltre 1 s di ritardo: ${f.fermo} (${dettaglioRallentamenti(f)})` : 'fermate: 0'
     const motivi = f.motiviRiavvio !== undefined && Object.keys(f.motiviRiavvio).length > 0 ? ` (${elenco(f.motiviRiavvio)})` : ''
     r.push(`- ${fermate} · riavvii: ${f.riavvii}${motivi}`)
   }
