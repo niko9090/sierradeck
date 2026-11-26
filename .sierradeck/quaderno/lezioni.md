@@ -320,6 +320,8 @@
 
 - il servizio autopiloti non conosce porta del client né gettoni del programma: per parlargli c'è `ponte-locale.json` nella cartella dati (porta+gettone), riscritto a ogni avvio del programma. _(2026-11-20)_
 - `lavoroDaPortareAvanti` deve contare anche le chat adottate (`specialistiVivi`), non solo i subagenti: una chat migrata in `lavoro` è lavoro in corso anche con piano vuoto. _(2026-11-22)_
+- la spia di ritardo ora confronta Date.now() con performance.now(): se divergono oltre 1 s è sospensione o salto dell'orologio, non blocco _(2026-11-26)_
+- non provato se su Windows performance.now() conta il tempo di sospensione: se sì, la sospensione sembra ancora un blocco e servirebbe powerMonitor _(2026-11-26)_
 
 ## registro
 
@@ -560,7 +562,6 @@
 
 ## aiuto
 
-- una scadenza dopo un sonno o con lo specialista muto va con causa 'pc': solo così il lavoro passa a un altro PC. 'compito' non si riassegna. _(2026-11-17)_
 - il PATH e le risorse si guardano solo DOPO che il progetto è arrivato sul PC ospite (`aiuto-risorse.ts`, `verificaRisorse`): la valutazione va spostata prima di affidare. _(2026-11-20)_
 - lo specialista ospitato eredita tutto `process.env` del programma che ospita (`aiuto-lavoratore.ts:460`): è la superficie vera per i segreti. _(2026-11-20)_
 - `SILENZIO_MAX_MS` esiste due volte con valori diversi (`aiuto-rete.ts:256`, `aiuto-scadenza.ts:21`): verificare quale vale. _(2026-11-20)_
@@ -621,7 +622,6 @@
 
 ## prova
 
-- fissaLaVersione deve coprire anche grep/findstr/Select-String/rg, non solo ===/!=: i criteri di versione scritti come ricerca di testo facevano respingere i rami che alzano la versione. _(2026-11-17)_
 - `soloVersione` guarda il diff di package.json/lock: solo righe `"version"` (max 2+2) escludono il file dalla prova; ogni altro cambio rimette la suite intera. _(2026-11-23)_
 
 ## push
