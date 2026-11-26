@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.122.8',
+    righe: [
+      '**Comandi lunghi nella cartella principale:** mentre una chat ne fa uno, per esempio la pubblicazione di una versione, il programma non lascia più entrare un\'unione dopo 10 minuti. Aspetta che il comando finisca, al massimo 30 minuti.',
+      '**Rapporti dei lavori:** accanto all\'attesa di un\'unione si vede anche chi teneva occupata la cartella.',
+    ],
+  },
+  {
     versione: '0.122.7',
     righe: [
       '**Panoramica più solida:** non si rompe più quando arriva un autopilota senza nome, per esempio da un altro PC o da dati vecchi: al posto del nome mostra «Autopilota».',
