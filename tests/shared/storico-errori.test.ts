@@ -202,3 +202,29 @@ describe('l’invio al PC di sviluppo', () => {
     expect(l.ok && l.invio.voci[0]?.messaggio).toBe('password=‹tolto› fallita')
   })
 })
+
+describe('aggiungiErrore: il «cosa si faceva» è quello dell’ultima volta', () => {
+  const base = { dove: 'pc' as const, messaggio: '[aggiornamenti] l updater non si e fatto vivo', volte: 1 }
+
+  it('una ripetizione senza «cosa» non eredita quello di un altro giorno', () => {
+    let s = aggiungiErrore({ voci: [] }, { ...base, quando: '2026-11-25T15:06:29.000Z', ultima: '2026-11-25T15:06:29.000Z', cosa: 'installo la 0.119.1 dalla 0.119.0', versione: '0.119.0' })
+    s = aggiungiErrore(s, { ...base, quando: '2026-11-26T11:30:46.000Z', ultima: '2026-11-26T11:30:46.000Z', versione: '0.121.1' })
+    expect(s.voci).toHaveLength(1)
+    expect(s.voci[0]?.volte).toBe(2)
+    expect(s.voci[0]?.versione).toBe('0.121.1')
+    expect(s.voci[0]?.cosa).toBeUndefined()
+  })
+
+  it('se anche la ripetizione ha il suo «cosa», vale quello', () => {
+    let s = aggiungiErrore({ voci: [] }, { ...base, quando: '2026-11-25T15:06:29.000Z', ultima: '2026-11-25T15:06:29.000Z', cosa: 'vecchio' })
+    s = aggiungiErrore(s, { ...base, quando: '2026-11-26T11:30:46.000Z', ultima: '2026-11-26T11:30:46.000Z', cosa: 'nuovo' })
+    expect(s.voci[0]?.cosa).toBe('nuovo')
+  })
+
+  it('unendo due storici, una voce più vecchia non toglie il «cosa» di quella più recente', () => {
+    const recente = { ...base, quando: '2026-11-26T11:30:46.000Z', ultima: '2026-11-26T11:30:46.000Z', cosa: 'recente' }
+    let s = aggiungiErrore({ voci: [] }, recente)
+    s = aggiungiErrore(s, { ...base, quando: '2026-11-25T15:06:29.000Z', ultima: '2026-11-25T15:06:29.000Z' })
+    expect(s.voci[0]?.cosa).toBe('recente')
+  })
+})

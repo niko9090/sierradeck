@@ -172,3 +172,16 @@ describe('errori arrivati: lo stesso fallimento con id diversi è un gruppo solo
     expect(r.gruppi[0]?.volte).toBe(5)
   })
 })
+
+describe('raggruppa: il «cosa si faceva» è quello dell’ultima volta (lotto 20261126113649)', () => {
+  const base = { dove: 'pc' as const, messaggio: '[aggiornamenti] l updater non si e fatto vivo: non chiudo niente', volte: 1 }
+
+  it('l’arrivo più recente senza «cosa» non lascia al gruppo quello vecchio', () => {
+    const vecchio: ArrivoLetto = { file: 'a.json', da: 'PC-A', versione: '0.121.1', voci: [{ ...base, quando: '2026-11-25T15:06:29.000Z', ultima: '2026-11-25T15:06:29.000Z', cosa: 'installo la 0.119.1 dalla 0.119.0', versione: '0.121.1' }] }
+    const nuovo: ArrivoLetto = { file: 'b.json', da: 'PC-A', versione: '0.121.1', voci: [{ ...base, quando: '2026-11-25T15:10:00.000Z', ultima: '2026-11-26T11:30:46.000Z', versione: '0.121.1' }] }
+    const r = raggruppa({ arrivi: [vecchio, nuovo], versioneQui: '0.121.2', affidati: {}, adesso: Date.parse('2026-11-26T11:40:00.000Z') })
+    expect(r.gruppi).toHaveLength(1)
+    expect(r.gruppi[0]?.ultima).toBe('2026-11-26T11:30:46.000Z')
+    expect(r.gruppi[0]?.cosa).toBeUndefined()
+  })
+})

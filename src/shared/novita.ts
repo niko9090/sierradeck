@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.122.1',
+    righe: [
+      '**Errori che si ripetono:** quando lo stesso errore torna su una versione più nuova, nell\'elenco e nei lotti per lo sviluppo non resta più il «cosa si stava facendo» di un\'altra volta (prima un errore della 0.121.1 raccontava un\'installazione della 0.119.1).',
+    ],
+  },
+  {
     versione: '0.122.0',
     righe: [
       '**PC acceso non è spento:** se Tailscale vede il PC collegato ma SierraDeck non risponde, il programma dice «acceso, ma SierraDeck non risponde (chiuso o bloccato dal firewall)» e non lo mette fra i PC spenti.',

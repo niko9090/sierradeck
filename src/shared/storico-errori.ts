@@ -185,17 +185,26 @@ export function aggiungiErrore(storico: StoricoErrori, nuovo: VoceErrore, limite
   const chiave = chiaveErrore(nuovo)
   const uguale = storico.voci.find((v) => chiaveErrore(v) === chiave)
   const altre = storico.voci.filter((v) => v !== uguale)
-  const unita: VoceErrore = uguale === undefined
-    ? nuovo
-    : {
-        ...uguale,
-        ultima: nuovo.ultima > uguale.ultima ? nuovo.ultima : uguale.ultima,
-        volte: uguale.volte + nuovo.volte,
-        // Il racconto più fresco: cosa si faceva l'ultima volta, e lo stack di adesso.
-        ...(nuovo.cosa !== undefined ? { cosa: nuovo.cosa } : {}),
-        ...(nuovo.dettagli !== undefined ? { dettagli: nuovo.dettagli } : {}),
-        ...(nuovo.versione !== undefined ? { versione: nuovo.versione } : {})
-      }
+  let unita: VoceErrore
+  if (uguale === undefined) unita = nuovo
+  else {
+    const piuRecente = nuovo.ultima > uguale.ultima
+    const { cosa: _vecchia, ...senzaCosa } = uguale
+    // Il racconto più fresco: cosa si faceva l'ultima volta, e lo stack di adesso.
+    // Il «cosa» è quello della volta più recente: se quella non ne ha, non si tiene quello di un'altra
+    // volta (lotto 20261126113649: «installo la 0.119.1 dalla 0.119.0» su un errore della 0.121.1).
+    // Fra due versioni diverse, il «cosa» di una non vale per l'altra.
+    const altraVersione = nuovo.versione !== undefined && uguale.versione !== undefined && nuovo.versione !== uguale.versione
+    const cosa = piuRecente ? (nuovo.cosa ?? (altraVersione ? undefined : uguale.cosa)) : uguale.cosa
+    unita = {
+      ...senzaCosa,
+      ultima: piuRecente ? nuovo.ultima : uguale.ultima,
+      volte: uguale.volte + nuovo.volte,
+      ...(cosa !== undefined ? { cosa } : {}),
+      ...(nuovo.dettagli !== undefined ? { dettagli: nuovo.dettagli } : {}),
+      ...(nuovo.versione !== undefined ? { versione: nuovo.versione } : {})
+    }
+  }
   const voci = [unita, ...altre].sort((a, b) => (a.ultima < b.ultima ? 1 : a.ultima > b.ultima ? -1 : 0))
   return { voci: voci.slice(0, Math.max(1, limite)) }
 }
