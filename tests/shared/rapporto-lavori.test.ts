@@ -87,8 +87,11 @@ describe('haIntoppi', () => {
   it('lavoro fermo', () => { expect(haIntoppi(con({ avanzamento: { svegli: 1, lavoroFermoMaxMin: 30 } }))).toBe(true) })
   it('permessi negati', () => { expect(haIntoppi(con({ compiti: { rifiuti: 1 } }))).toBe(true) })
   it('rallentamento serio del servizio (il più lungo oltre 5 s)', () => { expect(haIntoppi(con({ fermate: { fermo: 1, fermoMaxMs: 5001 } }))).toBe(true) })
-  it('molti rallentamenti nello stesso rapporto', () => { expect(haIntoppi(con({ fermate: { fermo: 5, fermoMaxMs: 1200 } }))).toBe(true) })
+  it('5 rallentamenti con il più lungo sopra i 2 s: intoppo', () => { expect(haIntoppi(con({ fermate: { fermo: 5, fermoMaxMs: 2500 } }))).toBe(true) })
+  it('20 rallentamenti da 1 s: intoppo', () => { expect(haIntoppi(con({ fermate: { fermo: 20, fermoMaxMs: 1000 } }))).toBe(true) })
   it('pochi rallentamenti piccoli (circa 1 s) non sono un intoppo', () => {
+    expect(haIntoppi(con({ fermate: { fermo: 6, fermoMaxMs: 1000 } }))).toBe(false)
+    expect(haIntoppi(con({ fermate: { fermo: 19, fermoMaxMs: 1999 } }))).toBe(false)
     expect(haIntoppi(con({ fermate: { fermo: 1, fermoMaxMs: 1000 } }))).toBe(false)
     expect(haIntoppi(con({ fermate: { fermo: 4, fermoMaxMs: 5000 } }))).toBe(false)
   })
