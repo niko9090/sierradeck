@@ -66,11 +66,14 @@ export const UNIONE_LENTA_PROVA_MS = 5 * 60_000
 
 /**
  * Un rallentamento del servizio è un intoppo solo se è serio: il più lungo supera 5 s, oppure sono molti
- * (5 o più nello stesso rapporto: un servizio che a ripetizione non risponde non è un caso). Uno o due
- * ritardi di circa 1 s restano nei numeri del rapporto ma non fanno partire l'analisi.
+ * (5 o più nello stesso rapporto: un servizio che a ripetizione non risponde non è un caso). Ma i «molti»
+ * contano solo se non sono tutti piccolissimi: se il più lungo è sotto 2 s servono 20 o più rallentamenti.
+ * Pochi ritardi di circa 1 s restano nei numeri del rapporto ma non fanno partire l'analisi.
  */
 export const RALLENTAMENTO_SERIO_MS = 5000
 export const RALLENTAMENTI_MOLTI = 5
+export const RALLENTAMENTO_PICCOLO_MS = 2000
+export const RALLENTAMENTI_MOLTISSIMI = 20
 
 const numero = (x: unknown): number => (typeof x === 'number' && Number.isFinite(x) && x >= 0 ? x : 0)
 
@@ -103,7 +106,9 @@ export function haIntoppi(l: LavoriWorkspace): boolean {
   if (numero(c.scaduti) > 0) return true
   if (numero(a.criterioRosso) > 0 || numero(a.spinteSospese) > 0 || numero(a.limiteDelPiano) > 0 || numero(a.svegli) > 0) return true
   if (numero(k.rifiuti) > 0) return true
-  if (numero(f.fermoMaxMs) > RALLENTAMENTO_SERIO_MS || numero(f.fermo) >= RALLENTAMENTI_MOLTI) return true
+  const piuLungo = numero(f.fermoMaxMs)
+  const sogliaMolti = piuLungo < RALLENTAMENTO_PICCOLO_MS ? RALLENTAMENTI_MOLTISSIMI : RALLENTAMENTI_MOLTI
+  if (piuLungo > RALLENTAMENTO_SERIO_MS || numero(f.fermo) >= sogliaMolti) return true
   const normali = Object.entries(f.motiviRiavvio ?? {}).filter(([m]) => riavvioNormale(m)).reduce((s, [, n]) => s + numero(n), 0)
   return numero(f.riavvii) > normali
 }
