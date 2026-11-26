@@ -20,4 +20,12 @@ describe('package.json: i controlli del pacchetto', () => {
       expect(dopo).toBeGreaterThan(build)
     })
   }
+
+  // 26/11: senza la bozza già pronta electron-builder ne creava due (caricamenti in parallelo).
+  it('pubblica prepara la bozza della release prima di electron-builder', () => {
+    const s = scripts.pubblica!
+    const prepara = s.indexOf('prepara-release.mjs')
+    expect(prepara).toBeGreaterThan(-1)
+    expect(prepara).toBeLessThan(s.indexOf('electron-builder'))
+  })
 })
