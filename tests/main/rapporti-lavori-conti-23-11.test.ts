@@ -59,7 +59,7 @@ describe('rapporti dei lavori: i conti del 23/11', () => {
     expect(f.fermoMaxMs).toBe(2400)
     const r: RapportoLavori = { da: 'PC-1', giorno: '2026-11-20', dal: '2026-11-20T09:00:00Z', al: '2026-11-20T11:00:00Z', workspace: c.workspace }
     const testo = testoRiassunto('x', riassumi([r])!)
-    expect(testo).toContain('rallentamenti del servizio oltre 1,5 s: 6')
+    expect(testo).toContain('rallentamenti del servizio oltre 1 s di ritardo: 6 (il più lungo 2,4 s)')
     expect(testo).not.toContain('fermate del programma')
   })
 

@@ -17,7 +17,7 @@ export type LavoriWorkspace = {
   compiti: { affidati: number; restatiQui: number; inFila: number; rifiuti: number; ruoli: Record<string, number> }
   /** `lavoroFermoMaxMin`: l'età del lavoro fermo più lungo, in minuti. `spinteSospese`: spinte senza effetto (k-199d). */
   avanzamento: { svegli: number; limiteDelPiano: number; criterioRosso: number; lavoroFermoMaxMin: number; spinteSospese: number }
-  /** `fermo`: rallentamenti del servizio oltre 1,5 s (ogni volta conta), `fermoMaxMs` il più lungo. `motiviRiavvio`: perché il servizio è ripartito (motivo breve → quante volte). */
+  /** `fermo`: rallentamenti del servizio con più di 1 s di ritardo (soglia della spia, ogni volta conta), `fermoMaxMs` il più lungo. `motiviRiavvio`: perché il servizio è ripartito (motivo breve → quante volte). */
   fermate: { fermo: number; fermoMaxMs: number; riavvii: number; motiviRiavvio?: Record<string, number> }
 }
 
@@ -64,6 +64,14 @@ export function eVuoto(l: LavoriWorkspace): boolean {
 export const UNIONE_LENTA_ATTESA_MS = 60_000
 export const UNIONE_LENTA_PROVA_MS = 5 * 60_000
 
+/**
+ * Un rallentamento del servizio è un intoppo solo se è serio: il più lungo supera 5 s, oppure sono molti
+ * (5 o più nello stesso rapporto: un servizio che a ripetizione non risponde non è un caso). Uno o due
+ * ritardi di circa 1 s restano nei numeri del rapporto ma non fanno partire l'analisi.
+ */
+export const RALLENTAMENTO_SERIO_MS = 5000
+export const RALLENTAMENTI_MOLTI = 5
+
 const numero = (x: unknown): number => (typeof x === 'number' && Number.isFinite(x) && x >= 0 ? x : 0)
 
 /** Le unioni di prova di questo workspace sono lente (i campi che mancano valgono 0). */
@@ -95,7 +103,7 @@ export function haIntoppi(l: LavoriWorkspace): boolean {
   if (numero(c.scaduti) > 0) return true
   if (numero(a.criterioRosso) > 0 || numero(a.spinteSospese) > 0 || numero(a.limiteDelPiano) > 0 || numero(a.svegli) > 0) return true
   if (numero(k.rifiuti) > 0) return true
-  if (numero(f.fermo) > 0) return true
+  if (numero(f.fermoMaxMs) > RALLENTAMENTO_SERIO_MS || numero(f.fermo) >= RALLENTAMENTI_MOLTI) return true
   const normali = Object.entries(f.motiviRiavvio ?? {}).filter(([m]) => riavvioNormale(m)).reduce((s, [, n]) => s + numero(n), 0)
   return numero(f.riavvii) > normali
 }
