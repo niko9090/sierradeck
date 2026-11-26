@@ -18,7 +18,7 @@ import { hookSegnali, leggiSegnale, SEGNALI_PER_CHAT, statoChat, statoDaSegnali,
 import { contestoSopraDomanda, domandaInFondo, domandaPerBattito } from '@shared/domande-telefono'
 import { stradaBreve, type InfoStrada } from '@shared/strada-pc'
 import { creaRaggruppatore } from '@shared/spinta-specialisti'
-import { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeImage, net, safeStorage, screen, shell, webContents } from 'electron'
+import { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeImage, net, powerMonitor, safeStorage, screen, shell, webContents } from 'electron'
 import { vociMenuApplicazione, vociMenuContestuale } from './menu-modifica'
 import { registraMenuContestuale } from './menu-contestuale'
 import { basename, dirname, join, resolve, sep } from 'node:path'
@@ -4333,6 +4333,11 @@ if (!app.requestSingleInstanceLock()) {
         log: (m) => registro.info(m),
         versione: app.getVersion()
       })
+      // k-334b: la sospensione del PC la sa solo il programma (`powerMonitor`): la dice al servizio, che così
+      // non scrive «fermo N s» per un PC che dormiva (su Windows l'orologio monotono continua a contare).
+      for (const evento of ['suspend', 'resume'] as const) {
+        try { powerMonitor.on(evento, () => { void clientAutopilota.sospensione(evento) }) } catch { /* senza powerMonitor la spia resta com'era */ }
+      }
       // k-179b: i posti di questo PC (numero, motivo, misura) per il battito, ogni 30 secondi; se il servizio non risponde restano gli ultimi.
       {
         const leggiPosti = (): void => { void clientAutopilota.postiChat().then((p) => { if (p !== undefined) postiQuiGlobale = p }).catch(() => undefined) }
