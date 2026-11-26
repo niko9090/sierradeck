@@ -403,6 +403,7 @@
 - Il file del lotto in .sierradeck/errori-arrivati/ può mancare nella copia dell'helper: la voce si scrive dai dati del compito e si segnala che il lotto non è stato letto. _(2026-11-25)_
 - in errori-arrivati.md le righe di test si ripetono in tutti i gruppi: per aggiungere in fondo con Edit serve un ancoraggio unico. _(2026-11-26)_
 - i lotti di errori-arrivati.md possono stare solo nelle note non salvate della cartella principale: da una copia di lavoro un gruppo recente può non esserci ancora. _(2026-11-26)_
+- in errori-arrivati.md le righe di test si ripetono fra i gruppi: per aggiungere in fondo con Edit serve come ancoraggio l'ultima frase del file. _(2026-11-26)_
 
 ## preferenze
 
@@ -429,7 +430,6 @@
 
 ## rilascio
 
-- se `pubblica` fallisce sui test, tag e bozza restano senza file: va rilanciato lo stesso comando, non ricreati. _(2026-11-19)_
 - Se `npm run pubblica` si ferma a metà, la bozza resta con i primi 3 file. Rilanciarlo sulla stessa bozza completa gli altri file, compresi quelli dell'Aiutante, senza crearne una seconda. _(2026-11-19)_
 - `gh release view --json` non ha il campo isLatest: per sapere se è Latest usare `gh release list`. _(confermata 2×, ultima 2026-11-20)_
 - `git fetch` fallisce se origin è un .bundle d'arrivo già cancellato: la versione si controlla da package.json e dal log locale, i tag non ci sono. _(2026-11-20)_
