@@ -71,7 +71,7 @@ import { giudicaGuardiaOrchestratore } from './guardia-orchestratore'
 import type { Giudizio } from './divieti'
 import { doppioniDaArchiviare, rigaDoppione, type Doppione, type RichiestaDoppioni } from '@shared/autopiloti-doppioni'
 import type { ArchivioDoppioni } from './doppioni-store'
-import { chiedeDiFermarsi, FIRMA_IN_FILA_PER_POSTO, ordineDiPausa, intervalloSpinta, lavoroFermo, rigaFermoPerNicholas, soloAttesaDiPosti, SPINTE_PRIMA_DI_DIRLO, SPINTE_SENZA_EFFETTO_MAX, testoLavoroFermo } from './lavoro-fermo'
+import { chiedeDiFermarsi, FIRMA_IN_FILA_PER_POSTO, ordineDiPausa, intervalloSpinta, lavoroFermo, motivoBreveRifiuto, rigaFermoPerNicholas, soloAttesaDiPosti, SPINTE_PRIMA_DI_DIRLO, SPINTE_SENZA_EFFETTO_MAX, testoLavoroFermo } from './lavoro-fermo'
 import { aspettaDipendenze, compitiInFilaPerUnione, righeDopoUnione, rigaUnioneEPoi, salvaPromptDopo } from './dipendenze'
 import { promemoriaRosso, type RossoVisto } from './criterio-rosso'
 import { permessoDaSolo } from './permessi-automatici'
@@ -705,6 +705,8 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
   /** 06/11: i compiti con il criterio rosso dopo l'unione, per workspace, e i promemoria già mandati. */
   const rossiVisti = new Map<string, Map<string, RossoVisto>>()
   /** `dal`: da quando è quieto; `ultima`: l'ultima spinta (o l'ultimo momento in cui lavorava); `detto`: Nicholas lo sa già (11/11). */
+  /** Per workspace e compito: il motivo breve dell'ultimo rifiuto dell'Agent deciso dalla guardia (per le righe sul lavoro fermo). */
+  const ultimiRifiuti = new Map<string, Map<string, string>>()
   const fermiVisti = new Map<string, { firma: string; dal: number; ultima: number; spinte: number; detto?: boolean; sospesa?: boolean }>()
   const memoriaCriteri: MemoriaCriteri = x.memoriaCriteri ?? new Map()
   /** Gli specialisti già uniti, per workspace (sopravvivono al flusso in memoria). */
@@ -3006,7 +3008,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
         || alLavoroNel(ws) > 0 || specialistiVivi(a).some((c) => chatAdottataAttiva(a, c, ora)) || unioniVive(ws, ora).length > 0
       const vivi = new Set(subagenti(ws).filter((y) => y.stato === 'avviato' || y.stato === 'lavoro').map((y) => y.id))
       const ferme = (filaUnioni.get(ws) ?? []).filter((l) => unioneFerma(l, ora) && l.compito !== undefined)
-      const f = lavoroFermo({ coda: coda(ws), piano: x.orchestratori.piano(ws), alLavoro: vivi, inUnione: new Set(unioniVive(ws, ora).flatMap((l) => (l.compito !== undefined ? [l.compito] : []))), unioniFerme: new Map([...compitiARiposo(ws), ...ferme.map((l) => [l.compito!, l.sporcaDal !== undefined ? 'ferma per file non salvati nella cartella principale (la domanda a Nicholas la fa il programma)' : 'riprova da sola fra poco'] as [string, string])]), inFilaPerPosto: compitiInFilaPerPosto(ws) })
+      const f = lavoroFermo({ coda: coda(ws), piano: x.orchestratori.piano(ws), alLavoro: vivi, inUnione: new Set(unioniVive(ws, ora).flatMap((l) => (l.compito !== undefined ? [l.compito] : []))), unioniFerme: new Map([...compitiARiposo(ws), ...ferme.map((l) => [l.compito!, l.sporcaDal !== undefined ? 'ferma per file non salvati nella cartella principale (la domanda a Nicholas la fa il programma)' : 'riprova da sola fra poco'] as [string, string])]), inFilaPerPosto: compitiInFilaPerPosto(ws), ...(ultimiRifiuti.get(ws) !== undefined ? { rifiuti: ultimiRifiuti.get(ws)! } : {}) })
       if (f === undefined || soloAttesaDiPosti(f.firma)) { fermiVisti.delete(ws); continue }
       const visto = fermiVisti.get(ws)
       if (visto === undefined || visto.firma !== f.firma) { fermiVisti.set(ws, { firma: f.firma, dal: ora, ultima: ora, spinte: 0 }); continue }
@@ -3394,7 +3396,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
   const firmaLavoroPortabile = (ws: string, ora: number): string | undefined => {
     const vivi = new Set(subagenti(ws).filter((y) => y.stato === 'avviato' || y.stato === 'lavoro').map((y) => y.id))
     const ferme = (filaUnioni.get(ws) ?? []).filter((l) => unioneFerma(l, ora) && l.compito !== undefined)
-    const f = lavoroFermo({ coda: coda(ws), piano: x.orchestratori.piano(ws), alLavoro: vivi, inUnione: new Set(unioniVive(ws, ora).flatMap((l) => (l.compito !== undefined ? [l.compito] : []))), unioniFerme: new Map([...compitiARiposo(ws), ...ferme.map((l) => [l.compito!, 'ferma'] as [string, string])]), inFilaPerPosto: compitiInFilaPerPosto(ws) })
+    const f = lavoroFermo({ coda: coda(ws), piano: x.orchestratori.piano(ws), alLavoro: vivi, inUnione: new Set(unioniVive(ws, ora).flatMap((l) => (l.compito !== undefined ? [l.compito] : []))), unioniFerme: new Map([...compitiARiposo(ws), ...ferme.map((l) => [l.compito!, 'ferma'] as [string, string])]), inFilaPerPosto: compitiInFilaPerPosto(ws), ...(ultimiRifiuti.get(ws) !== undefined ? { rifiuti: ultimiRifiuti.get(ws)! } : {}) })
     if (f === undefined || f.firma.split('|').every((t) => t.endsWith(':unione-ferma') || t.endsWith(FIRMA_IN_FILA_PER_POSTO))) return undefined
     return f.firma
   }
@@ -3866,6 +3868,19 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       })
       // Un Agent rifiutato non è uno specialista al lavoro: non deve tenere il posto.
       if (!g.ok && idUso !== undefined && (corpo.tool_name === 'Agent' || corpo.tool_name === 'Task')) rifiutati.add(idUso)
+      if (corpo.tool_name === 'Agent' || corpo.tool_name === 'Task') {
+        // Il motivo breve dell'ultimo rifiuto per compito: lo riportano le righe del registro sul lavoro fermo.
+        const input = typeof corpo.tool_input === 'object' && corpo.tool_input !== null ? corpo.tool_input as Record<string, unknown> : {}
+        const descr = typeof input.description === 'string' ? input.description : typeof input.prompt === 'string' ? input.prompt.slice(0, 120) : undefined
+        const idCompito = descr !== undefined ? compitoDallaDescrizione(descr) : undefined
+        if (idCompito !== undefined) {
+          const ws = wsDi(a)
+          const mappa = ultimiRifiuti.get(ws) ?? new Map<string, string>()
+          if (g.ok) mappa.delete(idCompito)
+          else mappa.set(idCompito, motivoBreveRifiuto(g.motivo))
+          ultimiRifiuti.set(ws, mappa)
+        }
+      }
       return g
     },
     specialistiSulPc: () => orchestratore.specialistiSulPc(),
