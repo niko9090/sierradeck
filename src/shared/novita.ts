@@ -43,6 +43,7 @@ export const NOVITA: Novita[] = [
   {
     versione: '0.122.1',
     righe: [
+      '**Falsi «servizio fermo»:** una sospensione del PC o un salto dell\'orologio (sincronizzazione dell\'ora) non vengono più contati come servizio fermo nel registro; i blocchi veri restano segnalati.',
       '**Errori che si ripetono:** quando lo stesso errore torna su una versione più nuova, nell\'elenco e nei lotti per lo sviluppo non resta più il «cosa si stava facendo» di un\'altra volta (prima un errore della 0.121.1 raccontava un\'installazione della 0.119.1).',
     ],
   },

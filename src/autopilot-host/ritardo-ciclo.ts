@@ -14,8 +14,14 @@ export const SPIA_SOGLIA_MS = 1000
 export const SPIA_RIGA_OGNI_MS = 60_000
 
 export type SpiaRitardo = {
-  /** Un battito del timer, `ora` in ms: torna la riga scritta, se ne ha scritta una. */
-  battito: (ora: number) => string | undefined
+  /**
+   * Un battito del timer, `ora` in ms dell'orologio di sistema: torna la riga
+   * scritta, se ne ha scritta una. `monotono` è l'orologio che non salta
+   * (`performance.now()`): se i due intervalli divergono oltre la soglia, il PC
+   * è stato sospeso o l'orologio è stato corretto (NTP), non il servizio
+   * bloccato, e il battito si scarta. Il ritardo si misura sul monotono.
+   */
+  battito: (ora: number, monotono?: number) => string | undefined
 }
 
 export function creaSpiaRitardo(o: {
@@ -28,15 +34,25 @@ export function creaSpiaRitardo(o: {
   const soglia = o.sogliaMs ?? SPIA_SOGLIA_MS
   const rigaOgni = o.rigaOgniMs ?? SPIA_RIGA_OGNI_MS
   let ultimo: number | undefined
+  let ultimoMonotono: number | undefined
   let ultimaRiga = Number.NEGATIVE_INFINITY
   let peggiore = 0
   let volte = 0
   return {
-    battito(ora) {
+    battito(ora, monotono) {
       const prima = ultimo
+      const primaMonotono = ultimoMonotono
       ultimo = ora
+      ultimoMonotono = monotono
       if (prima === undefined) return undefined
-      const ritardo = ora - prima - ogni
+      let intervallo = ora - prima
+      if (monotono !== undefined && primaMonotono !== undefined) {
+        const intervalloMonotono = monotono - primaMonotono
+        // Sospensione (il monotono si ferma) o salto dell'orologio: non è un blocco.
+        if (Math.abs(intervallo - intervalloMonotono) > soglia) return undefined
+        intervallo = intervalloMonotono
+      }
+      const ritardo = intervallo - ogni
       if (ritardo <= soglia) return undefined
       peggiore = Math.max(peggiore, ritardo)
       volte += 1
@@ -54,8 +70,8 @@ export function creaSpiaRitardo(o: {
 /** La spia vera: un timer che non tiene vivo il processo. */
 export function avviaSpiaRitardo(scrivi: (riga: string) => void = (r) => { console.warn(r) }): () => void {
   const spia = creaSpiaRitardo({ scrivi })
-  spia.battito(Date.now())
-  const t = setInterval(() => { spia.battito(Date.now()) }, SPIA_OGNI_MS)
+  spia.battito(Date.now(), performance.now())
+  const t = setInterval(() => { spia.battito(Date.now(), performance.now()) }, SPIA_OGNI_MS)
   t.unref()
   return () => { clearInterval(t) }
 }
