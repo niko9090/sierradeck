@@ -194,7 +194,7 @@ export function raggruppa(p: {
         if (volteVoce > vista.volte) {
           if (vista.g !== undefined) {
             vista.g.volte += volteVoce - vista.volte
-            if ((v.ultima ?? v.quando) > vista.g.ultima) { vista.g.ultima = v.ultima ?? v.quando; if (v.cosa !== undefined) vista.g.cosa = v.cosa }
+            if ((v.ultima ?? v.quando) > vista.g.ultima) { vista.g.ultima = v.ultima ?? v.quando; if (v.cosa !== undefined) vista.g.cosa = v.cosa; else delete vista.g.cosa }
           }
           vista.volte = volteVoce
         }
@@ -224,7 +224,7 @@ export function raggruppa(p: {
       viste.set(impronta, { g, volte: volteVoce })
       g.volte += volteVoce
       if (v.quando < g.prima) g.prima = v.quando
-      if ((v.ultima ?? v.quando) > g.ultima) { g.ultima = v.ultima ?? v.quando; if (v.cosa !== undefined) g.cosa = v.cosa }
+      if ((v.ultima ?? v.quando) > g.ultima) { g.ultima = v.ultima ?? v.quando; if (v.cosa !== undefined) g.cosa = v.cosa; else delete g.cosa }
       if (!g.da.includes(a.da)) g.da.push(a.da)
       if (ver !== undefined && !g.versioni.includes(ver)) g.versioni.push(ver)
       if (g.dettagli === undefined && v.dettagli !== undefined) g.dettagli = v.dettagli
