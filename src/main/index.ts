@@ -3076,13 +3076,13 @@ if (!app.requestSingleInstanceLock()) {
             const adesso = Date.now()
             if (o === undefined && m.installato && m.mutoDal === undefined) m.mutoDal = adesso
             const p = passoInstallaLa(nome, da, o, m, adesso)
-            if (p.fase === 'attendo' || p.fase === 'installo') { if (p.chiedi === undefined) m.installato = true }
+            if (p.fase === 'attendo' || p.fase === 'installo') { if (p.chiedi === undefined && !m.installato) { m.installato = true; m.installatoDal = adesso } }
             if (p.chiedi !== undefined) {
               try {
                 await remoto.chiama(pcId, `/api/aggiornamento/${p.chiedi}`, {})
                 if (p.chiedi === 'cerca') m.cercato = true
                 if (p.chiedi === 'scarica') m.scaricato = true
-                if (p.chiedi === 'installa') m.installato = true
+                if (p.chiedi === 'installa') { m.installato = true; m.installatoDal = Date.now() }
               } catch (err) {
                 registro.info(`[installa là] ${nome}: «${p.chiedi}» non arrivato (${err instanceof Error ? err.message : String(err)}), riprovo`)
               }

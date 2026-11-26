@@ -51,6 +51,21 @@ describe('quando va male, si dice', () => {
     expect(passoInstallaLa('LAPTOP', '0.38.2', undefined, m, T0 + RITORNO_ENTRO_MS - 1000).fase).toBe('riparte')
     expect(passoInstallaLa('LAPTOP', '0.38.2', undefined, m, T0 + RITORNO_ENTRO_MS + 1000)).toMatchObject({ fase: 'fallito', finito: true })
   })
+  it('risponde sempre con la versione vecchia e non si chiude: prima del tetto aspetta, dopo è fallito', () => {
+    const m = nuova({ cercato: true, scaricato: true, installato: true, installatoDal: T0 + 5000 })
+    const vecchia = { versione: '0.38.2', stato: { fase: 'pronto' as const, versione: '0.46.0' } }
+    const prima = passoInstallaLa('LAPTOP', '0.38.2', vecchia, m, T0 + 5000 + RITORNO_ENTRO_MS - 1000)
+    expect(prima).toMatchObject({ fase: 'attendo' })
+    expect(prima.finito).toBeUndefined()
+    const dopo = passoInstallaLa('LAPTOP', '0.38.2', vecchia, m, T0 + 5000 + RITORNO_ENTRO_MS + 1000)
+    expect(dopo).toMatchObject({ fase: 'fallito', finito: true })
+    expect(dopo.messaggio).toContain('non si è mai chiuso')
+  })
+  it('allo scadere del tetto, il motivo mandato da quel PC vale più del messaggio nostro', () => {
+    const m = nuova({ installato: true, installatoDal: T0 })
+    const p = passoInstallaLa('LAPTOP', '0.38.2', { versione: '0.38.2', stato: { fase: 'fermo', tentativoFallito: { titolo: 'Non è riuscita.', motivo: 'Il file è bloccato.', strade: [], pagina: 'https://example.org/v' } } }, m, T0 + RITORNO_ENTRO_MS + 1000)
+    expect(p.messaggio).toBe('Non è riuscita. Il file è bloccato.')
+  })
   it('l’errore di quel PC nello scaricare si riporta; «già aggiornato» dopo la ricerca pure', () => {
     expect(passoInstallaLa('LAPTOP', '0.38.2', { versione: '0.38.2', stato: { fase: 'errore', errore: 'net::ERR_INTERNET_DISCONNECTED' } }, nuova({ cercato: true }), T0)).toMatchObject({ fase: 'errore', finito: true })
     expect(passoInstallaLa('LAPTOP', '0.38.2', { versione: '0.38.2', stato: { fase: 'aggiornato' } }, nuova({ cercato: true }), T0).fase).toBe('errore')
