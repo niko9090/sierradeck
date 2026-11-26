@@ -249,18 +249,12 @@
 - Non c'è un hook condiviso per le sezioni apri/chiudi: ognuna salva da sé in localStorage con chiave `sierradeck.*`, in try/catch. _(2026-11-24)_
 - Il filo attorno alla barra usa `--testo-quieto`: `--bordo` e `--filo` sono quasi neri come `--chassis-premuto`, e la barra sparirebbe. _(2026-11-24)_
 
-## salute
-
-- Le soglie spento/acceso vanno prese da `statoPc`; con `PC_SPENTO_DOPO_MS` i confronti `<` e `<=` si mischiavano e davano risultati diversi al limite. _(2026-11-19)_
-- L'elenco PC di Salute si toglie nel renderer (`saluteSenzaPc`), non in `salute.ts`: le stesse voci servono a telefono e pagina servita. _(2026-11-19)_
-
 ## misure
 
 - Nel confronto dei token con `claude -p` contano input + cache creata + cache letta insieme: il secondo giro costa meno solo per la cache calda, non per la modifica provata. _(2026-11-20)_
 
 ## aggiornamenti
 
-- `creaAggiornamenti` prende parametri posizionali in coda: un nuovo aggancio (come `annunciaAgliAltri`) va aggiunto per ultimo, senza toccare l'ordine. _(2026-11-19)_
 - `note()` leggeva `versioneScaricata` prima di `stato.versione`: durante lo scaricamento di una versione più nuova mostrava le note della vecchia. _(2026-11-23)_
 - I test della ricerca silenziosa usano timer finti e `RICONTROLLA_MS`; la fase `attendo` compare solo se `attendiQuiete` chiama `avvisa`. _(2026-11-23)_
 - updaterVivo aspetta 6 s (24x250 ms) il diario sierradeck-update.log; l'errore arriva ~6 s dopo il tasto, non subito. _(2026-11-25)_
@@ -279,7 +273,6 @@
 
 ## renderer
 
-- I dati IPC del renderer vanno validati: `setGruppi(g)` senza Array.isArray cadeva su `.length`. Uso `gruppiValidi` in shared/workspace-remoti.ts. _(2026-11-19)_
 - `chiaveWorkspace` riceve dati remoti incompleti: i tipi dicono `cwd: string` ma a runtime può mancare; controllare con `typeof`, non fidarsi del tipo. _(2026-11-20)_
 - Il formato Panoramica+agenti dipende da `workspaceElenco` (preferenza per nome), che la migrazione riempie una volta sola: i workspace nuovi restavano fuori. _(2026-11-22)_
 - Gli hook di App.tsx vanno prima di `if (!pronto)`: un effetto dopo causa React #310. _(2026-11-22)_
@@ -287,8 +280,6 @@
 
 ## pubblicazione
 
-- L'hook rifiuta run_in_background per `npm run pubblica`: lanciarlo davanti; dopo 600 s passa da solo in sottofondo (non rilanciarlo) e un `until [ -s output ]` attende la fine. _(2026-11-19)_
-- `pubblica` allega da solo json e Aiutante e lascia la release in bozza: alla fine servono `gh release edit --draft=false --latest` e il controllo dei 7 file. _(2026-11-19)_
 - Se `pubblica` dice «mancano installer, blockmap e latest.yml», sono già in dist/ ma con spazi: caricarli con `gh release upload`, rinominati a trattini (SierraDeck-Setup-X.exe). _(2026-11-20)_
 - Con la release creata prima da `gh release create`, serve poi `gh release edit --draft=false --latest`: `pubblica` non la segna Latest da sola. _(2026-11-20)_
 - Se lancio `npm run pubblica` oltre i 10 minuti, passa in sottofondo da solo: i file arrivano uno alla volta e la bozza va pubblicata solo quando il comando è finito. Prima si contano i 7 file. _(2026-11-23)_
@@ -306,6 +297,7 @@
 - `lavoroDaPortareAvanti` deve contare anche le chat adottate (`specialistiVivi`), non solo i subagenti: una chat migrata in `lavoro` è lavoro in corso anche con piano vuoto. _(2026-11-22)_
 - la spia di ritardo ora confronta Date.now() con performance.now(): se divergono oltre 1 s è sospensione o salto dell'orologio, non blocco _(2026-11-26)_
 - non provato se su Windows performance.now() conta il tempo di sospensione: se sì, la sospensione sembra ancora un blocco e servirebbe powerMonitor _(2026-11-26)_
+- La spia di ritardo (ritardo-ciclo.ts) misura solo il servizio autopiloti, non il processo principale: un execFileSync del main nell'aggiornamento non compare nei rapporti. _(2026-11-26)_
 
 ## registro
 
@@ -314,11 +306,10 @@
 
 ## pc-remoto
 
-- due funzioni si chiamano `statoPc` (`shared/stato-pc.ts` e `shared/scoperta-pc.ts`): i titoli del riquadro vengono dalla seconda, il tempo dal battito della prima. _(2026-11-19)_
+- nessun codice crea ErroreRemoto('lento'): i rami index.ts:3042 e :3067 che lo cercano sono morti. _(2026-11-26)_
 
 ## pagina
 
-- La pagina del telefono è una stringa gigante: i testi condivisi vanno iniettati con `${JSON.stringify(...)}` e le funzioni si provano estraendole dallo script, come in tests/main/client-pagina-domand… _(2026-11-19)_
 - pannelliDelPosto (shared/navigazione-telefono) decide quali pannelli sono «aperti»: 'specialisti' ora è aperto su tutta la voce Workspace, quindi la lista si rilegge ogni 4 s lì. _(2026-11-19)_
 - In client-pagina.ts il CSS del testo usa rem: `client-pagina.test.ts` vieta `font-size` in px. _(2026-11-24)_
 - La percentuale dell'autopilota sta solo nella riga fissa `rigaAvanzamentoAp`: il riassunto `riassuntoApTesto` non la mostra più, nemmeno senza criteri. _(2026-11-24)_
@@ -668,6 +659,8 @@
 ## aggiornamento
 
 - il battito Drive (`shared/posta.ts` riga 61) non porta nessun campo di aggiornamento: chi guarda da un altro PC non sa che quel PC si sta installando. _(2026-11-19)_
+- La spia di ritardo (src/autopilot-host/ritardo-ciclo.ts) misura solo il processo del servizio autopiloti: un blocco sincrono nel processo principale non compare nei rapporti. _(2026-11-26)_
+- installaInterno (aggiornamenti.ts) chiama claude/npm/compilatore/PowerShell con execFileSync, fino a decine di secondi sul main. _(2026-11-26)_
 
 ## tipi
 
@@ -837,6 +830,8 @@
 - La spia scrive il ritardo (intervallo − 500 ms) sopra 1000 ms: nei testi la soglia è «oltre 1 s di ritardo», non «1,5 s». _(2026-11-26)_
 - Soglie di intoppo del servizio: RALLENTAMENTO_SERIO_MS 5000 o RALLENTAMENTI_MOLTI 5 in rapporto-lavori.ts; i rallentamenti piccoli restano nei numeri ma non avviano l'analisi. _(2026-11-26)_
 - La soglia dei rallentamenti è in haIntoppi (rapporto-lavori.ts) e anche scritta in novita.ts: se cambia la regola, va rivista pure la nota di versione. _(2026-11-26)_
+- la riga `[servizio] fermo X s (N volte…)` dà solo il massimo degli N: le fasce di durata sono un minimo (gli altri N-1 vanno in 1-2 s) _(2026-11-26)_
+- l'ora del più lungo nel riassunto è locale al PC che lo scrive; nei test non fissarla, usare un'attesa a prefisso «alle » _(2026-11-26)_
 
 ## pc-glos
 
@@ -930,6 +925,8 @@
 ## installa-la
 
 - `Memoria.installato` era solo un booleano: per un tetto dall'ordine serve `installatoDal`, impostato in src/main/index.ts (non in aggiornamenti.ts). _(2026-11-26)_
+- «Installa là» va nascosto per i PC solo-Aiutante come fa la Salute: la Pagina Computer (albero-rete.ts:171, computer-vista.ts:109) non lo fa. _(2026-11-26)_
+- «Installa là» va nascosto per i PC con solo l'Aiutante, come fa la Salute: l'Aiutante non serve /api/ciao né /api/aggiornamento (404), quindi non può mai riuscire. _(2026-11-26)_
 
 ## ts
 
