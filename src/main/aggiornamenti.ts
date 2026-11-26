@@ -378,9 +378,9 @@ export function creaAggiornamenti(
    * aggiornare. Restituisce `undefined` se è già all'ultima versione o se non
    * si è potuto stabilire: nel dubbio non si tocca niente.
    */
-  claudeDaAggiornare?: () => string | undefined,
+  claudeDaAggiornare?: () => string | undefined | Promise<string | undefined>,
   /** Cosa mostrare quando Claude Code non ha bisogno di niente: la verifica si deve vedere. */
-  notaClaude?: () => string,
+  notaClaude?: () => string | Promise<string>,
   /**
    * Se scaricare da soli gli aggiornamenti, secondo le preferenze dell'utente.
    * Letto all'avvio; poi lo cambia `impostaScaricoAutomatico` quando l'utente
@@ -967,14 +967,18 @@ export function creaAggiornamenti(
       // riapre il programma. Nessun pezzo di questa catena dipende da un
       // processo che sta per sparire - che e' il difetto per cui la finestra
       // non si vedeva, provato tre volte in tre modi diversi.
-      const updater = assicuraUpdater(cartellaUpdater())
+      // La nota su Claude Code (due domande a processi esterni, fino a 15 s) non
+      // serve per costruire l'updater: parte adesso, in parallelo, e si attende
+      // solo quando i dati dell'avvio la vogliono.
+      const notaInCorso: Promise<string> = (async () => (await notaClaude?.()) ?? '')().catch(() => '')
+      const updater = await assicuraUpdater(cartellaUpdater())
       const installer = installerScaricato
       // **Una volta sola.** Dietro questa domanda ci sono `claude --version` e
       // `npm view`, due processi sincroni con quindici secondi di tetto
       // ciascuno: chiederla due volte nella stessa espressione — una per il
       // controllo e una per il valore — voleva dire farle tutte e due due
       // volte, e il programma resta fermo per tutto il tempo.
-      const claude = claudeDaAggiornare?.()
+      const claude = await claudeDaAggiornare?.()
       const versioneNuova = stato.versione ?? versioneScaricata ?? '?'
       /**
        * La strada di electron-updater: il suo installer, senza la nostra finestra.
@@ -1030,7 +1034,7 @@ export function creaAggiornamenti(
           // cui nessuna chat lo tiene aperto, e chiederlo all'utente vorrebbe
           // dire chiedergli di chiudere tutto a mano.
           ...(claude !== undefined ? { claude } : {}),
-          notaClaude: notaClaude?.() ?? '',
+          notaClaude: await notaInCorso,
           // La finestra di SierraDeck Update nasce dove sta quella degli
           // aggiornamenti, con le stesse novità: sembra la stessa che continua.
           nome: APP_NAME,
@@ -1053,12 +1057,12 @@ export function creaAggiornamenti(
          * installer sugli stessi file.
          */
         const lanciaEAttendi = async (percorso: string, strada: 'explorer' | 'sistema'): Promise<boolean> => {
-          if (!avviaUpdater(percorso, datiAvvio, { strada, chiudiRimasti: true, registra: registraAvvio })) {
+          if (!await avviaUpdater(percorso, datiAvvio, { strada, chiudiRimasti: true, registra: registraAvvio })) {
             nota(`avvio di SierraDeck Update: la strada ${strada} non si e aperta`)
             return false
           }
           if (await updaterVivo(undefined, undefined, GIRI_ATTESA_UPDATER)) return true
-          const nostri = rimastiNostri(processiUpdater() ?? [], percorso)
+          const nostri = rimastiNostri(await processiUpdater() ?? [], percorso)
           if (nostri.length > 0) {
             nota(`SierraDeck Update e in esecuzione (pid ${nostri.map((p) => p.pid).join(', ')}) ma il suo diario non si vede: lo considero vivo`)
             return true
@@ -1072,7 +1076,7 @@ export function creaAggiornamenti(
             // Una copia fresca e l'altra strada: un eseguibile rimasto a metà o
             // messo da parte dall'antivirus si ricostruisce, e un explorer che
             // non collabora si scavalca con il servizio di sistema.
-            const fresco = assicuraUpdater(cartellaUpdater(), { forza: true })
+            const fresco = await assicuraUpdater(cartellaUpdater(), { forza: true })
             if (fresco === undefined) {
               guaio(`copia nuova di SierraDeck Update non costruita: ${guastoCostruzione() ?? 'motivo sconosciuto'}`)
             } else {

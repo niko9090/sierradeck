@@ -53,7 +53,7 @@ describe('updater che non si fa vivo: il perché', () => {
     ])
   })
 
-  it('chiude solo i rimasti con il nostro stesso eseguibile, non quelli dell Aiutante o senza percorso', () => {
+  it('chiude solo i rimasti con il nostro stesso eseguibile, non quelli dell Aiutante o senza percorso', async () => {
     const nostro = 'C:\\Dati\\SierraDeck\\updater\\SierraDeckUpdate.exe'
     const processi = [
       { pid: 1, percorso: 'c:/dati/sierradeck/updater/sierradeckupdate.exe' },
@@ -62,12 +62,12 @@ describe('updater che non si fa vivo: il perché', () => {
     ]
     expect(rimastiNostri(processi, nostro).map((p) => p.pid)).toEqual([1])
     const uccisi: number[] = []
-    const r = chiudiRimasti(nostro, () => processi, (pid) => { uccisi.push(pid) })
+    const r = await chiudiRimasti(nostro, () => processi, (pid) => { uccisi.push(pid) })
     expect(uccisi).toEqual([1])
     expect(r.chiusi).toEqual([1])
     expect(r.altri.map((p) => p.pid)).toEqual([2, 3])
     // Non riuscire a elencarli non ferma niente e non uccide niente.
-    expect(chiudiRimasti(nostro, () => undefined, () => { throw new Error('mai') })).toEqual({ chiusi: [], altri: [] })
+    expect(await chiudiRimasti(nostro, () => undefined, () => { throw new Error('mai') })).toEqual({ chiusi: [], altri: [] })
   })
 
   it('spiega i codici con cui Windows non lascia partire un eseguibile', () => {

@@ -6501,9 +6501,9 @@ if (!app.requestSingleInstanceLock()) {
         },
         // E quando non c'è niente da aggiornare lo si dice lo stesso: un
         // controllo che non si vede, per chi guarda non è avvenuto.
-        () => {
+        async () => {
           try {
-            return notaClaude(resolveClaudeCommand(process.env))
+            return await notaClaude(resolveClaudeCommand(process.env))
           } catch {
             return ''
           }

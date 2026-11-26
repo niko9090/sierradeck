@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process'
+import { eseguiAsincrono } from './esegui-asincrono'
 
 /**
  * Se Claude Code è indietro, e con quale comando aggiornarlo.
@@ -12,16 +12,16 @@ import { execFileSync } from 'node:child_process'
 /** Quanto si aspetta una risposta prima di lasciar perdere: è solo una domanda. */
 const TIMEOUT_MS = 15_000
 
-export function versioneInstallata(
+export async function versioneInstallata(
   comando: string,
-  esegui: (c: string, args: string[]) => string = (c, args) =>
-    execFileSync(c, args, { encoding: 'utf8', windowsHide: true, timeout: TIMEOUT_MS })
-): string | undefined {
+  esegui: (c: string, args: string[]) => string | Promise<string> = (c, args) =>
+    eseguiAsincrono(c, args, { timeout: TIMEOUT_MS })
+): Promise<string | undefined> {
   try {
     // `claude --version` stampa qualcosa come «2.1.228 (Claude Code)»: si
     // prende il primo numero e si lascia stare il resto, che cambia forma nel
     // tempo e non serve a niente.
-    const trovato = /(\d+\.\d+\.\d+)/.exec(esegui(comando, ['--version']))
+    const trovato = /(\d+\.\d+\.\d+)/.exec(await esegui(comando, ['--version']))
     return trovato?.[1]
   } catch {
     return undefined
@@ -37,8 +37,8 @@ export function comandoSenzaShell(c: string, args: readonly string[], windows = 
   return [process.env.ComSpec ?? 'cmd.exe', ['/d', '/c', c, ...args]]
 }
 
-export function versioneUltima(
-  esegui: (c: string, args: string[]) => string = (c, args) =>
+export async function versioneUltima(
+  esegui: (c: string, args: string[]) => string | Promise<string> = (c, args) =>
     // `npm.cmd` e' uno script batch: da Node 22 (Electron 43 porta Node 24)
     // avviarlo senza shell solleva `EINVAL` (correzione CVE-2024-27980), e il
     // catch qui sotto lo trasformava in «non lo so»: l'updater non ha mai
@@ -46,12 +46,12 @@ export function versioneUltima(
     // sono costanti, quindi la shell non espone niente. 0.88: non piu'
     // `shell: true` con gli argomenti a parte (DEP0190 di Node 24): `cmd /d /c`
     // esplicito, con il comando e gli argomenti come argomenti suoi.
-    execFileSync(...comandoSenzaShell(c, args), { encoding: 'utf8', windowsHide: true, timeout: TIMEOUT_MS })
-): string | undefined {
+    eseguiAsincrono(...comandoSenzaShell(c, args), { timeout: TIMEOUT_MS })
+): Promise<string | undefined> {
   try {
     // Il registro di npm è la fonte: è da lì che Claude Code si installa e si
     // aggiorna, quindi è lì che sta la verità su quale sia l'ultima.
-    const testo = esegui('npm.cmd', ['view', '@anthropic-ai/claude-code', 'version'])
+    const testo = await esegui('npm.cmd', ['view', '@anthropic-ai/claude-code', 'version'])
     const trovato = /(\d+\.\d+\.\d+)/.exec(testo)
     return trovato?.[1]
   } catch {
@@ -92,27 +92,30 @@ export function piuVecchia(installata: string, ultima: string): boolean {
  * riuscita. Serve perché il controllo, se non si vede, per chi guarda non è
  * avvenuto — e la sola via per togliersi il dubbio sarebbe rifarlo a mano.
  */
-export function notaClaude(
+export async function notaClaude(
   comando: string,
   viste?: { installata?: string; ultima?: string }
-): string {
-  const installata = viste === undefined ? versioneInstallata(comando) : viste.installata
-  const ultima = viste === undefined ? versioneUltima() : viste.ultima
+): Promise<string> {
+  // Le due domande sono indipendenti: in parallelo, il tempo è il più lungo e non la somma.
+  const [installata, ultima] = viste === undefined
+    ? await Promise.all([versioneInstallata(comando), versioneUltima()])
+    : [viste.installata, viste.ultima]
   if (installata === undefined || ultima === undefined) return ''
   if (piuVecchia(installata, ultima)) return ''
   return `Claude Code e' gia' aggiornato (${installata}).`
 }
 
-export function claudeDaAggiornare(
+export async function claudeDaAggiornare(
   comando: string,
   // Le versioni si passano dentro un oggetto e non come parametri con un
   // valore predefinito: in JavaScript un `undefined` esplicito fa scattare il
   // predefinito, e chi voleva dire «non lo so» finiva per eseguire davvero i
   // comandi che stava cercando di evitare.
   viste?: { installata?: string; ultima?: string }
-): string | undefined {
-  const installata = viste === undefined ? versioneInstallata(comando) : viste.installata
-  const ultima = viste === undefined ? versioneUltima() : viste.ultima
+): Promise<string | undefined> {
+  const [installata, ultima] = viste === undefined
+    ? await Promise.all([versioneInstallata(comando), versioneUltima()])
+    : [viste.installata, viste.ultima]
   if (installata === undefined || ultima === undefined) return undefined
   return piuVecchia(installata, ultima) ? comando : undefined
 }

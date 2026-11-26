@@ -1,8 +1,9 @@
-import { execFile, execFileSync, spawn } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { scriviAtomico } from '@shared/scrittura-atomica'
 import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { eseguiAsincrono } from '../esegui-asincrono'
 import { FILE_NOTE_UPDATER, sorgenteUpdater, VERSIONE_UPDATER } from './sorgente'
 
 /**
@@ -94,7 +95,7 @@ export function motivoCompilazione(err: unknown): string {
   return pezzi.length > 0 ? pezzi.join(': ') : String(err)
 }
 
-export function assicuraUpdater(cartella: string, opzioni: { forza?: boolean } = {}): string | undefined {
+export async function assicuraUpdater(cartella: string, opzioni: { forza?: boolean } = {}): Promise<string | undefined> {
   try {
     if (opzioni.forza === true) {
       // Una copia fresca: l'eseguibile di prima potrebbe essere quello che
@@ -116,7 +117,7 @@ export function assicuraUpdater(cartella: string, opzioni: { forza?: boolean } =
     const sorgente = join(cartella, 'SierraDeckUpdate.cs')
     writeFileSync(sorgente, sorgenteUpdater(), 'utf8')
 
-    execFileSync(compilatore, [
+    await eseguiAsincrono(compilatore, [
       '/nologo',
       // Applicazione con finestra, non da console: senza questo comparirebbe
       // anche un rettangolo nero di terminale accanto alla finestra.
@@ -127,7 +128,7 @@ export function assicuraUpdater(cartella: string, opzioni: { forza?: boolean } =
       '/reference:System.Windows.Forms.dll',
       `/out:${percorsoUpdater(cartella)}`,
       sorgente
-    ], { windowsHide: true, timeout: 60_000 })
+    ], { timeout: 60_000 })
 
     writeFileSync(percorsoSegno(cartella), String(VERSIONE_UPDATER), 'utf8')
     ultimoGuastoCostruzione = undefined
@@ -171,20 +172,20 @@ export function rimastiNostri(processi: ProcessoUpdater[], percorso: string): Pr
 }
 
 /** Gli SierraDeck Update in esecuzione. Non solleva: se non si riesce a guardare, `undefined`. */
-export function processiUpdater(esegui: () => string = elencaConPercorso): ProcessoUpdater[] | undefined {
+export async function processiUpdater(esegui: () => string | Promise<string> = elencaConPercorso): Promise<ProcessoUpdater[] | undefined> {
   try {
-    return leggiProcessiUpdater(esegui())
+    return leggiProcessiUpdater(await esegui())
   } catch (err) {
     console.warn(`[updater] processi non elencati: ${String(err)}`)
     return undefined
   }
 }
 
-function elencaConPercorso(): string {
-  return execFileSync(percorsoPowerShell(), [
+function elencaConPercorso(): Promise<string> {
+  return eseguiAsincrono(percorsoPowerShell(), [
     '-NoProfile', '-NonInteractive', '-Command',
     "Get-Process -Name SierraDeckUpdate -ErrorAction SilentlyContinue | ForEach-Object { '' + $_.Id + '|' + $_.Path }; exit 0"
-  ], { encoding: 'utf8', windowsHide: true, timeout: 15_000 })
+  ], { timeout: 15_000 })
 }
 
 /**
@@ -194,12 +195,12 @@ function elencaConPercorso(): string {
  * già uno in corso» senza lanciare niente — e ogni «Installa» dopo finiva in
  * «non si è fatto vivo», per sempre fino al riavvio del PC.
  */
-export function chiudiRimasti(
+export async function chiudiRimasti(
   percorso: string,
-  elenca: () => ProcessoUpdater[] | undefined = processiUpdater,
+  elenca: () => ProcessoUpdater[] | undefined | Promise<ProcessoUpdater[] | undefined> = processiUpdater,
   uccidi: (pid: number) => void = (pid) => { process.kill(pid) }
-): { chiusi: number[]; altri: ProcessoUpdater[] } {
-  const processi = elenca()
+): Promise<{ chiusi: number[]; altri: ProcessoUpdater[] }> {
+  const processi = await elenca()
   if (processi === undefined) return { chiusi: [], altri: [] }
   const nostri = rimastiNostri(processi, percorso)
   const chiusi: number[] = []
@@ -283,7 +284,7 @@ export function provaUpdater(percorso: string, tetto = 20_000): Promise<EsitoPro
  */
 export async function diagnosiUpdater(
   percorso: string,
-  dip: { prova?: (p: string) => Promise<EsitoProva>; processi?: () => ProcessoUpdater[] | undefined } = {}
+  dip: { prova?: (p: string) => Promise<EsitoProva>; processi?: () => ProcessoUpdater[] | undefined | Promise<ProcessoUpdater[] | undefined> } = {}
 ): Promise<string> {
   const fatti: string[] = []
   try {
@@ -294,7 +295,7 @@ export async function diagnosiUpdater(
     }
   } catch (err) { fatti.push(`eseguibile non letto: ${String(err)}`) }
   try { fatti.push(`versione ${readFileSync(percorsoSegno(dirname(percorso)), 'utf8').trim()}`) } catch { fatti.push('versione.txt assente') }
-  const vivi = (dip.processi ?? processiUpdater)()
+  const vivi = await (dip.processi ?? processiUpdater)()
   if (vivi === undefined) fatti.push('processi non elencati')
   else fatti.push(vivi.length === 0 ? 'nessun SierraDeck Update in esecuzione' : `in esecuzione: ${vivi.map((p) => `${p.pid}${p.percorso !== undefined && stessoPercorso(p.percorso, percorso) ? ' (nostro)' : ' (un altro)'}`).join(', ')}`)
   const diari = diariUpdater().filter((d) => { try { return existsSync(d) } catch { return false } })
@@ -313,9 +314,9 @@ export async function diagnosiUpdater(
  * un'altra finestra, un'istanza rimasta — non condivide la memoria del primo, e
  * una variabile non lo fermerebbe.
  */
-export function unoGiaInCorso(elenca: () => string = elencaProcessi): boolean {
+export async function unoGiaInCorso(elenca: () => string | Promise<string> = elencaProcessi): Promise<boolean> {
   try {
-    return elenca().toLowerCase().includes('sierradeckupdate.exe')
+    return (await elenca()).toLowerCase().includes('sierradeckupdate.exe')
   } catch {
     // Non riuscire a guardare non è una ragione per moltiplicare: nel dubbio si
     // lascia lavorare quello che potrebbe già esserci.
@@ -323,10 +324,8 @@ export function unoGiaInCorso(elenca: () => string = elencaProcessi): boolean {
   }
 }
 
-function elencaProcessi(): string {
-  return execFileSync('tasklist.exe', ['/FI', 'IMAGENAME eq SierraDeckUpdate.exe', '/NH'], {
-    encoding: 'utf8',
-    windowsHide: true,
+function elencaProcessi(): Promise<string> {
+  return eseguiAsincrono('tasklist.exe', ['/FI', 'IMAGENAME eq SierraDeckUpdate.exe', '/NH'], {
     timeout: 10_000
   })
 }
@@ -416,14 +415,14 @@ export type OpzioniAvvio = {
   registra?: (m: string) => void
 }
 
-export function avviaUpdater(percorso: string, dati: AvvioUpdater, opzioni: OpzioniAvvio = {}): boolean {
+export async function avviaUpdater(percorso: string, dati: AvvioUpdater, opzioni: OpzioniAvvio = {}): Promise<boolean> {
   const registra = opzioni.registra ?? ((m: string) => console.warn(`[updater] ${m}`))
   try {
     if (opzioni.chiudiRimasti === true) {
-      const r = chiudiRimasti(percorso)
+      const r = await chiudiRimasti(percorso)
       if (r.chiusi.length > 0) registra(`chiusi ${r.chiusi.length} SierraDeck Update rimasti da un tentativo di prima (pid ${r.chiusi.join(', ')})`)
       if (r.altri.length > 0) registra(`in esecuzione anche ${r.altri.length} SierraDeck Update non nostri (pid ${r.altri.map((p) => p.pid).join(', ')}): li lascio stare`)
-    } else if (unoGiaInCorso()) {
+    } else if (await unoGiaInCorso()) {
       console.warn('[updater] ce n e gia uno in corso: non ne lancio un altro')
       return true
     }

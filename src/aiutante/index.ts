@@ -288,10 +288,10 @@ function avvia(): void {
         // Lo stesso SierraDeck Update del programma completo, compilato nella
         // cartella dei dati dell'Aiutante. Se ne gira già uno (il programma
         // completo che si aggiorna), si installa in silenzio come prima.
-        if (unoGiaInCorso()) return false
-        const updater = assicuraUpdater(join(app.getPath('userData'), 'updater'))
+        if (await unoGiaInCorso()) return false
+        const updater = await assicuraUpdater(join(app.getPath('userData'), 'updater'))
         if (updater === undefined) return false
-        const partito = avviaUpdater(updater, {
+        const partito = await avviaUpdater(updater, {
           installer,
           eseguibile: app.getPath('exe'),
           versione,
