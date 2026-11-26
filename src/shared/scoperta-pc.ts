@@ -72,6 +72,41 @@ export type PingPc = (
 ) & {
   /** Cosa ha detto ogni indirizzo (0.57.1). */
   prove?: ProvaIndirizzo[]
+  /**
+   * 26/11: chi risponde non ha ancora provato la chiave di casa, ma è troppo
+   * presto per dire che l'indirizzo è di altri (`decidiEstraneo`): riprovo da solo.
+   */
+  inVerifica?: AttesaEstraneo
+}
+
+/** Il frammento per un PC acceso secondo Tailscale ma con SierraDeck muto (26/11). */
+export const TESTO_ACCESO_SENZA_SIERRADECK = 'acceso, ma SierraDeck non risponde (chiuso o bloccato dal firewall)'
+
+/** Dopo l'avvio di questo PC, quanto si aspetta prima di credere a una risposta senza la prova di casa. */
+export const AVVIO_CALMO_MS = 60_000
+/** Ogni quanto si riprova, in silenzio, un indirizzo che non ha provato la chiave di casa. */
+export const RIPROVA_ESTRANEO_MS = 30_000
+/** Il verdetto «gli indirizzi sono di altri» solo dopo tanto tempo di risposte sbagliate... */
+export const VERDETTO_ESTRANEO_DOPO_MS = 2 * 60_000
+/** ...e almeno tante volte. */
+export const VERDETTO_ESTRANEO_VOLTE = 3
+
+/** Perché si aspetta ancora: appena avviato, la cassaforte di qui chiusa, o non ancora abbastanza prove. */
+export type AttesaEstraneo = 'avvio' | 'cassaforte-qui' | 'riprovo'
+
+/**
+ * 26/11: una risposta senza la prova di casa (un 200 senza impronta, o la
+ * stessa identità senza la chiave di qui per controllarla) vale il verdetto
+ * «gli indirizzi sono di altri» solo se: il programma non è appena partito, la
+ * chiave di casa di qui c'è, e succede da minuti, più volte. Il 26/11 il
+ * PC-Fisso, appena aggiornato, lo ha detto di un PC che 20 secondi dopo
+ * rispondeva bene. `primoIl`/`volte`: da quando e quante volte di fila.
+ */
+export function decidiEstraneo(p: { adesso: number; avvioIl: number; chiavePronta: boolean; primoIl?: number; volte: number }): AttesaEstraneo | 'verdetto' {
+  if (!p.chiavePronta) return 'cassaforte-qui'
+  if (p.adesso - p.avvioIl < AVVIO_CALMO_MS) return 'avvio'
+  if (p.primoIl === undefined || p.adesso - p.primoIl < VERDETTO_ESTRANEO_DOPO_MS || p.volte < VERDETTO_ESTRANEO_VOLTE) return 'riprovo'
+  return 'verdetto'
 }
 
 const IPV4 = /^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/
@@ -175,6 +210,11 @@ export function titoloDopoIlBussare(p: {
    * il silenzio è quello giusto, non è «non risponde» né «non so se è acceso».
    */
   aggiornando?: { versione: string } | null
+  /**
+   * 26/11: quel PC è in linea su Tailscale (`tailscale status --json`), anche se
+   * qui non risponde. `undefined`: non si sa (niente Tailscale, o non è nella sua rete).
+   */
+  tailscaleOnline?: boolean
 }): StatoPc {
   const n = p.nome
   const ping = p.ping
@@ -204,6 +244,16 @@ export function titoloDopoIlBussare(p: {
   }
   // 19/11: l'Aiutante di quel PC ha un battito recente e SierraDeck là non è aperto: il PC è acceso, non è un guasto.
   if (p.soloAiutante === true) return { stato: 'solo-aiutante', titolo: `${n} è acceso, lavora solo l’Aiutante (SierraDeck non è aperto)`, cosaFare: '' }
+  // 26/11: chi risponde non ha ancora provato la chiave, ma è presto per un verdetto: si dice che si riprova.
+  if (ping?.inVerifica !== undefined) {
+    return {
+      stato: 'non-so',
+      titolo: `Controllo ${n}: riprovo fra poco`,
+      cosaFare: ping.inVerifica === 'cassaforte-qui'
+        ? `${n} risponde, ma la cassaforte di qui è ancora chiusa e non posso controllare che sia proprio lui. Riprovo da solo appena si apre.`
+        : `${n} risponde, ma non ancora con la prova della chiave di casa: succede nei primi secondi dopo un avvio. Riprovo da solo.`
+    }
+  }
   const segno = dataBreve(p.ultimoSegno)
   const perche = p.driveCollegato
     ? (segno !== '' ? `l’ultimo segno sul Drive è del ${segno}` : 'sul Drive non ha mai lasciato un segno')
@@ -218,6 +268,14 @@ export function titoloDopoIlBussare(p: {
   const provati = ping.provati.join(', ')
   // Cosa ha detto ogni indirizzo (0.57.1), quando lo si sa.
   const prove = (ping.prove ?? []).length > 0 ? ` Cosa ho provato: ${(ping.prove ?? []).map(testoProva).join('; ')}.` : ''
+  // 26/11: il battito è vecchio, ma Tailscale lo vede in linea: è acceso, è SierraDeck là che non risponde.
+  if (!p.battitoVivo && p.tailscaleOnline === true) {
+    return {
+      stato: 'irraggiungibile',
+      titolo: `${n} è ${TESTO_ACCESO_SENZA_SIERRADECK}`,
+      cosaFare: `Tailscale lo vede acceso, ma sulla porta ${p.porta} non risponde nessuno (${provati}). Su ${n} apri SierraDeck; se è già aperto, il firewall di Windows là blocca la porta ${p.porta}.${prove}`
+    }
+  }
   if (p.battitoVivo) {
     return {
       stato: 'irraggiungibile',

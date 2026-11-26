@@ -5,6 +5,7 @@ import { prima, type Salute } from '@shared/salute'
 import { SPENTO_DOPO_MS, statoPc, vistoConAiutante, vistoDelPc } from '@shared/stato-pc'
 import { unBattitoPerNome, type AutopilotiDiPc } from '@shared/autopiloti-altri'
 import { senzaAiutanti, type BattitoPc } from '@shared/posta'
+import { TESTO_ACCESO_SENZA_SIERRADECK } from '@shared/scoperta-pc'
 import { accessoDalBattito, fraseAccessoPc, type AccessoClaudePc } from '@shared/accesso-claude-pc'
 
 /**
@@ -61,7 +62,7 @@ export async function altriPcDelControllo(d: {
   }))
 }
 
-export type SaluteDiPc = { pcId: string; nome: string; salute?: Salute; errore?: string; battito?: string; /** Risponde, ma non ha finito in tempo (anche al secondo tentativo): lento, non spento. */ lento?: boolean; /** Il battito è dell'Aiutante: SierraDeck là è chiuso (`vistoDelPc`). */ soloAiutante?: boolean; /** 25/11: l'accesso a Claude di quel PC adesso (dal battito); assente = non si sa. */ accesso?: AccessoClaudePc }
+export type SaluteDiPc = { pcId: string; nome: string; salute?: Salute; errore?: string; battito?: string; /** Risponde, ma non ha finito in tempo (anche al secondo tentativo): lento, non spento. */ lento?: boolean; /** Il battito è dell'Aiutante: SierraDeck là è chiuso (`vistoDelPc`). */ soloAiutante?: boolean; /** 25/11: l'accesso a Claude di quel PC adesso (dal battito); assente = non si sa. */ accesso?: AccessoClaudePc; /** 26/11: non risponde, ma Tailscale lo vede in linea; assente = non si sa. */ tailscaleOnline?: boolean }
 
 /**
  * 0.94.1: un PC spento non è una criticità. Nicholas, 05/11: «lascia perdere il
@@ -76,9 +77,18 @@ function soloAiutante(s: SaluteDiPc): boolean {
   return s.salute === undefined && s.soloAiutante === true
 }
 
-/** Non risponde e ha un battito sul Drive che non è fresco (o è illeggibile): spento. */
+/**
+ * 26/11: non risponde e il suo battito è vecchio, ma Tailscale lo vede in linea: il PC è acceso
+ * e SierraDeck là è chiuso (o il firewall chiude la porta). Né spento, né una criticità.
+ * Con il battito fresco resta un «non risponde» vero.
+ */
+export function accesoSenzaSierraDeck(s: SaluteDiPc, adesso: number | undefined): boolean {
+  return s.salute === undefined && s.tailscaleOnline === true && (adesso === undefined || s.battito === undefined || statoPc(s.battito, adesso).stato !== 'acceso')
+}
+
+/** Non risponde e ha un battito sul Drive che non è fresco (o è illeggibile): spento. Mai se Tailscale lo vede in linea. */
 function pcSpento(s: SaluteDiPc, adesso: number): boolean {
-  return s.salute === undefined && s.battito !== undefined && statoPc(s.battito, adesso).stato !== 'acceso'
+  return s.salute === undefined && s.battito !== undefined && statoPc(s.battito, adesso).stato !== 'acceso' && !accesoSenzaSierraDeck(s, adesso)
 }
 
 export type Criticita ={ pc: string; cosa: string; dettaglio: string }
@@ -97,7 +107,7 @@ export function criticitaDi(saluti: readonly SaluteDiPc[], autopiloti: readonly 
   const spenti = new Set(saluti.filter((s) => adesso !== undefined && pcSpento(s, adesso)).map((s) => s.pcId))
   for (const s of saluti) {
     if (s.salute === undefined) {
-      if (spenti.has(s.pcId) || soloAiutante(s)) continue
+      if (spenti.has(s.pcId) || soloAiutante(s) || accesoSenzaSierraDeck(s, adesso)) continue
       // Risponde ma è lento: non è «non risponde». Il prossimo giro riprova.
       if (s.lento === true) continue
       // Una riga per PC: due PC che non rispondono hanno due motivi, non uno.
@@ -112,7 +122,7 @@ export function criticitaDi(saluti: readonly SaluteDiPc[], autopiloti: readonly 
       if (v.tono === 'ok' || v.gruppo === 'errori') continue
       if (v.chiave.startsWith('pc:') && spenti.has(v.chiave.slice(3))) continue
       // Quel PC è acceso con il solo Aiutante: un altro PC che lo dice «non si raggiunge» parla di SierraDeck, chiuso là.
-      if (v.chiave.startsWith('pc:') && saluti.some((x) => x.pcId === v.chiave.slice(3) && soloAiutante(x))) continue
+      if (v.chiave.startsWith('pc:') && saluti.some((x) => x.pcId === v.chiave.slice(3) && (soloAiutante(x) || accesoSenzaSierraDeck(x, adesso)))) continue
       // Scheda video di un PC spento (voce di un PC con una versione vecchia): dato vecchio, non criticità.
       if (v.chiave.startsWith('gpu:') && spenti.has(v.chiave.slice(4))) continue
       // «Non risponde a nessuna strada» detto da un PC, ma quel PC ha risposto a chi controlla: è la strada
@@ -208,7 +218,7 @@ export function testoRapporto(p: { quando: string; saluti: readonly SaluteDiPc[]
     const versione = s.salute?.versione !== undefined ? ` · versione ${s.salute.versione} (detta dal PC adesso)`
       : s.battito !== undefined ? ` · versione ignota adesso (ultimo battito sul Drive: ${s.battito}, ${statoPc(s.battito, adesso).stato === 'acceso' ? statoPc(s.battito, adesso).frase : 'dato vecchio'})` : ''
     const accesso = s.accesso === undefined ? ' · accesso a Claude: non so (il battito non lo dice)' : s.accesso.stato === 'scaduto' ? ` · accesso a Claude: SCADUTO dal ${s.accesso.dal}` : ` · accesso a Claude: va${s.accesso.rinnovatoIl !== undefined ? ` (rinnovato il ${s.accesso.rinnovatoIl})` : ''}`
-    righe.push(`- **${s.nome}**${versione}${accesso}: ${s.salute !== undefined ? `${s.salute.tono} — ${s.salute.riassunto}${quali}` : soloAiutante(s) ? 'acceso, lavora solo l’Aiutante (SierraDeck non è aperto)' : s.lento === true ? `lento, riprovo (${s.errore ?? '?'})` : `non risponde (${s.errore ?? '?'})`}`)
+    righe.push(`- **${s.nome}**${versione}${accesso}: ${s.salute !== undefined ? `${s.salute.tono} — ${s.salute.riassunto}${quali}` : soloAiutante(s) ? 'acceso, lavora solo l’Aiutante (SierraDeck non è aperto)' : accesoSenzaSierraDeck(s, adesso) ? `${TESTO_ACCESO_SENZA_SIERRADECK}: Tailscale lo vede in linea (${s.errore ?? '?'})` : s.lento === true ? `lento, riprovo (${s.errore ?? '?'})` : `non risponde (${s.errore ?? '?'})`}`)
   }
   if (spentiRiga.length > 0) {
     righe.push('', `## PC spenti (${spentiRiga.length})`, '')
@@ -245,6 +255,8 @@ export async function giroControlloPc(d: {
   affida: (p: { testo: string; cwd: string }) => Promise<void>
   adesso: () => number
   log: (riga: string) => void
+  /** 26/11: quel PC, che non risponde, è in linea su Tailscale? Non deve lanciare (se lancia: non si sa). */
+  tailscaleOnline?: (pcId: string) => Promise<boolean | undefined>
   /** Pausa prima del secondo tentativo con un PC lento (predefinita 3 s). */
   riprovaMs?: number
 }): Promise<{ criticita: number; affidato: boolean }> {
@@ -268,7 +280,11 @@ export async function giroControlloPc(d: {
       // La risposta di un altro PC non è fidata: senza `voci` (versione vecchia?) è come un PC che non risponde bene.
       if (salute === null || typeof salute !== 'object' || !Array.isArray(salute.voci)) return { ...p, errore: 'risposta non leggibile, versione vecchia?' }
       return { ...p, salute }
-    } catch (e) { return { ...p, errore: e instanceof Error ? e.message : String(e), ...(scaduta(e) ? { lento: true } : {}) } }
+    } catch (e) {
+      // 26/11: non risponde: Tailscale lo vede in linea? Allora è acceso, non spento.
+      const ts = scaduta(e) || d.tailscaleOnline === undefined ? undefined : await d.tailscaleOnline(p.pcId).catch(() => undefined)
+      return { ...p, errore: e instanceof Error ? e.message : String(e), ...(scaduta(e) ? { lento: true } : {}), ...(ts !== undefined ? { tailscaleOnline: ts } : {}) }
+    }
   }))
   saluti.push(...altri)
   const autopiloti = await d.autopiloti().catch(() => [] as AutopilotiDiPc[])
