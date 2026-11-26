@@ -31,6 +31,12 @@ export type Tentativo = {
   da: string
   /** Quando, ISO. */
   quando: string
+  /**
+   * Il perché, se SierraDeck stesso l'ha visto fallire prima di riavviarsi
+   * (es. l'installer di riserva non ha chiuso il programma in 30 s): vale più
+   * di qualunque diario, e arriva fino all'avviso del riavvio.
+   */
+  motivo?: string
 }
 
 export type EsitoTentativo =
@@ -44,7 +50,9 @@ export function leggiTentativo(grezzo: unknown): Tentativo | undefined {
   const o = grezzo as Record<string, unknown>
   const s = (x: unknown): string => (typeof x === 'string' ? x.trim() : '')
   const t = { versione: s(o.versione), da: s(o.da), quando: s(o.quando) }
-  return t.versione !== '' && t.da !== '' ? t : undefined
+  if (t.versione === '' || t.da === '') return undefined
+  const motivo = s(o.motivo)
+  return motivo !== '' ? { ...t, motivo } : t
 }
 
 /**
@@ -138,7 +146,7 @@ export function avvisoTentativoFallito(t: Tentativo, d: Diagnosi | undefined, pa
   return {
     ...t,
     titolo: `Ho provato a installare la ${t.versione}${alle !== '' ? ` alle ${alle}` : ''}, ma sei ancora sulla ${t.da}.`,
-    motivo: motivoDaDiagnosi(d),
+    motivo: t.motivo !== undefined && t.motivo !== '' ? `${t.motivo}.` : motivoDaDiagnosi(d),
     strade: [
       `Scaricala a mano: dalla pagina della versione (${pagina}) scarica «SierraDeck-Setup-${t.versione}.exe» e aprilo. Se Windows lo ferma, «Ulteriori informazioni» → «Esegui comunque» quando c’è. Si installa sopra quella che hai, senza perdere chat e impostazioni.`,
       'Riprova da «Installa»: se il blocco è stato una volta sola, può andare.',

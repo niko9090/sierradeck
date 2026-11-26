@@ -478,6 +478,12 @@ export function creaAggiornamenti(
     }
     const diagnosi = diagnosiDiario(diario)
     const avviso = avvisoTentativoFallito(esito.tentativo, diagnosi, paginaRelease(esito.tentativo.versione))
+    // Un segno che porta il motivo scritto da SierraDeck stesso (la guardia della
+    // strada di riserva) si consuma qui, una volta sola: l'avviso resta nello
+    // stato di questa sessione e viaggia al PC che ha chiesto «Installa là».
+    if (esito.tentativo.motivo !== undefined) {
+      try { rmSync(fileTentativo, { force: true }) } catch { /* al prossimo avvio */ }
+    }
     guaio(`INSTALLAZIONE NON RIUSCITA: ${avviso.titolo} ${avviso.motivo}`)
     // Il diario e' la prova che accompagna l'errore appena scritto, non un
     // secondo errore: in cronaca (0.88.10).
@@ -488,15 +494,14 @@ export function creaAggiornamenti(
   })()
   let stato: StatoAggiornamento = { fase: 'fermo', ...(tentativoFallito !== undefined ? { tentativoFallito } : {}) }
   /** Il segno prima di lanciare l'installer: al riavvio dira' se e' andata. */
-  const segnaTentativo = (versione: string): void => {
+  const segnaTentativo = (versione: string, motivo?: string): void => {
     try {
-      scriviJsonAtomico(fileTentativo, { versione, da: app.getVersion(), quando: new Date().toISOString() }, 'tentativo')
-      nota(`segno il tentativo: installo la ${versione} dalla ${app.getVersion()}`)
+      scriviJsonAtomico(fileTentativo, { versione, da: app.getVersion(), quando: new Date().toISOString(), ...(motivo !== undefined ? { motivo } : {}) }, 'tentativo')
+      nota(motivo === undefined ? `segno il tentativo: installo la ${versione} dalla ${app.getVersion()}` : `segno il tentativo fallito (${versione} dalla ${app.getVersion()}): ${motivo}`)
     } catch (err) {
       guaio(`segno del tentativo non scritto: ${String(err)}`)
     }
   }
-  const togliSegno = (): void => { try { rmSync(fileTentativo, { force: true }) } catch { /* niente */ } }
   const fileInCorso = join(dati, FILE_AGGIORNAMENTO_IN_CORSO)
   const scriviInCorso = (u: AggiornamentoInCorso): void => {
     try {
@@ -1000,10 +1005,13 @@ export function creaAggiornamenti(
             }
             // Ancora qui dopo mezzo minuto: l'installer non è partito, e dopo
             // `preparaUscita` il programma è svuotato. Meglio riaprirlo (le chat
-            // riprendono da sole) che lasciarlo vivo e muto.
+            // riprendono da sole) che lasciarlo vivo e muto. Il segno **resta**,
+            // con il motivo: al riavvio `tentativoFallito` lo riporta a chi ha
+            // chiesto «Installa là» (il segno si toglie solo al successo).
             const guardia = setTimeout(() => {
-              guaio('l installer di riserva non ha chiuso SierraDeck in 30 s: riapro la versione di prima')
-              togliSegno()
+              const motivo = 'L’installer di riserva non ha chiuso SierraDeck in 30 s, quindi non è partito e ho riaperto la versione di prima'
+              guaio(`l installer di riserva non ha chiuso SierraDeck in 30 s: riapro la versione di prima (il segno resta, con il motivo)`)
+              segnaTentativo(versioneNuova, motivo)
               try { app.relaunch?.(); app.exit?.(0) } catch (err) { guaio(`riapertura non riuscita: ${String(err)}`) }
             }, 30_000)
             guardia.unref?.()

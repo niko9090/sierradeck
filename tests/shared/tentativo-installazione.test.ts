@@ -81,12 +81,13 @@ describe('l avviso, uguale su PC, pagina e app', () => {
 
 describe('come e collegato', () => {
   const src = (p: string): string => readFileSync(join(__dirname, '../../src', p), 'utf8')
-  it('il main segna il tentativo prima di lanciare l installer, lo toglie se l updater non parte, e lo legge all avvio', () => {
+  it('il main segna il tentativo prima di lanciare l installer, lo lascia con il motivo se la riserva non chiude, e lo legge all avvio', () => {
     const agg = src('main/aggiornamenti.ts')
     // 26/11: il lancio passa da `lanciaEAttendi`, che chiama `avviaUpdater`.
     expect(agg.indexOf('segnaTentativo(versioneNuova)')).toBeGreaterThan(-1)
     expect(agg.indexOf('segnaTentativo(versioneNuova)')).toBeLessThan(agg.indexOf('if (!avviaUpdater(percorso, datiAvvio'))
-    expect(agg).toContain('togliSegno()')
+    expect(agg).not.toContain('togliSegno()')
+    expect(agg).toContain('segnaTentativo(versioneNuova, motivo)')
     expect(agg).toContain("FILE_TENTATIVO = 'tentativo-installazione.json'")
     expect(agg).toContain('esitoTentativo(tentativo, app.getVersion())')
     expect(agg).toContain('INSTALLAZIONE NON RIUSCITA')
