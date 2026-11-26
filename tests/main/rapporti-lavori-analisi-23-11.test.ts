@@ -74,7 +74,8 @@ describe('testoRiassunto', () => {
     expect(testo).toContain('1 ROSSI')
     expect(testo).toContain('per ruolo: sviluppatore ×1, revisore ×1')
     expect(testo).toContain('permessi negati dal programma: 1')
-    expect(testo).toContain('rallentamenti del servizio oltre 1 s di ritardo: 3 (il più lungo 12,5 s)')
+    expect(testo).toContain('rallentamenti del servizio oltre 1 s di ritardo: 3 (il più lungo 12,5 s alle ')
+    expect(testo).toContain('2 da 1-2 s, 1 oltre 10 s)')
     expect(testo).not.toContain('1,5 s')
     expect(testo).toContain('riavvii: 1')
   })
@@ -82,7 +83,7 @@ describe('testoRiassunto', () => {
   it('il rallentamento più lungo ha un decimale: 1,04 s non diventa «1 s», sotto la soglia', () => {
     const r = riga(T(1), '[servizio] fermo 1.0 s senza rispondere (1 volta oltre 1 s dall\'ultima riga)')
     const t = testoRiassunto('x2', riassumi([rapporto('pc-uno', 0, 10, [r])])!)
-    expect(t).toContain('oltre 1 s di ritardo: 1 (il più lungo 1,0 s)')
+    expect(t).toContain('oltre 1 s di ritardo: 1 (il più lungo 1,0 s alle ')
   })
 
   it('ha una sezione per PC e per workspace', () => {

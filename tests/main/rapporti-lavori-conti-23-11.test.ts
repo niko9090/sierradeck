@@ -59,8 +59,42 @@ describe('rapporti dei lavori: i conti del 23/11', () => {
     expect(f.fermoMaxMs).toBe(2400)
     const r: RapportoLavori = { da: 'PC-1', giorno: '2026-11-20', dal: '2026-11-20T09:00:00Z', al: '2026-11-20T11:00:00Z', workspace: c.workspace }
     const testo = testoRiassunto('x', riassumi([r])!)
-    expect(testo).toContain('rallentamenti del servizio oltre 1 s di ritardo: 6 (il più lungo 2,4 s)')
+    expect(testo).toContain('rallentamenti del servizio oltre 1 s di ritardo: 6 (il più lungo 2,4 s alle ')
     expect(testo).not.toContain('fermate del programma')
+  })
+
+  it('k-346c: fasce di durata e ora del più lungo', () => {
+    const c = contaLavori([
+      riga('00:01', '[servizio] fermo 1.4 s senza rispondere (3 volte oltre 1 s dall\'ultima riga)', 'servizio'),
+      riga('07:00', '[servizio] fermo 22.4 s senza rispondere (1 volta oltre 1 s dall\'ultima riga)', 'servizio'),
+      riga('08:00', '[servizio] fermo 3.0 s senza rispondere (1 volta oltre 1 s dall\'ultima riga)', 'servizio'),
+      riga('09:00', '[servizio] fermo 7.5 s senza rispondere', 'servizio'),
+      riga('10:00', '[servizio] fermo 12.0 s senza rispondere (1 volta oltre 1 s dall\'ultima riga)', 'servizio')
+    ])
+    const f = c.workspace[WORKSPACE_GENERALE]!.fermate
+    expect(f.fermo).toBe(7)
+    expect(f.fasce).toEqual({ da1a2: 3, da2a5: 1, da5a10: 1, oltre10: 2 })
+    expect(f.fermoMaxMs).toBe(22_400)
+    expect(f.fermoMaxAlle).toBe('2026-11-20T10:07:00Z')
+    const r: RapportoLavori = { da: 'PC-1', giorno: '2026-11-20', dal: '2026-11-20T09:00:00Z', al: '2026-11-20T11:00:00Z', workspace: c.workspace }
+    const testo = testoRiassunto('x', riassumi([r])!)
+    expect(testo).toMatch(/7 \(il più lungo 22,4 s alle \d\d:\d\d; 3 da 1-2 s, 1 da 2-5 s, 1 da 5-10 s, 2 oltre 10 s\)/)
+    // I campi nuovi sopravvivono alla rilettura del rapporto arrivato.
+    const l = leggiRapportoLavori(JSON.parse(JSON.stringify(r)))
+    expect(l.ok && l.rapporto.workspace[WORKSPACE_GENERALE]!.fermate.fasce).toEqual(f.fasce)
+    expect(l.ok && l.rapporto.workspace[WORKSPACE_GENERALE]!.fermate.fermoMaxAlle).toBe(f.fermoMaxAlle)
+  })
+
+  it('k-346c: un rapporto vecchio, senza fasce né ora, si riassume come prima', () => {
+    const vecchio = { da: 'PC-2', giorno: '2026-11-20', dal: '2026-11-20T09:00:00Z', al: '2026-11-20T11:00:00Z', workspace: { [WORKSPACE_GENERALE]: { fermate: { fermo: 96, fermoMaxMs: 22_400, riavvii: 0 } } } }
+    const l = leggiRapportoLavori(vecchio)
+    expect(l.ok).toBe(true)
+    if (!l.ok) return
+    const f = l.rapporto.workspace[WORKSPACE_GENERALE]!.fermate
+    expect(f.fasce).toBeUndefined()
+    expect(f.fermoMaxAlle).toBeUndefined()
+    const testo = testoRiassunto('x', riassumi([l.rapporto])!)
+    expect(testo).toContain('rallentamenti del servizio oltre 1 s di ritardo: 96 (il più lungo 22,4 s)')
   })
 
   it('D6: il lavoro fermo non tocca le fermate e ha il suo massimo in minuti', () => {

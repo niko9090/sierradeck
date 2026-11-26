@@ -18,8 +18,13 @@ export type LavoriWorkspace = {
   /** `lavoroFermoMaxMin`: l'età del lavoro fermo più lungo, in minuti. `spinteSospese`: spinte senza effetto (k-199d). */
   avanzamento: { svegli: number; limiteDelPiano: number; criterioRosso: number; lavoroFermoMaxMin: number; spinteSospese: number }
   /** `fermo`: rallentamenti del servizio con più di 1 s di ritardo (soglia della spia, ogni volta conta), `fermoMaxMs` il più lungo. `motiviRiavvio`: perché il servizio è ripartito (motivo breve → quante volte). */
-  fermate: { fermo: number; fermoMaxMs: number; riavvii: number; motiviRiavvio?: Record<string, number> }
+  fermate: { fermo: number; fermoMaxMs: number; riavvii: number; motiviRiavvio?: Record<string, number>; /** Quanti rallentamenti per durata (i rapporti dei PC vecchi non l'hanno). */ fasce?: FasceRallentamenti; /** Istante (ISO) della riga che ha dato il più lungo. */ fermoMaxAlle?: string }
 }
+
+/** Fasce di durata dei rallentamenti: da 1 a 2 s, da 2 a 5, da 5 a 10, oltre 10. La somma è `fermo`. */
+export type FasceRallentamenti = { da1a2: number; da2a5: number; da5a10: number; oltre10: number }
+export const fasceVuote = (): FasceRallentamenti => ({ da1a2: 0, da2a5: 0, da5a10: 0, oltre10: 0 })
+export const fasciaDi = (ms: number): keyof FasceRallentamenti => (ms < 2000 ? 'da1a2' : ms < 5000 ? 'da2a5' : ms < 10_000 ? 'da5a10' : 'oltre10')
 
 export type RapportoLavori = {
   /** Chi manda (nome da mostrare, come per gli errori). */
@@ -244,7 +249,14 @@ export function contaLavori(righe: readonly string[], dopo?: string, versionePri
       const f = di(WORKSPACE_GENERALE).fermate
       // D5: la spia scrive al più una riga al minuto con «(N volte …)»: si sommano le N (le righe vecchie senza N valgono 1).
       f.fermo += x[2] !== undefined ? Math.max(1, Number(x[2])) : 1
-      f.fermoMaxMs = Math.max(f.fermoMaxMs, Math.round(Number(x[1]) * 1000))
+      const ms = Math.round(Number(x[1]) * 1000)
+      // La riga dà solo il più lungo dei suoi N: quello va nella sua fascia, gli altri N-1 (almeno 1 s) nella prima.
+      const volte = x[2] !== undefined ? Math.max(1, Number(x[2])) : 1
+      const fasce = (f.fasce ??= fasceVuote())
+      fasce.da1a2 += volte - 1
+      fasce[fasciaDi(ms)] += 1
+      if (ms > f.fermoMaxMs || f.fermoMaxAlle === undefined) f.fermoMaxAlle = quando
+      f.fermoMaxMs = Math.max(f.fermoMaxMs, ms)
       lette += 1
     } else if ((x = /^━━━ sessione avviata · SierraDeck v(\S+)/.exec(t)) !== null) {
       // D4 + k-199h: ogni avvio scrive una riga per il programma e una per il servizio: si conta solo il servizio
@@ -290,6 +302,13 @@ const conti = (x: unknown): Record<string, number> => {
   return Object.fromEntries(Object.entries(o).slice(0, MAX_MOTIVI * 2).map(([k, v]) => [motivoBreve(k), num(v)] as const).filter(([k]) => k !== ''))
 }
 
+/** Le fasce di un rapporto: ci sono solo se arrivano e almeno una non è zero. */
+function fasceLette(x: unknown): { fasce?: FasceRallentamenti } {
+  const o = typeof x === 'object' && x !== null ? x as Record<string, unknown> : {}
+  const fasce: FasceRallentamenti = { da1a2: num(o.da1a2), da2a5: num(o.da2a5), da5a10: num(o.da5a10), oltre10: num(o.oltre10) }
+  return Object.values(fasce).some((n) => n > 0) ? { fasce } : {}
+}
+
 /** Il corpo di `POST /api/rapporti/arrivati`: si rilegge campo per campo, solo numeri e motivi corti. */
 export function leggiRapportoLavori(x: unknown): { ok: true; rapporto: RapportoLavori } | { ok: false; errore: string } {
   const o = typeof x === 'object' && x !== null ? x as Record<string, unknown> : undefined
@@ -310,7 +329,7 @@ export function leggiRapportoLavori(x: unknown): { ok: true; rapporto: RapportoL
       criteri: { finiti: num(c.finiti), riusciti: num(c.riusciti), rossi: num(c.rossi), nonMisurati: num(c.nonMisurati), durataMs: num(c.durataMs), durataMaxMs: num(c.durataMaxMs), scaduti: num(c.scaduti), inAttesa: num(c.inAttesa) },
       compiti: { affidati: num(k.affidati), restatiQui: num(k.restatiQui), inFila: num(k.inFila), rifiuti: num(k.rifiuti), ruoli: conti(k.ruoli) },
       avanzamento: { svegli: num(a.svegli), limiteDelPiano: num(a.limiteDelPiano), criterioRosso: num(a.criterioRosso), lavoroFermoMaxMin: num(a.lavoroFermoMaxMin), spinteSospese: num(a.spinteSospese) },
-      fermate: { fermo: num(f.fermo), fermoMaxMs: num(f.fermoMaxMs), riavvii: num(f.riavvii), ...(Object.keys(conti(f.motiviRiavvio)).length > 0 ? { motiviRiavvio: conti(f.motiviRiavvio) } : {}) }
+      fermate: { fermo: num(f.fermo), fermoMaxMs: num(f.fermoMaxMs), riavvii: num(f.riavvii), ...(Object.keys(conti(f.motiviRiavvio)).length > 0 ? { motiviRiavvio: conti(f.motiviRiavvio) } : {}), ...fasceLette(f.fasce), ...(iso(f.fermoMaxAlle) !== undefined ? { fermoMaxAlle: iso(f.fermoMaxAlle) as string } : {}) }
     }
   }
   const giorno = typeof o.giorno === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(o.giorno) ? o.giorno : al.slice(0, 10)
