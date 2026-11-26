@@ -4,8 +4,6 @@
 
 ## test
 
-- `criticitaDi` ha bisogno di `adesso` per escludere i PC spenti; senza, un PC spento torna tra le criticità «non risponde». _(2026-11-19)_
-- `vistaAutopilota` vuole `ora` e un autopilota con `dialogo`/`decisioni`: una fixture minima fa cadere `statoAutopilotaDalVivo` per un motivo diverso da `chats`. _(2026-11-19)_
 - Alcuni test leggono `src/main/index.ts` come testo con regex: se ci si aggiungono righe fra `senzaAiutanti` e il suo contesto, vanno allargati. _(2026-11-19)_
 - guardia-pc-0-85-1 ha un limite di 800 ms che salta se il PC è carico: ferma `npm run pubblica` (suite dentro). Rilanciare il solo file passa. _(2026-11-19)_
 - I test sul tempo reale con server HTTP vero (tetti da 400 ms) slittano sotto `--maxWorkers=4`: i limiti superiori vanno larghi (secondi), solo il minimo (≥ tetto) prova l'attesa. _(2026-11-19)_
@@ -624,10 +622,6 @@
 
 - `soloVersione` guarda il diff di package.json/lock: solo righe `"version"` (max 2+2) escludono il file dalla prova; ogni altro cambio rimette la suite intera. _(2026-11-23)_
 
-## push
-
-- Dal worktree il `git push` verso GitHub è negato dai permessi dello strumento Bash, prima di arrivare alla rete: va fatto dallo specialista «rilascio». _(2026-11-17)_
-
 ## pc
 
 - «Dismetti questo PC» esiste già (7 giorni, solo `pc-<id>` dal Drive, `src/main/progetti/posta.ts:558`): la scadenza dei 30 giorni va costruita sopra questo, non accanto. _(2026-11-19)_
@@ -919,3 +913,15 @@
 - chiedeDiFermarsi (lavoro-fermo.ts) e rispostaSenzaLavoro (domande-in-chat.ts) hanno liste diverse: «Resta fermo» mette la pausa ma apre comunque una richiesta in coda _(2026-11-25)_
 - La pausa di Nicholas va letta ovunque il programma sveglia l'autopilota: anche l'evento «silenzio» di una chat adottata la ignorava, e solo un test a processo vivo l'ha fatto vedere. _(2026-11-25)_
 - Un ordine di pausa è una frase intera, non una parola: «aspetta» da solo come scelta di una domanda vuol dire «aspetta quella cosa». Con «ma», «poi» o «vai avanti» non è mai pausa. _(2026-11-25)_
+
+## windows
+
+- `performance.now()`/hrtime usano QueryPerformanceCounter, che di norma continua a contare nel sonno: per riconoscere le sospensioni serve `powerMonitor`, non il confronto fra orologi. _(2026-11-26)_
+
+## spia
+
+- l'evento `resume` può arrivare al servizio dopo il primo timer: la spia scarta anche il battito con intervallo lungo dopo un `suspend`, non solo il primo dopo il `resume`. _(2026-11-26)_
+
+## typecheck
+
+- `powerMonitor.on` ha overload per evento: un ciclo su `['suspend','resume']` non compila, vanno due chiamate separate. _(2026-11-26)_
