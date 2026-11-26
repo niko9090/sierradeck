@@ -1,5 +1,6 @@
 import type { Autopilota, ChatGovernata } from './autopilota'
 import { chatsDi } from './chats-di'
+import { nomeODi, testoOVuoto } from './nome-autopilota'
 import { vistaAutopilota } from './autopiloti-vista'
 import { RUOLI, RUOLI_ORDINE, type Ruolo } from './ruoli-agenti'
 import { compitoBreve, nomeChi } from './chat-autopilota'
@@ -325,7 +326,7 @@ export function pianoAutopilota(a: Autopilota): CompitoPiano[] {
     // La chat unica: un compito, l'obiettivo.
     if (a.sessionId !== undefined && a.stato !== 'intervista' && a.stato !== 'pronto') {
       fuori.push({
-        id: a.id, testo: a.nome.trim() !== '' ? a.nome : a.obiettivo.split(/\r?\n/)[0] ?? '',
+        id: a.id, testo: nomeODi(a, testoOVuoto(a.obiettivo).split(/\r?\n/)[0] ?? ''),
         fase: a.stato === 'finito' ? 'fatto' : 'in-corso', sessione: a.sessionId,
         ...(a.stato === 'attesa' ? { nota: 'aspetta te' } : a.stato === 'sospeso' || a.stato === 'fallito' ? { nota: 'fermo' } : {})
       })

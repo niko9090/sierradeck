@@ -1,4 +1,5 @@
 import type { Autopilota } from '@shared/autopilota'
+import { nomeODi, testoOVuoto } from '@shared/nome-autopilota'
 
 /**
  * Se sta aspettando una risposta *adesso*, mentre si prepara.
@@ -36,7 +37,7 @@ export function ledDi(a: Autopilota): { classe: string; titolo: string } {
           ? 'led--finito'
           : 'led--fermo'
 
-  const nome = a.nome.trim() !== '' ? a.nome : a.obiettivo
+  const nome = nomeODi(a, testoOVuoto(a.obiettivo))
   const coda = a.motivoSospensione !== undefined && a.stato !== 'finito'
     ? ` — ${a.motivoSospensione}`
     : ''

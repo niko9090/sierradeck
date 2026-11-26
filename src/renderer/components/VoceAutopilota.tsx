@@ -4,6 +4,7 @@ import type { Battuta } from '@shared/chat-autopilota'
 import { riassunto, type Riassunto, type TipoRiassunto } from '@shared/riassunto-autopilota'
 import { battuteDaDire, chiaveBattuta, fraseDiBattuta, type ComandoVocale } from '@shared/voce-autopilota'
 import { regoleModo } from '@shared/parlato'
+import { nomeODi } from '@shared/nome-autopilota'
 import { useAscolto } from '../ascolto'
 import { ImpostazioniParlato, InterruttoreParlato } from './Parlato'
 import { useSondaggio } from '../state/sondaggio'
@@ -49,7 +50,7 @@ export function VoceAutopilota({ autopilota, workspace, battute, richiesta, invi
   const ascoltoOra = useAscolto()
   const parlatoQui = ascoltoOra.fase !== 'spento' && ascoltoOra.bersaglio?.chiave === chiave
   const leggi = imp.conversazione || regoleModo(parlatoQui ? 'parlato' : 'normale').leggeRisposte
-  const nome = autopilota.nome.trim() !== '' ? autopilota.nome : 'Autopilota'
+  const nome = nomeODi(autopilota, 'Autopilota')
 
   const fai = (tipo: TipoRiassunto, leggi: boolean): void => {
     setLeggo(true)

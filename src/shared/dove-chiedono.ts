@@ -1,4 +1,5 @@
 import type { Archivio } from './workspace'
+import { nomeODi, testoOVuoto } from './nome-autopilota'
 
 /**
  * In quale workspace vive una chat, e quindi dove ti stanno chiamando.
@@ -51,7 +52,7 @@ export function chiChiede(
       const workspace = a.sessionId === undefined ? undefined : dove[a.sessionId]
       return {
         id: a.id,
-        nome: a.nome.trim() !== '' ? a.nome : a.obiettivo,
+        nome: nomeODi(a, testoOVuoto(a.obiettivo)),
         ...(workspace !== undefined ? { workspace } : {}),
         ...(a.sessionId !== undefined ? { sessionUuid: a.sessionId } : {}),
         domanda: a.motivoSospensione ?? 'ha bisogno di una risposta'

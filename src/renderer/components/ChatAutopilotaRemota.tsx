@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Autopilota } from '@shared/autopilota'
 import type { AutopilotiDiPc } from '@shared/autopiloti-altri'
+import { conNomeSicuro } from '@shared/nome-autopilota'
 import { conversazione, haDomandaAperta, staPensando } from '@shared/chat-autopilota'
 import { autopilotaDelPcRemoto, letturaSpecialisti, rigaPcNonRisponde, type EsitoAzione, type LetturaSpecialisti } from '@shared/autopilota-remoto'
 import { chiaveWorkspace } from '@shared/coda-richieste'
@@ -93,7 +94,8 @@ export function creaLettoreAutopilotaRemoto(d: {
           d.metti((s) => ({ ...s, giu: e.stato !== 404 }))
           return
         }
-        const a = e.dati as Autopilota
+        // Da un'altra versione può mancare il nome: si sistema qui, dove entra.
+        const a = conNomeSicuro(e.dati as Autopilota)
         // Un autopilota di un altro workspace non passa per quello di questo.
         if (a.workspace !== undefined && a.workspace !== g.workspace) { delete g.id; return }
         d.metti(() => ({ autopilota: a, giu: false }))

@@ -4,6 +4,7 @@ import type { Autopilota } from '@shared/autopilota'
 import type { AutopilotiDiPc } from '@shared/autopiloti-altri'
 import { stato, type Colore } from '@shared/stato-vista'
 import { vocePc, type VoceStatoPc } from '@shared/vocabolario-stati-pc'
+import { nomeODi } from '@shared/nome-autopilota'
 import { Aiuto } from './Aiuto'
 
 /**
@@ -52,7 +53,8 @@ export type GruppoPc = {
 /** Il nome con cui si mostra un autopilota: il workspace, poi il nome, poi l’ultima cartella. */
 export function nomeAutopilota(a: { workspace?: string | undefined; nome: string; cwd: string }): string {
   if (a.workspace !== undefined && a.workspace !== '') return a.workspace
-  if (a.nome.trim() !== '') return a.nome
+  const n = nomeODi(a, '')
+  if (n !== '') return n
   return a.cwd.split(/[\\/]/).filter((x) => x !== '').pop() ?? a.cwd
 }
 
