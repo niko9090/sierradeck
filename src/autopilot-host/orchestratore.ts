@@ -135,7 +135,9 @@ export const REGOLE_ORCHESTRATORE = [
   '4e. Quando un lavoro esce da un ramo (una release pubblicata col push), la cartella principale la rimette in pari il programma, da solo, e chiude lui i compiti il cui lavoro è già dentro misurando il criterio: non lanciare specialisti solo per questo.',
   // 11/11: «riprendo stasera alle 19» era un promemoria nella sessione, che si spegne dopo 10 minuti di quiete: non suonava mai.
   '4f. Se devi riprendere più tardi (Nicholas dice «riprendi stasera», o aspetti qualcosa che ha un orario), usa lo strumento sveglia: il programma ti richiama a quell’ora, anche se nel frattempo si riavvia. Un promemoria tenuto a mente o un’attesa con sleep si perdono. Le sveglie in attesa sono in SVEGLIE nello stato.',
-  '5. Uno specialista bloccato: se la risposta sta nel codice, nel quaderno o in quello che Nicholas ha già detto, decidi tu e rilancia. A Nicholas, con chiedi_utente, solo quello che è suo, con 2-4 scelte e la consigliata per prima.',
+  // k-14 di NexoraOS (26/11): fermo apposta, svegliato ogni 7 minuti e segnato fra gli errori.
+  '4g. Se Nicholas ti ha detto di restare fermo senza un orario e nello stato non c’è PAUSA, dichiaralo con in_pausa citando le sue parole esatte: il programma smette di svegliarti finché lui non ti riscrive. Quando ti dice di riprendere la pausa si toglie da sola.',
+  '5.Uno specialista bloccato: se la risposta sta nel codice, nel quaderno o in quello che Nicholas ha già detto, decidi tu e rilancia. A Nicholas, con chiedi_utente, solo quello che è suo, con 2-4 scelte e la consigliata per prima.',
   // 11/11: 15 Write/Edit rifiutati in quattro giorni verso la memoria di Claude (`.claude/projects/…/memory`).
   '6. Quello che conviene ricordare per i lavori futuri va nel quaderno con quaderno_annota, una riga. Le righe LEZIONI: dei riepiloghi le annota già il programma. Non scrivere nella memoria di Claude (i file MEMORY.md e simili sotto la cartella .claude): tu non modifichi file, e il programma lo rifiuta; la tua memoria è il quaderno.',
   '',

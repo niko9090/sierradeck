@@ -533,7 +533,7 @@ export function rigaUnioneInCorso(v: Pick<VistaOrchestratore, 'inCorso'>): strin
   return [fa, fila, scadute].filter((s) => s !== '').join(', ')
 }
 
-export function fraseStatoOrchestratore(v: Pick<VistaOrchestratore, 'pensa' | 'specialisti' | 'piano' | 'richieste' | 'domandeAperte' | 'vivo' | 'sveglia' | 'inCorso'>, ora: number = Date.now()): { testo: string; tono: 'lavora' | 'aspetta' | 'fermo' | 'riposo' | 'attesa' } {
+export function fraseStatoOrchestratore(v: Pick<VistaOrchestratore, 'pensa' | 'specialisti' | 'piano' | 'richieste' | 'domandeAperte' | 'vivo' | 'sveglia' | 'inCorso'> & Partial<Pick<VistaOrchestratore, 'pausa'>>, ora: number = Date.now()): { testo: string; tono: 'lavora' | 'aspetta' | 'fermo' | 'riposo' | 'attesa' } {
   const alLavoro = v.specialisti.filter((c) => c.stato === 'lavoro' || c.stato === 'avviato')
   const domande = v.domandeAperte ?? 0
   const aperte = v.richieste?.aperte ?? 0
@@ -550,6 +550,8 @@ export function fraseStatoOrchestratore(v: Pick<VistaOrchestratore, 'pensa' | 's
   if (domande > 0) return { testo: `Fermo: aspetta ${domande === 1 ? 'una tua risposta' : `${domande} tue risposte`} (nelle Domande)`, tono: 'aspetta' }
   // 0.102.1: una pausa chiesta da Nicholas (la sveglia) non è un fermo.
   if (v.sveglia !== undefined && Date.parse(v.sveglia.il) > ora) return { testo: `In pausa: riprende ${quandoSveglia(v.sveglia.il, ora)}, come gli hai chiesto`, tono: 'riposo' }
+  // k-14 di NexoraOS (26/11): fermo perché Nicholas l'ha chiesto: non è un blocco, e chi aspetta quel lavoro non è «fermo».
+  if (v.pausa !== undefined) return { testo: `In pausa, come gli hai chiesto («${v.pausa.frase.slice(0, 40)}»): riparte quando gli scrivi`, tono: 'riposo' }
   const daFare = v.piano.totale - v.piano.uniti
   // 12/11: unioni in fila che ripartono da sole: il lavoro va avanti, non è un fermo.
   if (unione !== undefined) return { testo: `In attesa: ${unione}, ripartono da sole`, tono: 'attesa' }

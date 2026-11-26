@@ -125,6 +125,8 @@ export type AmbienteOrchestratore = {
   chiudiCompito?: (ws: string, id: string, come: string, perche: string) => EsitoAmbiente
   /** 11/11: salva una sveglia sul disco (`quando` in ISO); con `quando` assente toglie quelle in attesa. */
   sveglia?: (ws: string, quando: string | undefined, perche: string) => EsitoAmbiente
+  /** k-14 di NexoraOS (26/11): l'autopilota dichiara la pausa chiesta da Nicholas (`frase` le sue parole); con `frase` assente la toglie. */
+  pausa?: (ws: string, frase: string | undefined, perche: string) => EsitoAmbiente
   /** Una richiesta di permesso della CLI: la decide il programma, subito (11/11: mai una domanda a Nicholas). */
   permesso: (ws: string, strumento: string, input: unknown) => Promise<{ consenti: boolean; motivo?: string }>
   /** 11/11: fa aprire al programma la domanda a Nicholas per un'azione protetta (`permessi-nicholas.ts`). Il testo lo scrive il programma. */
@@ -329,6 +331,21 @@ export const STRUMENTI_ORCHESTRATORE: readonly StrumentoMcp[] = [
         alle: { type: 'string', description: 'In alternativa: «HH:MM» di oggi (o di domani, se è già passata), o una data e ora ISO.' },
         perche: { type: 'string', description: 'Cosa devi fare quando suona, in una riga.' },
         annulla: { type: 'boolean', description: 'Facoltativo: true per togliere tutte le sveglie in attesa (serve comunque il perché).' }
+      },
+      required: ['perche']
+    }
+  },
+  {
+    // k-14 di NexoraOS (26/11): fermo apposta da giorni, svegliato ogni 7 minuti e finito fra gli errori dopo 3 spinte.
+    name: 'in_pausa',
+    title: 'Sei in pausa perché Nicholas te l’ha chiesto',
+    description: 'Quando Nicholas ti ha detto di restare fermo («Resta fermo», «non lanciare niente finché non ti dico riprendi») e il programma non lo sa (nello stato non c’è PAUSA), dichiaralo qui citando le sue parole esatte: il programma controlla che le abbia scritte lui e che dopo non abbia detto di riprendere, poi smette di svegliarti, di spingerti e di segnalarlo come errore. La pausa la toglie da solo il prossimo messaggio di Nicholas. Non usarlo per un’attesa con un orario (quella è sveglia) né per un compito che aspetta un altro. Con «riprendi» la togli tu.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        frase_di_nicholas: { type: 'string', description: 'Le parole esatte di Nicholas che ti hanno messo in pausa (un suo messaggio o la sua risposta a una tua domanda).' },
+        perche: { type: 'string', description: 'Cosa resta fermo, in una riga che Nicholas legge (per esempio «la ricostruzione k-14, che accende WSL»).' },
+        riprendi: { type: 'boolean', description: 'Facoltativo: true per togliere la pausa (Nicholas ti ha detto di riprendere).' }
       },
       required: ['perche']
     }
@@ -589,6 +606,17 @@ export async function chiamaStrumento(amb: AmbienteOrchestratore, ws: string, no
       const quando = quandoSveglia(arg.tra_minuti, arg.alle, Date.parse(amb.adesso()))
       if (typeof quando === 'string') return no(quando)
       const e = amb.sveglia(ws, new Date(quando).toISOString(), perche)
+      return e.ok ? si(e.testo) : no(e.motivo)
+    }
+
+    case 'in_pausa': {
+      const perche = str(arg.perche).replace(/\s+/gu, ' ').slice(0, 300)
+      if (perche === '') return no('serve il perché: cosa resta fermo, in una riga che Nicholas legge')
+      if (amb.pausa === undefined) return no('la pausa dichiarata non è disponibile')
+      if (arg.riprendi === true) { const e = amb.pausa(ws, undefined, perche); return e.ok ? si(e.testo) : no(e.motivo) }
+      const frase = str(arg.frase_di_nicholas)
+      if (frase === '') return no('cita le parole esatte di Nicholas che ti hanno messo in pausa (frase_di_nicholas)')
+      const e = amb.pausa(ws, frase, perche)
       return e.ok ? si(e.testo) : no(e.motivo)
     }
 
