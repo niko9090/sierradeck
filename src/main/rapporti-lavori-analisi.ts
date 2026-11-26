@@ -53,6 +53,7 @@ export function sommaDi(a: Somma, b: LavoriWorkspace): void {
   unisciConti(u.motivi, v.motivi)
   u.nonPartite += num(v.nonPartite)
   for (const [m, n] of Object.entries(v.motiviNonPartite ?? {})) (u.motiviNonPartite ??= {})[m] = (u.motiviNonPartite[m] ?? 0) + num(n)
+  for (const [m, n] of Object.entries(v.tenutoDa ?? {})) (u.tenutoDa ??= {})[m] = (u.tenutoDa[m] ?? 0) + num(n)
   const c = a.criteri, d: Partial<Somma['criteri']> = b.criteri ?? {}
   c.finiti += num(d.finiti); c.riusciti += num(d.riusciti); c.rossi += num(d.rossi); c.nonMisurati += num(d.nonMisurati); c.durataMs += num(d.durataMs); c.scaduti += num(d.scaduti); c.inAttesa += num(d.inAttesa)
   c.durataMaxMs = Math.max(c.durataMaxMs, num(d.durataMaxMs))
@@ -144,6 +145,7 @@ function righeWorkspace(s: Somma): string[] {
     const lenta = unioniLente(u)
     r.push(`- unioni: ${u.prove} prove${lenta ? ' — **LENTE**' : ''} · attesa del turno media ${sec(media(u.attesaMs, u.prove))}, massima ${sec(u.attesaMaxMs)} · prova media ${sec(media(u.provaMs, u.prove))}, massima ${sec(u.provaMaxMs)} · scadute ${u.scadute}`)
   }
+  if (u.tenutoDa !== undefined && Object.keys(u.tenutoDa).length > 0) r.push(`- unioni: chi teneva la cartella quando hanno aspettato il turno: ${elenco(u.tenutoDa)}`)
   if (u.nonPartite > 0) {
     const mp = u.motiviNonPartite ?? {}
     r.push(`- unioni: ${u.nonPartite} non partite${Object.keys(mp).length > 0 ? ` (${elenco(mp)})` : ''}: non sono prove, non contano nelle medie`)

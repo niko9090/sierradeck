@@ -103,3 +103,24 @@ describe('haIntoppi', () => {
     expect(haIntoppi({} as unknown as LavoriWorkspace)).toBe(false)
   })
 })
+
+describe('k-353b: chi teneva la cartella quando l’unione ha aspettato il turno', () => {
+  it('la riga con «teneva la cartella» si conta; la riga vecchia senza il campo resta leggibile', () => {
+    const c = contaLavori([
+      riga('10:00:00', '[unione di prova] [ws: BG4] ramo-1: attesa del turno 540 s (teneva la cartella: comando di una chat: npm run pubblica), prova 40 s'),
+      riga('10:01:00', '[unione di prova] [ws: BG4] ramo-2: attesa del turno 3 s (teneva la cartella: niente), prova 20 s (scaduta mentre stava per misurare i criteri)'),
+      riga('10:02:00', '[unione di prova] [ws: BG4] ramo-3: attesa del turno 2 s, prova 10 s')
+    ])
+    const u = c.workspace['BG4']!.unioni
+    expect(u.prove).toBe(3)
+    expect(u.attesaMs).toBe(545_000)
+    expect(u.provaMs).toBe(70_000)
+    expect(u.scadute).toBe(1)
+    expect(u.tenutoDa).toEqual({ 'comando di una chat: npm run pubblica': 1, niente: 1 })
+  })
+
+  it('una riga vecchia non crea il campo', () => {
+    const c = contaLavori([riga('10:00:00', '[unione di prova] [ws: BG4] ramo-3: attesa del turno 2 s, prova 10 s')])
+    expect(c.workspace['BG4']!.unioni.tenutoDa).toBeUndefined()
+  })
+})

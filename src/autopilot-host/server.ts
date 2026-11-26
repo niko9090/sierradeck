@@ -35,7 +35,7 @@ import { conScadenza, PROVA_MAX_MS, PROVE_RICORDATE, scadenzaAdattiva } from './
 import { improntaCodiceAsincrona, misuraCriteri, type MemoriaCriteri } from './criteri-veloci'
 import { motivoProveRotte, peggioratiDelRamo, preparaCopia, radiceDellaCopia } from './ambiente-copia'
 import { criteriPerLaProva, senzaSolaVersione, soloVersione } from './criteri-prova'
-import { attesaDellaProva, TURNI_PC, TurnoScaduto, turniSenzaFila, type TurniCriteri } from './turni-criteri'
+import { attesaDellaProva, chiTieneLaCartella, TURNI_PC, TurnoScaduto, turniSenzaFila, type TurniCriteri } from './turni-criteri'
 import { giudicaPesanteAspettando, idAgente, rendiTurnoDopoComando, type GuardiaPc } from './guardia-pc'
 import { giudicaRuolo, giudicaStrumento, rispostaPreTool } from './divieti'
 import { creaConsensi, DURATA_CONSENSO_MS } from './consenso-cancellazione'
@@ -929,7 +929,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // 06/11: la prova ha un tempo massimo. Scaduto, si chiude (la cartella si ripulisce da sola)
     // e l'unione si rimette in fila: mai appesa, mai un riavvio del servizio per sbloccarla.
     // 23/11: `nonPartita` = il motivo breve per cui la prova non è nemmeno partita (cartella con file non salvati…): il registro lo dice, e non scrive «prova 0 s».
-    const stato: { scaduta: boolean; punto: string; partita: boolean; nonPartita?: string } = { scaduta: false, punto: 'unire il ramo', partita: false }
+    const stato: { scaduta: boolean; punto: string; partita: boolean; nonPartita?: string; tenuto?: string } = { scaduta: false, punto: 'unire il ramo', partita: false }
     // 23/11: il motivo dice in che punto è scaduta (prima solo «prova scaduta»): l'autopilota e Nicholas vedono cosa è lento.
     const provaScaduta = (): string => `prova scaduta mentre stava per ${stato.punto}`
     const corpo = async (segnale: AbortSignal, iniziata: () => void, inFila: <R>(fai: () => Promise<R>) => Promise<R>): Promise<EsitoProvaPrincipale> => {
@@ -940,6 +940,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       const PER_TEMPO = 'una misura è scaduta per tempo (PC carico), non è colpa del ramo'
       const unisci = async (): Promise<EsitoProvaPrincipale | undefined> => {
         const registro = (riga: string): void => console.info(`[unione di prova] ${segnoDiLog(chiaveWorkspace(a))}${ramo}: ${riga}`)
+        // k-353b: chi teneva la cartella quando l'unione si è messa in attesa del turno (si guarda una volta, alla prima richiesta).
+        stato.tenuto ??= chiTieneLaCartella(turni)
         const inizio = await turni.unione(a.cwd, (segnale) => iniziaProvaAsincrono(gitFermabile(git, segnale), { cwd: a.cwd, ramo, base, alRecupero, registro, ...(altri.length > 0 ? { altri } : {}) }), tempo)
         if (inizio.ok) return undefined
         // Cartella con file di Nicholas a metà: non si tocca, l'unione aspetta il suo turno.
@@ -1008,7 +1010,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           // 23/11: una prova che non è partita non è una prova: riga a parte (il rapporto la conta come «non partita», non nelle medie).
           if (!t.scaduta && stato.nonPartita !== undefined) { console.info(`[unione di prova] ${segnoDiLog(chiaveWorkspace(a))}${ramo}: non partita (${stato.nonPartita})`); return }
           if (!t.scaduta && t.esecuzioneMs > 0) proveRecenti.set(chiaveWorkspace(a), [...(proveRecenti.get(chiaveWorkspace(a)) ?? []), t.esecuzioneMs].slice(-PROVE_RICORDATE))
-          console.info(`[unione di prova] ${segnoDiLog(chiaveWorkspace(a))}${ramo}: attesa del turno ${Math.round(t.attesaMs / 1000)} s, prova ${Math.round(t.esecuzioneMs / 1000)} s${t.scaduta ? ` (scaduta mentre stava per ${stato.punto})` : ''}`) },
+          console.info(`[unione di prova] ${segnoDiLog(chiaveWorkspace(a))}${ramo}: attesa del turno ${Math.round(t.attesaMs / 1000)} s${stato.tenuto !== undefined ? ` (teneva la cartella: ${stato.tenuto})` : ''}, prova ${Math.round(t.esecuzioneMs / 1000)} s${t.scaduta ? ` (scaduta mentre stava per ${stato.punto})` : ''}`) },
         ...(tempo.segnale !== undefined ? { segnale: tempo.segnale } : {}) }
       )
       if (!r.scaduta && r.valore !== 'scaduta') return r.valore

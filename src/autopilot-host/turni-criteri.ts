@@ -44,11 +44,11 @@ export type TurniCriteri = {
    * il turno scade da solo, o lo rende `rilascia`), oppure la risposta dice
    * più o meno quanto manca. Chi tiene già il turno lo rinnova.
    */
-  prenota: (chi: string, cwd: string, durataMs: number, inSottofondo?: boolean) =>{ ok: true } | { ok: false; attesaMs: number; occupato: string }
+  prenota: (chi: string, cwd: string, durataMs: number, inSottofondo?: boolean, cosa?: string) =>{ ok: true } | { ok: false; attesaMs: number; occupato: string }
   /** Rende il turno preso con `prenota`, se è ancora di `chi`. */
   rilascia: (chi: string) => void
-  /** Chi tiene il turno preso con `prenota`, da quando e fino a quando (ms). */
-  prenotato: () => { chi: string; dal: number; fino: number; inSottofondo: boolean } | undefined
+  /** Chi tiene il turno preso con `prenota`, da quando e fino a quando (ms); `cosa`: il comando, in breve. */
+  prenotato: () => { chi: string; dal: number; fino: number; inSottofondo: boolean; cosa?: string } | undefined
   /** Per il registro e le prove: chi gira adesso e quanti aspettano. */
   stato: () => { inCorso: string | undefined; inFila: number; unioni: number }
   /** 24/11: il codice che gira ha già il turno pesante (una misura di prova): un pesante non aspetta nessuno. */
@@ -115,7 +115,7 @@ export function creaTurni(opz: { ora?: () => number; unioneMaxMs?: number; liber
   const dentro = new AsyncLocalStorage<object>()
   const chiaveTurni = {}
   /** Il turno di una chat (`prenota`): chi lo tiene, fino a quando, e il timer che lo rende. */
-  let prenotazione: { chi: string; dal: number; fino: number; inSottofondo: boolean; timer?: ReturnType<typeof setTimeout> } | undefined
+  let prenotazione: { chi: string; dal: number; fino: number; inSottofondo: boolean; cosa?: string; timer?: ReturnType<typeof setTimeout> } | undefined
   /** Quando è partito il pesante del servizio che gira adesso. */
   let partitoIl = 0
   const fila: { n: number; dove: string }[] = []
@@ -252,10 +252,10 @@ export function creaTurni(opz: { ora?: () => number; unioneMaxMs?: number; liber
         } else chiudi()
       }
     },
-    prenota(chi, cwd, durataMs, inSottofondo = false) {
+    prenota(chi, cwd, durataMs, inSottofondo = false, cosa) {
       const dove = normale(cwd)
       const t = ora()
-      if (prenotazione !== undefined && prenotazione.fino <= t) libera(prenotazione.chi)
+      if (prenotazione !== undefined && prenotazione.fino <= t) libera(prenotazione.chi, true)
       // Chi lo tiene già (la stessa chat, il comando dopo) lo rinnova, ma non
       // con dei criteri in fila (0.86.1): rinnovo dopo rinnovo, una chat che
       // lancia una suite dopo l'altra li lasciava aspettare per sempre.
@@ -263,9 +263,9 @@ export function creaTurni(opz: { ora?: () => number; unioneMaxMs?: number; liber
       if ((mio && fila.length === 0) || (inCorso === undefined && fila.length === 0 && (unioni.get(dove) ?? 0) === 0)) {
         if (prenotazione?.timer !== undefined) clearTimeout(prenotazione.timer)
         inCorso = dove
-        const p: NonNullable<typeof prenotazione> = { chi, dal: t, fino: t + durataMs, inSottofondo }
-        // Il comando gira fuori dal servizio: il turno scade da solo.
-        p.timer = setTimeout(() => { libera(chi) }, Math.max(0, durataMs))
+        const p: NonNullable<typeof prenotazione> = { chi, dal: t, fino: t + durataMs, inSottofondo, ...(cosa !== undefined && cosa !== '' ? { cosa } : {}) }
+        // Il comando gira fuori dal servizio: il turno scade da solo (salvagente: la fine vera è il PostToolUse).
+        p.timer = setTimeout(() => { libera(chi, true) }, Math.max(0, durataMs))
         p.timer.unref?.()
         prenotazione = p
         return { ok: true }
@@ -285,18 +285,39 @@ export function creaTurni(opz: { ora?: () => number; unioneMaxMs?: number; liber
       }
     },
     rilascia(chi) { libera(chi) },
-    prenotato: () => (prenotazione !== undefined ? { chi: prenotazione.chi, dal: prenotazione.dal, fino: prenotazione.fino, inSottofondo: prenotazione.inSottofondo } : undefined),
+    prenotato: () => (prenotazione !== undefined ? { chi: prenotazione.chi, dal: prenotazione.dal, fino: prenotazione.fino, inSottofondo: prenotazione.inSottofondo, ...(prenotazione.cosa !== undefined ? { cosa: prenotazione.cosa } : {}) } : undefined),
     stato: () => ({ inCorso, inFila: fila.length, unioni: [...unioni.values()].reduce((s, n) => s + n, 0) }),
     giaDentro: () => dentro.getStore() === chiaveTurni
   }
 
-  function libera(chi: string): void {
+  /** `perScadenza`: lo rende il timer (o il tempo passato), non il PostToolUse: si scrive nel registro, il comando può girare ancora. */
+  function libera(chi: string, perScadenza = false): void {
     if (prenotazione === undefined || prenotazione.chi !== chi) return
+    if (perScadenza) {
+      const cosa = prenotazione.cosa !== undefined ? `, comando «${prenotazione.cosa}»` : ''
+      try { registra(`[turni] il turno è scaduto mentre il comando gira ancora: chat ${chi}${cosa}; la fine (PostToolUse) non è arrivata, il turno si rende`) } catch { /* il registro non ferma la fila */ }
+    }
     if (prenotazione.timer !== undefined) clearTimeout(prenotazione.timer)
     prenotazione = undefined
     inCorso = undefined
     sveglia()
   }
+}
+
+/**
+ * k-353b: chi tiene il turno adesso, in poche parole per il registro (senza `)` né a capo: il rapporto dei lavori lo rilegge):
+ * un comando di una chat (quale), un criterio del servizio, un'altra unione, o niente.
+ */
+export function chiTieneLaCartella(turni: TurniCriteri): string {
+  const p = turni.prenotato()
+  if (p !== undefined) {
+    const cosa = (p.cosa ?? '').replace(/[()\r\n]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60)
+    return cosa === '' ? 'comando di una chat' : `comando di una chat: ${cosa}`
+  }
+  const s = turni.stato()
+  if (s.inCorso !== undefined) return 'un criterio del servizio'
+  if (s.unioni > 0) return 'un’altra unione'
+  return 'niente'
 }
 
 /** Quanti processi di test si concedono a una suite dei criteri. */
