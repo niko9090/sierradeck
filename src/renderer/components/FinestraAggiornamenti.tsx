@@ -273,7 +273,7 @@ export function Stato({ agg, scaricaAuto, fallito, onNascondiFallito, azioni, ma
           </Aiuto>
         </p>
       ) : null}
-      {agg.fase === 'installo' ? <p>{marchio.nome} si chiude e riparte da solo con la {v}: non serve fare niente.</p> : null}
+      {agg.fase === 'installo' ? <p>{agg.avviso !== undefined ? <><b>{agg.avviso}</b>{' '}</> : null}{marchio.nome} si chiude e riparte da solo con la {v}: non serve fare niente.</p> : null}
       {(agg.fase === 'attendo' || agg.fase === 'installo') && agg.fasiTesto !== undefined && agg.fasiTesto !== '' ? <p className="fnov__piccolo">{agg.fasiTesto}.</p> : null}
     </section>
   )
