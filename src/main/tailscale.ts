@@ -27,16 +27,41 @@ function statoTailscale(): Promise<unknown> {
   const exe = process.platform === 'win32' ? eseguibile() : 'tailscale'
   if (exe === undefined) return Promise.resolve(undefined)
   return new Promise((risolvi) => {
-    execFile(exe, ['status', '--json'], { timeout: 3000, windowsHide: true, maxBuffer: 4 * 1024 * 1024 }, (err, out) => {
-      let stato: unknown
-      try { stato = err === null ? JSON.parse(out) : undefined } catch { stato = undefined }
-      memoria = { quando: Date.now(), stato }
-      risolvi(stato)
-    })
+    try {
+      execFile(exe, ['status', '--json'], { timeout: 3000, windowsHide: true, maxBuffer: 4 * 1024 * 1024 }, (err, out) => {
+        let stato: unknown
+        try { stato = err === null ? JSON.parse(out) : undefined } catch { stato = undefined }
+        memoria = { quando: Date.now(), stato }
+        risolvi(stato)
+      })
+    } catch {
+      memoria = { quando: Date.now(), stato: undefined }
+      risolvi(undefined)
+    }
   })
 }
 
 /** `noti`: gli indirizzi del battito di quel PC, per riconoscerlo anche se su Tailscale ha un altro nome (0.57.1). */
 export async function indirizziTailscale(nomePc: string, noti: string[] = []): Promise<string[]> {
   return indirizziTailscaleDi(await statoTailscale(), nomePc, noti).indirizzi
+}
+
+/**
+ * 26/11: quel PC è in linea su Tailscale? Nicholas: «nei PC mi dice che gli
+ * altri sono spenti», e il portatile era acceso (Tailscale: «active; direct»)
+ * con SierraDeck chiuso. Si riconosce dagli indirizzi del suo battito o dai
+ * suoi nomi (hostname, nome scelto), mai da nomi scritti qui. `undefined`:
+ * Tailscale non c'è, non risponde, o quel PC non è nella sua rete. Non lancia mai.
+ */
+export async function inLineaSuTailscale(nomi: readonly (string | undefined)[], noti: string[] = []): Promise<boolean | undefined> {
+  try {
+    const stato = await statoTailscale()
+    if (stato === undefined) return undefined
+    const candidati = [...nomi.filter((n): n is string => typeof n === 'string' && n.trim() !== ''), '']
+    for (const n of candidati) {
+      const r = indirizziTailscaleDi(stato, n, noti)
+      if (r.online !== undefined) return r.online
+    }
+    return undefined
+  } catch { return undefined }
 }

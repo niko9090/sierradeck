@@ -213,7 +213,7 @@ import { scriviAtomico } from '@shared/scrittura-atomica'
 import type { Apertura } from '@shared/apertura-chat'
 import { rispondiDaDove } from './da-dove'
 import { avvisoDriveScollegato, indirizzoUtile, scollegamentoDalRegistro, type AvvisoDrive, type StatoPc } from '@shared/scoperta-pc'
-import { indirizziTailscale } from './tailscale'
+import { indirizziTailscale, inLineaSuTailscale } from './tailscale'
 import {
   elencoPlugin, installaPlugin, aggiornaPlugin, disinstallaPlugin, commutaPlugin,
   elencoMarketplace, aggiungiMarketplace, rimuoviMarketplace, aggiornaMarketplace, dettagliPlugin
@@ -716,6 +716,8 @@ let guardianoPin: GuardianoPin | undefined
 /** Il controllo di tutti i PC (0.88.9): gli altri PC e la salute di ognuno, chiesta là. */
 let altriPcGlobale: (() => Promise<Array<{ pcId: string; nome: string; battito?: string; soloAiutante?: boolean }>>) | undefined
 let saluteAltroPcGlobale: ((pcId: string) => Promise<import('@shared/salute').Salute>) | undefined
+/** 26/11: quel PC è in linea su Tailscale (dai suoi indirizzi e nomi del battito)? `undefined` = non si sa. */
+let tailscaleOnlineGlobale: ((pcId: string) => Promise<boolean | undefined>) | undefined
 let registroAltroPcGlobale: ((pcNome: string, ws: string) => Promise<import('@shared/registro-workspace').RegistroWorkspaceVisto | undefined>) | undefined
 let ponteVersoPc: ((pc: string, percorso: string, corpo?: Record<string, unknown>, dispositivo?: string, richiesta?: string) => Promise<{ stato: number; corpo: unknown }>) | undefined
 /** Gli autopiloti degli altri PC della stessa chiave di casa (0.59.0). */
@@ -2395,8 +2397,17 @@ if (!app.requestSingleInstanceLock()) {
         const nome = postino.altrui().find((b) => b.pcId === pcId)?.nome ?? pcId
         registro.info(`[remoto] ${nome} si è collegato a questo PC da ${ind}: lo ricordo, è un indirizzo a cui bussare anche da qui`)
       }
+      // 26/11: Tailscale dice se un PC muto è acceso (SierraDeck là chiuso) o no: si riconosce dal suo battito.
+      const tailscaleOnline = (pcId: string): Promise<boolean | undefined> => {
+        const b = postino.altrui().find((x) => x.pcId === pcId)
+        return b === undefined ? Promise.resolve(undefined) : inLineaSuTailscale([b.host, b.nome], b.indirizzi ?? [])
+      }
+      tailscaleOnlineGlobale = tailscaleOnline
       const remoto = creaClientPcRemoto({
         battiti: () => postino.altrui(),
+        tailscaleOnline: (pcId) => tailscaleOnline(pcId),
+        // 26/11: appena partiti (o con la cassaforte di qui chiusa) una risposta senza la prova di casa non è un verdetto.
+        calmaAllAvvio: { avvioIl: Date.now() - Math.round(process.uptime() * 1000) },
         chiavePer: (pcId) => sincronia.chiaveDiCasa(`client-pc:${pcId}`),
         mioNome: () => identitaPc.leggi().nome,
         // Mai bussare a sé stessi (30/10): un battito può portare un indirizzo
@@ -4435,6 +4446,7 @@ if (!app.requestSingleInstanceLock()) {
               accessoQui: () => accessoClaudeQui(),
               saluteQui: () => leggiSalute(),
               saluteDi: (pc) => saluteDi(pc),
+              ...(tailscaleOnlineGlobale !== undefined ? { tailscaleOnline: tailscaleOnlineGlobale } : {}),
               autopiloti: () => autopilotiAltri?.() ?? Promise.resolve([]),
               autopilotiQui: async () => (await clientAutopilota.elenca()).filter((a) => a.archiviato !== true).map((a) => ({ id: a.id, nome: a.nome, stato: a.stato, obiettivo: a.obiettivo, ...(a.motivoSospensione !== undefined ? { motivo: a.motivoSospensione } : {}) })),
               affida: (p) => affidaSierraDeck(p),

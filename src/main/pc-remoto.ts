@@ -2,7 +2,7 @@ import { pcVivo, type BattitoPc } from '@shared/posta'
 import { aggiornamentoInCorsoDi } from '@shared/aggiornamento-remoto'
 import { vistoDelPc } from '@shared/stato-pc'
 import { descriviIndirizzo, PORTA_CLIENT_PREDEFINITA } from '@shared/pc-remoto'
-import { indirizziDaProvare, messaggioErroreRemoto, motivoDaStatoHttp, titoloDopoIlBussare, testoProva, type PingPc, type ProvaIndirizzo, type StatoPc } from '@shared/scoperta-pc'
+import { decidiEstraneo, indirizziDaProvare, messaggioErroreRemoto, RIPROVA_ESTRANEO_MS, motivoDaStatoHttp, titoloDopoIlBussare, testoProva, type PingPc, type ProvaIndirizzo, type StatoPc } from '@shared/scoperta-pc'
 import { improntaPc } from './casa-firma'
 import { indirizzoPreferito, stradaDiIndirizzo, type InfoStrada, type Strada } from '@shared/strada-pc'
 import { GIU_DOPO_MS } from '@shared/collegamento'
@@ -144,6 +144,19 @@ export type DipendenzeRemoto = {
    * la versione che quel PC sta installando, o `undefined`. Vale come «in aggiornamento» per quel PC.
    */
   aggiornandoDa?: (pcId: string) => { versione: string } | undefined
+  /**
+   * 26/11: quel PC è in linea su Tailscale? Si chiede solo quando nessun suo
+   * indirizzo va bene. `true` cambia «non so se è acceso» in «acceso, ma
+   * SierraDeck non risponde». Non deve lanciare (se lancia, vale `undefined`).
+   */
+  tailscaleOnline?: (pcId: string, nome: string) => Promise<boolean | undefined>
+  /**
+   * 26/11: calma all'avvio. Una risposta senza la prova di casa non diventa
+   * subito «gli indirizzi sono di altri» (`decidiEstraneo`): si riprova in
+   * silenzio ogni `riprovaMs`. `avvioIl`: quando è partito il programma.
+   * Senza, il verdetto è subito (come prima).
+   */
+  calmaAllAvvio?: { avvioIl: number; riprovaMs?: number }
 }
 
 const ATTESA_PREDEFINITA_MS = 4000
@@ -213,6 +226,12 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
   /** La strada che ha funzionato l'ultima volta, per PC (0.40.0). */
   const strade = new Map<string, InfoStrada>()
   const ultimoBussaIl = new Map<string, number>()
+  /** 26/11: da quando, e quante volte di fila, quel PC risponde senza la prova di casa. */
+  const dubbi = new Map<string, { primoIl: number; volte: number }>()
+  /** 26/11: i PC con un nuovo bussare in silenzio già in programma. */
+  const riprovaInProgramma = new Set<string>()
+  /** 26/11: l'ultimo «in linea su Tailscale?» di ogni PC, quando nessun indirizzo andava bene. */
+  const tailscaleVisto = new Map<string, boolean>()
   const segnaStrada = (pcId: string, nome: string, strada: Strada, indirizzo?: string): void => {
     const prima = strade.get(pcId)
     if (prima?.strada === strada && prima.indirizzo === indirizzo) return
@@ -347,8 +366,27 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
       return { ind, stato: vecchio, ...((vecchio >= 200 && vecchio < 300) || vecchio === 404 ? { modo: 'chiave' as const } : {}) }
     }))
     ultimoBussaIl.set(pcId, adesso())
+    // 26/11: una risposta senza la prova di casa che non dice chi è (o la stessa identità, senza la chiave di qui
+    // per controllarla) è dubbia: appena partiti, o con la cassaforte di qui chiusa, non è un verdetto.
+    const dubbia = (x: Risposta): boolean => x.estraneo === true && (x.chi === undefined || (x.chi === 'stessa-identita' && chiave === undefined))
+    const nessunaBuona = !risposte.some((x) => x.modo !== undefined)
+    let attesa: ReturnType<typeof decidiEstraneo> | undefined
+    if (deps.calmaAllAvvio !== undefined && nessunaBuona && risposte.some(dubbia) && !risposte.some((x) => x.stato === 403 || x.chi === 'altro-pc-noto' || x.chi === 'altro-sierradeck')) {
+      const prima = dubbi.get(pcId)
+      const d = { primoIl: prima?.primoIl ?? adesso(), volte: (prima?.volte ?? 0) + 1 }
+      dubbi.set(pcId, d)
+      attesa = decidiEstraneo({ adesso: adesso(), avvioIl: deps.calmaAllAvvio.avvioIl, chiavePronta: chiave !== undefined, primoIl: d.primoIl, volte: d.volte })
+      // Un nuovo bussare fra poco, in silenzio; non oltre dieci minuti di dubbi (la cassaforte di qui può restare chiusa).
+      if (attesa !== 'verdetto' && !riprovaInProgramma.has(pcId) && adesso() - d.primoIl < 10 * 60_000) {
+        riprovaInProgramma.add(pcId)
+        const t = setTimeout(() => { riprovaInProgramma.delete(pcId); void bussa(pcId, nome).catch(() => undefined) }, deps.calmaAllAvvio.riprovaMs ?? RIPROVA_ESTRANEO_MS)
+        ;(t as { unref?: () => void }).unref?.()
+      }
+    } else if (!nessunaBuona) dubbi.delete(pcId)
+    const aspetto = attesa !== undefined && attesa !== 'verdetto'
     for (const x of risposte) {
       if (x.chi === 'altro-pc-noto' || x.chi === 'altro-sierradeck') deps.dimentica?.(pcId, x.ind)
+      if (aspetto && dubbia(x)) continue
       if (x.estraneo === true && !estraneiDetti.has(`${pcId}|${x.ind}`)) {
         estraneiDetti.add(`${pcId}|${x.ind}`)
         log(`[remoto] ${descriviIndirizzo(x.ind)} risponde ma non prova la chiave di casa di ${nome || pcId}${x.dettaglio !== undefined ? ` (${x.dettaglio})` : ''}: non gli mando niente (non è quel PC, è di un'altra cassaforte, o è un ${nome || 'PC'} prima della 0.47 a un indirizzo che non è nel suo battito)`)
@@ -368,7 +406,8 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
     // Quel PC dice da sé che il suo Client non è in ascolto (0.58.1): lo si mette davanti.
     const client = (b as { client?: { inAscolto?: unknown; errore?: unknown } } | undefined)?.client
     const nonAscolta = client?.inAscolto === false ? `${nome || pcId} dice che il suo SierraDeck non è in ascolto sulla porta ${porta}${typeof client.errore === 'string' ? ` (${client.errore})` : ''}. ` : ''
-    if (buona === undefined) racconta(`${pcId}#bussa`, `${nonAscolta}${nome || pcId}: bussato a ${indirizzi.length} indirizzi, nessuno va bene — ${prove.map(testoProva).join('; ')}`)
+    if (buona === undefined && aspetto) racconta(`${pcId}#bussa`, `${nome || pcId}: risponde senza la prova di casa (${attesa === 'cassaforte-qui' ? 'la cassaforte di qui è ancora chiusa' : attesa === 'avvio' ? 'questo PC è appena partito' : 'non ancora abbastanza prove'}): non è un verdetto, riprovo da solo`)
+    else if (buona === undefined) racconta(`${pcId}#bussa`, `${nonAscolta}${nome || pcId}: bussato a ${indirizzi.length} indirizzi, nessuno va bene — ${prove.map(testoProva).join('; ')}`)
     let p: PingPc
     if (buona !== undefined) {
       const modo = buone.find((x) => x.ind === buona)?.modo
@@ -385,11 +424,20 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
       const chiaveNo = risposte.find((x) => x.stato === 401 && (x.estraneo !== true || x.chi === 'stessa-identita'))
       const rifiuto = risposte.find((x) => x.stato === 403)
       const altro = risposte.find((x) => x.stato === 401 && x.estraneo === true)
-      p = chiaveNo !== undefined ? { esito: 'chiave', indirizzo: chiaveNo.ind, prove }
+      const chiaveDubbia = chiaveNo !== undefined && dubbia(chiaveNo)
+      p = aspetto && attesa !== undefined && attesa !== 'verdetto' && (chiaveNo === undefined || chiaveDubbia) && rifiuto === undefined
+        ? { esito: 'muto', provati: indirizzi.map(descriviIndirizzo), prove, inVerifica: attesa }
+        : chiaveNo !== undefined ? { esito: 'chiave', indirizzo: chiaveNo.ind, prove }
         : rifiuto !== undefined ? { esito: 'rifiutato', indirizzo: rifiuto.ind, prove }
         : altro !== undefined ? { esito: 'altro', indirizzo: altro.ind, prove }
         : { esito: 'muto', provati: indirizzi.map(descriviIndirizzo), prove }
     }
+    // 26/11: nessun indirizzo risponde: Tailscale lo vede in linea? (acceso, ma SierraDeck là è muto)
+    if (p.esito === 'muto' && p.inVerifica === undefined && deps.tailscaleOnline !== undefined) {
+      const ts = await deps.tailscaleOnline(pcId, nome).catch(() => undefined)
+      if (ts === undefined) tailscaleVisto.delete(pcId)
+      else tailscaleVisto.set(pcId, ts)
+    } else tailscaleVisto.delete(pcId)
     ultimiPing.set(pcId, p)
     return p
   }
@@ -411,6 +459,7 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
       battitoVivo: (b !== undefined && pcVivo(b, adesso())) || soloAiutante,
       ...(visto !== undefined ? { ultimoSegno: visto } : {}),
       ...(soloAiutante ? { soloAiutante } : {}),
+      ...(p?.esito === 'muto' && tailscaleVisto.has(pcId) ? { tailscaleOnline: tailscaleVisto.get(pcId) as boolean } : {}),
       driveCollegato: deps.driveCollegato?.() ?? true,
       porta: b?.porta ?? PORTA_CLIENT_PREDEFINITA
     })
