@@ -71,7 +71,7 @@ import { giudicaGuardiaOrchestratore } from './guardia-orchestratore'
 import type { Giudizio } from './divieti'
 import { doppioniDaArchiviare, rigaDoppione, type Doppione, type RichiestaDoppioni } from '@shared/autopiloti-doppioni'
 import type { ArchivioDoppioni } from './doppioni-store'
-import { chiedeDiFermarsi, ordineDiPausa, intervalloSpinta, lavoroFermo, rigaFermoPerNicholas, SPINTE_PRIMA_DI_DIRLO, SPINTE_SENZA_EFFETTO_MAX, testoLavoroFermo } from './lavoro-fermo'
+import { chiedeDiFermarsi, FIRMA_IN_FILA_PER_POSTO, ordineDiPausa, intervalloSpinta, lavoroFermo, rigaFermoPerNicholas, soloAttesaDiPosti, SPINTE_PRIMA_DI_DIRLO, SPINTE_SENZA_EFFETTO_MAX, testoLavoroFermo } from './lavoro-fermo'
 import { aspettaDipendenze, compitiInFilaPerUnione, righeDopoUnione, rigaUnioneEPoi, salvaPromptDopo } from './dipendenze'
 import { promemoriaRosso, type RossoVisto } from './criterio-rosso'
 import { permessoDaSolo } from './permessi-automatici'
@@ -2992,6 +2992,9 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     const ultimo = x.ultimoSegnale(a.id, c.id) ?? (c.dal !== undefined ? Date.parse(c.dal) : undefined)
     return ultimo === undefined || Number.isNaN(ultimo) || ora - ultimo < CHAT_MUTA_NON_OCCUPA_MS
   }
+  /** k-330a: i compiti del workspace con l'Agent già in fila per un posto, a posti pieni: li lancia il programma, non si spingono. */
+  const compitiInFilaPerPosto = (ws: string): Set<string> =>
+    liberiPc() > 0 ? new Set() : new Set(archivioAttesa.leggi().voci.flatMap((v) => (v.workspace === ws && v.compito !== undefined ? [v.compito] : [])))
   const spingiFermi = (ora: number): void => {
     for (const a of unici()) {
       const ws = wsDi(a)
@@ -3003,8 +3006,8 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
         || alLavoroNel(ws) > 0 || specialistiVivi(a).some((c) => chatAdottataAttiva(a, c, ora)) || unioniVive(ws, ora).length > 0
       const vivi = new Set(subagenti(ws).filter((y) => y.stato === 'avviato' || y.stato === 'lavoro').map((y) => y.id))
       const ferme = (filaUnioni.get(ws) ?? []).filter((l) => unioneFerma(l, ora) && l.compito !== undefined)
-      const f = lavoroFermo({ coda: coda(ws), piano: x.orchestratori.piano(ws), alLavoro: vivi, inUnione: new Set(unioniVive(ws, ora).flatMap((l) => (l.compito !== undefined ? [l.compito] : []))), unioniFerme: new Map([...compitiARiposo(ws), ...ferme.map((l) => [l.compito!, l.sporcaDal !== undefined ? 'ferma per file non salvati nella cartella principale (la domanda a Nicholas la fa il programma)' : 'riprova da sola fra poco'] as [string, string])]) })
-      if (f === undefined) { fermiVisti.delete(ws); continue }
+      const f = lavoroFermo({ coda: coda(ws), piano: x.orchestratori.piano(ws), alLavoro: vivi, inUnione: new Set(unioniVive(ws, ora).flatMap((l) => (l.compito !== undefined ? [l.compito] : []))), unioniFerme: new Map([...compitiARiposo(ws), ...ferme.map((l) => [l.compito!, l.sporcaDal !== undefined ? 'ferma per file non salvati nella cartella principale (la domanda a Nicholas la fa il programma)' : 'riprova da sola fra poco'] as [string, string])]), inFilaPerPosto: compitiInFilaPerPosto(ws) })
+      if (f === undefined || soloAttesaDiPosti(f.firma)) { fermiVisti.delete(ws); continue }
       const visto = fermiVisti.get(ws)
       if (visto === undefined || visto.firma !== f.firma) { fermiVisti.set(ws, { firma: f.firma, dal: ora, ultima: ora, spinte: 0 }); continue }
       if (occupato) { visto.dal = ora; visto.ultima = ora; continue }
@@ -3391,8 +3394,8 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
   const firmaLavoroPortabile = (ws: string, ora: number): string | undefined => {
     const vivi = new Set(subagenti(ws).filter((y) => y.stato === 'avviato' || y.stato === 'lavoro').map((y) => y.id))
     const ferme = (filaUnioni.get(ws) ?? []).filter((l) => unioneFerma(l, ora) && l.compito !== undefined)
-    const f = lavoroFermo({ coda: coda(ws), piano: x.orchestratori.piano(ws), alLavoro: vivi, inUnione: new Set(unioniVive(ws, ora).flatMap((l) => (l.compito !== undefined ? [l.compito] : []))), unioniFerme: new Map([...compitiARiposo(ws), ...ferme.map((l) => [l.compito!, 'ferma'] as [string, string])]) })
-    if (f === undefined || f.firma.split('|').every((t) => t.endsWith(':unione-ferma'))) return undefined
+    const f = lavoroFermo({ coda: coda(ws), piano: x.orchestratori.piano(ws), alLavoro: vivi, inUnione: new Set(unioniVive(ws, ora).flatMap((l) => (l.compito !== undefined ? [l.compito] : []))), unioniFerme: new Map([...compitiARiposo(ws), ...ferme.map((l) => [l.compito!, 'ferma'] as [string, string])]), inFilaPerPosto: compitiInFilaPerPosto(ws) })
+    if (f === undefined || f.firma.split('|').every((t) => t.endsWith(':unione-ferma') || t.endsWith(FIRMA_IN_FILA_PER_POSTO))) return undefined
     return f.firma
   }
   /**

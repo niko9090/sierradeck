@@ -20,7 +20,13 @@ export type LavoroFermo = {
   righe: string[]
 }
 
-const corto = (t: string, n: number): string => {
+/** La coda della firma dei compiti già in fila per un posto: non c'è niente da spingere finché i posti sono pieni. */
+export const FIRMA_IN_FILA_PER_POSTO = ':in-fila-posto'
+
+/** Solo compiti che aspettano un posto: spingere l'autopilota non serve, si muove da solo quando un posto si libera. */
+export const soloAttesaDiPosti = (firma: string): boolean => firma !== '' && firma.split('|').every((t) => t.endsWith(FIRMA_IN_FILA_PER_POSTO))
+
+const corto =(t: string, n: number): string => {
   const x = t.replace(/\s+/gu, ' ').trim()
   return x.length > n ? `${x.slice(0, n - 1)}…` : x
 }
@@ -31,7 +37,7 @@ const corto = (t: string, n: number): string => {
  * richieste aperte senza piano. `alLavoro`: gli id degli specialisti vivi.
  * `inUnione`: i compiti la cui unione è in corso o in fila (non sono fermi).
  */
-export function lavoroFermo(p: { coda: Coda; piano: Piano; alLavoro: ReadonlySet<string>; inUnione?: ReadonlySet<string>; unioniFerme?: ReadonlyMap<string, string> }): LavoroFermo | undefined {
+export function lavoroFermo(p: { coda: Coda; piano: Piano; alLavoro: ReadonlySet<string>; inUnione?: ReadonlySet<string>; unioniFerme?: ReadonlyMap<string, string>; inFilaPerPosto?: ReadonlySet<string> }): LavoroFermo | undefined {
   const aperte = new Set(p.coda.richieste.filter((r) => r.stato !== 'fatta').map((r) => r.id))
   // 11/11: un compito chiuso senza unirlo non è fermo, e chi veniva dopo di lui non lo aspetta.
   const compiti = p.piano.compiti.filter((c) => aperte.has(c.richiesta) && c.chiuso === undefined)
@@ -41,7 +47,12 @@ export function lavoroFermo(p: { coda: Coda; piano: Piano; alLavoro: ReadonlySet
   // k-178a: un «dopo» che nel piano non c'è più non aspetta niente: il compito è pronto lo stesso.
   const nelPiano = new Set(p.piano.compiti.map((c) => c.id))
   for (const c of compiti) {
-    if (c.stato === 'da-fare' && c.dopo.every((d) => verde.has(d) || !nelPiano.has(d))) {
+    if (c.stato === 'da-fare' && p.inFilaPerPosto?.has(c.id) === true) {
+      // k-330a: il suo Agent è già in fila per un posto (tetto pieno): riprovarlo viene rifiutato di nuovo, lo lancia il programma
+      // quando un posto si libera. Non è «pronto da affidare»: spingere l'autopilota qui dava 3 spinte a vuoto e la sospensione.
+      firma.push(`${c.id}${FIRMA_IN_FILA_PER_POSTO}`)
+      righe.push(`- ${c.id} è già in fila per un posto libero (tetto di specialisti pieno): non rilanciarlo, il programma ti avvisa quando tocca a lui`)
+    } else if (c.stato === 'da-fare' && c.dopo.every((d) => verde.has(d) || !nelPiano.has(d))) {
       firma.push(`${c.id}:pronto`)
       righe.push(`- ${c.id} pronto da affidare: ${corto(c.titolo, 100)}`)
     } else if (c.stato === 'in-corso' && (c.chat === undefined || !p.alLavoro.has(c.chat))) {
