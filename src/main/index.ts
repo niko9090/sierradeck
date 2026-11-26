@@ -12,7 +12,7 @@ import { esitoDaPasso } from '@shared/istruzioni-autopilota'
 import { componiSalute, erroriDalLog } from '@shared/salute'
 import { NOVITA, confrontaVersioni } from '@shared/novita'
 import { noteDaNovita, type NoteAggiornamento } from '@shared/note-aggiornamento'
-import { inCorso, partenzaInstallaLa, passoInstallaLa, type AvanzamentoInstallaLa, type Memoria, type Osservazione, type StatoAggiornamentoRemoto } from '@shared/installa-la'
+import { SOLO_AIUTANTE_COSA_FARE, inCorso, partenzaInstallaLa, passoInstallaLa, type AvanzamentoInstallaLa, type Memoria, type Osservazione, type StatoAggiornamentoRemoto } from '@shared/installa-la'
 import { segnaleVeroDa } from '@shared/indicatore-autopilota'
 import { hookSegnali, leggiSegnale, SEGNALI_PER_CHAT, statoChat, statoDaSegnali, unisciConHook, type Segnale } from '@shared/segnali-chat'
 import { contestoSopraDomanda, domandaInFondo, domandaPerBattito } from '@shared/domande-telefono'
@@ -3048,6 +3048,15 @@ if (!app.requestSingleInstanceLock()) {
         if (inCorso(gia) && gia !== undefined) return gia
         const b = postino.altrui().find((x) => x.pcId === pcId)
         const nome = b?.nome ?? pcId
+        const soloAiutanteOra = (): boolean => vistoDelPc(postino.altrui(), pcId, Date.now()).soloAiutante
+        // Rete di sicurezza: se là gira solo l'Aiutante, «Installa là» non può riuscire (non serve /api/aggiornamento).
+        if (soloAiutanteOra()) {
+          const adesso = new Date().toISOString()
+          const rifiuto: AvanzamentoInstallaLa = { pcId, nome, fase: 'errore', da: b?.versione ?? '?', messaggio: `Su ${nome} SierraDeck è chiuso e lavora solo l’Aiutante: aprilo là per aggiornarlo.`, cosaFare: SOLO_AIUTANTE_COSA_FARE(nome), iniziato: adesso, aggiornato: adesso }
+          annunciaInstallaLa(rifiuto)
+          registro.info(`[installa là] ${nome}: rifiutato, là gira solo l’Aiutante`)
+          return rifiuto
+        }
         // Il segno di vita sul Drive vale solo se recente (con il Drive pieno resta fermo per giorni):
         // altrimenti la versione di partenza si prende da quel PC dal vivo, e «fatto» solo dopo.
         const partenza = partenzaInstallaLa(b, undefined, Date.now())
@@ -3074,6 +3083,7 @@ if (!app.requestSingleInstanceLock()) {
             }
             if (da === '?' && o?.versione !== undefined) da = o.versione
             const adesso = Date.now()
+            m.soloAiutante = o === undefined && soloAiutanteOra()
             if (o === undefined && m.installato && m.mutoDal === undefined) m.mutoDal = adesso
             const p = passoInstallaLa(nome, da, o, m, adesso)
             if (p.fase === 'attendo' || p.fase === 'installo') { if (p.chiedi === undefined && !m.installato) { m.installato = true; m.installatoDal = adesso } }
@@ -6501,9 +6511,9 @@ if (!app.requestSingleInstanceLock()) {
         },
         // E quando non c'è niente da aggiornare lo si dice lo stesso: un
         // controllo che non si vede, per chi guarda non è avvenuto.
-        () => {
+        async () => {
           try {
-            return notaClaude(resolveClaudeCommand(process.env))
+            return await notaClaude(resolveClaudeCommand(process.env))
           } catch {
             return ''
           }

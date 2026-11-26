@@ -75,7 +75,13 @@ export type Memoria = {
   mutoDal?: number
   /** Da quando si e' premuto. */
   iniziato: number
+  /** Il PC c'e' (lo dice l'Aiutante) ma SierraDeck là è chiuso: le rotte dell'aggiornamento non rispondono. */
+  soloAiutante?: boolean
 }
+
+/** Cosa si dice quando si prova «Installa là» su un PC dove gira solo l'Aiutante. */
+export const SOLO_AIUTANTE_MESSAGGIO = (nome: string): string => `${nome}: il PC c’è, ma SierraDeck è chiuso e lavora solo l’Aiutante.`
+export const SOLO_AIUTANTE_COSA_FARE = (nome: string): string => `Apri SierraDeck su ${nome} per aggiornarlo da lì: l’Aiutante non può installare.`
 
 export type Passo = {
   fase: FaseInstallaLa
@@ -114,6 +120,7 @@ export function passoInstallaLa(nome: string, da: string, o: Osservazione, m: Me
   // ── Non risponde ──
   if (o === undefined) {
     if (!m.installato) {
+      if (m.soloAiutante === true) return { fase: 'errore', finito: true, messaggio: SOLO_AIUTANTE_MESSAGGIO(nome), cosaFare: SOLO_AIUTANTE_COSA_FARE(nome) }
       return adesso - m.iniziato > PREPARAZIONE_ENTRO_MS
         ? { fase: 'errore', finito: true, messaggio: `${nome} non risponde più e l’installazione non era ancora partita.`, cosaFare: `Guarda se ${nome} è acceso e ha SierraDeck aperto, poi riprova «Installa là».` }
         : { fase: 'riparte', messaggio: `${nome} non risponde in questo momento: riprovo fra pochi secondi.` }

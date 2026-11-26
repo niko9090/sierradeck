@@ -85,7 +85,7 @@ describe('come e collegato', () => {
     const agg = src('main/aggiornamenti.ts')
     // 26/11: il lancio passa da `lanciaEAttendi`, che chiama `avviaUpdater`.
     expect(agg.indexOf('segnaTentativo(versioneNuova)')).toBeGreaterThan(-1)
-    expect(agg.indexOf('segnaTentativo(versioneNuova)')).toBeLessThan(agg.indexOf('if (!avviaUpdater(percorso, datiAvvio'))
+    expect(agg.indexOf('segnaTentativo(versioneNuova)')).toBeLessThan(agg.indexOf('if (!await avviaUpdater(percorso, datiAvvio'))
     expect(agg).not.toContain('togliSegno()')
     expect(agg).toContain('segnaTentativo(versioneNuova, motivo)')
     expect(agg).toContain("FILE_TENTATIVO = 'tentativo-installazione.json'")

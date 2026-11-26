@@ -46,6 +46,12 @@ describe('quando va male, si dice', () => {
     const p = passoInstallaLa('LAPTOP', '0.38.2', { versione: '0.38.2', stato: { fase: 'pronto', versione: '0.46.0' } }, nuova({ installato: true, mutoDal: T0 }), T0 + 60000)
     expect(p).toMatchObject({ fase: 'fallito', finito: true })
   })
+  it('risponde solo l’Aiutante: lo dice, invece di «non risponde più»', () => {
+    const p = passoInstallaLa('LAPTOP', '0.38.2', undefined, nuova({ soloAiutante: true }), T0 + PREPARAZIONE_ENTRO_MS + 1000)
+    expect(p).toMatchObject({ fase: 'errore', finito: true })
+    expect(p.messaggio).toContain('SierraDeck è chiuso e lavora solo l’Aiutante')
+    expect(p.messaggio).not.toContain('non risponde')
+  })
   it('non torna dopo «Installa»: dopo l’attesa massima, fallito con cosa guardare', () => {
     const m = nuova({ installato: true, mutoDal: T0 })
     expect(passoInstallaLa('LAPTOP', '0.38.2', undefined, m, T0 + RITORNO_ENTRO_MS - 1000).fase).toBe('riparte')

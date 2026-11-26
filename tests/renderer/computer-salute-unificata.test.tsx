@@ -58,6 +58,20 @@ describe('Computer: una scheda per PC, stato da statoPc', () => {
     expect(c.io.stato).toBe('acceso')
   })
 
+  it('solo-aiutante → installaLa: false (là SierraDeck è chiuso, l’Aiutante non serve l’aggiornamento)', () => {
+    const s = computerDa({
+      ...dati,
+      pc: [
+        pc({ pcId: 'e', nome: 'Ufficio', host: 'host-x', battito: fa(120) }),
+        pc({ pcId: 'e-aiuto', nome: 'Ufficio', host: 'host-x', aiutante: true, battito: fa(1) }),
+        pc({ pcId: 'io', nome: 'Questo' })
+      ],
+      installazioni: []
+    }).altri.find((x) => x.id === 'e')!
+    expect(s.stato).toBe('solo-aiutante')
+    expect(s.azioni.installaLa).toBe(false)
+  })
+
   it('conta accesi e totale (questo PC compreso)', () => {
     expect(c.totale).toBe(5)
     expect(c.accesi).toBe(3)
