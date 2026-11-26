@@ -371,10 +371,6 @@
 - Un agente sull'Aiutante non può interrogare un altro PC: le chiamate vogliono la chiave di casa del portachiavi. Da qui si legge solo `pc-altrui.json` (versione, carico, posti). _(2026-11-23)_
 - un compito che deve leggere .sierradeck/errori-arrivati va tenuto sul PC di riferimento con requisiti.rete = quel percorso: altrimenti finisce su un Aiutante che non ha la cartella _(2026-11-23)_
 
-## cancello
-
-- Il criterio di un compito già unito (es. k-v1 di r-141) non si può correggere con piano_scrivi: richiesta fatta. Un criterio di versione sbagliato resta nel cancello fino alla nuova installazione. _(2026-11-17)_
-
 ## flusso
 
 - `usage` di `task_progress` è cumulativo per task: per i token di un agente vale il massimo visto. Nel `result` dell'orchestratore invece l'`usage` somma il turno. _(2026-11-22)_
@@ -398,7 +394,6 @@
 
 ## pubblica
 
-- `npm run pubblica` (test + build + Aiutante) supera i 10 minuti: va in sottofondo da solo; la release resta in bozza e i 7 file compaiono a poco a poco, si pubblica solo a exit 0. _(2026-11-17)_
 - `pubblica-app` copia da solo `app-android.json` anche su v0.110.0: dopo, basta controllare con `cmp`, senza `--clobber`. _(2026-11-19)_
 - `gh release create --draft` mostra un URL «untagged-…» ma la release prende il tag giusto alla pubblicazione, se il tag è già sul remoto (`--verify-tag`). _(2026-11-20)_
 - `npm run pubblica` supera i 10 minuti per il caricamento dell'installer dell'Aiutante (circa 100 MB): va in background e non va rilanciato. _(2026-11-20)_
@@ -456,8 +451,6 @@
 
 ## rilascio
 
-- nelle copie di lavoro «origin» può puntare a un bundle sparito: git fetch fallisce e l'esistenza del tag va controllata dalla cartella principale _(2026-11-17)_
-- il ruolo di rilascio non fa merge nemmeno su richiesta dell'autopilota: le unioni fuori dal cancello vanno assegnate a chi può cambiare la storia di git. _(2026-11-17)_
 - Lo specialista di rilascio non può fare cherry-pick o merge in main: il hook lo rifiuta. Un commit che il cancello respinge va unito dall'autopilota, non dal rilascio. _(2026-11-17)_
 - Il rilascio non può fare cherry-pick o merge nella cartella principale: un commit respinto per errore dal cancello va portato da una copia temporanea (git worktree) con push normale. _(2026-11-17)_
 - il numero di commit "avanti" di main può cambiare tra la richiesta e l'esecuzione: il programma continua a scrivere note nel quaderno. Contare di nuovo dopo il fetch. _(2026-11-17)_
@@ -538,6 +531,8 @@
 - Una frase cambiata solo in android/ non arriva ai telefoni senza bump di versionCode/versionName e voce in android/novita-app.txt. _(2026-11-25)_
 - Con la bozza creata prima di `npm run pubblica`, electron-builder 26 ha caricato comunque installer, blockmap e latest.yml: caricarli a mano serve solo se mancano. _(2026-11-25)_
 - `npm run pubblica` dura oltre 10 minuti (build, firma, Aiutante): passa in sottofondo da solo, basta attendere la fine senza rilanciarlo. _(2026-11-25)_
+- `npm run pubblica` ora controlla da solo e, se i 7 file ci sono, rende la release pubblica e Latest (controlla-release): il `gh release edit` finale a mano non serve più. _(2026-11-25)_
+- Un `npm run pubblica` da ~6 minuti finisce in sottofondo e non stampa nulla fino alla fine: per aspettare senza sleep, `ping -n 28 127.0.0.1` e poi `gh release view`. _(2026-11-25)_
 
 ## aiuto-rete
 
@@ -561,6 +556,7 @@
 - Gli errori arrivati da un PC non contengono le righe delle unioni: «(scaduta)» e «unione in fila» stanno nel registro del servizio, che qui non arriva. Per misurarle servono i rapporti della 0.116.0. _(2026-11-23)_
 - il registro di questo PC può non essere quello del PC segnalato: per cause su un altro PC serve il suo registro, non quello locale. _(2026-11-23)_
 - Il formato delle righe `[unione di prova]` è letto da `contaLavori` con regex: cambiarlo nel servizio richiede di aggiornare anche `src/shared/rapporto-lavori.ts`. _(2026-11-23)_
+- I rifiuti dell'Agent non finiscono in `[blocco]`: per capire un fermo da fuori manca il motivo dell'ultimo rifiuto per compito _(2026-11-26)_
 
 ## aiuto
 
@@ -870,6 +866,7 @@
 ## lavoro-fermo
 
 - `fermiVisti.spinte` si azzera a ogni cambio di firma, quindi vale già come conteggio delle spinte senza effetto. I test che si aspettavano spinte senza fine andavano adattati. _(2026-11-23)_
+- `lavoroFermo` e la guardia degli Agent giudicano «pronto» con regole diverse: la lista d'attesa dei posti non era considerata e dava spinte a vuoto _(2026-11-26)_
 
 ## da-fare
 
