@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.122.6',
+    righe: [
+      '**Aggiornamento senza blocchi:** mentre installa, il programma non si ferma più per decine di secondi (prima il PC smetteva anche di rispondere agli altri PC).',
+      '**Rapporti dei lavori:** i rallentamenti hanno le fasce di durata e l\'ora del più lungo.',
+      '**«Installa là» solo dove serve:** non compare più per i PC dove gira solo l\'Aiutante, e se parte lo stesso viene rifiutato subito con il motivo, invece di aspettare 20 minuti.',
+    ],
+  },
+  {
     versione: '0.122.5',
     righe: [
       '**«Installa là» non aspetta più per sempre:** se l\'altro PC non si aggiorna, dopo 12 minuti dice che non si è mai chiuso invece di restare in attesa.',
