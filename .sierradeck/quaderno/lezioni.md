@@ -215,6 +215,7 @@
 - Le voci di versione del quaderno sono file datati (`AAAA-MM-GG-...md`). `errori-arrivati.md` è solo per gli errori arrivati. _(2026-11-19)_
 - Un bump tocca 3 file di note: `src/shared/novita.ts`, `android/novita-app.txt` e `src/aiutante/novita-aiutante.txt` (righe che cominciano con `versione:`); app e Aiutante hanno la loro versione. _(2026-11-20)_
 - I commit sull'Aiutante possono stare in src/shared (aiuto-rete.ts) e src/main, non in src/aiutante: per decidere il bump guardare cosa fanno, non la cartella. _(2026-11-23)_
+- il compito citava la 0.121.2 ma main era già alla 0.122.0: controllare package.json di main prima di numerare la patch (origin della copia è un bundle, git fetch non funziona). _(2026-11-26)_
 
 ## tooling
 
@@ -445,6 +446,7 @@
 - un fallimento di lavoro affidato si riporta come errore in un punto solo (il servizio); spedizioniere e Aiutante scrivono avviso o cronaca. _(2026-11-23)_
 - l'invio degli errori porta `volte` cumulativo con `quando` fisso: un invio rifatto non è identico al primo, quindi il dedup per voce identica non basta _(2026-11-23)_
 - «ferma senza (N file)» non vuol dire «sporca»: può essere uno stato git a metà o un errore di `git status` (codice 1 per tempo scaduto o abort), letto come sporca. _(2026-11-24)_
+- «dal…al» con volte 1 nei lotti è l'invio automatico: manda solo le volte nuove e come «prima volta» usa l'ora dell'ultimo invio, non un difetto. _(2026-11-26)_
 
 ## permessi
 
@@ -452,9 +454,6 @@
 
 ## rilascio
 
-- il numero di commit "avanti" di main può cambiare tra la richiesta e l'esecuzione: il programma continua a scrivere note nel quaderno. Contare di nuovo dopo il fetch. _(2026-11-17)_
-- Per le copie temporanee conviene metterle sotto `E:\Users\nikof\Documents\SierraDeck.sierradeck-wt`, così la pulizia non chiede il consenso di Nicholas. _(2026-11-17)_
-- Il link della bozza creata con `gh release create --draft --verify-tag` ha forma `untagged-…`: è normale, il tag esiste già sul remoto. _(2026-11-17)_
 - In questa copia `git fetch` fallisce se il bundle di arrivo è sparito. Il controllo su `origin/main` va fatto dalla cartella principale. _(2026-11-19)_
 - Prima della release controllare che android/novita-app.txt abbia la voce della versione app: pubblica-app si ferma se manca, e la 0.110.0 è uscita senza APK 3.2.0. _(2026-11-19)_
 - `npm run pubblica` supera i 10 minuti (prove, build, Aiutante): va in sottofondo da solo. Si controlla con `gh release view --json assets` finché i file sono 7, senza lanciarlo due volte. _(2026-11-19)_
@@ -532,6 +531,8 @@
 - `npm run pubblica` dura oltre 10 minuti (build, firma, Aiutante): passa in sottofondo da solo, basta attendere la fine senza rilanciarlo. _(2026-11-25)_
 - `npm run pubblica` ora controlla da solo e, se i 7 file ci sono, rende la release pubblica e Latest (controlla-release): il `gh release edit` finale a mano non serve più. _(2026-11-25)_
 - Un `npm run pubblica` da ~6 minuti finisce in sottofondo e non stampa nulla fino alla fine: per aspettare senza sleep, `ping -n 28 127.0.0.1` e poi `gh release view`. _(2026-11-25)_
+- `npm run pubblica` può fallire al primo giro durante le prove senza lasciare file: rilanciarlo sulla stessa bozza completa tutto. Con output su file e controllo di `gh release view` ogni ~30 s. _(2026-11-26)_
+- Il comando lungo passa in sottofondo da solo oltre i 10 minuti; la pubblicazione intera (prove, build, Aiutante, upload) è durata circa 20 minuti. Non rilanciarlo mentre gira. _(2026-11-26)_
 
 ## aiuto-rete
 
@@ -559,7 +560,6 @@
 
 ## aiuto
 
-- la scadenza delle 3 ore non va a orologio da muro: un portatile che dorme la fa scattare al risveglio. Ora conta il tempo da sveglio (src/shared/aiuto-scadenza.ts). _(2026-11-17)_
 - una scadenza dopo un sonno o con lo specialista muto va con causa 'pc': solo così il lavoro passa a un altro PC. 'compito' non si riassegna. _(2026-11-17)_
 - il PATH e le risorse si guardano solo DOPO che il progetto è arrivato sul PC ospite (`aiuto-risorse.ts`, `verificaRisorse`): la valutazione va spostata prima di affidare. _(2026-11-20)_
 - lo specialista ospitato eredita tutto `process.env` del programma che ospita (`aiuto-lavoratore.ts:460`): è la superficie vera per i segreti. _(2026-11-20)_
