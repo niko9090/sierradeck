@@ -94,6 +94,7 @@
 - `motivoInItaliano` tiene la coda «— riprovo fra N»: le prove sul testo del dialogo per l'accesso scaduto la includono ora, perché il guasto ha l'attesa. _(2026-11-25)_
 - la suite `tests/autopilot-host` dura circa 8 minuti e `tests/main` più `tests/shared` circa 4: servono timeout da 600000 ms, in primo piano. _(2026-11-26)_
 - tests/shared/tentativo-installazione.test.ts controlla il sorgente di aggiornamenti.ts per stringhe esatte (es. `segnaTentativo(versioneNuova, motivo)`): se si rinomina, va aggiornato. _(2026-11-26)_
+- tests/shared/tentativo-installazione.test.ts cerca `if (!avviaUpdater(percorso, datiAvvio` nel sorgente: ora è `if (!await avviaUpdater(…`, e un'altra modifica a quella riga lo rompe. _(2026-11-26)_
 
 ## worktree
 
@@ -310,13 +311,11 @@
 
 ## pagina
 
-- pannelliDelPosto (shared/navigazione-telefono) decide quali pannelli sono «aperti»: 'specialisti' ora è aperto su tutta la voce Workspace, quindi la lista si rilegge ogni 4 s lì. _(2026-11-19)_
 - In client-pagina.ts il CSS del testo usa rem: `client-pagina.test.ts` vieta `font-size` in px. _(2026-11-24)_
 - La percentuale dell'autopilota sta solo nella riga fissa `rigaAvanzamentoAp`: il riassunto `riassuntoApTesto` non la mostra più, nemmeno senza criteri. _(2026-11-24)_
 
 ## rete
 
-- Dai PC dell'Aiutante la cartella principale e origin non sono raggiungibili: il controllo versione su origin/main va fatto dall'autopilota. _(2026-11-19)_
 - `Aiutante` (aiuto-rete.ts) non ha `battito` né `capacita`: il collegamento k-166n6 deve aggiungerli prima di usare `valutaPrimaDiAffidare`. _(2026-11-20)_
 - Le azioni fra PC passano da POST /api/azione sul Client (stessa firma): per un file al telefono serve sempre conferma di chi sta là, mai solo la richiesta remota. _(2026-11-20)_
 - Deciso 20/11: manda-file-telefono chiesto da un altro PC resta sempre con conferma di chi sta al PC ricevente; mai senza. _(2026-11-20)_
@@ -373,7 +372,6 @@
 
 ## pubblica
 
-- `pubblica-app` copia da solo `app-android.json` anche su v0.110.0: dopo, basta controllare con `cmp`, senza `--clobber`. _(2026-11-19)_
 - `gh release create --draft` mostra un URL «untagged-…» ma la release prende il tag giusto alla pubblicazione, se il tag è già sul remoto (`--verify-tag`). _(2026-11-20)_
 - `npm run pubblica` supera i 10 minuti per il caricamento dell'installer dell'Aiutante (circa 100 MB): va in background e non va rilanciato. _(2026-11-20)_
 - `npm run pubblica` supera i 10 minuti: lo strumento lo sposta in sottofondo da solo. Per aspettare senza sleep lunghi, un ciclo `until` su `gh release view ... assets|length -ge 7` (sleep 5) passa. _(2026-11-20)_
@@ -416,8 +414,6 @@
 
 ## errori
 
-- Il registro dell'errore di render (ConfineErrori) è per-PC: la pila di un altro PC non si vede da qui, serve il suo registro. _(2026-11-19)_
-- Specialisti «Aiuta la rete» girano su un altro PC e non vedono il registro di qui: la pila la legge l'autopilota in AppData\Roaming\SierraDeck\log e la mette nel prompt. _(2026-11-19)_
 - la cartella .sierradeck della cartella principale non si legge dalle copie (collegamento non risolvibile): la pila di un errore va chiesta all'autopilota. _(2026-11-20)_
 - «API Error:» in testa non vuol dire guasto del servizio: i rifiuti dei filtri di Claude arrivano con quel prefisso (result success). I controlli specifici vanno prima della regola 'api'. _(2026-11-23)_
 - il lotto non era leggibile dalla copia: per i «doppioni» da conteggio serve il file vero; il sospetto è l'invio ripetuto (timeout + Drive), non la scrittura del registro. _(2026-11-23)_
@@ -432,7 +428,6 @@
 
 ## rilascio
 
-- In questa copia `git fetch` fallisce se il bundle di arrivo è sparito. Il controllo su `origin/main` va fatto dalla cartella principale. _(2026-11-19)_
 - Prima della release controllare che android/novita-app.txt abbia la voce della versione app: pubblica-app si ferma se manca, e la 0.110.0 è uscita senza APK 3.2.0. _(2026-11-19)_
 - `npm run pubblica` supera i 10 minuti (prove, build, Aiutante): va in sottofondo da solo. Si controlla con `gh release view --json assets` finché i file sono 7, senza lanciarlo due volte. _(2026-11-19)_
 - se `pubblica` fallisce sui test, tag e bozza restano senza file: va rilanciato lo stesso comando, non ricreati. _(2026-11-19)_
@@ -518,6 +513,8 @@
 - Con `npm run pubblica` in corso la release ha solo i 4 file del programma finché l'Aiutante non è costruito: prima di rilanciare controllare i processi node e il log. _(2026-11-26)_
 - Prima di preparare una patch controllare package.json di main: la 0.122.3 era già uscita con altro contenuto, quindi le novità nuove sono andate nella 0.122.4. _(2026-11-26)_
 - Dopo un riavvio, prima di rilanciare `npm run pubblica` controlla i processi node: può essere ancora vivo (`Get-CimInstance Win32_Process`) e finire da solo. Attendi con `Wait-Process -Id`. _(2026-11-26)_
+- In PowerShell il criterio `--jq 'if .isDraft then error("bozza") else "ok" end'` va scritto con `error(\"bozza\")`, altrimenti gh dà «function not defined: bozza/0». _(2026-11-26)_
+- `npm run pubblica` della 0.122.5 ha impiegato più di 10 minuti: va in sottofondo. Per aspettarlo basta `Wait-Process -Id` sul node con `pubblica` nella riga di comando. _(2026-11-26)_
 
 ## aiuto-rete
 
@@ -669,6 +666,7 @@
 ## file
 
 - molti .tsx del renderer sono CRLF: Write li scrive LF, riconvertire con sed 's/$/\r/'; Edit invece combacia. Python non c'è sulla macchina. _(2026-11-19)_
+- i sorgenti di src/main sono CRLF: gli script di sostituzione con `\n` non trovano il testo; normalizzare l'a-capo o usare Edit. _(2026-11-26)_
 
 ## pagina-telefono
 
@@ -931,3 +929,8 @@
 ## ts
 
 - in installa-la.ts il ramo `tentativoFallito` dopo il tetto era codice morto: il controllo a riga 153 lo intercetta prima, e TypeScript lo vede come `never`. _(2026-11-26)_
+
+## installa-là
+
+- Il PC «solo Aiutante» si riconosce con vistoDelPc(postino.altrui(), pcId, adesso).soloAiutante (battito SierraDeck vecchio + Aiutante recente, stesso host). _(2026-11-26)_
+- Il messaggio «solo Aiutante» sta in Memoria.soloAiutante, impostata dal ciclo in index.ts, così passoInstallaLa resta pura e testabile. _(2026-11-26)_
