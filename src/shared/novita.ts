@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.122.4',
+    righe: [
+      '**Rapporti dei lavori, meno allarmi inutili:** i rallentamenti piccoli del servizio, tutti sotto i 2 s, fanno partire un\'analisi solo se sono 20 o più nello stesso rapporto.',
+      '**Rallentamenti più lunghi:** resta la regola di prima, cioè 5 o più, oppure uno oltre i 5 s.',
+    ],
+  },
+  {
     versione: '0.122.3',
     righe: [
       '**«Installa» non resta più senza effetto:** se SierraDeck Update non parte, il programma scrive il perché nel registro, riprova con una copia nuova e, se serve, installa con l\'installer normale, dicendolo nella finestra in basso a destra.',
