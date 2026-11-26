@@ -65,11 +65,16 @@ export function ripresaDopoRiavvio(p: {
   adesso: number
   /** I compiti la cui unione il programma ha già rimesso in marcia: non sono fermi. */
   inUnione?: ReadonlySet<string>
+  /** k-14 di NexoraOS (26/11): la pausa chiesta da Nicholas, se c'è (`dal` in ISO). */
+  pausa?: { dal: string }
 }): RipresaRiavvio | undefined {
   const fermo = lavoroFermo({ coda: p.coda, piano: p.piano, alLavoro: new Set(), ...(p.inUnione !== undefined ? { inUnione: p.inUnione } : {}) })
   const perso = messaggioSenzaRisposta(p.dialogo, p.adesso)
   if (fermo === undefined && perso === undefined) return undefined
   const interrotti = p.piano.compiti.filter((c) => c.stato === 'in-corso').length
+  // k-14 di NexoraOS (26/11): in pausa, con niente che girava e nessun messaggio arrivato dopo la pausa, non c'è niente da
+  // riprendere. Prima a ogni riavvio l'autopilota riceveva «Il programma si è riavviato…» e spendeva un turno per dire «resto fermo».
+  if (p.pausa !== undefined && interrotti === 0 && (p.inUnione?.size ?? 0) === 0 && (perso === undefined || Date.parse(perso.quando) <= Date.parse(p.pausa.dal))) return undefined
   const righe = [
     'Il programma si è riavviato (aggiornamento o riavvio del servizio): tutto quello che girava si è fermato, specialisti compresi.',
     'Le loro copie di lavoro, i rami e il piano sono sul disco: riprendi da dove eri, senza rifare quello che risulta già fatto.'

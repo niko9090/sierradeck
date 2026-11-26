@@ -141,7 +141,9 @@ export function testoLavoroFermo(f: LavoroFermo, minuti: number, domandeAperte: 
     'Vai avanti adesso, nello stesso turno: affida i compiti pronti, rilancia o unisci quelli rimasti a metà, chiudi quello che non è lavoro.',
     domandeAperte > 0
       ? `Ci sono ${domandeAperte} domande aperte a Nicholas: aspetta la risposta solo per i compiti che dipendono davvero da quella, e dillo in una riga. Il resto va avanti.`
-      : 'Non chiedere «procedo?»: se un compito aspetta davvero una decisione di Nicholas, chiedila con chiedi_utente e intanto porta avanti il resto.'
+      : 'Non chiedere «procedo?»: se un compito aspetta davvero una decisione di Nicholas, chiedila con chiedi_utente e intanto porta avanti il resto.',
+    // k-14 di NexoraOS (26/11): fermo apposta, l'autopilota lo diceva a ogni spinta e il programma non lo sapeva.
+    'Se sei fermo perché Nicholas ti ha detto di restare fermo, non rispondere qui: dichiaralo con in_pausa citando le sue parole, e il programma smette di svegliarti finché lui non riscrive.'
   ].join('\n')
 }
 
@@ -173,4 +175,48 @@ export function ordineDiPausa(testo: string): string | undefined {
   const t = testo.trim().replace(/\s+/gu, ' ').replace(/[’‘]/gu, "'")
   if (t === '' || t.length > 90 || RESTO_VA_AVANTI.test(t)) return undefined
   return ORDINE_PAUSA.test(t) ? t : undefined
+}
+
+/** k-14 di NexoraOS (26/11): quante righe del dialogo si guardano per trovare l'ordine di pausa citato dall'autopilota. */
+export const RIGHE_PER_PAUSA_DICHIARATA = 400
+
+/** Un ordine di Nicholas che rimette in moto il lavoro: dopo una pausa citata, quella pausa non vale più. */
+const RIPRESA = /\b(riprendi|riprendiamo|riparti|ripartiamo|vai avanti|vai pure|procedi|prosegui|continua|lanciala|lancialo|via libera|puoi (?:partire|riprendere|accendere|lanciare|riaccendere))\b/iu
+/** Parole che fanno di una frase un ordine di restare fermi (servono, oltre a esserci nel dialogo). */
+const PAROLA_DI_PAUSA = /\b(ferm[aoie]\w*|pausa|stop|aspett\w*|non (?:lanciare|fare|toccare|partire|accendere|riaccendere)|lascia stare)\b/iu
+
+export type RigaPerPausa = { quando: string; da: 'tu' | 'lui' | 'evento'; testo: string; nicholas?: true }
+
+/** Le parole scritte davvero da Nicholas in una riga del dialogo: un suo messaggio, o la sua risposta a una domanda (senza la domanda). */
+export function paroleDiNicholas(r: RigaPerPausa): string | undefined {
+  if (r.da !== 'tu') return undefined
+  if (r.testo.startsWith('Hai risposto a «')) {
+    const i = r.testo.lastIndexOf('»: ')
+    return i < 0 ? undefined : r.testo.slice(i + 3)
+  }
+  return r.nicholas === true ? r.testo : undefined
+}
+
+const normale = (t: string): string => t.toLowerCase().replace(/[’‘]/gu, "'").replace(/[«»"“”.,;:!?]/gu, ' ').replace(/\s+/gu, ' ').trim()
+
+/**
+ * k-14 di NexoraOS (26/11): l'autopilota dichiara la pausa che Nicholas gli ha chiesto con parole che il programma non
+ * riconosce da solo (o date quando il programma non le ricordava ancora: «Resta fermo» in risposta a una domanda del 19/11).
+ * Prima il servizio lo svegliava ogni 7 minuti, lui rispondeva «sono fermo perché me l'hai chiesto tu», e dopo 3 spinte
+ * finiva fra gli errori. Vale solo se cita parole di Nicholas che ci sono davvero nel dialogo, che sono un ordine di
+ * restare fermi, e se dopo quella riga Nicholas non ha scritto di riprendere. Torna la riga citata, o il motivo del rifiuto.
+ */
+export function pausaDichiarabile(dialogo: readonly RigaPerPausa[], frase: string): { ok: true; quando: string; frase: string } | { ok: false; motivo: string } {
+  const cercata = normale(frase)
+  if (cercata.length < 4) return { ok: false, motivo: 'cita le parole di Nicholas che ti hanno messo in pausa (per esempio «Resta fermo»)' }
+  if (!PAROLA_DI_PAUSA.test(cercata)) return { ok: false, motivo: `«${frase.slice(0, 80)}» non è un ordine di restare fermi: la pausa la dichiari solo quando Nicholas te l’ha chiesta` }
+  let trovata = -1
+  for (let i = dialogo.length - 1; i >= 0; i -= 1) {
+    const p = paroleDiNicholas(dialogo[i]!)
+    if (p !== undefined && normale(p).includes(cercata)) { trovata = i; break }
+  }
+  if (trovata < 0) return { ok: false, motivo: `non trovo «${frase.slice(0, 80)}» fra i messaggi e le risposte di Nicholas: cita le sue parole esatte` }
+  const dopo = dialogo.slice(trovata + 1).find((r) => { const p = paroleDiNicholas(r); return p !== undefined && RIPRESA.test(p) && chiedeDiFermarsi(p) === undefined })
+  if (dopo !== undefined) return { ok: false, motivo: `dopo quelle parole Nicholas ha scritto «${paroleDiNicholas(dopo)!.slice(0, 80)}»: la pausa non vale più, riprendi il lavoro` }
+  return { ok: true, quando: dialogo[trovata]!.quando, frase: frase.replace(/\s+/gu, ' ').trim().slice(0, 80) }
 }

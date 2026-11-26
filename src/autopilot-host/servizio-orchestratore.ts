@@ -71,7 +71,7 @@ import { giudicaGuardiaOrchestratore } from './guardia-orchestratore'
 import type { Giudizio } from './divieti'
 import { doppioniDaArchiviare, rigaDoppione, type Doppione, type RichiestaDoppioni } from '@shared/autopiloti-doppioni'
 import type { ArchivioDoppioni } from './doppioni-store'
-import { chiedeDiFermarsi, FIRMA_IN_FILA_PER_POSTO, ordineDiPausa, intervalloSpinta, lavoroFermo, motivoBreveRifiuto, rigaFermoPerNicholas, soloAttesaDiPosti, SPINTE_PRIMA_DI_DIRLO, SPINTE_SENZA_EFFETTO_MAX, testoLavoroFermo } from './lavoro-fermo'
+import { chiedeDiFermarsi, FIRMA_IN_FILA_PER_POSTO, ordineDiPausa, intervalloSpinta, lavoroFermo, motivoBreveRifiuto, pausaDichiarabile, RIGHE_PER_PAUSA_DICHIARATA, rigaFermoPerNicholas, soloAttesaDiPosti, SPINTE_PRIMA_DI_DIRLO, SPINTE_SENZA_EFFETTO_MAX, testoLavoroFermo } from './lavoro-fermo'
 import { aspettaDipendenze, compitiInFilaPerUnione, righeDopoUnione, rigaUnioneEPoi, salvaPromptDopo } from './dipendenze'
 import { promemoriaRosso, type RossoVisto } from './criterio-rosso'
 import { permessoDaSolo } from './permessi-automatici'
@@ -2719,6 +2719,24 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       x.orchestratori.cambiaImpostazioni(ws, (i) => ({ ...i, sveglie: [...(i.sveglie ?? []), { il: quando, perche, chiesta: x.adesso() }].sort((a, b) => a.il.localeCompare(b.il)) }))
       return { ok: true, testo: `Sveglia salvata per ${quandoInParole(quando, oraMs())}: a quell’ora il programma ti richiama con un evento, anche se nel frattempo si riavvia o la sessione si spegne. Fino ad allora non serve aspettare.` }
     },
+    // k-14 di NexoraOS (26/11): la pausa chiesta da Nicholas con parole che il programma non riconosce da solo la dichiara
+    // l'autopilota, citandole. Stessa pausa di k-178h: niente spinte, sveglie o rilanci, e la toglie il prossimo messaggio suo.
+    pausa(ws, frase, perche): EsitoAmbiente {
+      if (frase === undefined) {
+        const cera = imp(ws).pausa !== undefined
+        x.orchestratori.cambiaImpostazioni(ws, (i) => { const { pausa: _via, ...senza } = i; return senza })
+        fermiVisti.delete(ws)
+        if (cera) console.info(`[orchestratore] ${ws} — pausa tolta dall’autopilota: ${perche.slice(0, 160)}`)
+        return { ok: true, testo: cera ? 'Pausa tolta: il programma torna a seguire il lavoro fermo come sempre.' : 'Non c’era nessuna pausa.' }
+      }
+      const e = pausaDichiarabile(x.orchestratori.ultimeDialogo(ws, RIGHE_PER_PAUSA_DICHIARATA), frase)
+      if (!e.ok) return { ok: false, motivo: e.motivo }
+      const quando = x.adesso()
+      x.orchestratori.cambiaImpostazioni(ws, (i) => ({ ...i, pausa: { dal: quando, frase: e.frase } }))
+      fermiVisti.delete(ws)
+      console.info(`[orchestratore] ${ws} — in pausa per Nicholas («${e.frase}», scritto il ${e.quando.slice(0, 10)}): ${perche.slice(0, 160)}`)
+      return { ok: true, testo: `Pausa registrata («${e.frase}»): il programma non ti sveglia, non ti spinge e non lo segnala come errore finché Nicholas non ti scrive di nuovo. Non serve rispondere ad altro adesso.` }
+    },
     // 11/11: un compito superato o annullato si chiude senza unirlo. Prima restava nel piano e teneva aperta la richiesta (k-120).
     chiudiCompito(ws, id, come, perche): EsitoAmbiente {
       if (subagenti(ws).some((s) => (s.stato === 'avviato' || s.stato === 'lavoro') && s.compito === id)) return { ok: false, motivo: `uno specialista sta lavorando a ${id}: aspetta che finisca, poi decidi` }
@@ -2997,10 +3015,18 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
   /** k-330a: i compiti del workspace con l'Agent già in fila per un posto, a posti pieni: li lancia il programma, non si spingono. */
   const compitiInFilaPerPosto = (ws: string): Set<string> =>
     liberiPc() > 0 ? new Set() : new Set(archivioAttesa.leggi().voci.flatMap((v) => (v.workspace === ws && v.compito !== undefined ? [v.compito] : [])))
+  /** k-14 di NexoraOS (26/11): le pause già dette nel registro (`ws|dal`): una riga info sola per pausa, mai un errore. */
+  const pauseDette = new Set<string>()
   const spingiFermi = (ora: number): void => {
     for (const a of unici()) {
       const ws = wsDi(a)
-      if (inPausa(ws)) { fermiVisti.delete(ws); continue }
+      const p = imp(ws).pausa
+      if (p !== undefined) {
+        fermiVisti.delete(ws)
+        const k = `${ws}|${p.dal}`
+        if (!pauseDette.has(k)) { pauseDette.add(k); console.info(`[orchestratore] ${ws} — in pausa per Nicholas («${p.frase}»): niente spinte finché non riscrive`) }
+        continue
+      }
       // k-178j: la sveglia (anche lontana) non spegne la spinta: vale solo per ciò che aspetta un orario,
       // e tutto quello che `lavoroFermo` elenca (compiti pronti, orfani, da unire) non aspetta un orario.
       const attesa = orchestratore.inAttesa(ws)
@@ -3622,8 +3648,12 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       if (a.archiviato === true) continue
       const ws = wsDi(a)
       try {
-        const r = ripresaDopoRiavvio({ coda: coda(ws), piano: x.orchestratori.piano(ws), dialogo: x.orchestratori.ultimeDialogo(ws, 20), adesso: ora, inUnione: new Set(compitiInUnione(ws)) })
-        if (r === undefined) continue
+        const pausa = imp(ws).pausa
+        const r = ripresaDopoRiavvio({ coda: coda(ws), piano: x.orchestratori.piano(ws), dialogo: x.orchestratori.ultimeDialogo(ws, 20), adesso: ora, inUnione: new Set(compitiInUnione(ws)), ...(pausa !== undefined ? { pausa } : {}) })
+        if (r === undefined) {
+          if (pausa !== undefined) console.info(`[orchestratore] ${ws} — riavvio in pausa per Nicholas («${pausa.frase}»): niente da riprendere, non lo sveglio`)
+          continue
+        }
         // Conta come la prima spinta del lavoro fermo: la seconda arriva più tardi, non subito.
         if (r.firma !== undefined) fermiVisti.set(ws, { firma: r.firma, dal: ora, ultima: ora, spinte: 1 })
         console.info(`[orchestratore] ${ws} — ripreso dopo il riavvio: ${r.interrotti} compiti interrotti${r.messaggioPerso ? ', un messaggio di Nicholas senza risposta' : ''}`)
