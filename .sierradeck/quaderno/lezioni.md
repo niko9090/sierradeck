@@ -4,7 +4,6 @@
 
 ## test
 
-- Per modificare client-pagina.ts con script node: il file ha fine riga CRLF e backslash doppi nel template; cercare una riga sola, non stringhe multi-riga. _(2026-11-19)_
 - In client-pagina.ts le duplicazioni si vedono dall'HTML generato: `misura-riga` compare anche nel menu specialisti, quindi il test conta la stringa precisa dell'Avanzamento. _(2026-11-20)_
 - molti test leggono Console.tsx e App.tsx come testo: spostando etichette in `@shared` (es. chat-workspace) vanno aggiornati subito, falliscono solo al giro completo. _(2026-11-20)_
 - nei file di test scritti con heredoc i backslash dei percorsi Windows si perdono: scrivere i test con Write. _(2026-11-20)_
@@ -530,6 +529,7 @@
 - Non lanciare il rilascio mentre un'unione che alza la versione può arrivare in main: pubblica fallisce a metà con «dist è vecchia» (0.122.1 rimasta bozza, uscita la 0.122.2). _(2026-11-26)_
 - Per controllare una release su GitHub usare «rilascio», non «verificatore»: il verificatore può finire sull'Aiutante di DESKTOP-O2DITVE, dove non ci sono né gh né la cartella del progetto. _(2026-11-26)_
 - Con `npm run pubblica` in corso la release ha solo i 4 file del programma finché l'Aiutante non è costruito: prima di rilanciare controllare i processi node e il log. _(2026-11-26)_
+- Prima di preparare una patch controllare package.json di main: la 0.122.3 era già uscita con altro contenuto, quindi le novità nuove sono andate nella 0.122.4. _(2026-11-26)_
 
 ## aiuto-rete
 
