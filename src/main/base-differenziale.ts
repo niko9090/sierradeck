@@ -79,8 +79,69 @@ export type EsitoBase =
   | { esito: 'allineata' }
   | { esito: 'senza-mappa' }
   | { esito: 'senza-installer' }
-  | { esito: 'tolta'; perche: string }
+  | { esito: 'tolta'; perche: string; dalloScaricato?: boolean }
   | { esito: 'errore'; perche: string }
+
+/** La sottocartella di electron-updater con la versione scaricata e non ancora installata. */
+export const CARTELLA_IN_ATTESA = 'pending'
+
+/** «SierraDeck-Setup-0.121.1.exe» → «0.121.1». */
+export function versioneDaNomeInstaller(nome: string): string | undefined {
+  return /(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)\.exe$/i.exec(nome)?.[1]
+}
+
+/** Confronto numerico per pezzi: negativo se `a` è più vecchia di `b`, 0 se uguali. */
+export function confrontaVersioni(a: string, b: string): number {
+  const pa = a.split(/[.-]/).map((x) => Number.parseInt(x, 10) || 0)
+  const pb = b.split(/[.-]/).map((x) => Number.parseInt(x, 10) || 0)
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0)
+    if (d !== 0) return d
+  }
+  return 0
+}
+
+/** Il file scaricato in `pending` secondo il suo `update-info.json`, se c'è. */
+export function scaricatoInAttesa(cartella: string): { nome: string; versione?: string; lunghezza?: number } | undefined {
+  try {
+    const dir = join(cartella, CARTELLA_IN_ATTESA)
+    const info = JSON.parse(readFileSync(join(dir, 'update-info.json'), 'utf8')) as { fileName?: unknown }
+    if (typeof info.fileName !== 'string' || info.fileName === '') return undefined
+    const nome = info.fileName
+    const file = join(dir, nome)
+    const versione = versioneDaNomeInstaller(nome)
+    return {
+      nome,
+      ...(versione !== undefined ? { versione } : {}),
+      ...(existsSync(file) ? { lunghezza: statSync(file).size } : {})
+    }
+  } catch {
+    return undefined
+  }
+}
+
+export type EsitoInAttesa =
+  | { esito: 'niente' }
+  | { esito: 'tolto'; versione: string }
+  | { esito: 'errore'; perche: string }
+
+/**
+ * Toglie la versione scaricata in `pending` se non è più nuova di quella
+ * installata: non si installerà mai, e electron-updater a ogni ricerca la
+ * ritroverebbe e ne ricopierebbe la mappa. `pending` è la sola cache
+ * dell'updater (la riempie di nuovo al prossimo scaricamento). Non solleva mai.
+ */
+export function togliScaricatoSuperato(cartella: string, versioneInstallata: string): EsitoInAttesa {
+  try {
+    const s = scaricatoInAttesa(cartella)
+    if (s?.versione === undefined) return { esito: 'niente' }
+    if (confrontaVersioni(s.versione, versioneInstallata) > 0) return { esito: 'niente' }
+    rmSync(join(cartella, CARTELLA_IN_ATTESA), { recursive: true, force: true })
+    return { esito: 'tolto', versione: s.versione }
+  } catch (err) {
+    return { esito: 'errore', perche: String(err) }
+  }
+}
 
 /**
  * Toglie `current.blockmap` se non descrive `installer.exe`. Non solleva mai:
@@ -96,11 +157,16 @@ export function allineaBaseDifferenziale(cartella: string): EsitoBase {
     const lunghezza = statSync(installer).size
     const descritta = lunghezzaDescritta(readFileSync(fileMappa))
     if (descritta === lunghezza) return { esito: 'allineata' }
+    // Con una versione scaricata e non installata electron-updater, a ogni
+    // ricerca, ritrova il file in `pending` e ricopia qui la sua mappa: è
+    // atteso, e lo si dice (25/11: la stessa riga ogni 10 minuti).
+    const scaricato = scaricatoInAttesa(cartella)
+    const suaMappa = descritta !== undefined && scaricato !== undefined && scaricato.lunghezza === descritta
     const perche = descritta === undefined
       ? 'mappa illeggibile'
-      : `la mappa descrive ${descritta} byte, ${INSTALLER_BASE} ne ha ${lunghezza}`
+      : `la mappa descrive ${descritta} byte, ${INSTALLER_BASE} ne ha ${lunghezza}${suaMappa ? `: è quella della ${scaricato.versione ?? scaricato.nome} già scaricata` : ''}`
     rmSync(fileMappa, { force: true })
-    return { esito: 'tolta', perche }
+    return { esito: 'tolta', perche, ...(suaMappa ? { dalloScaricato: true } : {}) }
   } catch (err) {
     return { esito: 'errore', perche: `controllo non riuscito: ${String(err)}` }
   }

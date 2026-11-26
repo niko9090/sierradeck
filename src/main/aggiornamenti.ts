@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { app } from 'electron'
 import type { BrowserWindow } from 'electron'
 import { avviaFinestraAggiornamento } from './finestra-aggiornamento'
-import { allineaBaseDifferenziale, cartellaCacheUpdater } from './base-differenziale'
+import { allineaBaseDifferenziale, cartellaCacheUpdater, togliScaricatoSuperato } from './base-differenziale'
 import { assicuraUpdater, avviaUpdater, diariUpdater, updaterVivo } from './updater/compila'
 import { PAGINA_VERSIONI, raccogliNote, righeNotePerUpdater, type NoteAggiornamento } from '@shared/note-aggiornamento'
 import { APP_NAME } from '@shared/version'
@@ -168,6 +168,18 @@ export type Aggiornamenti = {
  * l'aveva ancora vista.
  */
 export const RICONTROLLA_MS = 10 * 60 * 1000
+
+/**
+ * Dopo un guasto di rete passeggero (ERR_HTTP2_SERVER_REFUSED_STREAM di GitHub,
+ * 25/11) si riprova in silenzio dopo 30 s e poi dopo 2 min; se ancora niente,
+ * resta il controllo normale dei 10 minuti.
+ */
+export const RITENTI_RETE_MS: readonly number[] = [30_000, 120_000]
+
+/** Quanto aspettare prima del ritento numero `n` (da 0), o `undefined` se sono finiti. */
+export function attesaRitentoRete(n: number): number | undefined {
+  return Number.isInteger(n) && n >= 0 ? RITENTI_RETE_MS[n] : undefined
+}
 
 /** Lo stesso errore dell'updater entro questo tempo e' un doppione (evento + catch). */
 export const DOPPIONE_ERRORE_MS = 5000
@@ -612,6 +624,7 @@ export function creaAggiornamenti(
     return false
   }
   autoUpdater.on('update-available', (info) => {
+    ritentiRete = 0
     // Con una versione già pronta, quella che si trova uguale (o più vecchia) non cambia niente.
     if (ricercaSilenziosa && installerScaricato !== undefined && versioneScaricata !== undefined && !piuNuova(String(info.version), versioneScaricata)) return
     mancaDetto = false
@@ -634,6 +647,7 @@ export function creaAggiornamenti(
     annuncia({ fase: 'aggiornato' })
   }
   autoUpdater.on('update-not-available', () => {
+    ritentiRete = 0
     mancaDetto = false
     episodio404 = undefined
     nienteDiNuovo()
@@ -666,6 +680,9 @@ export function creaAggiornamenti(
    * HTTP (0.86.2, audit I7). Prima la stessa riga arrivava due volte, intera.
    */
   let episodio404: Episodio404 | undefined
+  /** Ritenti silenziosi già fatti dopo un guasto di rete; si azzerano a ricerca riuscita. */
+  let ritentiRete = 0
+  let ritentoRete: ReturnType<typeof setTimeout> | undefined
   let ultimoErroreBreve = ''
   let ultimoErroreAlle = 0
   const erroreUpdater = (err: unknown): void => {
@@ -705,7 +722,16 @@ export function creaAggiornamenti(
     // Un guasto di rete passeggero: l'updater ritenta da solo, qui è un avviso
     // nel registro e la fase torna a riposo, senza il riquadro rosso.
     if (erroreLettoPasseggero(letto)) {
-      nota(`errore di rete passeggero, si riprova al prossimo controllo: ${breve}`)
+      const attesa = attesaRitentoRete(ritentiRete)
+      if (attesa !== undefined) {
+        ritentiRete++
+        nota(`errore di rete passeggero, riprovo fra ${Math.round(attesa / 1000)} s (${ritentiRete} di ${RITENTI_RETE_MS.length}): ${breve}`)
+        if (ritentoRete !== undefined) clearTimeout(ritentoRete)
+        ritentoRete = setTimeout(() => { ritentoRete = undefined; void cerca() }, attesa)
+        ritentoRete.unref?.()
+      } else {
+        nota(`errore di rete passeggero, si riprova al prossimo controllo: ${breve}`)
+      }
       if (stato.fase === 'scarico' && stato.versione !== undefined) annuncia({ fase: 'disponibile', versione: stato.versione })
       else nienteDiNuovo()
       return
@@ -732,11 +758,21 @@ export function creaAggiornamenti(
    * (`base-differenziale.ts`): senza, ogni versione scaricata e non ancora
    * installata faceva riscaricare per intero la successiva.
    */
+  let ultimaMappaTolta: string | undefined
   const preparaBaseDifferenziale = (): void => {
     if (!app.isPackaged) return
-    const e = allineaBaseDifferenziale(cartellaCacheUpdater(process.resourcesPath))
-    if (e.esito === 'tolta') nota(`mappa del differenziale tolta (${e.perche}): electron-updater prende quella della versione installata`)
-    else if (e.esito === 'errore') nota(`mappa del differenziale non controllata: ${e.perche}`)
+    const cartella = cartellaCacheUpdater(process.resourcesPath)
+    // Una versione scaricata ma ormai installata (o più vecchia) non serve più.
+    const s = togliScaricatoSuperato(cartella, app.getVersion())
+    if (s.esito === 'tolto') nota(`tolta la ${s.versione} scaricata in attesa: non è più nuova della ${app.getVersion()} installata`)
+    else if (s.esito === 'errore') nota(`versione scaricata in attesa non controllata: ${s.perche}`)
+    const e = allineaBaseDifferenziale(cartella)
+    // Con una versione pronta electron-updater ricopia la sua mappa a ogni
+    // ricerca: la si toglie ogni volta, ma lo si scrive una volta sola (25/11).
+    if (e.esito === 'tolta') {
+      if (e.perche !== ultimaMappaTolta) nota(`mappa del differenziale tolta (${e.perche}): electron-updater prende quella della versione installata${e.dalloScaricato === true ? '; si toglie a ogni controllo, senza riscriverlo' : ''}`)
+      ultimaMappaTolta = e.perche
+    } else if (e.esito === 'errore') nota(`mappa del differenziale non controllata: ${e.perche}`)
   }
 
   const cerca = async (dalTelefono = false): Promise<void> => {

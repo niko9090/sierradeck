@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { existsSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { gzipSync } from 'node:zlib'
 import {
-  allineaBaseDifferenziale, cartellaCacheUpdater, lunghezzaDescritta, INSTALLER_BASE, MAPPA_BASE
+  allineaBaseDifferenziale, cartellaCacheUpdater, confrontaVersioni, lunghezzaDescritta, togliScaricatoSuperato,
+  versioneDaNomeInstaller, CARTELLA_IN_ATTESA, INSTALLER_BASE, MAPPA_BASE
 } from '../../src/main/base-differenziale'
 
 /**
@@ -78,5 +79,74 @@ describe('cartellaCacheUpdater', () => {
   it('senza app-update.yml vale il nome di serie', () => {
     const risorse = mkdtempSync(join(tmpdir(), 'sd-risorse-'))
     expect(cartellaCacheUpdater(risorse, 'C:\\Locale')).toBe(join('C:\\Locale', 'sierradeck-updater'))
+  })
+})
+
+/** Come lo lascia electron-updater: `pending/<installer>` + `pending/update-info.json`. */
+function inAttesa(d: string, versione: string, lunghezza: number): string {
+  const dir = join(d, CARTELLA_IN_ATTESA)
+  mkdirSync(dir, { recursive: true })
+  const nome = `SierraDeck-Setup-${versione}.exe`
+  writeFileSync(join(dir, nome), Buffer.alloc(lunghezza))
+  writeFileSync(join(dir, 'update-info.json'), JSON.stringify({ fileName: nome, sha512: 'x', isAdminRightsRequired: false }))
+  return dir
+}
+
+describe('versioni dello scaricato', () => {
+  it('legge la versione dal nome dell installer', () => {
+    expect(versioneDaNomeInstaller('SierraDeck-Setup-0.121.1.exe')).toBe('0.121.1')
+    expect(versioneDaNomeInstaller('SierraDeck-Setup-1.2.3-beta.1.exe')).toBe('1.2.3-beta.1')
+    expect(versioneDaNomeInstaller('installer.exe')).toBeUndefined()
+  })
+  it('confronta per pezzi numerici', () => {
+    expect(confrontaVersioni('0.119.2', '0.119.10')).toBeLessThan(0)
+    expect(confrontaVersioni('0.120.0', '0.119.9')).toBeGreaterThan(0)
+    expect(confrontaVersioni('0.121.1', '0.121.1')).toBe(0)
+  })
+})
+
+describe('togliScaricatoSuperato', () => {
+  it('toglie la versione in attesa uguale o piu vecchia di quella installata', () => {
+    for (const v of ['0.121.1', '0.119.2']) {
+      const d = cache(300, [300])
+      const dir = inAttesa(d, v, 300)
+      expect(togliScaricatoSuperato(d, '0.121.1')).toEqual({ esito: 'tolto', versione: v })
+      expect(existsSync(dir)).toBe(false)
+      expect(existsSync(join(d, INSTALLER_BASE))).toBe(true)
+      // La seconda volta non c'è più niente: nessuna riga ripetuta.
+      expect(togliScaricatoSuperato(d, '0.121.1')).toEqual({ esito: 'niente' })
+    }
+  })
+  it('lascia la versione piu nuova, pronta da installare', () => {
+    const d = cache(300, [300])
+    const dir = inAttesa(d, '0.122.0', 305)
+    expect(togliScaricatoSuperato(d, '0.121.1')).toEqual({ esito: 'niente' })
+    expect(existsSync(join(dir, 'SierraDeck-Setup-0.122.0.exe'))).toBe(true)
+  })
+  it('senza pending o con update-info.json rotto non tocca niente', () => {
+    expect(togliScaricatoSuperato(cache(300), '0.121.1')).toEqual({ esito: 'niente' })
+    const d = cache(300)
+    mkdirSync(join(d, CARTELLA_IN_ATTESA))
+    writeFileSync(join(d, CARTELLA_IN_ATTESA, 'update-info.json'), '{rotto')
+    expect(togliScaricatoSuperato(d, '0.121.1')).toEqual({ esito: 'niente' })
+    expect(existsSync(join(d, CARTELLA_IN_ATTESA))).toBe(true)
+  })
+})
+
+describe('la mappa ricopiata dalla versione pronta', () => {
+  it('si toglie e si riconosce come quella dello scaricato', () => {
+    // 25/11: 0.119.1 installata, 0.119.2 pronta; electron-updater ricopia la sua mappa a ogni ricerca.
+    const d = cache(300, [100, 205])
+    inAttesa(d, '0.119.2', 305)
+    const e = allineaBaseDifferenziale(d)
+    expect(e).toMatchObject({ esito: 'tolta', dalloScaricato: true })
+    expect(e.esito === 'tolta' && e.perche).toMatch(/0\.119\.2 già scaricata/)
+    expect(existsSync(join(d, MAPPA_BASE))).toBe(false)
+  })
+  it('una mappa di un altra lunghezza non e dello scaricato', () => {
+    const d = cache(300, [100, 205])
+    inAttesa(d, '0.119.2', 999)
+    const e = allineaBaseDifferenziale(d)
+    expect(e.esito === 'tolta' && e.dalloScaricato).toBeFalsy()
   })
 })

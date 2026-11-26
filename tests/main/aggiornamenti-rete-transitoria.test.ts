@@ -31,7 +31,7 @@ vi.mock('../../src/main/updater/compila', () => ({
 }))
 vi.mock('../../src/main/finestra-aggiornamento', () => ({ avviaFinestraAggiornamento: vi.fn(async () => undefined) }))
 
-const { creaAggiornamenti, creaLoggerUpdater, eErroreDiReteTransitorio } = await import('../../src/main/aggiornamenti')
+const { attesaRitentoRete, creaAggiornamenti, creaLoggerUpdater, eErroreDiReteTransitorio } = await import('../../src/main/aggiornamenti')
 
 const nuovo = () => {
   const righe: string[] = []
@@ -171,6 +171,46 @@ describe('errori di rete passeggeri', () => {
     expect(righe).toEqual(['info [electron-updater] avviso: net::ERR_NO_BUFFER_SPACE'])
     l.error('un guasto vero')
     expect(righe[1]).toMatch(/^ERRORE/)
+  })
+})
+
+describe('ERR_HTTP2_SERVER_REFUSED_STREAM (25/11)', () => {
+  it('le attese dei ritenti: 30 s, 2 min, poi il controllo normale', () => {
+    expect(attesaRitentoRete(0)).toBe(30_000)
+    expect(attesaRitentoRete(1)).toBe(120_000)
+    expect(attesaRitentoRete(2)).toBeUndefined()
+    expect(attesaRitentoRete(-1)).toBeUndefined()
+  })
+
+  it('niente riquadro rosso, una riga sola, e si riprova da soli in silenzio', () => {
+    // Solo questo gestore ascolta (gli altri della suite ritenterebbero anche loro).
+    h.updater.removeAllListeners()
+    // Creato prima degli orologi finti: i suoi controlli di avvio restano veri e non contano.
+    const { a, righe } = nuovo()
+    vi.useFakeTimers()
+    try {
+      const cerca = h.updater.checkForUpdates as ReturnType<typeof vi.fn>
+      cerca.mockClear()
+      const http2 = (): Error => new Error('net::ERR_HTTP2_SERVER_REFUSED_STREAM')
+      h.updater.emit('error', http2())
+      h.updater.emit('error', http2())
+      expect(a.stato().fase).not.toBe('errore')
+      expect(righe.filter((r) => r.startsWith('ERRORE'))).toEqual([])
+      expect(righe.filter((r) => /passeggero, riprovo fra 30 s/.test(r))).toHaveLength(1)
+      vi.advanceTimersByTime(30_000)
+      expect(cerca).toHaveBeenCalledTimes(1)
+      h.updater.emit('error', http2())
+      vi.advanceTimersByTime(120_000)
+      expect(cerca).toHaveBeenCalledTimes(2)
+      h.updater.emit('error', http2())
+      vi.advanceTimersByTime(600_000)
+      // Finiti i ritenti, resta il controllo normale (l'intervallo non parte in questo test).
+      expect(cerca).toHaveBeenCalledTimes(2)
+      expect(righe.filter((r) => /si riprova al prossimo controllo/.test(r))).toHaveLength(1)
+      expect(righe.filter((r) => r.startsWith('ERRORE'))).toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
