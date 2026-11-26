@@ -197,6 +197,12 @@ export type ClientAutopilota = {
    * restituita. Un servizio vecchio senza la rotta: nessuna spinta, resta il giro.
    */
   suCambioSpecialisti: (f: () => void) => () => void
+  /**
+   * k-334b: il PC va in sospensione o ne torna (`powerMonitor`). Il servizio lo
+   * usa per non scrivere «fermo N s» per un ritardo che è solo il PC dormito.
+   * Mai un errore: servizio spento o vecchio, la spia resta com'era.
+   */
+  sospensione: (evento: 'suspend' | 'resume') => Promise<void>
 }
 
 /** Un'unione fatta a mano: ogni punto delle richieste unite va nominato. */
@@ -593,6 +599,10 @@ export function creaClientAutopilota(p: {
       return () => { fermo = true }
     },
     togliAttesa: async (id) => { try { return vistaAttesaValida(await chiama('/orchestratore/attesa/togli', 'POST', { id }, attesaScrittura)) } catch { return vistaAttesaValida(await chiama('/orchestratore/attesa', 'GET').catch(() => undefined)) } },
+
+    async sospensione(evento) {
+      try { await chiama('/sospensione', 'POST', { evento }) } catch { /* servizio spento o vecchio: niente da segnalare */ }
+    },
 
     async gestoreAvviato(aggiornamento) {
       // 0.84.3: le fasi dell'aggiornamento appena fatto, per la riga di riepilogo.

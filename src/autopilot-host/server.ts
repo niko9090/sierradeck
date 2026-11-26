@@ -67,6 +67,7 @@ import { annullaRiparazioneServizio, riparaServizio, type DipendenzeRiparazioneS
 import type { ArchivioOrchestratori } from './orchestratore-store'
 import type { AvviaProcesso } from './orchestratore'
 import { passoRiassettoServizio } from './riassetto-servizio'
+import { segnalaSospensione } from './ritardo-ciclo'
 import { conPreambolo, prendiMessaggiPer, rimettiInCoda } from './stop-specialista'
 import { campiVecchiDa } from './migra-orchestratore'
 import { creaServizioUnico, type EsitoAvvioUnico, type EsitoProvaPrincipale, type ServizioUnico, type TempoDellaProva } from './servizio-orchestratore'
@@ -1258,6 +1259,16 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             if (!fermaDal.has(k) || fermaDal.get(k)! > da) fermaDal.set(k, da)
           }
           rispondi(res, 200, { contati, consegnate: consegnaAlleFerme() })
+          return
+        }
+
+        // k-334b: il PC dorme o si è svegliato (lo dice l'app): la spia del servizio fermo non lo conta come blocco.
+        if (metodo === 'POST' && percorso === '/sospensione') {
+          const corpo = await leggiCorpo(req).catch(() => undefined)
+          const evento = typeof corpo === 'object' && corpo !== null ? (corpo as Record<string, unknown>).evento : undefined
+          if (evento !== 'suspend' && evento !== 'resume') { rispondi(res, 400, { errore: 'evento non valido' }); return }
+          segnalaSospensione(evento)
+          rispondi(res, 200, { ok: true })
           return
         }
 

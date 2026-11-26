@@ -268,6 +268,25 @@ describe('il ritorno del Gestore', () => {
   })
 })
 
+describe('la sospensione del PC (k-334b)', () => {
+  it('dice al servizio suspend e resume', async () => {
+    const chiesti: { percorso: string; corpo: unknown }[] = []
+    const porta = await servizioFinto((percorso, corpo) => { chiesti.push({ percorso, corpo }); return { ok: true } })
+    const client = creaClientAutopilota({ porta, avviaServizio: () => {} })
+    await client.sospensione('suspend')
+    await client.sospensione('resume')
+    expect(chiesti).toEqual([
+      { percorso: '/sospensione', corpo: { evento: 'suspend' } },
+      { percorso: '/sospensione', corpo: { evento: 'resume' } }
+    ])
+  })
+
+  it('servizio spento: nessun errore', async () => {
+    const client = creaClientAutopilota({ porta: 1, avviaServizio: () => {} })
+    await expect(client.sospensione('resume')).resolves.toBeUndefined()
+  })
+})
+
 // P1: la coda delle richieste del workspace.
 describe('la coda del workspace', () => {
   it('chiede /coda col workspace nell’indirizzo, separa e unisce col corpo', async () => {

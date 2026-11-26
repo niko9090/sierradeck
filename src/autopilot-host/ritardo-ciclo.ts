@@ -22,6 +22,15 @@ export type SpiaRitardo = {
    * bloccato, e il battito si scarta. Il ritardo si misura sul monotono.
    */
   battito: (ora: number, monotono?: number) => string | undefined
+  /**
+   * k-334b: il PC sta per dormire (`suspend` di `powerMonitor`, detto dall'app).
+   * Su Windows l'orologio monotono (QueryPerformanceCounter) continua a contare
+   * nella sospensione, quindi il confronto con l'orologio di sistema non la vede:
+   * il primo battito che copre quel periodo si scarta, di qualunque durata.
+   */
+  sospeso: (ora: number) => void
+  /** Il PC è tornato (`resume`): anche il primo battito dopo si scarta, se il messaggio è arrivato dopo il timer. */
+  ripreso: (ora: number) => void
 }
 
 export function creaSpiaRitardo(o: {
@@ -38,13 +47,23 @@ export function creaSpiaRitardo(o: {
   let ultimaRiga = Number.NEGATIVE_INFINITY
   let peggiore = 0
   let volte = 0
+  /** Quando il PC è andato a dormire, finché un battito non ha coperto quel periodo. */
+  let sospesoDal: number | undefined
+  /** Il PC è tornato e il battito dopo non è ancora passato. */
+  let scartaProssimo = false
   return {
+    sospeso(ora) { sospesoDal = ora },
+    ripreso() { sospesoDal = undefined; scartaProssimo = true },
     battito(ora, monotono) {
       const prima = ultimo
       const primaMonotono = ultimoMonotono
       ultimo = ora
       ultimoMonotono = monotono
       if (prima === undefined) return undefined
+      if (scartaProssimo) { scartaProssimo = false; return undefined }
+      // Dormito, ma il `resume` non è ancora arrivato: un intervallo oltre il passo normale dopo la sospensione
+      // è il sonno. I battiti normali fra il `suspend` e il sonno vero (≤ passo + soglia) non la consumano.
+      if (sospesoDal !== undefined && ora >= sospesoDal && ora - prima > ogni + soglia) { sospesoDal = undefined; return undefined }
       let intervallo = ora - prima
       if (monotono !== undefined && primaMonotono !== undefined) {
         const intervalloMonotono = monotono - primaMonotono
@@ -70,8 +89,20 @@ export function creaSpiaRitardo(o: {
 /** La spia vera: un timer che non tiene vivo il processo. */
 export function avviaSpiaRitardo(scrivi: (riga: string) => void = (r) => { console.warn(r) }): () => void {
   const spia = creaSpiaRitardo({ scrivi })
+  spiaViva = spia
   spia.battito(Date.now(), performance.now())
   const t = setInterval(() => { spia.battito(Date.now(), performance.now()) }, SPIA_OGNI_MS)
   t.unref()
-  return () => { clearInterval(t) }
+  return () => { clearInterval(t); if (spiaViva === spia) spiaViva = undefined }
+}
+
+let spiaViva: SpiaRitardo | undefined
+
+/**
+ * k-334b: l'app dice al servizio che il PC dorme o si è svegliato. Senza spia
+ * (servizio avviato da solo, o prima che parta) non fa niente: la spia resta com'era.
+ */
+export function segnalaSospensione(evento: 'suspend' | 'resume', ora: number = Date.now()): void {
+  if (evento === 'suspend') spiaViva?.sospeso(ora)
+  else spiaViva?.ripreso(ora)
 }
