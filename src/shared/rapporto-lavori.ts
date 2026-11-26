@@ -11,7 +11,7 @@
 
 /** I conti di un workspace (o di «generale», per le righe che non lo dicono). */
 export type LavoriWorkspace = {
-  unioni: { prove: number; attesaMs: number; attesaMaxMs: number; provaMs: number; provaMaxMs: number; scadute: number; inFila: number; motivi: Record<string, number>; /** Prove che non sono partite (cartella con file non salvati…): non sono prove. */ nonPartite: number; motiviNonPartite?: Record<string, number> }
+  unioni: { prove: number; attesaMs: number; attesaMaxMs: number; provaMs: number; provaMaxMs: number; scadute: number; inFila: number; motivi: Record<string, number>; /** Prove che non sono partite (cartella con file non salvati…): non sono prove. */ nonPartite: number; motiviNonPartite?: Record<string, number>; /** k-353b: chi teneva la cartella quando l'unione ha aspettato il turno (comando di una chat, un'altra unione, niente). Manca nelle righe vecchie. */ tenutoDa?: Record<string, number> }
   /** `nonMisurati` (k-199c): ambiente rotto, comando assente, codice 126: non sono rossi. */
   criteri: { finiti: number; riusciti: number; rossi: number; nonMisurati: number; durataMs: number; durataMaxMs: number; scaduti: number; inAttesa: number }
   compiti: { affidati: number; restatiQui: number; inFila: number; rifiuti: number; ruoli: Record<string, number> }
@@ -176,13 +176,16 @@ export function contaLavori(righe: readonly string[], dopo?: string, versionePri
     if (s !== null) { wsRiga = (s[2] as string).trim(); t = `${s[1]} ${t.slice(s[0].length)}` }
     let x: RegExpExecArray | null
     // Unione di prova: «[unione di prova] RAMO: attesa del turno N s, prova N s (scaduta mentre stava per X)»
-    if ((x = /^\[unione di prova\] [^:]+: attesa del turno (\d+) s, prova (\d+) s(?: \(scaduta mentre stava per ([^)]*)\))?/.exec(t)) !== null) {
+    // k-353b: «attesa del turno N s (teneva la cartella: X), prova N s …»; le righe vecchie non hanno il pezzo fra parentesi.
+    if ((x = /^\[unione di prova\] [^:]+: attesa del turno (\d+) s(?: \(teneva la cartella: ([^)]*)\))?, prova (\d+) s(?: \(scaduta mentre stava per ([^)]*)\))?/.exec(t)) !== null) {
       const u = di(wsRiga).unioni
       const att = Number(x[1]) * 1000
-      const prova = Number(x[2]) * 1000
+      const prova = Number(x[3]) * 1000
+      const teneva = motivoBreve(x[2] ?? '')
+      if (teneva !== '') { const tk = (u.tenutoDa ??= {}); const k = teneva in tk || Object.keys(tk).length < MAX_MOTIVI ? teneva : 'altro'; tk[k] = (tk[k] ?? 0) + 1 }
       u.prove += 1; u.attesaMs += att; u.provaMs += prova
       u.attesaMaxMs = Math.max(u.attesaMaxMs, att); u.provaMaxMs = Math.max(u.provaMaxMs, prova)
-      if (x[3] !== undefined) { u.scadute += 1; aggiungiMotivo(di(wsRiga), `scaduta: ${x[3]}`) }
+      if (x[4] !== undefined) { u.scadute += 1; aggiungiMotivo(di(wsRiga), `scaduta: ${x[4]}`) }
       lette += 1
     } else if ((x = /^\[unione di prova\] [^:]+: non partita \((.*)\)\s*$/.exec(t)) !== null) {
       // k-bloc: la prova non è nemmeno partita (cartella con file non salvati…): non è una prova, non entra nelle medie.
@@ -325,7 +328,7 @@ export function leggiRapportoLavori(x: unknown): { ok: true; rapporto: RapportoL
     const w = typeof v === 'object' && v !== null ? v as Record<string, Record<string, unknown> | undefined> : {}
     const u = w.unioni ?? {}, c = w.criteri ?? {}, k = w.compiti ?? {}, a = w.avanzamento ?? {}, f = w.fermate ?? {}
     workspace[nome.slice(0, 80)] = {
-      unioni: { prove: num(u.prove), attesaMs: num(u.attesaMs), attesaMaxMs: num(u.attesaMaxMs), provaMs: num(u.provaMs), provaMaxMs: num(u.provaMaxMs), scadute: num(u.scadute), inFila: num(u.inFila), motivi: conti(u.motivi), nonPartite: num(u.nonPartite), ...(Object.keys(conti(u.motiviNonPartite)).length > 0 ? { motiviNonPartite: conti(u.motiviNonPartite) } : {}) },
+      unioni: { prove: num(u.prove), attesaMs: num(u.attesaMs), attesaMaxMs: num(u.attesaMaxMs), provaMs: num(u.provaMs), provaMaxMs: num(u.provaMaxMs), scadute: num(u.scadute), inFila: num(u.inFila), motivi: conti(u.motivi), nonPartite: num(u.nonPartite), ...(Object.keys(conti(u.motiviNonPartite)).length > 0 ? { motiviNonPartite: conti(u.motiviNonPartite) } : {}), ...(Object.keys(conti(u.tenutoDa)).length > 0 ? { tenutoDa: conti(u.tenutoDa) } : {}) },
       criteri: { finiti: num(c.finiti), riusciti: num(c.riusciti), rossi: num(c.rossi), nonMisurati: num(c.nonMisurati), durataMs: num(c.durataMs), durataMaxMs: num(c.durataMaxMs), scaduti: num(c.scaduti), inAttesa: num(c.inAttesa) },
       compiti: { affidati: num(k.affidati), restatiQui: num(k.restatiQui), inFila: num(k.inFila), rifiuti: num(k.rifiuti), ruoli: conti(k.ruoli) },
       avanzamento: { svegli: num(a.svegli), limiteDelPiano: num(a.limiteDelPiano), criterioRosso: num(a.criterioRosso), lavoroFermoMaxMin: num(a.lavoroFermoMaxMin), spinteSospese: num(a.spinteSospese) },

@@ -62,6 +62,16 @@ describe('riassunto dei rapporti dei lavori', () => {
     expect(testoRiassunto('x', riassumi([rapporto('B', '2026-11-20T11:00:00.000Z', vecchio)])!)).not.toContain('non partite')
   })
 
+  it('k-353b: il riassunto dice chi teneva la cartella; un rapporto vecchio senza il campo resta leggibile', () => {
+    const conTenuto = { ...nuovo, unioni: { ...nuovo.unioni, tenutoDa: { 'comando di una chat: npm run pubblica': 2, niente: 1 } } }
+    const r = riassumi([rapporto('A', '2026-11-20T10:00:00.000Z', conTenuto), rapporto('B', '2026-11-20T11:00:00.000Z', vecchio)])!
+    expect(r.totale['SierraDeck']!.unioni.tenutoDa).toEqual({ 'comando di una chat: npm run pubblica': 2, niente: 1 })
+    const testo = testoRiassunto('x', r)
+    expect(testo).toContain('chi teneva la cartella')
+    expect(testo).toContain('comando di una chat: npm run pubblica ×2')
+    expect(testoRiassunto('x', riassumi([rapporto('B', '2026-11-20T11:00:00.000Z', vecchio)])!)).not.toContain('chi teneva la cartella')
+  })
+
   it('sezioni intere mancanti non rompono la somma', () => {
     const r = riassumi([rapporto('C', '2026-11-20T12:00:00.000Z', { criteri: { finiti: 1 } })])!
     expect(testoRiassunto('x', r)).not.toContain('NaN')

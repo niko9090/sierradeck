@@ -492,6 +492,8 @@ export function idAgente(corpo: Record<string, unknown>): string | undefined {
 export const TEMPO_COMANDO_CHAT_MS = 2 * 60_000
 /** Il più lungo che Claude Code concede a un comando (10 min), e il turno di uno lanciato in sottofondo. */
 export const TEMPO_MASSIMO_CHAT_MS = 10 * 60_000
+/** k-353b: il tetto della prenotazione di un comando non in sottofondo (30 min), oltre i 10 min che Claude Code concede di serie. */
+export const TEMPO_TETTO_PRENOTAZIONE_MS = 30 * 60_000
 /** Margine sul tempo del comando: avvio della shell, uscita. */
 const MARGINE_MS = 15_000
 /**
@@ -548,8 +550,11 @@ export function giudicaPesanteDellaChat(
   }
   const sottofondo = input.run_in_background === true
   const tempo = typeof input.timeout === 'number' && input.timeout > 0 ? input.timeout : TEMPO_COMANDO_CHAT_MS
-  const durataMs = sottofondo ? TEMPO_MASSIMO_CHAT_MS : Math.min(TEMPO_MASSIMO_CHAT_MS, tempo) + MARGINE_MS
-  const p = turni.prenota(o.chi, o.cwd, durataMs, sottofondo)
+  // k-353b: il turno dura quanto il timeout chiesto dal comando (tetto 30 min) più il margine: sotto i 10 minuti
+  // scadeva con la pubblicazione ancora in corso e un'unione entrava. La fine vera è il PostToolUse; il tempo è il salvagente.
+  const durataMs = sottofondo ? TEMPO_MASSIMO_CHAT_MS : Math.min(TEMPO_TETTO_PRENOTAZIONE_MS, tempo) + MARGINE_MS
+  const cosa = comando.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60)
+  const p = turni.prenota(o.chi, o.cwd, durataMs, sottofondo, cosa)
   if (!p.ok) {
     return {
       ok: false,

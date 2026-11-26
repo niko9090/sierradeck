@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -7,7 +7,7 @@ import {
   ATTESA_IN_UN_HOOK_MS, ATTESA_MASSIMA_MS, CARICO_MASSIMO_MS, creaGuardiaPc, dentroUnHook, giudicaMisura,
   giudicaPesanteDellaChat, MEMORIA_LIBERA_MIN_A_LUNGO, PROCESSORE_PER_MS, RILASCIO_PER_MS, rendiTurnoDopoComando
 } from '../../src/autopilot-host/guardia-pc'
-import { creaTurni } from '../../src/autopilot-host/turni-criteri'
+import { chiTieneLaCartella, creaTurni } from '../../src/autopilot-host/turni-criteri'
 import { apriArchivio } from '../../src/autopilot-host/archivio'
 import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/server'
 import { unicoFinto } from '../setup/unico-finto'
@@ -200,5 +200,76 @@ describe('la guardia: niente «carico» per sempre, niente attese oltre l\'hook'
     const fuori = t
     await g.attendi('la suite')
     expect(t - fuori).toBe(ATTESA_MASSIMA_MS)
+  })
+})
+
+describe('k-353b: il turno di un comando lungo regge fino al PostToolUse', () => {
+  const MIN = 60_000
+  it('una cartella prenotata da un comando di chat con timeout di 20 min: l’unione aspetta oltre 10 min 15 s, finché non arriva il PostToolUse', async () => {
+    vi.useFakeTimers()
+    try {
+      let t = ORA
+      const righe: string[] = []
+      const turni = creaTurni({ ora: () => t, registra: (r) => righe.push(r) })
+      const comando = bash('npm run pubblica', { timeout: 20 * MIN })
+      expect(giudicaPesanteDellaChat(comando, { chi: 'ap::c-1', cwd: 'C:/p', turni, ora: t }).ok).toBe(true)
+      let partita = false
+      const unione = turni.unione('C:/p', () => { partita = true; return 1 }, { piuTempo: 10 })
+      await vi.advanceTimersByTimeAsync(10 * MIN + 15_000 + 1_000)
+      t += 10 * MIN + 16_000
+      expect(partita).toBe(false)
+      expect(turni.prenotato()?.chi).toBe('ap::c-1')
+      expect(righe).toEqual([])
+      expect(rendiTurnoDopoComando(comando, { chi: 'ap::c-1', turni })).toBe(true)
+      await vi.advanceTimersByTimeAsync(1)
+      await expect(unione).resolves.toBe(1)
+      expect(partita).toBe(true)
+    } finally { vi.useRealTimers() }
+  })
+
+  it('giudicaPesanteDellaChat su npm run pubblica con timeout di 20 min prenota almeno 20 min, mai oltre 30 min più il margine', () => {
+    const turni = creaTurni({ ora: () => ORA })
+    expect(giudicaPesanteDellaChat(bash('npm run pubblica', { timeout: 20 * 60_000 }), { chi: 'ap::c-1', cwd: 'C:/p', turni, ora: ORA }).ok).toBe(true)
+    const p = turni.prenotato()!
+    expect(p.fino - p.dal).toBeGreaterThanOrEqual(20 * 60_000)
+    expect(p.cosa).toBe('npm run pubblica')
+    turni.rilascia('ap::c-1')
+    expect(giudicaPesanteDellaChat(bash('npm run pubblica', { timeout: 3 * 3_600_000 }), { chi: 'ap::c-1', cwd: 'C:/p', turni, ora: ORA }).ok).toBe(true)
+    const q = turni.prenotato()!
+    expect(q.fino - q.dal).toBeLessThanOrEqual(30 * 60_000 + 15_000)
+    expect(q.fino - q.dal).toBeGreaterThan(30 * 60_000)
+  })
+
+  it('il turno che scade col comando ancora vivo scrive una riga con chat e comando; reso dal PostToolUse, niente riga', async () => {
+    vi.useFakeTimers()
+    try {
+      const righe: string[] = []
+      const turni = creaTurni({ registra: (r) => righe.push(r) })
+      expect(turni.prenota('ap::c-1', 'C:/p', 5_000, false, 'npm run pubblica').ok).toBe(true)
+      await vi.advanceTimersByTimeAsync(5_001)
+      expect(righe).toHaveLength(1)
+      expect(righe[0]).toContain('ap::c-1')
+      expect(righe[0]).toContain('npm run pubblica')
+      expect(righe[0]).toContain('il turno è scaduto mentre il comando gira ancora')
+      expect(turni.prenotato()).toBeUndefined()
+      expect(turni.prenota('ap::c-2', 'C:/p', 5_000, false, 'npx vitest run').ok).toBe(true)
+      turni.rilascia('ap::c-2')
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(righe).toHaveLength(1)
+    } finally { vi.useRealTimers() }
+  })
+
+  it('chiTieneLaCartella: comando di chat, un’altra unione, niente', async () => {
+    const turni = creaTurni()
+    expect(chiTieneLaCartella(turni)).toBe('niente')
+    turni.prenota('ap::c-1', 'C:/p', 60_000, false, 'npm run pubblica (x)')
+    expect(chiTieneLaCartella(turni)).toBe('comando di una chat: npm run pubblica x')
+    turni.rilascia('ap::c-1')
+    let via: (() => void) | undefined
+    const dentro = turni.unione('C:/p', () => new Promise<void>((r) => { via = r }))
+    expect(chiTieneLaCartella(turni)).toBe('un’altra unione')
+    await vi.waitFor(() => { expect(via).toBeDefined() })
+    via!()
+    await dentro
   })
 })
