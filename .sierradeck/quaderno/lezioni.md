@@ -143,6 +143,7 @@
 - `npm run pubblica` supera i 10 minuti e va in sottofondo: lo `sleep` e i cicli di attesa sono bloccati. Si può solo fare una lettura singola dello stato e aspettare la notifica di fine. _(2026-11-26)_
 - Con il sottofondo bloccato, `npm run pubblica` in primo piano passa comunque in sottofondo dopo 10 min: non rilanciarlo, trovare il pid node e aspettarlo con Wait-Process -Timeout 590. _(2026-11-26)_
 - `pubblica` ora fa da solo tutto, anche rendere la release pubblica e Latest e controllarla (`controlla-release`); creare la bozza a mano prima non serve. _(2026-11-26)_
+- una voce di novità va scritta leggendo il diff del commit: «aspetta che finisca» è il PostToolUse col tetto di 30 min come salvagente, non un'attesa illimitata. _(2026-11-26)_
 
 ## git
 
@@ -164,6 +165,7 @@
 - un `git merge` ucciso a metà lascia `.git/index.lock`: poi `merge --abort` fallisce sempre e la prova resta aperta per sempre, senza file da elencare. _(2026-11-24)_
 - in questa copia `git fetch` fallisce: origin è un bundle in aiuto\arrivi che non esiste più; origin/main locale è vecchio, non prova che il portatile non abbia pubblicato. _(2026-11-24)_
 - con MERGE_HEAD aperto `git status` elenca come modificati tutti i file in indice: non sono lavoro di Nicholas, e un criterio misurato lì è rosso per nulla. _(2026-11-24)_
+- In PowerShell il push scrive su stderr anche se riesce: dà NativeCommandError ma il push passa. Va controllato l'esito con `git ls-remote`, non dal codice di uscita. _(2026-11-26)_
 
 ## autopilota
 
@@ -517,6 +519,7 @@
 - In PowerShell il criterio `--jq 'if .isDraft then error("bozza") else "ok" end'` va scritto con `error(\"bozza\")`, altrimenti gh dà «function not defined: bozza/0». _(2026-11-26)_
 - `npm run pubblica` della 0.122.5 ha impiegato più di 10 minuti: va in sottofondo. Per aspettarlo basta `Wait-Process -Id` sul node con `pubblica` nella riga di comando. _(2026-11-26)_
 - k-346b e k-347b non hanno commit con quel nome in main (solo k-346c): per le novità conviene indicare gli hash. _(2026-11-26)_
+- Con `$env:GH_TOKEN=(gh auth token); npm run pubblica *> log` in PowerShell la pubblicazione finisce da sola: bozza, 7 file, pubblica+Latest e controllo. Dopo i 10 minuti basta aspettare il pid node. _(2026-11-26)_
 
 ## aiuto-rete
 
@@ -599,7 +602,6 @@
 
 ## pc
 
-- `statoPc` di scoperta-pc.ts e `statoPc` di stato-pc.ts sono due funzioni diverse (stessa parola): la prima è il bussare, la seconda la soglia del battito. _(2026-11-19)_
 - Il segno «più recente fra SierraDeck e Aiutante» richiede `host` uguale in tutti e due i battiti (`vistoConAiutante`): senza `host` l'abbinamento non scatta e il PC con solo Aiutante sembra «non risp… _(2026-11-20)_
 - l'abbinamento SierraDeck/Aiutante dipende solo dall'`host` dei due battiti: ora senza maiuscole né dominio. Se un PC resta «non risponde», controllare l'host nei due battiti sul Drive. _(2026-11-20)_
 - Il PC in Glos è piccolo (4 core, 8 GB) e risulta al 94% di carico: le misure delle unioni lì vanno in `turni.pesante`, che oggi `provaNelPrincipale` non usa. _(2026-11-23)_
@@ -608,13 +610,11 @@
 
 ## posta
 
-- Le voci nelle cassette `posta-*-da-*` restano 'attesa' per sempre nel file: lo stato vero sta in `posta-<dest>-esiti`, quindi «in coda» va deciso incrociando i due. _(2026-11-19)_
 - `postino.pcSubito()` risponde con la memoria anche se vecchia (anche quella letta dal disco all'avvio): per decisioni a intervalli lunghi, come il controllo ogni 6 ore, serve `postino.pc()`. _(2026-11-20)_
 - la firma del battito esclude `risorse` e l'ora di `capacita`: dati che cambiano a ogni misura farebbero riscrivere il battito sul Drive a ogni giro. _(2026-11-20)_
 
 ## stato-pc
 
-- Un battito nel futuro conta «acceso» (come pcVivo) e uno illeggibile «spento» ma mai da rimuovere: con un orologio sbagliato la rimozione automatica non deve scattare. _(2026-11-19)_
 - `gruppiAltriPc` ora vuole `adesso` e non più `vivo`: stato e frase si ricavano da `visto` con `statoPc`. _(2026-11-19)_
 - Due `statoPc`: shared/stato-pc.ts (sul battito) e shared/scoperta-pc.ts (sul ping). Lo stato `in-aggiornamento` è solo nel secondo; aggiungere un valore all'unione richiede di controllare gli switch … _(2026-11-19)_
 
