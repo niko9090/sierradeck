@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.122.7',
+    righe: [
+      '**Panoramica più solida:** non si rompe più quando arriva un autopilota senza nome, per esempio da un altro PC o da dati vecchi: al posto del nome mostra «Autopilota».',
+    ],
+  },
+  {
     versione: '0.122.6',
     righe: [
       '**Aggiornamento senza blocchi:** mentre installa, il programma non si ferma più per decine di secondi (prima il PC smetteva anche di rispondere agli altri PC).',
