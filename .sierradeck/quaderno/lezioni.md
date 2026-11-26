@@ -141,6 +141,8 @@
 - `noteDi` (scripts/note-novita.mjs) restituisce [] se le novità stanno su una riga sola, `righe: ['...']`: note della release e di app-android.json vuote. Scriverle a mano o correggere il parser. _(2026-11-20)_
 - `gh release create --draft` stampa un URL «untagged-…» ed è normale: con `--verify-tag` il tag c'è già e la release prende `v0.114.2` alla pubblicazione. _(2026-11-23)_
 - `npm run pubblica` supera i 10 minuti e va in sottofondo: lo `sleep` e i cicli di attesa sono bloccati. Si può solo fare una lettura singola dello stato e aspettare la notifica di fine. _(2026-11-26)_
+- Con il sottofondo bloccato, `npm run pubblica` in primo piano passa comunque in sottofondo dopo 10 min: non rilanciarlo, trovare il pid node e aspettarlo con Wait-Process -Timeout 590. _(2026-11-26)_
+- `pubblica` ora fa da solo tutto, anche rendere la release pubblica e Latest e controllarla (`controlla-release`); creare la bozza a mano prima non serve. _(2026-11-26)_
 
 ## git
 
@@ -553,7 +555,6 @@
 
 ## aiutante
 
-- Per sapere se un PC è acceso solo grazie all'Aiutante usa `vistoDelPc` (stato-pc.ts); se serve una nuova vista sul battito, passa da lì invece di rifare l'abbinamento per host. _(2026-11-19)_
 - SierraDeck Aiutante crea la sincronia dentro `colleghiRete` dopo `aiuto`: per dargli `chiediCredenziali` serve un cambio d'ordine, non l'ho fatto. _(2026-11-20)_
 - L'Aiutante non ha cassaforte di credenziali: per i lavori affidati chiede solo al PC che li ha affidati (`chiedi` senza deposito), collegato in `rete.ts`, non in `index.ts`. _(2026-11-20)_
 - `novita-aiutante.txt` ha una riga di testo per versione tra apici singoli: un apice dentro il testo si scrive `\'`. I test di pubblicazione e aggiornamento dell'Aiutante lo leggono. _(2026-11-20)_
@@ -562,8 +563,6 @@
 
 ## menu
 
-- Il telefono ha tre strutture diverse (PC 7+1 voci, pagina `MENU_TELEFONO` 4 voci, app `Navigazione.kt` 3 voci). Cambiare `MENU_PRINCIPALE` non basta: l'app legge `assets/menu.json` e l'enum va ritocc… _(2026-11-19)_
-- Il test menu-principale.test.ts confronta assets/menu.json con MENU_PRINCIPALE: dopo ogni cambio di voci rigenerarlo con AGGIORNA=1 prima del commit. _(2026-11-19)_
 - Gli errori hanno due fonti: Salute legge il registro, Impostazioni → Errori legge lo storico (storico-errori-file). Possono non coincidere. _(2026-11-20)_
 - Ogni voce di errore in Salute dovrebbe avere l'azione «Apri gli errori», altrimenti la correzione resta sepolta due livelli sotto. _(2026-11-20)_
 - i dati di menu-principale.ts e impostazioni-struttura.ts sono copiati in android/assets (menu.json, impostazioni.json) e confrontati da test: rinominare le voci là richiede AGGIORNA=1 e tocca android… _(2026-11-20)_
@@ -575,7 +574,6 @@
 
 ## shared
 
-- Per leggere `a.chats` in src/shared usare `chatsDi` (chats-di.ts), non `a.chats` diretto: gli autopiloti da altri PC o di formato vecchio possono non averlo. _(2026-11-19)_
 - statoPc (stato-pc.ts, dal battito) e titoloDopoIlBussare (scoperta-pc.ts, dopo il ping) sono due livelli diversi; il vocabolario in vocabolario-stati-pc.ts li copre entrambi. _(2026-11-19)_
 
 ## stato
@@ -588,6 +586,7 @@
 
 - `volte` è un totale cumulativo: la serie va riconosciuta con PC+dove+punto+quando+messaggio grezzo, aggiungendo solo la differenza; la chiave normalizzata da sola fonde errori diversi. _(2026-11-23)_
 - il giro degli errori arrivati (ogni 2 min, `index.ts`) è il punto dove agganciare altri compiti affidati all'autopilota di SierraDeck: riusa `affidaSierraDeck`. _(2026-11-23)_
+- ogni lotto ha l'intestazione «# Errori arrivati (lotto <id>)», poi «## Gruppo N: «…»» e «Corretto nella versione X»; si aggiunge in fondo. _(2026-11-26)_
 
 ## codice
 
@@ -650,6 +649,7 @@
 - Per alzare la versione bastano package.json, package-lock.json (2 punti) e la voce in cima a NOVITA in src/shared/novita.ts. _(2026-11-23)_
 - Prima di un rilascio patch controlla se le correzioni sono già in main: qui lo erano, serviva solo alzare la versione e scrivere le note. _(2026-11-23)_
 - Un bump di patch dell'app tocca solo package.json, package-lock.json (2 righe) e novita.ts; i file note di Android e Aiutante solo se cambiano quelle app. _(2026-11-25)_
+- la versione nel package-lock.json compare due volte (radice e packages[""]): vanno cambiate entrambe. _(2026-11-26)_
 
 ## aggiornamento
 
