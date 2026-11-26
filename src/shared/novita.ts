@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.122.0',
+    righe: [
+      '**PC acceso non è spento:** se Tailscale vede il PC collegato ma SierraDeck non risponde, il programma dice «acceso, ma SierraDeck non risponde (chiuso o bloccato dal firewall)» e non lo mette fra i PC spenti.',
+      '**Niente falso «risponde un altro» all\'avvio:** nei primi momenti dopo l\'avvio, o con la cassaforte ancora chiusa, il programma riprova da solo invece di dire che gli indirizzi di un PC sono di altri.',
+      '**Pausa vera:** quando dici a un autopilota di restare fermo, il programma non lo sveglia più ogni pochi minuti, non lo segna fra gli errori e dopo un riavvio non gli riscrive niente, finché non gli riscrivi tu.',
+      '**Aggiornamenti più tranquilli:** un rifiuto passeggero di GitHub non accende più il riquadro rosso e si riprova da solo; la riga sulla mappa del differenziale non si ripete ogni 10 minuti e un download già superato si toglie da solo.',
+    ],
+  },
+  {
     versione: '0.121.1',
     righe: [
       '**Lavoro in fila:** un lavoro che aspetta un posto libero non viene più svegliato a vuoto.',

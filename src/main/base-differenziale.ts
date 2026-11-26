@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
+import { cancellaSicura } from '@shared/cancella-sicura'
 import { join } from 'node:path'
 import { gunzipSync } from 'node:zlib'
 
@@ -136,7 +137,7 @@ export function togliScaricatoSuperato(cartella: string, versioneInstallata: str
     const s = scaricatoInAttesa(cartella)
     if (s?.versione === undefined) return { esito: 'niente' }
     if (confrontaVersioni(s.versione, versioneInstallata) > 0) return { esito: 'niente' }
-    rmSync(join(cartella, CARTELLA_IN_ATTESA), { recursive: true, force: true })
+    cancellaSicura(join(cartella, CARTELLA_IN_ATTESA), { dentro: [cartella] })
     return { esito: 'tolto', versione: s.versione }
   } catch (err) {
     return { esito: 'errore', perche: String(err) }
