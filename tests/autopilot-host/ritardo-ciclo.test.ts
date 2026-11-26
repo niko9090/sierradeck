@@ -99,9 +99,9 @@ describe('spia del ritardo: sospensione del PC (k-334b)', () => {
     spia.ripreso(1_079_600)
     spia.battito(1_080_000, 85_000) // scartato dal resume
     spia.battito(1_080_500, 85_500)
-    spia.battito(1_084_000, 89_000) // 3,5 s fermo davvero
+    spia.battito(1_084_000, 89_000) // 3,5 s dal battito prima, 3 s oltre il passo: fermo davvero
     expect(righe).toHaveLength(1)
-    expect(righe[0]).toContain('3.5 s')
+    expect(righe[0]).toContain('3.0 s')
   })
 
   it('un suspend senza sonno non nasconde un blocco vero più tardi se il sonno è già stato consumato', () => {

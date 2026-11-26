@@ -4335,9 +4335,10 @@ if (!app.requestSingleInstanceLock()) {
       })
       // k-334b: la sospensione del PC la sa solo il programma (`powerMonitor`): la dice al servizio, che così
       // non scrive «fermo N s» per un PC che dormiva (su Windows l'orologio monotono continua a contare).
-      for (const evento of ['suspend', 'resume'] as const) {
-        try { powerMonitor.on(evento, () => { void clientAutopilota.sospensione(evento) }) } catch { /* senza powerMonitor la spia resta com'era */ }
-      }
+      try {
+        powerMonitor.on('suspend', () => { void clientAutopilota.sospensione('suspend') })
+        powerMonitor.on('resume', () => { void clientAutopilota.sospensione('resume') })
+      } catch { /* senza powerMonitor la spia resta com'era */ }
       // k-179b: i posti di questo PC (numero, motivo, misura) per il battito, ogni 30 secondi; se il servizio non risponde restano gli ultimi.
       {
         const leggiPosti = (): void => { void clientAutopilota.postiChat().then((p) => { if (p !== undefined) postiQuiGlobale = p }).catch(() => undefined) }
