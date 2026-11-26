@@ -105,6 +105,7 @@
 - un criterio rosso senza nomi non si riproduce sempre: se a PC scarico passa, il sospetto è la lentezza sotto carico, non un testo vecchio. _(2026-11-25)_
 - dopo aver spostato prove nel gruppo lenti, le prove veloci con git vero rimaste fuori vanno in timeout a PC carico: cercarle con grep su 'init' e execFileSync('git'. _(2026-11-25)_
 - `motivoInItaliano` tiene la coda «— riprovo fra N»: le prove sul testo del dialogo per l'accesso scaduto la includono ora, perché il guasto ha l'attesa. _(2026-11-25)_
+- la suite `tests/autopilot-host` dura circa 8 minuti e `tests/main` più `tests/shared` circa 4: servono timeout da 600000 ms, in primo piano. _(2026-11-26)_
 
 ## worktree
 
@@ -451,8 +452,6 @@
 
 ## rilascio
 
-- Lo specialista di rilascio non può fare cherry-pick o merge in main: il hook lo rifiuta. Un commit che il cancello respinge va unito dall'autopilota, non dal rilascio. _(2026-11-17)_
-- Il rilascio non può fare cherry-pick o merge nella cartella principale: un commit respinto per errore dal cancello va portato da una copia temporanea (git worktree) con push normale. _(2026-11-17)_
 - il numero di commit "avanti" di main può cambiare tra la richiesta e l'esecuzione: il programma continua a scrivere note nel quaderno. Contare di nuovo dopo il fetch. _(2026-11-17)_
 - Per le copie temporanee conviene metterle sotto `E:\Users\nikof\Documents\SierraDeck.sierradeck-wt`, così la pulizia non chiede il consenso di Nicholas. _(2026-11-17)_
 - Il link della bozza creata con `gh release create --draft --verify-tag` ha forma `untagged-…`: è normale, il tag esiste già sul remoto. _(2026-11-17)_
@@ -666,6 +665,7 @@
 - il test sulle note limita ogni voce a 8 righe; la 0.116.0 ora ne ha 8, quindi altre aggiunte richiedono di accorciare le righe esistenti. _(2026-11-23)_
 - Se una riga delle note contiene «versione:», il test che legge `novita.ts` può leggerla male: nelle note evitare quella parola seguita da due punti. _(2026-11-23)_
 - la voce in cima a `novita.ts` ha `righe` come array di stringhe; gli apostrofi nel testo vanno scritti con `\'`. _(2026-11-23)_
+- nelle note di `novita.ts` non scrivere la parola «versione:»: il file la usa come chiave di ogni voce e si confonde con le note. _(2026-11-26)_
 
 ## versione
 
