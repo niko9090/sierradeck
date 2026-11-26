@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { FIRMA_IN_FILA_PER_POSTO, lavoroFermo, soloAttesaDiPosti } from '../../src/autopilot-host/lavoro-fermo'
+import { FIRMA_IN_FILA_PER_POSTO, lavoroFermo, MOTIVO_RIFIUTO_MAX, motivoBreveRifiuto, soloAttesaDiPosti } from '../../src/autopilot-host/lavoro-fermo'
 import { codaVuota, type Coda } from '../../src/shared/coda-richieste'
 import type { CompitoPiano, Piano } from '../../src/shared/piano-orchestratore'
 
@@ -31,5 +31,21 @@ describe('compiti in fila per un posto (26/11)', () => {
 
   it('soloAttesaDiPosti: la firma vuota non conta', () => {
     expect(soloAttesaDiPosti('')).toBe(false)
+  })
+})
+
+describe('il motivo dell’ultimo rifiuto nelle righe (k-330b)', () => {
+  it('motivoBreveRifiuto riduce i motivi della guardia', () => {
+    expect(motivoBreveRifiuto('aspetta: troppi specialisti attivi sul PC (3 su 3). Sei 1° in fila: ti avviso io quando tocca a te, non rilanciare prima.')).toBe('tetto pieno, in fila')
+    expect(motivoBreveRifiuto('aspetta l’unione di k-12: ti avviso io quando è unita (k-14 è in fila), non lanciarlo prima.')).toBe('aspetta l\'unione di k-12')
+    expect(motivoBreveRifiuto('nessun PC ha i requisiti richiesti dal compito')).toBe('nessun PC ha i requisiti')
+    expect(motivoBreveRifiuto(`${'una frase molto lunga '.repeat(10)}.`).length).toBeLessThanOrEqual(MOTIVO_RIFIUTO_MAX)
+  })
+
+  it('un compito pronto riporta il motivo del suo ultimo rifiuto, uno senza rifiuti no', () => {
+    const f = lavoroFermo({ coda, piano: piano(k('k-14'), k('k-15')), alLavoro: new Set(), rifiuti: new Map([['k-14', 'tetto pieno, in fila']]) })
+    const righe = f!.righe
+    expect(righe.find((r) => r.includes('k-14'))).toContain('ultimo rifiuto: tetto pieno, in fila')
+    expect(righe.find((r) => r.includes('k-15'))).not.toContain('rifiuto')
   })
 })

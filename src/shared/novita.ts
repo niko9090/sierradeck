@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.121.1',
+    righe: [
+      '**Lavoro in fila:** un lavoro che aspetta un posto libero non viene più svegliato a vuoto.',
+      '**Lavoro fermo:** quando un lavoro è fermo, il registro dice anche perché.',
+    ],
+  },
+  {
     versione: '0.121.0',
     righe: [
       '**Accesso a Claude per PC:** ogni PC dice nel suo battito se il suo accesso a Claude va o è scaduto. Il programma non chiede più di rinnovarlo per errori vecchi: dice quale PC è scaduto e che si rinnova dal suo schermo, e il tasto «Rinnova» dice quale PC rinnova.',

@@ -37,7 +37,23 @@ const corto =(t: string, n: number): string => {
  * richieste aperte senza piano. `alLavoro`: gli id degli specialisti vivi.
  * `inUnione`: i compiti la cui unione è in corso o in fila (non sono fermi).
  */
-export function lavoroFermo(p: { coda: Coda; piano: Piano; alLavoro: ReadonlySet<string>; inUnione?: ReadonlySet<string>; unioniFerme?: ReadonlyMap<string, string>; inFilaPerPosto?: ReadonlySet<string> }): LavoroFermo | undefined {
+/** Al massimo tanti caratteri per il motivo di un rifiuto nelle righe del registro. */
+export const MOTIVO_RIFIUTO_MAX = 80
+
+/**
+ * Il motivo breve dell'ultimo rifiuto dell'Agent deciso dalla guardia («tetto pieno, in fila», «aspetta l'unione di k-N»,
+ * «nessun PC ha i requisiti»): dal testo lungo scritto per l'autopilota, per le righe del registro.
+ */
+export function motivoBreveRifiuto(motivo: string): string {
+  const m = motivo.replace(/\s+/gu, ' ').trim()
+  const unione = /aspetta l[’']unione di ([^:]+?):/iu.exec(m)
+  if (unione !== null) return corto(`aspetta l'unione di ${unione[1]!}`, MOTIVO_RIFIUTO_MAX)
+  if (/troppi specialisti attivi|posto libero è già prenotato/iu.test(m)) return /in fila/iu.test(m) ? 'tetto pieno, in fila' : 'tetto pieno'
+  if (/requisiti/iu.test(m)) return 'nessun PC ha i requisiti'
+  return corto(m.split(/(?<=[.:;])\s/u, 1)[0]!.replace(/[.:;]$/u, ''), MOTIVO_RIFIUTO_MAX)
+}
+
+export function lavoroFermo(p: { coda: Coda; piano: Piano; alLavoro: ReadonlySet<string>; inUnione?: ReadonlySet<string>; unioniFerme?: ReadonlyMap<string, string>; inFilaPerPosto?: ReadonlySet<string>; rifiuti?: ReadonlyMap<string, string> }): LavoroFermo | undefined {
   const aperte = new Set(p.coda.richieste.filter((r) => r.stato !== 'fatta').map((r) => r.id))
   // 11/11: un compito chiuso senza unirlo non è fermo, e chi veniva dopo di lui non lo aspetta.
   const compiti = p.piano.compiti.filter((c) => aperte.has(c.richiesta) && c.chiuso === undefined)
@@ -54,7 +70,8 @@ export function lavoroFermo(p: { coda: Coda; piano: Piano; alLavoro: ReadonlySet
       righe.push(`- ${c.id} è già in fila per un posto libero (tetto di specialisti pieno): non rilanciarlo, il programma ti avvisa quando tocca a lui`)
     } else if (c.stato === 'da-fare' && c.dopo.every((d) => verde.has(d) || !nelPiano.has(d))) {
       firma.push(`${c.id}:pronto`)
-      righe.push(`- ${c.id} pronto da affidare: ${corto(c.titolo, 100)}`)
+      const rifiuto = p.rifiuti?.get(c.id)
+      righe.push(`- ${c.id} pronto da affidare: ${corto(c.titolo, 100)}${rifiuto !== undefined ? ` (ultimo rifiuto: ${corto(rifiuto, MOTIVO_RIFIUTO_MAX)})` : ''}`)
     } else if (c.stato === 'in-corso' && (c.chat === undefined || !p.alLavoro.has(c.chat))) {
       firma.push(`${c.id}:orfano`)
       righe.push(`- ${c.id} risulta in corso ma nessuno specialista ci lavora più: rilancialo o uniscilo`)
