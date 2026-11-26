@@ -5,7 +5,7 @@ import { app } from 'electron'
 import type { BrowserWindow } from 'electron'
 import { avviaFinestraAggiornamento } from './finestra-aggiornamento'
 import { allineaBaseDifferenziale, cartellaCacheUpdater, togliScaricatoSuperato } from './base-differenziale'
-import { assicuraUpdater, avviaUpdater, diariUpdater, updaterVivo } from './updater/compila'
+import { assicuraUpdater, avviaUpdater, diagnosiUpdater, diariUpdater, guastoCostruzione, processiUpdater, rimastiNostri, updaterVivo, type AvvioUpdater } from './updater/compila'
 import { PAGINA_VERSIONI, raccogliNote, righeNotePerUpdater, type NoteAggiornamento } from '@shared/note-aggiornamento'
 import { APP_NAME } from '@shared/version'
 import { eErroreDiRete } from '@shared/errori-rete'
@@ -99,6 +99,12 @@ export type StatoAggiornamento = {
   velocita?: number
   /** Che cosa è andato storto, se è andato storto. */
   errore?: string
+  /**
+   * In fase `installo`, una frase su **come** si installa quando non è la
+   * strada solita (26/11: SierraDeck Update non partito, si usa l'installer di
+   * electron-updater). La mostra la finestra in basso a destra.
+   */
+  avviso?: string
   /**
    * L'ultima installazione non è riuscita (0.39.2): al riavvio la versione è
    * ancora quella di prima. Resta in ogni stato finché la versione non cambia,
@@ -326,6 +332,13 @@ export function creaLoggerUpdater(
  * Chi vuole sapere ogni stato annunciato, oltre alle finestre (13/11): la
  * finestra degli aggiornamenti in basso a destra decide lì se mostrarsi.
  */
+/**
+ * Quanti giri da 250 ms si aspetta il segno di vita di SierraDeck Update: 15 s.
+ * Erano 6: il primo avvio di un eseguibile appena compilato passa dalla
+ * scansione dell'antivirus, e su un PC lento non bastavano.
+ */
+const GIRI_ATTESA_UPDATER = 60
+
 const ascoltatoriAnnunci = new Set<(s: StatoAggiornamento) => void>()
 export function ascoltaAnnunci(f: (s: StatoAggiornamento) => void): () => void {
   ascoltatoriAnnunci.add(f)
@@ -957,10 +970,49 @@ export function creaAggiornamenti(
       // controllo e una per il valore — voleva dire farle tutte e due due
       // volte, e il programma resta fermo per tutto il tempo.
       const claude = claudeDaAggiornare?.()
+      const versioneNuova = stato.versione ?? versioneScaricata ?? '?'
+      /**
+       * La strada di electron-updater: il suo installer, senza la nostra finestra.
+       *
+       * Si usa quando SierraDeck Update non c'è (niente compilatore, costruzione
+       * fallita) **e** quando c'è ma non si fa vivo nemmeno con una copia nuova
+       * (26/11: su un PC «Installa» non faceva niente, due giorni di fila). Prima,
+       * in quel secondo caso, si tornava a «pronto» e l'aggiornamento non si
+       * installava mai: ora lo si installa lo stesso, e la finestra in basso a
+       * destra dice in una frase per quale strada.
+       */
+      const installaDiRiserva = (avviso: string | undefined): void => {
+        segnaTentativo(versioneNuova)
+        if (avviso !== undefined) annuncia({ ...stato, fase: 'installo', avviso })
+        const apertura = avviaFinestraAggiornamento({
+          esePath: app.getPath('exe'),
+          versione: stato.versione ?? '',
+          pidVecchio: process.pid
+        })
+        void apertura
+          .then(() => preparaUscita?.())
+          .catch((err: unknown) => guaio(`preparazione incompleta: ${String(err)}`))
+          .finally(() => setTimeout(() => {
+            try {
+              autoUpdater.quitAndInstall(true, true)
+            } catch (err) {
+              guaio(`l installer di riserva non e partito: ${String(err)}`)
+            }
+            // Ancora qui dopo mezzo minuto: l'installer non è partito, e dopo
+            // `preparaUscita` il programma è svuotato. Meglio riaprirlo (le chat
+            // riprendono da sole) che lasciarlo vivo e muto.
+            const guardia = setTimeout(() => {
+              guaio('l installer di riserva non ha chiuso SierraDeck in 30 s: riapro la versione di prima')
+              togliSegno()
+              try { app.relaunch?.(); app.exit?.(0) } catch (err) { guaio(`riapertura non riuscita: ${String(err)}`) }
+            }, 30_000)
+            guardia.unref?.()
+          }, 500))
+      }
       if (updater !== undefined && installer !== undefined) {
-        segnaTentativo(stato.versione ?? versioneScaricata ?? '?')
+        segnaTentativo(versioneNuova)
         const rettangolo = rettangoloSicuro()
-        const partito = avviaUpdater(updater, {
+        const datiAvvio: AvvioUpdater = {
           installer,
           eseguibile: app.getPath('exe'),
           versione: stato.versione ?? '',
@@ -977,64 +1029,71 @@ export function creaAggiornamenti(
           daVersione: app.getVersion(),
           note: noteRaccolte !== undefined && noteRaccolte.versione === (stato.versione ?? versioneScaricata) ? righeNotePerUpdater(noteRaccolte.note.note) : [],
           ...(rettangolo !== undefined ? { rettangolo } : {})
-        })
-        if (partito) {
-          // Non si chiude niente finché l'updater non dice di esserci. Se lo
-          // facessimo prima, e lui fosse nato figlio nostro, lo chiuderemmo
-          // insieme a noi — è il guasto per cui l'aggiornamento si interrompeva
-          // sempre a metà, con il diario che finiva in mezzo a una frase.
-          void updaterVivo()
-            .then(async (vivo) => {
-              if (!vivo) {
-                guaio('l updater non si e fatto vivo: non chiudo niente')
-                installazioneAvviata = false
-                subitoChiesto = false
-                fasi = soloScarico()
-                togliSegno()
-                togliInCorso()
-                // **Si disfa tutto quello che la quiete aveva fatto.** Gli
-                // autopiloti tornano a ricevere il compito seguente, il file
-                // della pausa se ne va. Alla chiusura non si installa niente
-                // (0.69.0): installa solo Nicholas, con il tasto, e il testo
-                // sotto dice di riprovare con quello.
-                try {
-                  await disfaPausa?.()
-                } catch (err) {
-                  guaio(`pausa non disfatta: ${String(err)}`)
-                }
-                annuncia({
-                  fase: 'pronto',
-                  versione: versioneScaricata ?? stato.versione,
-                  errore: 'Non ho installato: SierraDeck Update non si è fatto vivo (un antivirus che lo blocca, o la cartella temporanea che non si può scrivere). Le chat e gli autopiloti hanno ripreso da soli. Riprova con il tasto Installa.'
-                })
-                return
-              }
-              nota('SierraDeck Update e vivo (finestra di installazione): mi tolgo di mezzo')
-              await preparaUscita?.()
-              setTimeout(() => app.quit(), 400)
-            })
-            .catch((err: unknown) => {
-              guaio(`chiusura incompleta: ${String(err)}`)
-              setTimeout(() => app.quit(), 400)
-            })
-          return
         }
-        togliSegno()
+        const registraAvvio = (m: string): void => nota(`avvio di SierraDeck Update: ${m}`)
+        /**
+         * Lancia per una strada e aspetta il segno di vita.
+         *
+         * Non si chiude niente finché l'updater non dice di esserci. Se lo
+         * facessimo prima, e lui fosse nato figlio nostro, lo chiuderemmo
+         * insieme a noi — è il guasto per cui l'aggiornamento si interrompeva
+         * sempre a metà, con il diario che finiva in mezzo a una frase.
+         *
+         * Vivo è anche un updater **nostro in esecuzione** senza diario dove lo
+         * cerchiamo (una cartella temporanea che non vediamo): chiude lui
+         * SierraDeck entro pochi secondi, e lanciarne un secondo farebbe due
+         * installer sugli stessi file.
+         */
+        const lanciaEAttendi = async (percorso: string, strada: 'explorer' | 'sistema'): Promise<boolean> => {
+          if (!avviaUpdater(percorso, datiAvvio, { strada, chiudiRimasti: true, registra: registraAvvio })) {
+            nota(`avvio di SierraDeck Update: la strada ${strada} non si e aperta`)
+            return false
+          }
+          if (await updaterVivo(undefined, undefined, GIRI_ATTESA_UPDATER)) return true
+          const nostri = rimastiNostri(processiUpdater() ?? [], percorso)
+          if (nostri.length > 0) {
+            nota(`SierraDeck Update e in esecuzione (pid ${nostri.map((p) => p.pid).join(', ')}) ma il suo diario non si vede: lo considero vivo`)
+            return true
+          }
+          return false
+        }
+        void (async () => {
+          let vivo = await lanciaEAttendi(updater, 'explorer')
+          if (!vivo) {
+            guaio(`l updater non si e fatto vivo (lanciato da explorer): ${await diagnosiUpdater(updater)}`)
+            // Una copia fresca e l'altra strada: un eseguibile rimasto a metà o
+            // messo da parte dall'antivirus si ricostruisce, e un explorer che
+            // non collabora si scavalca con il servizio di sistema.
+            const fresco = assicuraUpdater(cartellaUpdater(), { forza: true })
+            if (fresco === undefined) {
+              guaio(`copia nuova di SierraDeck Update non costruita: ${guastoCostruzione() ?? 'motivo sconosciuto'}`)
+            } else {
+              nota('riprovo con una copia nuova di SierraDeck Update, lanciata dal servizio di sistema')
+              vivo = await lanciaEAttendi(fresco, 'sistema')
+              if (!vivo) guaio(`neanche la copia nuova di SierraDeck Update e partita: ${await diagnosiUpdater(fresco)}`)
+            }
+          }
+          if (vivo) {
+            nota('SierraDeck Update e vivo (finestra di installazione): mi tolgo di mezzo')
+            await preparaUscita?.()
+            setTimeout(() => app.quit(), 400)
+            return
+          }
+          // L'installazione l'ha chiesta Nicholas con il tasto e la quiete è
+          // arrivata: si installa lo stesso, con l'installer di electron-updater.
+          nota('installo con l installer di electron-updater (strada di riserva)')
+          installaDiRiserva('SierraDeck Update non è partito su questo PC: installo con l’installer normale.')
+        })().catch((err: unknown) => {
+          guaio(`chiusura incompleta: ${String(err)}`)
+          setTimeout(() => app.quit(), 400)
+        })
+        return
       }
 
       // Senza updater si torna alla strada di prima: meglio un aggiornamento
       // senza finestra che nessun aggiornamento.
-      nota(`updater non disponibile (updater ${updater === undefined ? 'mancante' : 'ok'}, installer ${installer === undefined ? 'mancante' : 'ok'}): installo alla vecchia maniera, senza finestra`)
-      segnaTentativo(stato.versione ?? versioneScaricata ?? '?')
-      const apertura = avviaFinestraAggiornamento({
-        esePath: app.getPath('exe'),
-        versione: stato.versione ?? '',
-        pidVecchio: process.pid
-      })
-      void apertura
-        .then(() => preparaUscita?.())
-        .catch((err: unknown) => guaio(`preparazione incompleta: ${String(err)}`))
-        .finally(() => setTimeout(() => autoUpdater.quitAndInstall(true, true), 500))
+      nota(`updater non disponibile (updater ${updater === undefined ? `mancante: ${guastoCostruzione() ?? 'motivo sconosciuto'}` : 'ok'}, installer ${installer === undefined ? 'mancante' : 'ok'}): installo alla vecchia maniera, senza finestra`)
+      installaDiRiserva(undefined)
   }
 
   return {

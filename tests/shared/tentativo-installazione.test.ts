@@ -83,7 +83,9 @@ describe('come e collegato', () => {
   const src = (p: string): string => readFileSync(join(__dirname, '../../src', p), 'utf8')
   it('il main segna il tentativo prima di lanciare l installer, lo toglie se l updater non parte, e lo legge all avvio', () => {
     const agg = src('main/aggiornamenti.ts')
-    expect(agg.indexOf('segnaTentativo(stato.versione')).toBeLessThan(agg.indexOf('const partito = avviaUpdater('))
+    // 26/11: il lancio passa da `lanciaEAttendi`, che chiama `avviaUpdater`.
+    expect(agg.indexOf('segnaTentativo(versioneNuova)')).toBeGreaterThan(-1)
+    expect(agg.indexOf('segnaTentativo(versioneNuova)')).toBeLessThan(agg.indexOf('if (!avviaUpdater(percorso, datiAvvio'))
     expect(agg).toContain('togliSegno()')
     expect(agg).toContain("FILE_TENTATIVO = 'tentativo-installazione.json'")
     expect(agg).toContain('esitoTentativo(tentativo, app.getVersion())')

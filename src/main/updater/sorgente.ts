@@ -42,7 +42,7 @@
  * spazio aggiunto farebbe ricompilare per niente, e chi la alza qui sta anche
  * dicendo «ho cambiato qualcosa che conta».
  */
-export const VERSIONE_UPDATER = 14
+export const VERSIONE_UPDATER = 15
 
 /** Il file delle novità, accanto all'eseguibile: una riga per voce («# 0.108.0», «- testo»). */
 export const FILE_NOTE_UPDATER = 'aggiornamento-note.txt'
@@ -194,6 +194,26 @@ class Aggiornamento : Form {
 
     [STAThread]
     static void Main(string[] args) {
+        // La prova (26/11): SierraDeck la lancia prima di affidargli
+        // l'installazione. Uscire con zero vuol dire «Windows mi lascia partire
+        // e la cartella temporanea si scrive»; un codice diverso, o nessuna
+        // uscita, e' il motivo preciso per cui l'updater non si farebbe vivo.
+        // Niente diario: il diario e' il segno che l'updater vero e' partito.
+        if (args.Length == 1 && args[0] == "--prova") {
+            int codice = 0;
+            try {
+                string t = Path.Combine(Path.GetTempPath(), "sierradeck-update-prova.txt");
+                File.WriteAllText(t, "ok");
+                File.Delete(t);
+                Console.Out.Write(Path.GetTempPath());
+            } catch (Exception e) {
+                try { Console.Out.Write(e.Message); } catch { }
+                codice = 3;
+            }
+            try { Console.Out.Flush(); } catch { }
+            Environment.Exit(codice);
+            return;
+        }
         percorsoDiario = Path.Combine(Path.GetTempPath(), "sierradeck-update.log");
         Nota("avviato con " + args.Length + " argomenti");
         // Senza argomenti si leggono dal file accanto. E' cio' che permette di
