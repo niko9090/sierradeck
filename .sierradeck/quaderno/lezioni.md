@@ -240,6 +240,7 @@
 - un conflitto vero in un merge a polpo lascia i file in conflitto; il caso senza file si prova solo con un git finto sul comando merge _(2026-11-24)_
 - La domanda «li salvo?» sta nel ramo sporca non-`misura` di servizio-orchestratore.ts: ogni nuovo percorso `RiprovaUnione('sporca')` deve passare da lì o resta muto. _(2026-11-24)_
 - Il segno `.git/sierradeck-prova.json` ora tiene i commit di tutti i rami: un'unione si riconosce dal contenuto, non da un confronto secco con MERGE_HEAD (il ramo può andare avanti). _(2026-11-24)_
+- il rapporto conta l'attesa dal tentativo in testa alla fila, non dall'entrata in fila: la pausa prima della testa non compare _(2026-11-26)_
 
 ## ui
 
@@ -572,13 +573,8 @@
 - `Correzioni` è `soloPc`: va filtrata (`soloPc !== true`) sia in `menu.json` sia nella pagina; le sottovoci vengono da `COMANDI_CHAT_WORKSPACE` e `SEZIONI`. _(2026-11-20)_
 - la barra dell'app (Lavoro/File/Altro) e due sezioni di Altro («Tutte le chat», «Dati riservati») non sono nel menu.json: nomi propri del telefono, non allinearli alla fonte. _(2026-11-20)_
 
-## shared
-
-- statoPc (stato-pc.ts, dal battito) e titoloDopoIlBussare (scoperta-pc.ts, dopo il ping) sono due livelli diversi; il vocabolario in vocabolario-stati-pc.ts li copre entrambi. _(2026-11-19)_
-
 ## stato
 
-- Esistono due funzioni `statoPc`: `shared/stato-pc.ts` (battito, soglia 35 min) e `shared/scoperta-pc.ts` (ping). Importare quella sbagliata cambia la soglia senza errori. _(2026-11-19)_
 - il riassunto tronca in coda a 12.000 caratteri: con una coda lunga perdi PRONTI, DOMANDE ed EVENTI senza avviso (riassunto-orchestratore.ts:140). _(2026-11-20)_
 - L'orchestratore costruisce lo stato per sezioni (testata, coda, piano, specialisti, fisse, eventi): una nuova sezione che non deve sparire va in «fisse». _(2026-11-20)_
 
@@ -603,9 +599,6 @@
 
 ## pc
 
-- «Dismetti questo PC» esiste già (7 giorni, solo `pc-<id>` dal Drive, `src/main/progetti/posta.ts:558`): la scadenza dei 30 giorni va costruita sopra questo, non accanto. _(2026-11-19)_
-- La soglia di 7 giorni è scritta due volte, `posta.ts:116` e `salute.ts:273`: cambiarne una sola lascia la Salute e la logica in disaccordo. _(2026-11-19)_
-- Il rapporto del controllo elenca anche i PC spenti, e ognuno porta il paragrafo di Salute con «Accendi X»: se si toglie un PC dalla lista va tolto anche da `testoRapporto` (`controllo-pc.ts:152`). _(2026-11-19)_
 - `statoPc` di scoperta-pc.ts e `statoPc` di stato-pc.ts sono due funzioni diverse (stessa parola): la prima è il bussare, la seconda la soglia del battito. _(2026-11-19)_
 - Il segno «più recente fra SierraDeck e Aiutante» richiede `host` uguale in tutti e due i battiti (`vistoConAiutante`): senza `host` l'abbinamento non scatta e il PC con solo Aiutante sembra «non risp… _(2026-11-20)_
 - l'abbinamento SierraDeck/Aiutante dipende solo dall'`host` dei due battiti: ora senza maiuscole né dominio. Se un PC resta «non risponde», controllare l'host nei due battiti sul Drive. _(2026-11-20)_
@@ -828,6 +821,7 @@
 - La soglia dei rallentamenti è in haIntoppi (rapporto-lavori.ts) e anche scritta in novita.ts: se cambia la regola, va rivista pure la nota di versione. _(2026-11-26)_
 - la riga `[servizio] fermo X s (N volte…)` dà solo il massimo degli N: le fasce di durata sono un minimo (gli altri N-1 vanno in 1-2 s) _(2026-11-26)_
 - l'ora del più lungo nel riassunto è locale al PC che lo scrive; nei test non fissarla, usare un'attesa a prefisso «alle » _(2026-11-26)_
+- le righe `[unione di prova]` sono rilette da una regex in `shared/rapporto-lavori.ts`: un campo nuovo va aggiunto come pezzo facoltativo, e i testi nelle parentesi non devono contenere `)`. _(2026-11-26)_
 
 ## pc-glos
 
@@ -840,6 +834,8 @@
 ## turni
 
 - `turni.pesante` ora è rientrante (AsyncLocalStorage): chi tiene il turno e chiama `conTurni` sulla stessa istanza non si blocca. Un pesante dentro l'unione della stessa cartella invece sì. _(2026-11-23)_
+- il tetto di 10 min 15 s sul turno di un comando di chat rende la cartella mentre il comando gira ancora: il PostToolUse è il vero segnale di fine _(2026-11-26)_
+- il turno prenotato per un comando di chat è solo un salvagente: la fine vera è il PostToolUse (`rendiTurnoDopoComando`); la durata deve coprire il timeout del comando, non 10 min fissi. _(2026-11-26)_
 
 ## note
 
@@ -937,3 +933,7 @@
 ## helper
 
 - per nome/obiettivo di un Autopilota usare `nomeODi`/`testoOVuoto` di `src/shared/nome-autopilota.ts`, non `.nome.trim()` diretto. _(2026-11-26)_
+
+## copia
+
+- senza strumento Bash non si può allineare con ff-only: la copia può essere indietro rispetto a main, controllare prima di leggere _(2026-11-26)_
